@@ -8,6 +8,12 @@ Paw is a cross platform application to manage your passwords and identities secu
 
 It is written in Go and uses [Fyne](https://github.com/fyne-io/fyne) as UI toolkit and [age](https://github.com/FiloSottile/age) as encryption library.
 
+## Screenshot
+
+<div align="center">
+    <img alt="Paw screenshot" src="screenshot.png" />
+</div>
+
 ## Main goals
 
 * Cross platform application (linux, macOS, Windows, BSD ...) with a single codebase
