@@ -43,9 +43,19 @@ go install lucor.dev/paw/cmd/paw@latest
 
 One or more vaults can be initialized to store passwords and identities.
 
-When the vault is initialized user will be prompt for a password and a vault name.
-A symmetric secret key is derived with [Scrypt](https://pkg.go.dev/golang.org/x/crypto/scrypt) using the provided password and the vault name as salt.
-The vault data is encrypted with [age](https://github.com/FiloSottile/age) using an X25519 Identity seeded with the symmetric secret key.
+When the vault is initialized user will be prompt for a vault name and password that are used for:
+- generate an [age](https://github.com/FiloSottile/age) Scrypt Identity and Recipient used to decrypt/encrypt the vault data;
+- derive a symmetric secret key with [Scrypt](https://pkg.go.dev/golang.org/x/crypto/scrypt) used as seed for the random password generation;
+
+### Random password
+
+Random password are derived reading byte-by-byte the block of randomness from a [HKDF](https://pkg.go.dev/golang.org/x/crypto/hkdf) cryptographic key derivation function that uses the seed above as secret. Printable characters that match the desired password rule (uppercase, lowercase, symbols and digits) are then included in the generated password.
+
+### Custom password
+
+Where a generated password is not applicable a custom password can be specified. 
+
+### Vault structure
 
 Vault internally is organized hierarchically like:
 ```
@@ -61,7 +71,7 @@ Vault internally is organized hierarchically like:
 
 where website, password and note are the Paw items, see the dedicated section for details.
 
-### Add an item to the vault
+### Items
 
 Items are special templates aim to help the identity management.
 
@@ -70,14 +80,6 @@ Currently the following items are available:
 - note
 - password
 - website
-
-### Generated password
-
-Generated password are derived reading byte-by-byte the block of randomness from a [HKDF](https://pkg.go.dev/golang.org/x/crypto/hkdf) cryptographic key derivation function. Printable characters that match the desired password rule (uppercase, lowercase, symbols and digits) are then included in the generated password.
-
-### Custom password
-
-In use cases where a generated password is not applicable a custom password can be specified. 
 
 ## Threat model
 
