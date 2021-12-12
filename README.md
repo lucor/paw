@@ -94,3 +94,15 @@ The threat model of Paw assumes there are no attackers on your local machine.
 ## Contributors
 
 See [contributors](https://github.com/lucor/paw/graphs/contributors) page
+
+## Credits
+
+ - [age](https://github.com/FiloSottile/age) for the encryption library
+ - [Fyne](https://github.com/fyne-io/fyne) for the UI toolkit
+
+Also thanks to these Open Source password managers that inspired Paw:
+
+- [gopass](https://github.com/gopasspw/gopass)
+- [lesspass](https://github.com/lesspass/lesspass)
+- [pass](https://www.passwordstore.org/)
+- [passgo](https://github.com/ejcx/passgo)
