@@ -57,7 +57,7 @@ func (v *Vault) FilterItems(opts *VaultFilterOptions) []Item {
 	titleFilter := opts.Title
 	itemType := opts.ItemType
 	for _, item := range v.Items {
-		if itemType != "" && itemType != item.Type() {
+		if itemType != 0 && (itemType&item.Type()) == 0 {
 			continue
 		}
 
@@ -75,5 +75,5 @@ func (v *Vault) FilterItems(opts *VaultFilterOptions) []Item {
 
 type VaultFilterOptions struct {
 	Title    string
-	ItemType string
+	ItemType ItemType
 }

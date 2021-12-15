@@ -40,8 +40,8 @@ func (n *Note) Icon() *widget.Icon {
 	return widget.NewIcon(icon.NoteOutlinedIconThemed)
 }
 
-func (n *Note) Type() string {
-	return "Note"
+func (n *Note) Type() ItemType {
+	return NoteItemType
 }
 
 func (n *Note) Edit(w fyne.Window) (fyne.CanvasObject, Item) {

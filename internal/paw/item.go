@@ -13,16 +13,33 @@ import (
 	"fyne.io/fyne/v2/widget"
 )
 
-// ItemType describes the identity type
-type ItemType string
-
-func (it ItemType) String() string {
-	return string(it)
-}
+// ItemType represents the Item type
+type ItemType int
 
 const (
-	MetadataItemType ItemType = "Metadata"
+	// MetadataItemType is the Metadata Item type
+	MetadataItemType ItemType = 1 << iota
+	// NoteItemType is the Note Item type
+	NoteItemType
+	// PasswordItemType is the Password Item type
+	PasswordItemType
+	// WebsiteItemType is the Website Item type
+	WebsiteItemType
 )
+
+func (it ItemType) String() string {
+	switch it {
+	case MetadataItemType:
+		return "Metadata"
+	case NoteItemType:
+		return "Note"
+	case PasswordItemType:
+		return "Password"
+	case WebsiteItemType:
+		return "Website"
+	}
+	return "invalid"
+}
 
 // Item wraps all methods allow to generate a password with paw
 type Item interface {
@@ -30,7 +47,7 @@ type Item interface {
 	ID() string
 
 	// Type returns a widget label that represents the identity type
-	Type() string
+	Type() ItemType
 
 	GetMetadata() *Metadata
 

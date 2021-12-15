@@ -95,8 +95,8 @@ func (p *Password) Icon() *widget.Icon {
 	return widget.NewIcon(icon.PasswordOutlinedIconThemed)
 }
 
-func (p *Password) Type() string {
-	return "Password"
+func (p *Password) Type() ItemType {
+	return PasswordItemType
 }
 
 func (p *Password) Edit(w fyne.Window) (fyne.CanvasObject, Item) {

@@ -48,8 +48,8 @@ func (website *Website) Icon() *widget.Icon {
 	return widget.NewIcon(icon.PublicOutlinedIconThemed)
 }
 
-func (website *Website) Type() string {
-	return "Website"
+func (website *Website) Type() ItemType {
+	return WebsiteItemType
 }
 
 func (website *Website) Edit(w fyne.Window) (fyne.CanvasObject, Item) {
