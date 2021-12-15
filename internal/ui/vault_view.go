@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"context"
 	"fmt"
 	"image/color"
 	"time"
@@ -8,9 +9,12 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/data/binding"
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
+
+	"lucor.dev/paw/internal/haveibeenpwned"
 	"lucor.dev/paw/internal/icon"
 	"lucor.dev/paw/internal/paw"
 )
@@ -118,24 +122,26 @@ func (vw *vaultView) makeVaultMenu() fyne.CanvasObject {
 	if len(vw.keyring.Vaults()) == 1 {
 		switchVault.Disabled = true
 	}
-	separatorVault := fyne.NewMenuItemSeparator()
+
 	lockVault := fyne.NewMenuItem("Lock Vault", func() {
 		vw.keyring.LockVault(vw.vault.Name())
 		vw.mainView.Reload()
 	})
 
+	passwordAudit := fyne.NewMenuItem("Password Audit", func() {
+		vw.setContent(vw.auditPasswordView())
+	})
+
 	menuItems := []*fyne.MenuItem{
+		passwordAudit,
+		fyne.NewMenuItemSeparator(),
 		switchVault,
-		separatorVault,
 		lockVault,
 	}
 	popUpMenu := widget.NewPopUpMenu(fyne.NewMenu("", menuItems...), vw.mainView.Window.Canvas())
 
-	button := widget.NewButtonWithIcon("", theme.MoreVerticalIcon(), func() {})
-	label := widget.NewLabel(vw.vault.Name())
-	c := container.NewBorder(nil, nil, nil, button, label)
-
-	button.OnTapped = func() {
+	var button *widget.Button
+	button = widget.NewButtonWithIcon("", theme.MoreVerticalIcon(), func() {
 		buttonPos := d.AbsolutePositionForObject(button)
 		buttonSize := button.Size()
 		popUpMin := popUpMenu.MinSize()
@@ -144,9 +150,10 @@ func (vw *vaultView) makeVaultMenu() fyne.CanvasObject {
 		popUpPos.X = buttonPos.X + buttonSize.Width - popUpMin.Width
 		popUpPos.Y = buttonPos.Y + buttonSize.Height
 		popUpMenu.ShowAtPosition(popUpPos)
-	}
+	})
 
-	return c
+	label := widget.NewLabel(vw.vault.Name())
+	return container.NewBorder(nil, nil, nil, button, label)
 }
 
 // makeSearchEntry returns the search entry used to filter the item list by name
@@ -166,15 +173,20 @@ func (vw *vaultView) makeTypeSelectEntry() *widget.Select {
 
 	options := []string{"All items"}
 
+	itemTypeMap := map[string]paw.ItemType{}
 	for _, item := range vw.makeItems() {
 		i := item
-		options = append(options, i.Type())
+		name := i.Type().String()
+		options = append(options, name)
+		itemTypeMap[name] = i.Type()
 	}
 
 	filter := widget.NewSelect(options, func(s string) {
-		v := s
+		var v paw.ItemType
 		if s == "All items" {
-			v = ""
+			v = paw.ItemType(0) // No item type will be selected
+		} else {
+			v = itemTypeMap[s]
 		}
 
 		vw.filterOptions.ItemType = v
@@ -206,7 +218,7 @@ func (vw *vaultView) makeAddItemButton() fyne.CanvasObject {
 		c := container.NewVBox()
 		for _, item := range vw.makeItems() {
 			i := item
-			o := widget.NewButtonWithIcon(i.Type(), i.(paw.FyneObject).Icon().Resource, func() {
+			o := widget.NewButtonWithIcon(i.Type().String(), i.(paw.FyneObject).Icon().Resource, func() {
 				vw.setContent(vw.editItemView(i))
 				modal.Hide()
 			})
@@ -326,4 +338,76 @@ func (vw *vaultView) editItemView(id paw.Item) fyne.CanvasObject {
 
 	bottom := container.NewBorder(bottomContent, nil, nil, deleteBtn, widget.NewLabel(""))
 	return container.NewBorder(top, bottom, nil, nil, content)
+}
+
+// auditPasswordView returns a view with the list of available vaults
+func (vw *vaultView) auditPasswordView() fyne.CanvasObject {
+
+	image := imageFromResource(icon.FactCheckOutlinedIconThemed)
+
+	heading := headingText("Password Audit")
+	heading.Alignment = fyne.TextAlignCenter
+
+	text := widget.NewLabel("Check Vault passwords against existing data breaches")
+	text.Wrapping = fyne.TextWrapWord
+	text.Alignment = fyne.TextAlignCenter
+
+	auditBtn := widget.NewButtonWithIcon("Audit", icon.FactCheckOutlinedIconThemed, func() {
+		items := vw.vault.FilterItems(&paw.VaultFilterOptions{ItemType: paw.PasswordItemType | paw.WebsiteItemType})
+
+		progressBind := binding.NewFloat()
+		progressbar := widget.NewProgressBarWithData(progressBind)
+		progressbar.TextFormatter = func() string {
+			return fmt.Sprintf("%.0f of %d", progressbar.Value, len(items))
+		}
+
+		ctx := context.Background()
+		d := dialog.NewCustom("Checking passwords...", "Cancel", progressbar, vw.mainView.Window)
+		d.SetOnClosed(func() {
+			ctx.Done()
+		})
+		d.Show()
+		pwend, err := haveibeenpwned.Search(ctx, items, progressBind)
+		if err != nil {
+			dialog.ShowError(err, vw.mainView.Window)
+			return
+		}
+		d.Hide()
+
+		num := len(pwend)
+		if num == 0 {
+			image = imageFromResource(icon.CheckCircleOutlinedIconThemed)
+			text.SetText("No password found in data breaches")
+			vw.setContent(container.NewVBox(image, heading, text))
+			return
+		}
+
+		image = imageFromResource(theme.WarningIcon())
+		text.SetText("Passwords of the items below have been found in a data breaches and should not be used")
+		list := widget.NewList(
+			func() int {
+				return len(pwend)
+			},
+			func() fyne.CanvasObject {
+				return container.NewBorder(nil, nil, widget.NewIcon(icon.PasswordOutlinedIconThemed), widget.NewButtonWithIcon("", theme.DocumentCreateIcon(), nil), widget.NewLabel("item label"))
+			},
+			func(lii widget.ListItemID, co fyne.CanvasObject) {
+				v := pwend[lii]
+				co.(*fyne.Container).Objects[0].(*widget.Label).SetText(fmt.Sprintf("%s (found %d times)", v.Item.GetMetadata().Title, v.Count))
+				co.(*fyne.Container).Objects[1].(*widget.Icon).SetResource(v.Item.(paw.FyneObject).Icon().Resource)
+				co.(*fyne.Container).Objects[2].(*widget.Button).OnTapped = func() { vw.setContent(vw.editItemView(v.Item)) }
+			},
+		)
+		list.OnSelected = func(id widget.ListItemID) {
+			v := pwend[id]
+			vw.setContent(vw.itemView(v.Item))
+		}
+
+		c := container.NewBorder(container.NewVBox(image, heading, text), nil, nil, nil, list)
+		vw.setContent(c)
+	})
+	auditBtn.Resize(auditBtn.MinSize())
+
+	empty := widget.NewLabel("")
+	return container.NewVBox(image, heading, text, container.NewGridWithColumns(3, empty, auditBtn, empty))
 }
