@@ -5,6 +5,7 @@ package haveibeenpwned
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"crypto/sha1"
 	"encoding/hex"
 	"fmt"
@@ -12,6 +13,10 @@ import (
 	"net/http"
 	"strconv"
 	"time"
+
+	"fyne.io/fyne/v2/data/binding"
+	"golang.org/x/sync/errgroup"
+	"lucor.dev/paw/internal/paw"
 )
 
 const apiURL = "https://api.pwnedpasswords.com/range/%s"
@@ -25,16 +30,54 @@ type httpClient interface {
 	Do(req *http.Request) (*http.Response, error)
 }
 
+type Pwned struct {
+	Item  paw.Item
+	Count int
+}
+
 // Search searches if the password has been exposed in data
 // breaches using the Have I Been Pwned APIs
-func Search(password string) (pwned bool, count int, err error) {
-	return hibp(defaultClient, password)
+func Search(ctx context.Context, items []paw.Item, progress binding.Float) (pwned []Pwned, err error) {
+	g, ctx := errgroup.WithContext(ctx)
+
+	for _, item := range items {
+		item := item
+		var p string
+		switch item.Type() {
+		case paw.PasswordItemType:
+			p = item.(*paw.Password).Password
+		case paw.WebsiteItemType:
+			p = item.(*paw.Website).Password.Password
+		default:
+			continue
+		}
+
+		g.Go(func() error {
+			defer func() {
+				if progress != nil {
+					progress.Set(1.0)
+				}
+			}()
+			isPwned, count, err := hibp(ctx, defaultClient, p)
+			if err != nil {
+				return err
+			}
+			if isPwned {
+				pwned = append(pwned, Pwned{Item: item, Count: count})
+			}
+			return nil
+		})
+	}
+	if err := g.Wait(); err != nil {
+		return nil, err
+	}
+	return pwned, err
 }
 
 // hibp consumes the range endpoint. It returns true if the provided password has been
 // exposed in data breaches along with a count of how many times it appears in the data set.
 // See https://haveibeenpwned.com/API/v3#PwnedPasswords
-func hibp(c httpClient, password string) (bool, int, error) {
+func hibp(ctx context.Context, c httpClient, password string) (bool, int, error) {
 	// The HIBP range endpoint takes the first 5 chars of the SHA1(password) as
 	// input and returns the suffix of every hash beginning with the specified
 	// prefix, followed by a count of how many times it appears in the data set.
@@ -48,7 +91,7 @@ func hibp(c httpClient, password string) (bool, int, error) {
 	// make uppercase to compare with API response hashes
 	phu := bytes.ToUpper(ph)
 
-	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf(apiURL, phu[0:5]), nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf(apiURL, phu[0:5]), nil)
 	if err != nil {
 		return false, 0, err
 	}
