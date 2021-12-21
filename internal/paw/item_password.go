@@ -1,6 +1,7 @@
 package paw
 
 import (
+	"context"
 	"encoding/gob"
 	"fmt"
 	"log"
@@ -95,11 +96,11 @@ func (p *Password) Icon() *widget.Icon {
 	return widget.NewIcon(icon.PasswordOutlinedIconThemed)
 }
 
-func (p *Password) Type() string {
-	return "Password"
+func (p *Password) Type() ItemType {
+	return PasswordItemType
 }
 
-func (p *Password) Edit(w fyne.Window) (fyne.CanvasObject, Item) {
+func (p *Password) Edit(ctx context.Context, w fyne.Window) (fyne.CanvasObject, Item) {
 
 	item := *p
 	passwordBind := binding.BindString(&item.Password)
@@ -150,7 +151,7 @@ func (p *Password) Edit(w fyne.Window) (fyne.CanvasObject, Item) {
 	return form, &item
 }
 
-func (p *Password) Show(w fyne.Window) fyne.CanvasObject {
+func (p *Password) Show(ctx context.Context, w fyne.Window) fyne.CanvasObject {
 	obj := titleRow(p.Icon(), p.Title)
 	obj = append(obj, copiablePasswordRow("Password", p.Password, w)...)
 	obj = append(obj, copiableRow("Note", p.Note, w)...)

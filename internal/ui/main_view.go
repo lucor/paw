@@ -74,7 +74,7 @@ func (mw *mainView) makeMainMenu() *fyne.MainMenu {
 			link.Alignment = fyne.TextAlignCenter
 			co := container.NewCenter(
 				container.NewVBox(
-					pawLogo(64, 64),
+					pawLogo(),
 					l,
 					link,
 				),
@@ -112,7 +112,7 @@ func (mw *mainView) buildMainView() fyne.CanvasObject {
 // initVaultView returns the view used to create the first vault
 func (mw *mainView) initVaultView() fyne.CanvasObject {
 
-	logo := pawLogo(64, 64)
+	logo := pawLogo()
 
 	heading := headingText("Welcome to Paw")
 	heading.Alignment = fyne.TextAlignCenter
@@ -141,7 +141,7 @@ func (mw *mainView) createVaultView() fyne.CanvasObject {
 	heading := headingText("Create a new Vault")
 	heading.Alignment = fyne.TextAlignCenter
 
-	logo := pawLogo(64, 64)
+	logo := pawLogo()
 
 	name := widget.NewEntry()
 	name.SetPlaceHolder("Name")
@@ -184,7 +184,7 @@ func (mw *mainView) vaultListView() fyne.CanvasObject {
 	heading := headingText("Choose a Vault")
 	heading.Alignment = fyne.TextAlignCenter
 
-	logo := pawLogo(64, 64)
+	logo := pawLogo()
 
 	c := container.NewVBox(logo, heading)
 
@@ -206,7 +206,7 @@ func (mw *mainView) vaultListView() fyne.CanvasObject {
 
 // unlockVaultView returns the view used to unlock a vault
 func (mw *mainView) unlockVaultView(name string) fyne.CanvasObject {
-	logo := pawLogo(64, 64)
+	logo := pawLogo()
 
 	msg := fmt.Sprintf("Vault %q is locked", name)
 	heading := headingText(msg)
@@ -247,9 +247,13 @@ func headingText(text string) *canvas.Text {
 }
 
 // logo returns the Paw logo as a canvas image with the specified dimensions
-func pawLogo(width float32, height float32) *canvas.Image {
-	img := canvas.NewImageFromResource(icon.PawIcon)
+func pawLogo() *canvas.Image {
+	return imageFromResource(icon.PawIcon)
+}
+
+func imageFromResource(resource fyne.Resource) *canvas.Image {
+	img := canvas.NewImageFromResource(resource)
 	img.FillMode = canvas.ImageFillContain
-	img.SetMinSize(fyne.NewSize(width, height))
+	img.SetMinSize(fyne.NewSize(64, 64))
 	return img
 }

@@ -45,14 +45,6 @@ func TestRule(t *testing.T) {
 			},
 			wantTemplate: "0123456789",
 		},
-		{
-			name: "specify format twice should not affect template",
-			args: args{
-				Length:  9,
-				formats: DigitsFormat | DigitsFormat,
-			},
-			wantTemplate: "0123456789",
-		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

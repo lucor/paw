@@ -1,6 +1,7 @@
 package paw
 
 import (
+	"context"
 	"encoding/gob"
 	"fmt"
 	"strings"
@@ -40,11 +41,11 @@ func (n *Note) Icon() *widget.Icon {
 	return widget.NewIcon(icon.NoteOutlinedIconThemed)
 }
 
-func (n *Note) Type() string {
-	return "Note"
+func (n *Note) Type() ItemType {
+	return NoteItemType
 }
 
-func (n *Note) Edit(w fyne.Window) (fyne.CanvasObject, Item) {
+func (n *Note) Edit(ctx context.Context, w fyne.Window) (fyne.CanvasObject, Item) {
 	item := *n
 	titleEntry := widget.NewEntryWithData(binding.BindString(&item.Title))
 	titleEntry.Validator = nil
@@ -63,7 +64,7 @@ func (n *Note) Edit(w fyne.Window) (fyne.CanvasObject, Item) {
 	return form, &item
 }
 
-func (n *Note) Show(w fyne.Window) fyne.CanvasObject {
+func (n *Note) Show(ctx context.Context, w fyne.Window) fyne.CanvasObject {
 	obj := titleRow(n.Icon(), n.Title)
 	obj = append(obj, copiableRow("Note", n.Note, w)...)
 	return container.New(
