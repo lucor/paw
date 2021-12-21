@@ -14,27 +14,39 @@ It is written in Go and uses [Fyne](https://github.com/fyne-io/fyne) as UI toolk
     <img alt="Paw screenshot" src="screenshot.png" />
 </div>
 
-## Main goals
+## Main features
 
 * Cross platform application (linux, macOS, Windows, BSD ...) with a single codebase
+* Minimal direct dependencies
 * Open source: code can be audited
 * Only one secret key to remember used to store securely your passwords
+* Audit passwords against data breaches
+* TOTP support
 
 ### Later goals
 
-* Audit passwords against data breach
 * Automatically detect and use password rules for known web sites that require ones
 * Automatic backup / syncronization
 * CLI application
 * Mobile / Web applications
-* Password import
+* Password import/export
 * Stateless password derivation support
 * Unicode password support
 
 ## Installation
 
+### Stable version
+
 ```
 go install lucor.dev/paw/cmd/paw@latest
+```
+
+### Development version
+
+To try the development version or help with testing:
+
+```
+go install lucor.dev/paw/cmd/paw@develop
 ```
 
 ## How it works - cryptography details
