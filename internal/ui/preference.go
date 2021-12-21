@@ -11,6 +11,10 @@ const (
 	passwordMinLength = 8
 	passwordMaxLength = 120
 	passwordFormat    = paw.LowercaseFormat | paw.DigitsFormat | paw.SymbolsFormat | paw.UppercaseFormat
+
+	totpHASH     = paw.DefaultTOTPHash
+	totpDigits   = paw.DefaultTOTPDigits
+	totpInterval = paw.DefaultTOTPInterval
 )
 
 func PasswordLength() int {
@@ -57,4 +61,28 @@ func defaultPasswordOptions() paw.PasswordOptions {
 		MinLength:     PasswordMinLength(),
 		MaxLength:     PasswordMaxLength(),
 	}
+}
+
+func TOTPDigits() int {
+	return fyne.CurrentApp().Preferences().IntWithFallback("totp_digits", totpDigits)
+}
+
+func SetTOTPDigits(digits int) {
+	fyne.CurrentApp().Preferences().SetInt("totp_digits", totpDigits)
+}
+
+func TOTPHash() string {
+	return fyne.CurrentApp().Preferences().StringWithFallback("totp_string", string(totpHASH))
+}
+
+func SetTOTPHash(len int) {
+	fyne.CurrentApp().Preferences().SetString("totp_string", string(totpHASH))
+}
+
+func TOTPInverval() int {
+	return fyne.CurrentApp().Preferences().IntWithFallback("totp_interval", totpInterval)
+}
+
+func SetTOTPInverval(interval int) {
+	fyne.CurrentApp().Preferences().SetInt("totp_interval", totpInterval)
 }

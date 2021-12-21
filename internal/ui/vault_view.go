@@ -22,6 +22,8 @@ import (
 type vaultView struct {
 	widget.BaseWidget
 
+	cancelCtx context.CancelFunc
+
 	mainView      *mainView
 	keyring       *keyring
 	vault         *paw.Vault
@@ -56,8 +58,8 @@ func newVaultView(name string, mw *mainView, kr *keyring) *vaultView {
 	vw.addItemButton = vw.makeAddItemButton()
 
 	vw.itemsWidget = newItemsWidget(vw.vault, vw.filterOptions)
-	vw.itemsWidget.OnSelected = func(i paw.Item) {
-		vw.setContent(vw.itemView(i))
+	vw.itemsWidget.OnSelected = func(item paw.Item) {
+		vw.setContentItem(item, vw.itemView)
 	}
 	vw.typeSelectEntry = vw.makeTypeSelectEntry()
 	vw.content = container.NewMax(vw.defaultContent())
@@ -94,8 +96,24 @@ func (vw *vaultView) defaultContent() fyne.CanvasObject {
 	return container.NewCenter(img)
 }
 
+// setContent sets the content view for an Item action (i.e. view or edit) and handle the context view (creation and cancellation)
+func (vw *vaultView) setContentItem(item paw.Item, f func(context.Context, paw.Item) fyne.CanvasObject) {
+	if vw.cancelCtx != nil {
+		vw.cancelCtx()
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	vw.cancelCtx = cancel
+	o := f(ctx, item)
+	vw.content.Objects = []fyne.CanvasObject{o}
+	vw.content.Refresh()
+}
+
 // setContent sets the content view with the provided object and refresh
 func (vw *vaultView) setContent(o fyne.CanvasObject) {
+	if vw.cancelCtx != nil {
+		vw.cancelCtx()
+	}
+	vw.cancelCtx = nil
 	vw.content.Objects = []fyne.CanvasObject{o}
 	vw.content.Refresh()
 }
@@ -202,10 +220,15 @@ func (vw *vaultView) makeTypeSelectEntry() *widget.Select {
 func (vw *vaultView) makeItems() []paw.Item {
 	secretMaker := vw.vault.Key()
 	password := paw.NewPassword(secretMaker, defaultPasswordOptions())
+	totp := &paw.TOTP{
+		Digits:   TOTPDigits(),
+		Hash:     paw.TOTPHash(TOTPHash()),
+		Interval: TOTPInverval(),
+	}
 	return []paw.Item{
 		paw.NewNote(),
 		password,
-		paw.NewWebsite(password),
+		paw.NewWebsite(password, totp),
 	}
 }
 
@@ -219,7 +242,7 @@ func (vw *vaultView) makeAddItemButton() fyne.CanvasObject {
 		for _, item := range vw.makeItems() {
 			i := item
 			o := widget.NewButtonWithIcon(i.Type().String(), i.(paw.FyneObject).Icon().Resource, func() {
-				vw.setContent(vw.editItemView(i))
+				vw.setContentItem(i, vw.editItemView)
 				modal.Hide()
 			})
 			o.Alignment = widget.ButtonAlignLeading
@@ -239,32 +262,31 @@ func (vw *vaultView) makeAddItemButton() fyne.CanvasObject {
 }
 
 // itemView returns the view that displays the item's content along with the allowed actions
-func (vw *vaultView) itemView(id paw.Item) fyne.CanvasObject {
-
+func (vw *vaultView) itemView(ctx context.Context, item paw.Item) fyne.CanvasObject {
 	editBtn := widget.NewButtonWithIcon("Edit", theme.DocumentCreateIcon(), func() {
-		vw.setContent(vw.editItemView(id))
+		vw.setContentItem(item, vw.editItemView)
 	})
 	top := container.NewBorder(nil, nil, nil, editBtn, widget.NewLabel(""))
 
-	content := id.(paw.FyneObject).Show(vw.mainView.Window)
-	bottom := id.(paw.FyneObject).InfoUI()
+	content := item.(paw.FyneObject).Show(ctx, vw.mainView.Window)
+	bottom := item.(paw.FyneObject).InfoUI()
 
 	return container.NewBorder(top, bottom, nil, nil, content)
 }
 
 // editItemView returns the view that allow to edit an item
-func (vw *vaultView) editItemView(id paw.Item) fyne.CanvasObject {
-
+func (vw *vaultView) editItemView(ctx context.Context, item paw.Item) fyne.CanvasObject {
 	cancelBtn := widget.NewButtonWithIcon("Cancel", theme.CancelIcon(), func() {
-		if id.GetMetadata().Created.IsZero() {
+		vw.cancelCtx()
+		if item.GetMetadata().Created.IsZero() {
 			vw.setContent(vw.defaultContent())
 			return
 		}
-		vw.setContent(vw.itemView(id))
+		vw.setContentItem(item, vw.itemView)
 	})
 
 	var fo paw.FyneObject
-	switch v := id.(type) {
+	switch v := item.(type) {
 	case (*paw.Password):
 		v.SetOptions(defaultPasswordOptions())
 		v.SetSecretMaker(vw.vault.Key())
@@ -277,9 +299,9 @@ func (vw *vaultView) editItemView(id paw.Item) fyne.CanvasObject {
 		fo = v.(paw.FyneObject)
 	}
 
-	content, editID := fo.Edit(vw.mainView.Window)
+	content, editItem := fo.Edit(ctx, vw.mainView.Window)
 	saveBtn := widget.NewButtonWithIcon("Save", theme.DocumentSaveIcon(), func() {
-		metadata := editID.GetMetadata()
+		metadata := editItem.GetMetadata()
 
 		// TODO: update to use the built-in entry validation
 		if metadata.Title == "" {
@@ -287,7 +309,7 @@ func (vw *vaultView) editItemView(id paw.Item) fyne.CanvasObject {
 			d.Show()
 			return
 		}
-		if metadata.Created.IsZero() && vw.vault.Item(editID.ID()) != nil {
+		if metadata.Created.IsZero() && vw.vault.Item(editItem.ID()) != nil {
 			msg := fmt.Sprintf("An item with the name %q already exists", metadata.Title)
 			d := dialog.NewInformation("", msg, vw.mainView.Window)
 			d.Show()
@@ -295,19 +317,19 @@ func (vw *vaultView) editItemView(id paw.Item) fyne.CanvasObject {
 		}
 
 		metadata.Modified = time.Now()
-		if metadata.Created.IsZero() || id.ID() != editID.ID() {
+		if metadata.Created.IsZero() || item.ID() != editItem.ID() {
 			metadata.Created = time.Now()
 		}
 
-		vw.vault.SetItem(editID)
+		vw.vault.SetItem(editItem)
 		vw.keyring.StoreVault(vw.vault)
 
-		if id.ID() != editID.ID() {
-			vw.itemsWidget.Reload(editID, vw.filterOptions)
+		if item.ID() != editItem.ID() {
+			vw.itemsWidget.Reload(editItem, vw.filterOptions)
 		}
 
-		id = editID
-		vw.setContent(vw.itemView(id))
+		item = editItem
+		vw.setContentItem(item, vw.itemView)
 		vw.Reload()
 
 	})
@@ -318,13 +340,13 @@ func (vw *vaultView) editItemView(id paw.Item) fyne.CanvasObject {
 	// elements should not be displayed on create but only on edit
 	var bottomContent fyne.CanvasObject
 	var deleteBtn fyne.CanvasObject
-	if !id.GetMetadata().Created.IsZero() {
-		bottomContent = id.(paw.FyneObject).InfoUI()
+	if !item.GetMetadata().Created.IsZero() {
+		bottomContent = item.(paw.FyneObject).InfoUI()
 		button := widget.NewButtonWithIcon("Delete", theme.DeleteIcon(), func() {
-			msg := widget.NewLabel(fmt.Sprintf("Are you sure you want to delete %q?", id.String()))
+			msg := widget.NewLabel(fmt.Sprintf("Are you sure you want to delete %q?", item.String()))
 			d := dialog.NewCustomConfirm("", "Delete", "Cancel", msg, func(b bool) {
 				if b {
-					vw.vault.DeleteItem(editID)
+					vw.vault.DeleteItem(editItem)
 					vw.keyring.StoreVault(vw.vault)
 					vw.itemsWidget.Reload(nil, vw.filterOptions)
 					vw.setContent(vw.defaultContent())
@@ -361,10 +383,10 @@ func (vw *vaultView) auditPasswordView() fyne.CanvasObject {
 			return fmt.Sprintf("%.0f of %d", progressbar.Value, len(items))
 		}
 
-		ctx := context.Background()
+		ctx, cancel := context.WithCancel(context.Background())
 		d := dialog.NewCustom("Checking passwords...", "Cancel", progressbar, vw.mainView.Window)
 		d.SetOnClosed(func() {
-			ctx.Done()
+			cancel()
 		})
 		d.Show()
 		pwend, err := haveibeenpwned.Search(ctx, items, progressBind)
@@ -395,12 +417,14 @@ func (vw *vaultView) auditPasswordView() fyne.CanvasObject {
 				v := pwend[lii]
 				co.(*fyne.Container).Objects[0].(*widget.Label).SetText(fmt.Sprintf("%s (found %d times)", v.Item.GetMetadata().Title, v.Count))
 				co.(*fyne.Container).Objects[1].(*widget.Icon).SetResource(v.Item.(paw.FyneObject).Icon().Resource)
-				co.(*fyne.Container).Objects[2].(*widget.Button).OnTapped = func() { vw.setContent(vw.editItemView(v.Item)) }
+				co.(*fyne.Container).Objects[2].(*widget.Button).OnTapped = func() {
+					vw.setContentItem(v.Item, vw.editItemView)
+				}
 			},
 		)
 		list.OnSelected = func(id widget.ListItemID) {
 			v := pwend[id]
-			vw.setContent(vw.itemView(v.Item))
+			vw.setContentItem(v.Item, vw.itemView)
 		}
 
 		c := container.NewBorder(container.NewVBox(image, heading, text), nil, nil, nil, list)

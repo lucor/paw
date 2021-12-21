@@ -1,6 +1,7 @@
 package paw
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -59,9 +60,9 @@ type FyneObject interface {
 	// Type returns a widget icon for the identity type
 	Icon() *widget.Icon
 	// Show returns a fyne CanvasObject used to view the identity
-	Show(w fyne.Window) fyne.CanvasObject
+	Show(ctx context.Context, w fyne.Window) fyne.CanvasObject
 	// Edit returns a fyne CanvasObject used to edit the identity
-	Edit(w fyne.Window) (fyne.CanvasObject, Item)
+	Edit(ctx context.Context, w fyne.Window) (fyne.CanvasObject, Item)
 	//
 	InfoUI() fyne.CanvasObject
 }
