@@ -1,10 +1,10 @@
 # Changelog - Paw
 
-## Unreleased
+## 0.11.0 - 28 December 2021
 
 > This release updates the internal storage, so previous versions won't be compatible.
 
-- storage: items are now stored into dedicated age files
+- paw: items are now stored into dedicated age files
 - paw,ui: add passphrase support #15
 - paw,ui: add pin password support
 
