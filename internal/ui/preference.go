@@ -113,28 +113,6 @@ func SetPassphrasePasswordMaxLength(len int) {
 	fyne.CurrentApp().Preferences().SetInt("passphrase_password_max_length", passphrasePasswordMaxLength)
 }
 
-func defaultPasswordOptions() paw.PasswordOptions {
-	return paw.PasswordOptions{
-		RandomPasswordOptions: paw.RandomPasswordOptions{
-			DefaultFormat: RandomPasswordDefaultFormat(),
-			DefaultMode:   paw.CustomPassword,
-			DefaultLength: RandomPasswordDefaultLength(),
-			MinLength:     RandomPasswordMinLength(),
-			MaxLength:     RandomPasswordMaxLength(),
-		},
-		PinPasswordOptions: paw.PinPasswordOptions{
-			DefaultLength: PinPasswordDefaultLength(),
-			MinLength:     PinPasswordMinLength(),
-			MaxLength:     PinPasswordMaxLength(),
-		},
-		PassphrasePasswordOptions: paw.PassphrasePasswordOptions{
-			DefaultLength: PassphrasePasswordDefaultLength(),
-			MinLength:     PassphrasePasswordMinLength(),
-			MaxLength:     PassphrasePasswordMaxLength(),
-		},
-	}
-}
-
 // TOTP Password options
 
 func TOTPDigits() int {

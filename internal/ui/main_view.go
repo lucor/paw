@@ -16,27 +16,31 @@ import (
 	"fyne.io/fyne/v2/widget"
 
 	"lucor.dev/paw/internal/icon"
+	"lucor.dev/paw/internal/paw"
 )
 
 // mainView represents the Paw main view
 type mainView struct {
 	fyne.Window
 
-	keyring *keyring
+	storage *paw.Storage
+
+	unlockedVault map[string]*paw.Vault // this act as cache
 
 	view *fyne.Container
 }
 
 // Make returns the fyne user interface
 func Make(a fyne.App, w fyne.Window) fyne.CanvasObject {
-	kr, err := newKeyring(a.Storage())
+	s, err := paw.NewStorage(a.Storage())
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	mw := &mainView{
-		Window:  w,
-		keyring: kr,
+		Window:        w,
+		storage:       s,
+		unlockedVault: make(map[string]*paw.Vault),
 	}
 
 	mw.view = container.NewMax(mw.buildMainView())
@@ -54,7 +58,12 @@ func (mw *mainView) makeMainMenu() *fyne.MainMenu {
 	switchItem := fyne.NewMenuItem("Switch Vault", func() {
 		mw.Reload()
 	})
-	if len(mw.keyring.Vaults()) <= 1 {
+
+	vaults, err := mw.storage.Vaults()
+	if err != nil {
+		log.Fatal(err)
+	}
+	if len(vaults) <= 1 {
 		switchItem.Disabled = true
 	}
 	fileMenu.Items = append(fileMenu.Items, switchItem)
@@ -97,7 +106,10 @@ func (mw *mainView) Reload() {
 
 func (mw *mainView) buildMainView() fyne.CanvasObject {
 	var view fyne.CanvasObject
-	vaults := mw.keyring.Vaults()
+	vaults, err := mw.storage.Vaults()
+	if err != nil {
+		log.Fatal(err)
+	}
 	switch len(vaults) {
 	case 0:
 		view = mw.initVaultView()
@@ -120,20 +132,26 @@ func (mw *mainView) initVaultView() fyne.CanvasObject {
 	name := widget.NewEntry()
 	name.SetPlaceHolder("Name")
 
-	secret := widget.NewPasswordEntry()
-	secret.SetPlaceHolder("Password")
+	password := widget.NewPasswordEntry()
+	password.SetPlaceHolder("Password")
 
 	btn := widget.NewButton("Create Vault", func() {
-		vault, err := mw.keyring.CreateVault(name.Text, secret.Text)
+		key, err := paw.NewKey(name.Text, password.Text)
 		if err != nil {
 			dialog.ShowError(err, mw.Window)
 			return
 		}
-		mw.view.Objects[0] = mw.vaultView(vault.Name())
+		vault, err := mw.storage.CreateVault(key, name.Text)
+		if err != nil {
+			dialog.ShowError(err, mw.Window)
+			return
+		}
+		mw.unlockedVault[name.Text] = vault
+		mw.view.Objects[0] = newVaultView(mw, vault)
 	})
 	btn.Importance = widget.HighImportance
 
-	return container.NewCenter(container.NewVBox(logo, heading, name, secret, btn))
+	return container.NewCenter(container.NewVBox(logo, heading, name, password, btn))
 }
 
 // initVaultView returns the view used to create the first vault
@@ -161,12 +179,18 @@ func (mw *mainView) createVaultView() fyne.CanvasObject {
 			d.Show()
 			return
 		}
-		vault, err := mw.keyring.CreateVault(name.Text, password.Text)
+		key, err := paw.NewKey(name.Text, password.Text)
 		if err != nil {
 			dialog.ShowError(err, mw.Window)
 			return
 		}
-		mw.view.Objects[0] = mw.vaultView(vault.Name())
+		vault, err := mw.storage.CreateVault(key, name.Text)
+		if err != nil {
+			dialog.ShowError(err, mw.Window)
+			return
+		}
+		mw.unlockedVault[name.Text] = vault
+		mw.view.Objects[0] = newVaultView(mw, vault)
 		mw.SetMainMenu(mw.makeMainMenu())
 	})
 	createButton.Importance = widget.HighImportance
@@ -188,14 +212,18 @@ func (mw *mainView) vaultListView() fyne.CanvasObject {
 
 	c := container.NewVBox(logo, heading)
 
-	for _, v := range mw.keyring.Vaults() {
+	vaults, err := mw.storage.Vaults()
+	if err != nil {
+		log.Fatal(err)
+	}
+	for _, v := range vaults {
 		name := v
 		resource := icon.LockOpenOutlinedIconThemed
-		if mw.keyring.IsLockedVault(name) {
+		if _, ok := mw.unlockedVault[name]; !ok {
 			resource = icon.LockOutlinedIconThemed
 		}
 		btn := widget.NewButtonWithIcon(name, resource, func() {
-			mw.view.Objects[0] = mw.vaultView(name)
+			mw.view.Objects[0] = mw.vaultViewByName(name)
 		})
 		btn.Alignment = widget.ButtonAlignLeading
 		c.Add(btn)
@@ -211,11 +239,16 @@ func (mw *mainView) unlockVaultView(name string) fyne.CanvasObject {
 	msg := fmt.Sprintf("Vault %q is locked", name)
 	heading := headingText(msg)
 
-	secret := widget.NewPasswordEntry()
-	secret.SetPlaceHolder("Password")
+	password := widget.NewPasswordEntry()
+	password.SetPlaceHolder("Password")
 
 	unlockBtn := widget.NewButtonWithIcon("Unlock", icon.LockOpenOutlinedIconThemed, func() {
-		_, err := mw.keyring.UnlockVault(name, secret.Text)
+		key, err := paw.NewKey(name, password.Text)
+		if err != nil {
+			dialog.ShowError(err, mw.Window)
+			return
+		}
+		vault, err := mw.storage.LoadVault(key, name)
 		if err != nil {
 			var invalidPasswordError *age.NoIdentityMatchError
 			if errors.As(err, &invalidPasswordError) {
@@ -224,18 +257,25 @@ func (mw *mainView) unlockVaultView(name string) fyne.CanvasObject {
 			dialog.ShowError(err, mw.Window)
 			return
 		}
-		mw.view.Objects[0] = mw.vaultView(name)
+		mw.unlockedVault[name] = vault
+		mw.view.Objects[0] = newVaultView(mw, vault)
 	})
 
-	return container.NewCenter(container.NewVBox(logo, heading, secret, unlockBtn))
+	return container.NewCenter(container.NewVBox(logo, heading, password, unlockBtn))
 }
 
 // vaultView returns the view used to handle a vault
-func (mw *mainView) vaultView(name string) fyne.CanvasObject {
-	if mw.keyring.IsLockedVault(name) {
+func (mw *mainView) vaultViewByName(name string) fyne.CanvasObject {
+	vault, ok := mw.unlockedVault[name]
+	if !ok {
 		return mw.unlockVaultView(name)
 	}
-	return newVaultView(name, mw, mw.keyring)
+	return newVaultView(mw, vault)
+}
+
+func (mw *mainView) LockVault(name string) {
+	delete(mw.unlockedVault, name)
+	mw.Reload()
 }
 
 // headingText returns a text formatted as heading

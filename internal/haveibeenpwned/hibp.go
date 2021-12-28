@@ -41,13 +41,16 @@ func Search(ctx context.Context, items []paw.Item, progress binding.Float) (pwne
 	g, ctx := errgroup.WithContext(ctx)
 
 	for _, item := range items {
-		item := item
+		meta := item.GetMetadata()
+		if meta == nil {
+			continue
+		}
 		var p string
-		switch item.Type() {
+		switch meta.Type {
 		case paw.PasswordItemType:
-			p = item.(*paw.Password).Password
+			p = item.(*paw.Password).Value
 		case paw.WebsiteItemType:
-			p = item.(*paw.Website).Password.Password
+			p = item.(*paw.Website).Password.Value
 		default:
 			continue
 		}
