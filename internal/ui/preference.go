@@ -7,61 +7,135 @@ import (
 )
 
 const (
-	passwordLength    = 16
-	passwordMinLength = 8
-	passwordMaxLength = 120
-	passwordFormat    = paw.LowercaseFormat | paw.DigitsFormat | paw.SymbolsFormat | paw.UppercaseFormat
+	randomPasswordDefaultLength     = 16
+	randomPasswordMinLength         = 8
+	randomPasswordMaxLength         = 120
+	randomPasswordFormat            = paw.LowercaseFormat | paw.DigitsFormat | paw.SymbolsFormat | paw.UppercaseFormat
+	pinPasswordDefaultLength        = 4
+	pinPasswordMinLength            = 3
+	pinPasswordMaxLength            = 10
+	passphrasePasswordDefaultLength = 4
+	passphrasePasswordMinLength     = 3
+	passphrasePasswordMaxLength     = 12
 
 	totpHASH     = paw.DefaultTOTPHash
 	totpDigits   = paw.DefaultTOTPDigits
 	totpInterval = paw.DefaultTOTPInterval
 )
 
-func PasswordLength() int {
-	return fyne.CurrentApp().Preferences().IntWithFallback("password_length", passwordLength)
-}
+// Random Password options
 
-func SetPasswordLength(len int) {
-	fyne.CurrentApp().Preferences().SetInt("password_length", passwordLength)
-}
-
-func PasswordFormat() paw.Format {
-	f := fyne.CurrentApp().Preferences().Int("password_format")
+func RandomPasswordDefaultFormat() paw.Format {
+	f := fyne.CurrentApp().Preferences().Int("random_password_default_format")
 	if f == 0 {
-		return passwordFormat
+		return randomPasswordFormat
 	}
 	return paw.Format(f)
 }
 
-func SetPasswordFormat(format paw.Format) {
-	fyne.CurrentApp().Preferences().SetInt("password_format", int(format))
+func SetRandomPasswordDefaultFormat(format paw.Format) {
+	fyne.CurrentApp().Preferences().SetInt("random_password_default_format", int(format))
 }
 
-func PasswordMinLength() int {
-	return fyne.CurrentApp().Preferences().IntWithFallback("password_min_length", passwordMinLength)
+func RandomPasswordDefaultLength() int {
+	return fyne.CurrentApp().Preferences().IntWithFallback("random_password_default_length", randomPasswordDefaultLength)
 }
 
-func SetPasswordMinLength(len int) {
-	fyne.CurrentApp().Preferences().SetInt("password_min_length", passwordMinLength)
+func SetRandomPasswordDefaultLength(len int) {
+	fyne.CurrentApp().Preferences().SetInt("random_password_default_length", randomPasswordDefaultLength)
 }
 
-func PasswordMaxLength() int {
-	return fyne.CurrentApp().Preferences().IntWithFallback("password_max_length", passwordMaxLength)
+func RandomPasswordMinLength() int {
+	return fyne.CurrentApp().Preferences().IntWithFallback("random_password_min_length", randomPasswordMinLength)
 }
 
-func SetPasswordMaxLength(len int) {
-	fyne.CurrentApp().Preferences().SetInt("password_max_length", passwordMaxLength)
+func SetRandomPasswordMinLength(len int) {
+	fyne.CurrentApp().Preferences().SetInt("random_password_min_length", randomPasswordMinLength)
+}
+
+func RandomPasswordMaxLength() int {
+	return fyne.CurrentApp().Preferences().IntWithFallback("random_password_max_length", randomPasswordMaxLength)
+}
+
+func SetRandomPasswordMaxLength(len int) {
+	fyne.CurrentApp().Preferences().SetInt("random_password_max_length", randomPasswordMaxLength)
+}
+
+// Pin Password options
+
+func PinPasswordDefaultLength() int {
+	return fyne.CurrentApp().Preferences().IntWithFallback("pin_password_default_length", pinPasswordDefaultLength)
+}
+
+func SetPinPasswordDefaultLength(len int) {
+	fyne.CurrentApp().Preferences().SetInt("pin_password_default_length", pinPasswordDefaultLength)
+}
+
+func PinPasswordMinLength() int {
+	return fyne.CurrentApp().Preferences().IntWithFallback("pin_password_min_length", pinPasswordMinLength)
+}
+
+func SetPinPasswordMinLength(len int) {
+	fyne.CurrentApp().Preferences().SetInt("pin_password_min_length", pinPasswordMinLength)
+}
+
+func PinPasswordMaxLength() int {
+	return fyne.CurrentApp().Preferences().IntWithFallback("pin_password_max_length", pinPasswordMaxLength)
+}
+
+func SetPinPasswordMaxLength(len int) {
+	fyne.CurrentApp().Preferences().SetInt("pin_password_max_length", pinPasswordMaxLength)
+}
+
+// Passphrase Password options
+
+func PassphrasePasswordDefaultLength() int {
+	return fyne.CurrentApp().Preferences().IntWithFallback("passphrase_password_default_length", passphrasePasswordDefaultLength)
+}
+
+func SetPassphrasePasswordDefaultLength(len int) {
+	fyne.CurrentApp().Preferences().SetInt("passphrase_password_default_length", passphrasePasswordDefaultLength)
+}
+
+func PassphrasePasswordMinLength() int {
+	return fyne.CurrentApp().Preferences().IntWithFallback("passphrase_password_min_length", passphrasePasswordMinLength)
+}
+
+func SetPassphrasePasswordMinLength(len int) {
+	fyne.CurrentApp().Preferences().SetInt("passphrase_password_min_length", passphrasePasswordMinLength)
+}
+
+func PassphrasePasswordMaxLength() int {
+	return fyne.CurrentApp().Preferences().IntWithFallback("passphrase_password_max_length", passphrasePasswordMaxLength)
+}
+
+func SetPassphrasePasswordMaxLength(len int) {
+	fyne.CurrentApp().Preferences().SetInt("passphrase_password_max_length", passphrasePasswordMaxLength)
 }
 
 func defaultPasswordOptions() paw.PasswordOptions {
 	return paw.PasswordOptions{
-		DefaultFormat: PasswordFormat(),
-		DefaultMode:   paw.CustomPassword,
-		DefaultLength: PasswordLength(),
-		MinLength:     PasswordMinLength(),
-		MaxLength:     PasswordMaxLength(),
+		RandomPasswordOptions: paw.RandomPasswordOptions{
+			DefaultFormat: RandomPasswordDefaultFormat(),
+			DefaultMode:   paw.CustomPassword,
+			DefaultLength: RandomPasswordDefaultLength(),
+			MinLength:     RandomPasswordMinLength(),
+			MaxLength:     RandomPasswordMaxLength(),
+		},
+		PinPasswordOptions: paw.PinPasswordOptions{
+			DefaultLength: PinPasswordDefaultLength(),
+			MinLength:     PinPasswordMinLength(),
+			MaxLength:     PinPasswordMaxLength(),
+		},
+		PassphrasePasswordOptions: paw.PassphrasePasswordOptions{
+			DefaultLength: PassphrasePasswordDefaultLength(),
+			MinLength:     PassphrasePasswordMinLength(),
+			MaxLength:     PassphrasePasswordMaxLength(),
+		},
 	}
 }
+
+// TOTP Password options
 
 func TOTPDigits() int {
 	return fyne.CurrentApp().Preferences().IntWithFallback("totp_digits", totpDigits)

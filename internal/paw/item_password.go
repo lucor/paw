@@ -16,6 +16,7 @@ import (
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
+	"lucor.dev/paw/internal/age"
 	"lucor.dev/paw/internal/icon"
 )
 
@@ -32,10 +33,11 @@ var _ FyneObject = (*Password)(nil)
 type PasswordMode uint32
 
 const (
-	CustomPassword    PasswordMode = 0
-	RandomPassword    PasswordMode = 1
-	StatelessPassword PasswordMode = 2
-	PinPassword       PasswordMode = 3
+	CustomPassword     PasswordMode = 0
+	RandomPassword     PasswordMode = 1
+	PassphrasePassword PasswordMode = 2
+	PinPassword        PasswordMode = 3
+	StatelessPassword  PasswordMode = 4
 )
 
 func (pm PasswordMode) String() string {
@@ -48,6 +50,8 @@ func (pm PasswordMode) String() string {
 		return "Stateless"
 	case PinPassword:
 		return "Pin"
+	case PassphrasePassword:
+		return "Passphrase"
 	}
 	return fmt.Sprintf("Unknown password mode (%d)", pm)
 }
@@ -66,6 +70,25 @@ type Password struct {
 }
 
 type PasswordOptions struct {
+	DefaultMode PasswordMode
+	PassphrasePasswordOptions
+	PinPasswordOptions
+	RandomPasswordOptions
+}
+
+type PassphrasePasswordOptions struct {
+	DefaultLength int
+	MinLength     int
+	MaxLength     int
+}
+
+type PinPasswordOptions struct {
+	DefaultLength int
+	MinLength     int
+	MaxLength     int
+}
+
+type RandomPasswordOptions struct {
 	DefaultFormat Format
 	DefaultMode   PasswordMode
 	DefaultLength int
@@ -132,8 +155,11 @@ func (p *Password) Edit(ctx context.Context, w fyne.Window) (fyne.CanvasObject, 
 		d := dialog.NewCustomConfirm("Generate password", "Ok", "Cancel", copy.makePasswordDialog(), func(b bool) {
 			if b {
 				passwordBind.Set(copy.Password)
+				item.Mode = copy.Mode
 			}
 		}, w)
+
+		d.Resize(fyne.NewSize(400, 300))
 		d.Show()
 	})
 
@@ -162,6 +188,7 @@ func (p *Password) makePasswordDialog() fyne.CanvasObject {
 
 	passwordBind := binding.BindString(&p.Password)
 	passwordEntry := widget.NewEntryWithData(passwordBind)
+	passwordEntry.Disable()
 	passwordEntry.Validator = nil
 	refreshButton := widget.NewButtonWithIcon("", theme.ViewRefreshIcon(), func() {
 		secret, err := p.makePassword()
@@ -173,13 +200,121 @@ func (p *Password) makePasswordDialog() fyne.CanvasObject {
 		passwordBind.Set(secret)
 	})
 
-	lengthBind := binding.BindInt(&p.Length)
-	if p.Length == 0 {
-		lengthBind.Set(p.options.DefaultLength)
+	content := container.NewMax(widget.NewLabel(""))
+	typeOptions := []string{
+		RandomPassword.String(),
+		PassphrasePassword.String(),
+		PinPassword.String(),
+	}
+	typeList := widget.NewSelect(typeOptions, func(s string) {
+		switch s {
+		case PassphrasePassword.String():
+			content.Objects[0] = p.makePassphrasePasswordOptions(passwordBind)
+		case PinPassword.String():
+			content.Objects[0] = p.makePinPasswordOptions(passwordBind)
+		default:
+			content.Objects[0] = p.makeRandomPasswordOptions(passwordBind)
+		}
+	})
+	switch p.Mode.String() {
+	case CustomPassword.String():
+		p.Mode = RandomPassword
+		typeList.SetSelected(RandomPassword.String())
+	default:
+		typeList.SetSelected(p.Mode.String())
 	}
 
-	if p.Format == 0 {
-		p.Format = p.options.DefaultFormat
+	form := container.New(layout.NewFormLayout())
+	form.Add(labelWithStyle("Password"))
+	form.Add(container.NewBorder(nil, nil, nil, refreshButton, passwordEntry))
+	form.Add(labelWithStyle("Type"))
+	form.Add(typeList)
+	return container.NewBorder(form, nil, nil, nil, content)
+}
+
+func (p *Password) makePassphrasePasswordOptions(passwordBind binding.String) fyne.CanvasObject {
+
+	opts := p.options.PassphrasePasswordOptions
+	if p.Length == 0 || p.Length < opts.MinLength || p.Length > opts.MaxLength {
+		p.Length = opts.DefaultLength
+	}
+
+	if p.Mode != PassphrasePassword {
+		p.Mode = PassphrasePassword
+	}
+
+	lengthBind := binding.BindInt(&p.Length)
+	lengthEntry := widget.NewEntryWithData(binding.IntToString(lengthBind))
+	lengthEntry.Disabled()
+	lengthEntry.Validator = nil
+	lengthEntry.OnChanged = func(s string) {
+		if s == "" {
+			return
+		}
+		l, err := strconv.Atoi(s)
+		if err != nil {
+			// TODO show dialog
+			log.Println(err)
+			return
+		}
+		if l < opts.MinLength || l > opts.MaxLength {
+			log.Printf("password lenght must be between %d and %d, got %d", opts.MinLength, opts.MaxLength, l)
+			return
+		}
+		lengthBind.Set(l)
+		secret, err := p.makePassword()
+		if err != nil {
+			// TODO show dialog
+			log.Println(err)
+			return
+		}
+		passwordBind.Set(secret)
+	}
+
+	lengthSlider := widget.NewSlider(float64(opts.MinLength), float64(opts.MaxLength))
+	lengthSlider.OnChanged = func(f float64) {
+		lengthBind.Set(int(f))
+		secret, err := p.makePassword()
+		if err != nil {
+			// TODO show dialog
+			log.Println(err)
+			return
+		}
+		passwordBind.Set(secret)
+	}
+	lengthSlider.SetValue(float64(p.Length))
+
+	secret, err := p.makePassword()
+	if err != nil {
+		// TODO show dialog
+		log.Println(err)
+	}
+	passwordBind.Set(secret)
+
+	form := container.New(layout.NewFormLayout())
+	form.Add(labelWithStyle("Length"))
+	form.Add(container.NewBorder(nil, nil, nil, lengthEntry, lengthSlider))
+
+	return form
+}
+
+func (p *Password) makePinPasswordOptions(passwordBind binding.String) fyne.CanvasObject {
+
+	opts := p.options.PinPasswordOptions
+	if p.Length == 0 || p.Length < opts.MinLength || p.Length > opts.MaxLength {
+		p.Length = opts.DefaultLength
+	}
+
+	// with PIN we want only digits
+	p.Format = DigitsFormat
+
+	if p.Mode != PinPassword {
+		p.Mode = PinPassword
+	}
+
+	lengthBind := binding.BindInt(&p.Length)
+	if p.Length == 0 || p.Mode != PinPassword {
+		lengthBind.Set(opts.DefaultLength)
 	}
 
 	lengthEntry := widget.NewEntryWithData(binding.IntToString(lengthBind))
@@ -195,8 +330,8 @@ func (p *Password) makePasswordDialog() fyne.CanvasObject {
 			log.Println(err)
 			return
 		}
-		if l < p.options.MinLength || l > p.options.MaxLength {
-			log.Printf("password lenght must be between %d and %d, got %d", p.options.MinLength, p.options.MaxLength, l)
+		if l < opts.MinLength || l > opts.MaxLength {
+			log.Printf("password lenght must be between %d and %d, got %d", opts.MinLength, opts.MaxLength, l)
 			return
 		}
 		lengthBind.Set(l)
@@ -209,7 +344,7 @@ func (p *Password) makePasswordDialog() fyne.CanvasObject {
 		passwordBind.Set(secret)
 	}
 
-	lengthSlider := widget.NewSlider(float64(p.options.MinLength), float64(p.options.MaxLength))
+	lengthSlider := widget.NewSlider(float64(opts.MinLength), float64(opts.MaxLength))
 	lengthSlider.OnChanged = func(f float64) {
 		lengthBind.Set(int(f))
 		secret, err := p.makePassword()
@@ -220,6 +355,77 @@ func (p *Password) makePasswordDialog() fyne.CanvasObject {
 		}
 		passwordBind.Set(secret)
 	}
+	lengthSlider.SetValue(float64(p.Length))
+
+	secret, err := p.makePassword()
+	if err != nil {
+		// TODO show dialog
+		log.Println(err)
+	}
+	passwordBind.Set(secret)
+
+	form := container.New(layout.NewFormLayout())
+	form.Add(labelWithStyle("Length"))
+	form.Add(container.NewBorder(nil, nil, nil, lengthEntry, lengthSlider))
+
+	return form
+}
+
+func (p *Password) makeRandomPasswordOptions(passwordBind binding.String) fyne.CanvasObject {
+	opts := p.options.RandomPasswordOptions
+	if p.Length == 0 || p.Length < opts.MinLength || p.Length > opts.MaxLength {
+		p.Length = opts.DefaultLength
+	}
+
+	if p.Format == 0 {
+		p.Format = opts.DefaultFormat
+	}
+
+	if p.Mode != RandomPassword {
+		p.Mode = RandomPassword
+		p.Format = opts.DefaultFormat
+	}
+
+	lengthBind := binding.BindInt(&p.Length)
+	lengthEntry := widget.NewEntryWithData(binding.IntToString(lengthBind))
+	lengthEntry.Disabled()
+	lengthEntry.Validator = nil
+	lengthEntry.OnChanged = func(s string) {
+		if s == "" {
+			return
+		}
+		l, err := strconv.Atoi(s)
+		if err != nil {
+			// TODO show dialog
+			log.Println(err)
+			return
+		}
+		if l < opts.MinLength || l > opts.MaxLength {
+			log.Printf("password lenght must be between %d and %d, got %d", opts.MinLength, opts.MaxLength, l)
+			return
+		}
+		lengthBind.Set(l)
+		secret, err := p.makePassword()
+		if err != nil {
+			// TODO show dialog
+			log.Println(err)
+			return
+		}
+		passwordBind.Set(secret)
+	}
+
+	lengthSlider := widget.NewSlider(float64(opts.MinLength), float64(opts.MaxLength))
+	lengthSlider.OnChanged = func(f float64) {
+		lengthBind.Set(int(f))
+		secret, err := p.makePassword()
+		if err != nil {
+			// TODO show dialog
+			log.Println(err)
+			return
+		}
+		passwordBind.Set(secret)
+	}
+	lengthSlider.SetValue(float64(p.Length))
 
 	lowercaseButton := widget.NewCheck("a-z", func(isChecked bool) {
 		if isChecked {
@@ -301,26 +507,31 @@ func (p *Password) makePasswordDialog() fyne.CanvasObject {
 		symbolsButton.SetChecked(false)
 	}
 
-	optionsForm := widget.NewForm()
-	optionsForm.Append(
-		"Password",
-		container.NewBorder(nil, nil, nil, refreshButton, passwordEntry),
-	)
+	secret, err := p.makePassword()
+	if err != nil {
+		// TODO show dialog
+		log.Println(err)
+	}
+	passwordBind.Set(secret)
 
-	optionsForm.Append(
-		"Length",
-		container.NewBorder(nil, nil, nil, lengthEntry, lengthSlider),
-	)
+	form := container.New(layout.NewFormLayout())
+	form.Add(labelWithStyle("Length"))
+	form.Add(container.NewBorder(nil, nil, nil, lengthEntry, lengthSlider))
+	form.Add(widget.NewLabel(""))
+	form.Add(container.NewGridWithColumns(4, lowercaseButton, uppercaseButton, digitsButton, symbolsButton))
 
-	optionsForm.Append(
-		"",
-		container.NewGridWithColumns(4, lowercaseButton, uppercaseButton, digitsButton, symbolsButton),
-	)
-
-	return container.NewMax(optionsForm)
+	return form
 }
 
 func (p *Password) makePassword() (string, error) {
+	if p.Mode == PassphrasePassword {
+		var words []string
+		for i := 0; i < p.Length; i++ {
+			words = append(words, age.RandomWord())
+		}
+		return strings.Join(words, "-"), nil
+	}
+
 	seeder, err := p.makePasswordSeeder()
 	if err != nil {
 		return "", fmt.Errorf("could not make password seeder: %w", err)
