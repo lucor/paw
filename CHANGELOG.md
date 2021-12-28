@@ -5,7 +5,7 @@
 > This release updates the internal storage, so previous versions won't be compatible.
 
 - paw: items are now stored into dedicated age files
-- paw,ui: add passphrase support #15
+- paw,ui: add passphrase support #4
 - paw,ui: add pin password support
 
 ## 0.10.0 - 21 December 2021
