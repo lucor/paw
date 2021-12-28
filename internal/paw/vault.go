@@ -1,79 +1,88 @@
 package paw
 
 import (
-	"io"
+	"fmt"
 	"sort"
 	"strings"
+	"time"
 )
 
 type Vault struct {
-	key   *Key
-	name  string
-	Items map[string]Item
+	key *Key
+
+	Name string
+	// Items represents the list of the item names available into the vault grouped by ItemType
+	ItemMetadata map[string]*Metadata //slice of item names
+	// Version represents the specification version
+	Version string
+	// Created represents the creation date
+	Created time.Time
+	// Modified represents the modification date
+	Modified time.Time
 }
 
-func NewVault(name string, key *Key) *Vault {
+func NewVault(key *Key, name string) *Vault {
 	return &Vault{
-		name:  name,
-		key:   key,
-		Items: make(map[string]Item),
+		key:          key,
+		Name:         name,
+		ItemMetadata: make(map[string]*Metadata),
+		Created:      time.Now(),
+		Modified:     time.Now(),
 	}
-}
-
-func (v *Vault) SetName(name string) {
-	v.name = name
-}
-
-func (v *Vault) SetKey(key *Key) {
-	v.key = key
 }
 
 func (v *Vault) Key() *Key {
 	return v.key
 }
 
-func (v *Vault) Name() string {
-	return v.name
+func (v *Vault) HasItem(item Item) bool {
+	meta := item.GetMetadata()
+	if meta == nil {
+		return false
+	}
+	_, ok := v.ItemMetadata[item.ID()]
+	return ok
 }
 
-func (v *Vault) Encrypt(dst io.Writer) (io.WriteCloser, error) {
-	return v.key.Encrypt(dst)
-}
-
-func (v *Vault) Item(id string) Item {
-	return v.Items[id]
-}
-
-func (v *Vault) SetItem(item Item) {
-	v.Items[item.ID()] = item
+func (v *Vault) AddItem(item Item) error {
+	meta := item.GetMetadata()
+	if meta == nil {
+		return fmt.Errorf("item metadata is nil")
+	}
+	v.ItemMetadata[item.ID()] = meta
+	return nil
 }
 
 func (v *Vault) DeleteItem(item Item) {
-	delete(v.Items, item.ID())
-}
-
-func (v *Vault) FilterItems(opts *VaultFilterOptions) []Item {
-	items := []Item{}
-	titleFilter := opts.Title
-	itemType := opts.ItemType
-	for _, item := range v.Items {
-		if itemType != 0 && (itemType&item.Type()) == 0 {
-			continue
-		}
-
-		if titleFilter != "" && !strings.HasPrefix(item.String(), titleFilter) {
-			continue
-		}
-
-		items = append(items, item)
+	meta := item.GetMetadata()
+	if meta == nil {
+		return
 	}
 
-	sort.Sort(ByString(items))
+	delete(v.ItemMetadata, item.ID())
+}
 
-	return items
+func (v *Vault) FilterItemMetadata(opts *VaultFilterOptions) []*Metadata {
+	metadata := []*Metadata{}
+	nameFilter := opts.Name
+
+	for _, itemMetadata := range v.ItemMetadata {
+		if opts.ItemType != 0 && (opts.ItemType&itemMetadata.Type) == 0 {
+			continue
+		}
+
+		if nameFilter != "" && !strings.Contains(itemMetadata.Name, nameFilter) {
+			continue
+		}
+		metadata = append(metadata, itemMetadata)
+	}
+
+	sort.Sort(ByString(metadata))
+
+	return metadata
 }
 
 type VaultFilterOptions struct {
-	Title    string
+	Name     string
 	ItemType ItemType
 }

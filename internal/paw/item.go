@@ -2,17 +2,28 @@ package paw
 
 import (
 	"context"
+	"encoding/gob"
+	"encoding/hex"
 	"fmt"
-	"strings"
 	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/data/binding"
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
+	"golang.org/x/crypto/blake2b"
+
+	"lucor.dev/paw/internal/icon"
 )
+
+func init() {
+	gob.Register((*Metadata)(nil))
+	gob.Register((*icon.ThemedResource)(nil))
+	gob.Register((*fyne.StaticResource)(nil))
+}
 
 // ItemType represents the Item type
 type ItemType int
@@ -47,18 +58,15 @@ type Item interface {
 	// ID returns the identity ID
 	ID() string
 
-	// Type returns a widget label that represents the identity type
-	Type() ItemType
-
 	GetMetadata() *Metadata
 
 	fmt.Stringer
 }
 
-// FyneObject wraps all methods allow to hanle an Item as Fyne object
+// FyneObject wraps all methods allow to handle an Item as Fyne object
 type FyneObject interface {
 	// Type returns a widget icon for the identity type
-	Icon() *widget.Icon
+	Icon() fyne.Resource
 	// Show returns a fyne CanvasObject used to view the identity
 	Show(ctx context.Context, w fyne.Window) fyne.CanvasObject
 	// Edit returns a fyne CanvasObject used to edit the identity
@@ -67,63 +75,71 @@ type FyneObject interface {
 	InfoUI() fyne.CanvasObject
 }
 
+// FynePasswordGenerator wraps all methods to show a Fyne dialog to generate passwords
+type FynePasswordGenerator interface {
+	ShowPasswordGenerator(bind binding.String, password *Password, w fyne.Window)
+}
+
 // Item represents the basic paw identity
 type Metadata struct {
-	// Note holds optional note
-	Note string
-	// Title reprents the item label. It is also used internally to generate the item's ID
-	Title string
+	// Title reprents the item name
+	Name string
+	// Type represents the item type
+	Type ItemType
 	// Modified holds the modification date
 	Modified time.Time
 	// Created holds the creation date
-	Created   time.Time
-	Revision  int    // Revision reprents the identity revision
-	Revisions []Item // Revision holds the identity revisions
-
-	OnLabelChanged func(string)
+	Created time.Time
+	// Icon
+	IconResource fyne.Resource
 }
 
-func (id *Metadata) ID() string {
-	return fmt.Sprintf("metadata/%s", strings.ToLower(id.Title))
+func (m *Metadata) ID() string {
+	key := append([]byte(m.Type.String()), []byte(m.Name)...)
+	hash, err := blake2b.New256(key)
+	if err != nil {
+		panic(err)
+	}
+	return hex.EncodeToString(hash.Sum(nil))
 }
 
-func (id *Metadata) GetMetadata() *Metadata {
-	return id
+func (m *Metadata) GetMetadata() *Metadata {
+	return m
 }
 
-func (id *Metadata) String() string {
-	return id.Title
+func (m *Metadata) String() string {
+	return m.Name
 }
 
-func (id *Metadata) Type() ItemType {
-	return MetadataItemType
+func (m *Metadata) Icon() fyne.Resource {
+	return m.IconResource
 }
 
-// ByID implements sort.Interface Metadata on the ID value.
-type ByString []Item
-
-func (ids ByString) Len() int { return len(ids) }
-func (ids ByString) Less(i, j int) bool {
-	return ids[i].String() < ids[j].String()
-}
-func (ids ByString) Swap(i, j int) { ids[i], ids[j] = ids[j], ids[i] }
-
-func (id *Metadata) InfoUI() fyne.CanvasObject {
+func (m *Metadata) InfoUI() fyne.CanvasObject {
 	return container.New(
 		layout.NewFormLayout(),
 		widget.NewLabel("Modified"),
-		widget.NewLabel(id.Modified.Format(time.RFC1123)),
+		widget.NewLabel(m.Modified.Format(time.RFC1123)),
 		widget.NewLabel("Created"),
-		widget.NewLabel(id.Created.Format(time.RFC1123)),
+		widget.NewLabel(m.Created.Format(time.RFC1123)),
 	)
 }
 
-func titleRow(icon *widget.Icon, text string) []fyne.CanvasObject {
+// ByID implements sort.Interface Metadata on the ID value.
+type ByString []*Metadata
+
+func (s ByString) Len() int { return len(s) }
+func (s ByString) Less(i, j int) bool {
+	return s[i].String() < s[j].String()
+}
+func (s ByString) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
+
+func titleRow(icon fyne.Resource, text string) []fyne.CanvasObject {
 	t := canvas.NewText(text, theme.ForegroundColor())
 	t.TextStyle = fyne.TextStyle{Bold: true}
 	t.TextSize = theme.TextHeadingSize()
 	return []fyne.CanvasObject{
-		icon,
+		widget.NewIcon(icon),
 		t,
 	}
 }

@@ -23,7 +23,7 @@ type itemsWidget struct {
 	listEntry *widget.List
 
 	// OnSelected defines the callback to execute on the item list selection
-	OnSelected func(paw.Item)
+	OnSelected func(*paw.Metadata)
 }
 
 // newItemsWidget returns a new items widget
@@ -34,7 +34,7 @@ func newItemsWidget(vault *paw.Vault, opts *paw.VaultFilterOptions) *itemsWidget
 	}
 	iw.listEntry = iw.makeList(nil, opts)
 	iw.view = container.NewMax(iw.listEntry)
-	iw.OnSelected = func(i paw.Item) {}
+	iw.OnSelected = func(i *paw.Metadata) {}
 	iw.ExtendBaseWidget(iw)
 	return iw
 }
@@ -57,25 +57,23 @@ func (iw *itemsWidget) Reload(selectedItem paw.Item, opts *paw.VaultFilterOption
 
 // makeList makes the Fyne list widget
 func (iw *itemsWidget) makeList(selectedItem paw.Item, opts *paw.VaultFilterOptions) *widget.List {
-	items := iw.vault.FilterItems(opts)
-
+	itemMetadata := iw.vault.FilterItemMetadata(opts)
 	list := widget.NewList(
 		func() int {
-			return len(items)
+			return len(itemMetadata)
 		},
 		func() fyne.CanvasObject {
 			return container.NewHBox(widget.NewIcon(icon.LockOutlinedIconThemed), widget.NewLabel("Identity label"))
 		},
 		func(id int, obj fyne.CanvasObject) {
-			item := items[id]
-			obj.(*fyne.Container).Objects[0].(*widget.Icon).SetResource(item.(paw.FyneObject).Icon().Resource)
-			obj.(*fyne.Container).Objects[1].(*widget.Label).SetText(item.String())
-
+			metadata := itemMetadata[id]
+			obj.(*fyne.Container).Objects[0].(*widget.Icon).SetResource(metadata.Icon())
+			obj.(*fyne.Container).Objects[1].(*widget.Label).SetText(metadata.String())
 		})
 
 	if selectedItem != nil {
-		for i, item := range items {
-			if selectedItem.ID() == item.ID() {
+		for i, metadata := range itemMetadata {
+			if selectedItem.ID() == metadata.ID() {
 				iw.selectedIndex = i
 				break
 			}
@@ -87,9 +85,9 @@ func (iw *itemsWidget) makeList(selectedItem paw.Item, opts *paw.VaultFilterOpti
 	}
 
 	list.OnSelected = func(id widget.ListItemID) {
-		item := items[id]
+		metadata := itemMetadata[id]
 		iw.selectedIndex = id
-		iw.OnSelected(item)
+		iw.OnSelected(metadata)
 	}
 
 	return list

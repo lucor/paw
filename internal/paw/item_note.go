@@ -3,8 +3,6 @@ package paw
 import (
 	"context"
 	"encoding/gob"
-	"fmt"
-	"strings"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
@@ -26,47 +24,41 @@ var _ Item = (*Note)(nil)
 var _ FyneObject = (*Note)(nil)
 
 type Note struct {
+	Value string
 	Metadata
 }
 
 func NewNote() *Note {
-	return &Note{}
-}
-
-func (n *Note) ID() string {
-	return fmt.Sprintf("note/%s", strings.ToLower(n.Title))
-}
-
-func (n *Note) Icon() *widget.Icon {
-	return widget.NewIcon(icon.NoteOutlinedIconThemed)
-}
-
-func (n *Note) Type() ItemType {
-	return NoteItemType
+	return &Note{
+		Metadata: Metadata{
+			IconResource: icon.NoteOutlinedIconThemed,
+			Type:         NoteItemType,
+		},
+	}
 }
 
 func (n *Note) Edit(ctx context.Context, w fyne.Window) (fyne.CanvasObject, Item) {
-	item := *n
-	titleEntry := widget.NewEntryWithData(binding.BindString(&item.Title))
+	noteItem := *n
+	titleEntry := widget.NewEntryWithData(binding.BindString(&noteItem.Metadata.Name))
 	titleEntry.Validator = nil
 	titleEntry.PlaceHolder = "Untitled note"
 
-	noteEntry := widget.NewEntryWithData(binding.BindString(&item.Note))
+	noteEntry := widget.NewEntryWithData(binding.BindString(&noteItem.Value))
 	noteEntry.MultiLine = true
 	noteEntry.Validator = nil
 
 	form := container.New(layout.NewFormLayout())
-	form.Add(n.Icon())
+	form.Add(widget.NewIcon(n.Icon()))
 	form.Add(titleEntry)
 	form.Add(labelWithStyle("Note"))
 	form.Add(noteEntry)
 
-	return form, &item
+	return form, &noteItem
 }
 
 func (n *Note) Show(ctx context.Context, w fyne.Window) fyne.CanvasObject {
-	obj := titleRow(n.Icon(), n.Title)
-	obj = append(obj, copiableRow("Note", n.Note, w)...)
+	obj := titleRow(n.Icon(), n.Name)
+	obj = append(obj, copiableRow("Note", n.Value, w)...)
 	return container.New(
 		layout.NewFormLayout(),
 		obj...,

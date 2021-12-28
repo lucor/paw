@@ -7,7 +7,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
-	"time"
 
 	"filippo.io/age"
 	"golang.org/x/crypto/hkdf"
@@ -45,10 +44,9 @@ type Key struct {
 	pubKey       []byte
 	ageRecipient *age.ScryptRecipient
 	ageIdentity  *age.ScryptIdentity
-	unlocked     time.Time
 }
 
-func New(name string, password string) (*Key, error) {
+func NewKey(name string, password string) (*Key, error) {
 
 	secret := bytes.Buffer{}
 	secret.WriteString(name)
@@ -76,7 +74,6 @@ func New(name string, password string) (*Key, error) {
 		ageRecipient: ageRecipient,
 		seedKey:      make([]byte, 32),
 		pubKey:       make([]byte, 32),
-		unlocked:     time.Now(),
 	}
 	copy(kc.seedKey, key[:32])
 	copy(kc.pubKey, key[32:])

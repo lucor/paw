@@ -20,7 +20,7 @@ import (
 // ThemedResource is a resource wrapper that will return an appropriate resource
 // for the currently selected theme.
 type ThemedResource struct {
-	dark, light fyne.Resource
+	Dark, Light fyne.Resource
 }
 
 func isLight() bool {
@@ -31,20 +31,20 @@ func isLight() bool {
 // Name returns the underlying resource name (used for caching)
 func (res *ThemedResource) Name() string {
 	if isLight() {
-		return res.light.Name()
+		return res.Light.Name()
 	}
-	return res.dark.Name()
+	return res.Dark.Name()
 }
 
 // Content returns the underlying content of the correct resource for the current theme
 func (res *ThemedResource) Content() []byte {
 	if isLight() {
-		return res.light.Content()
+		return res.Light.Content()
 	}
-	return res.dark.Content()
+	return res.Dark.Content()
 }
 
 // NewThemedResource creates a resource that adapts to the current theme setting.
 func NewThemedResource(dark, light fyne.Resource) *ThemedResource {
-	return &ThemedResource{dark, light}
+	return &ThemedResource{Dark: dark, Light: light}
 }
