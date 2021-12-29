@@ -55,13 +55,13 @@ func (pm PasswordMode) String() string {
 }
 
 type Password struct {
-	Value  string
-	Format Format
-	Length int
-	Mode   PasswordMode
+	Value  string       `json:"value,omitempty"`
+	Format Format       `json:"format,omitempty"`
+	Length int          `json:"length,omitempty"`
+	Mode   PasswordMode `json:"mode,omitempty"`
 
-	Metadata
-	Note
+	Metadata `json:"metadata,omitempty"`
+	Note     `json:"note,omitempty"`
 
 	fpg FynePasswordGenerator
 }
@@ -69,8 +69,7 @@ type Password struct {
 func NewPassword() *Password {
 	return &Password{
 		Metadata: Metadata{
-			IconResource: icon.PasswordOutlinedIconThemed,
-			Type:         PasswordItemType,
+			Type: PasswordItemType,
 		},
 		Note: Note{},
 	}

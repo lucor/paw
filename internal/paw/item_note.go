@@ -9,8 +9,6 @@ import (
 	"fyne.io/fyne/v2/data/binding"
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/widget"
-
-	"lucor.dev/paw/internal/icon"
 )
 
 func init() {
@@ -24,15 +22,14 @@ var _ Item = (*Note)(nil)
 var _ FyneObject = (*Note)(nil)
 
 type Note struct {
-	Value string
-	Metadata
+	Value    string `json:"value,omitempty"`
+	Metadata `json:"metadata,omitempty"`
 }
 
 func NewNote() *Note {
 	return &Note{
 		Metadata: Metadata{
-			IconResource: icon.NoteOutlinedIconThemed,
-			Type:         NoteItemType,
+			Type: NoteItemType,
 		},
 	}
 }

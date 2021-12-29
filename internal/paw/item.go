@@ -42,13 +42,13 @@ const (
 func (it ItemType) String() string {
 	switch it {
 	case MetadataItemType:
-		return "Metadata"
+		return "metadata"
 	case NoteItemType:
-		return "Note"
+		return "note"
 	case PasswordItemType:
-		return "Password"
+		return "password"
 	case WebsiteItemType:
-		return "Website"
+		return "website"
 	}
 	return "invalid"
 }
@@ -83,15 +83,15 @@ type FynePasswordGenerator interface {
 // Item represents the basic paw identity
 type Metadata struct {
 	// Title reprents the item name
-	Name string
+	Name string `json:"name,omitempty"`
 	// Type represents the item type
-	Type ItemType
+	Type ItemType `json:"type,omitempty"`
 	// Modified holds the modification date
-	Modified time.Time
+	Modified time.Time `json:"modified,omitempty"`
 	// Created holds the creation date
-	Created time.Time
+	Created time.Time `json:"created,omitempty"`
 	// Icon
-	IconResource fyne.Resource
+	IconResource fyne.Resource `json:"icon_resource,omitempty"`
 }
 
 func (m *Metadata) ID() string {
@@ -112,7 +112,18 @@ func (m *Metadata) String() string {
 }
 
 func (m *Metadata) Icon() fyne.Resource {
-	return m.IconResource
+	if m.IconResource != nil {
+		return m.IconResource
+	}
+	switch m.Type {
+	case NoteItemType:
+		return icon.NoteOutlinedIconThemed
+	case PasswordItemType:
+		return icon.PasswordOutlinedIconThemed
+	case WebsiteItemType:
+		return icon.PublicOutlinedIconThemed
+	}
+	return nil
 }
 
 func (m *Metadata) InfoUI() fyne.CanvasObject {

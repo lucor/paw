@@ -25,20 +25,19 @@ var _ Item = (*Website)(nil)
 var _ FyneObject = (*Website)(nil)
 
 type Website struct {
-	Password
-	*TOTP
-	Note
-	Metadata
+	Password `json:"password,omitempty"`
+	*TOTP    `json:"totp,omitempty"`
+	Note     `json:"note,omitempty"`
+	Metadata `json:"metadata,omitempty"`
 
-	Username string
-	URI      string
+	Username string `json:"username,omitempty"`
+	URI      string `json:"uri,omitempty"`
 }
 
 func NewWebsite() *Website {
 	return &Website{
 		Metadata: Metadata{
-			IconResource: icon.PublicOutlinedIconThemed,
-			Type:         WebsiteItemType,
+			Type: WebsiteItemType,
 		},
 		Note:     Note{},
 		Password: Password{},

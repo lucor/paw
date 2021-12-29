@@ -39,10 +39,10 @@ const (
 )
 
 type TOTP struct {
-	Digits   int
-	Hash     TOTPHash
-	Interval int
-	Secret   string
+	Digits   int      `json:"digits,omitempty"`
+	Hash     TOTPHash `json:"hash,omitempty"`
+	Interval int      `json:"interval,omitempty"`
+	Secret   string   `json:"secret,omitempty"`
 }
 
 func NewDefaultTOTP() *TOTP {

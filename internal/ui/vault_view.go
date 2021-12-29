@@ -2,6 +2,7 @@ package ui
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"image/color"
 	"log"
@@ -155,8 +156,34 @@ func (vw *vaultView) makeVaultMenu() fyne.CanvasObject {
 		vw.setContent(vw.auditPasswordView())
 	})
 
+	importFromFile := fyne.NewMenuItem("Import From File", vw.importFromFile)
+
+	exportToFile := fyne.NewMenuItem("Export To File", func() {
+		d := dialog.NewFileSave(func(uc fyne.URIWriteCloser, e error) {
+			defer uc.Close()
+			data := map[string][]paw.Item{}
+			for _, meta := range vw.vault.ItemMetadata {
+				item, err := vw.mainView.storage.LoadItem(vw.vault, meta)
+				if err != nil {
+					dialog.ShowError(err, vw.mainView)
+					return
+				}
+				itemType := item.GetMetadata().Type.String()
+				data[itemType] = append(data[itemType], item)
+			}
+			err = json.NewEncoder(uc).Encode(data)
+			if err != nil {
+				dialog.ShowError(err, vw.mainView)
+			}
+		}, vw.mainView)
+		d.SetFileName(fmt.Sprintf("%s.paw.json", vw.vault.Name))
+		d.Show()
+	})
+
 	menuItems := []*fyne.MenuItem{
 		passwordAudit,
+		importFromFile,
+		exportToFile,
 		fyne.NewMenuItemSeparator(),
 		switchVault,
 		lockVault,
@@ -380,7 +407,7 @@ func (vw *vaultView) editItemView(ctx context.Context, item paw.Item) fyne.Canva
 	return container.NewBorder(top, bottom, nil, nil, content)
 }
 
-// auditPasswordView returns a view with the list of available vaults
+// auditPasswordView returns a view to audit passwords
 func (vw *vaultView) auditPasswordView() fyne.CanvasObject {
 
 	image := imageFromResource(icon.FactCheckOutlinedIconThemed)
@@ -462,4 +489,26 @@ func (vw *vaultView) auditPasswordView() fyne.CanvasObject {
 
 	empty := widget.NewLabel("")
 	return container.NewVBox(image, heading, text, container.NewGridWithColumns(3, empty, auditBtn, empty))
+}
+
+func (vw *vaultView) importFromFile() {
+	d := dialog.NewFileOpen(func(uc fyne.URIReadCloser, e error) {
+		defer uc.Close()
+		data := paw.Imported{}
+		err := json.NewDecoder(uc).Decode(&data)
+		if err != nil {
+			dialog.ShowError(err, vw.mainView)
+		}
+		for _, item := range data.Items {
+			err := vw.mainView.storage.StoreItem(vw.vault, item)
+			if err != nil {
+				dialog.ShowError(err, vw.mainView)
+				continue
+			}
+			vw.vault.AddItem(item)
+		}
+		vw.mainView.storage.StoreVault(vw.vault)
+		vw.mainView.Reload()
+	}, vw.mainView)
+	d.Show()
 }
