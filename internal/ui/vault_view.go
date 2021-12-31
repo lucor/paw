@@ -3,9 +3,12 @@ package ui
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"image/color"
 	"log"
+	"runtime"
+	"sync/atomic"
 	"time"
 
 	"fyne.io/fyne/v2"
@@ -15,6 +18,8 @@ import (
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
+	"golang.org/x/sync/errgroup"
+	"golang.org/x/sync/semaphore"
 
 	"lucor.dev/paw/internal/haveibeenpwned"
 	"lucor.dev/paw/internal/icon"
@@ -81,9 +86,10 @@ func (vw *vaultView) Reload() {
 // emptyVaultContent returns the content to display when the vault has no items
 func (vw *vaultView) emptyVaultContent() fyne.CanvasObject {
 	msg := fmt.Sprintf("Vault %q is empty", vw.vault.Name)
-	t := headingText(msg)
-	b := vw.makeAddItemButton()
-	return container.NewCenter(container.NewVBox(t, b))
+	text := headingText(msg)
+	addItemButton := vw.makeAddItemButton()
+	importItemButton := widget.NewButton("Import From File", vw.importFromFile)
+	return container.NewCenter(container.NewVBox(text, addItemButton, importItemButton))
 }
 
 // defaultContent returns the object to display for default states
@@ -252,9 +258,7 @@ func (vw *vaultView) makeTypeSelectEntry() *widget.Select {
 func (vw *vaultView) makeItems() []paw.Item {
 	note := paw.NewNote()
 	password := paw.NewPassword()
-
 	website := paw.NewWebsite()
-	website.Password = *password
 	website.TOTP = &paw.TOTP{
 		Digits:   TOTPDigits(),
 		Hash:     paw.TOTPHash(TOTPHash()),
@@ -425,7 +429,8 @@ func (vw *vaultView) auditPasswordView() fyne.CanvasObject {
 		progressBind := binding.NewFloat()
 		progressbar := widget.NewProgressBarWithData(progressBind)
 		progressbar.TextFormatter = func() string {
-			return fmt.Sprintf("%.0f of %d", progressbar.Value, len(itemMetadata))
+			v, _ := progressBind.Get()
+			return fmt.Sprintf("%.0f of %d", v, len(itemMetadata))
 		}
 
 		ctx, cancel := context.WithCancel(context.Background())
@@ -493,22 +498,106 @@ func (vw *vaultView) auditPasswordView() fyne.CanvasObject {
 
 func (vw *vaultView) importFromFile() {
 	d := dialog.NewFileOpen(func(uc fyne.URIReadCloser, e error) {
-		defer uc.Close()
+
+		ctx, cancel := context.WithCancel(context.Background())
+
 		data := paw.Imported{}
-		err := json.NewDecoder(uc).Decode(&data)
-		if err != nil {
-			dialog.ShowError(err, vw.mainView)
+		var counter uint32
+
+		modalTitle := widget.NewLabel("Importing items...")
+
+		progressBind := binding.NewFloat()
+		progressbar := widget.NewProgressBarWithData(progressBind)
+		progressbar.TextFormatter = func() string {
+			v, _ := progressBind.Get()
+			return fmt.Sprintf("%.0f of %d", v, len(data.Items))
 		}
-		for _, item := range data.Items {
-			err := vw.mainView.storage.StoreItem(vw.vault, item)
-			if err != nil {
-				dialog.ShowError(err, vw.mainView)
-				continue
+
+		var cancelButton *widget.Button
+		cancelButton = widget.NewButton("Cancel", func() {
+			modalTitle.SetText("Cancelling import, please wait...")
+			progressbar.Hide()
+			cancelButton.Disable()
+			cancel()
+		})
+
+		c := container.NewBorder(modalTitle, nil, nil, nil, container.NewCenter(container.NewVBox(progressbar, cancelButton)))
+		modal := widget.NewModalPopUp(c, vw.mainView.Canvas())
+
+		rollback := func(vault *paw.Vault, items []paw.Item) {
+			for _, item := range items {
+				vw.mainView.storage.DeleteItem(vw.vault, item)
+				vw.vault.DeleteItem(item)
 			}
-			vw.vault.AddItem(item)
 		}
-		vw.mainView.storage.StoreVault(vw.vault)
-		vw.mainView.Reload()
+
+		go func() {
+			if uc == nil {
+				// file open dialog has been cancelled
+				modal.Hide()
+				return
+			}
+			defer uc.Close()
+			// Decode the JSON input file
+			err := json.NewDecoder(uc).Decode(&data)
+			if err != nil {
+				modal.Hide()
+				ShowErrorDialog("Error importing items", err, vw.mainView)
+				return
+			}
+
+			maxWorkers := runtime.NumCPU()
+			sem := semaphore.NewWeighted(int64(maxWorkers))
+			g := &errgroup.Group{}
+
+			processed := []paw.Item{}
+			// TODO: handle if an item with same name and type already exists
+			for _, item := range data.Items {
+				item := item
+
+				err = sem.Acquire(ctx, 1)
+				if err != nil {
+					cancel()
+					break
+				}
+
+				g.Go(func() error {
+					defer sem.Release(1)
+					err := vw.mainView.storage.StoreItem(vw.vault, item)
+					if err != nil {
+						return err
+					}
+					processed = append(processed, item)
+					v := atomic.AddUint32(&counter, 1)
+					progressBind.Set(float64(v))
+					return nil
+				})
+			}
+
+			defer modal.Hide()
+			err = g.Wait()
+			if err != nil || errors.Is(ctx.Err(), context.Canceled) {
+				rollback(vw.vault, processed)
+				ShowErrorDialog("Error importing items", err, vw.mainView)
+				return
+			}
+
+			for _, item := range processed {
+				vw.vault.AddItem(item)
+			}
+			err = vw.mainView.storage.StoreVault(vw.vault)
+			if err != nil {
+				rollback(vw.vault, processed)
+				ShowErrorDialog("Error importing items", err, vw.mainView)
+				return
+			}
+			vw.itemsWidget.Reload(nil, vw.filterOptions)
+			vw.setContent(vw.defaultContent())
+			vw.Reload()
+		}()
+
+		modal.Show()
+
 	}, vw.mainView)
 	d.Show()
 }

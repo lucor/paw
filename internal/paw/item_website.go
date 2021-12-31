@@ -25,10 +25,10 @@ var _ Item = (*Website)(nil)
 var _ FyneObject = (*Website)(nil)
 
 type Website struct {
-	Password `json:"password,omitempty"`
-	*TOTP    `json:"totp,omitempty"`
-	Note     `json:"note,omitempty"`
-	Metadata `json:"metadata,omitempty"`
+	*Password `json:"password,omitempty"`
+	*TOTP     `json:"totp,omitempty"`
+	*Note     `json:"note,omitempty"`
+	*Metadata `json:"metadata,omitempty"`
 
 	Username string `json:"username,omitempty"`
 	URI      string `json:"uri,omitempty"`
@@ -36,34 +36,43 @@ type Website struct {
 
 func NewWebsite() *Website {
 	return &Website{
-		Metadata: Metadata{
+		Metadata: &Metadata{
 			Type: WebsiteItemType,
 		},
-		Note:     Note{},
-		Password: Password{},
+		Note:     &Note{},
+		Password: &Password{},
 		TOTP:     &TOTP{},
 	}
 }
 
 func (website *Website) Edit(ctx context.Context, w fyne.Window) (fyne.CanvasObject, Item) {
-	item := *website
+	websiteItem := &Website{}
+	*websiteItem = *website
+	websiteItem.Metadata = &Metadata{}
+	*websiteItem.Metadata = *website.Metadata
+	websiteItem.Note = &Note{}
+	*websiteItem.Note = *website.Note
+	websiteItem.Password = &Password{}
+	*websiteItem.Password = *website.Password
+	websiteItem.TOTP = &TOTP{}
+	*websiteItem.TOTP = *website.TOTP
 
-	passwordBind := binding.BindString(&item.Password.Value)
-	titleEntry := widget.NewEntryWithData(binding.BindString(&item.Name))
+	passwordBind := binding.BindString(&websiteItem.Password.Value)
+	titleEntry := widget.NewEntryWithData(binding.BindString(&websiteItem.Name))
 	titleEntry.Validator = nil
 	titleEntry.PlaceHolder = "Untitled website"
 
-	websiteEntry := widget.NewEntryWithData(binding.BindString(&item.URI))
+	websiteEntry := widget.NewEntryWithData(binding.BindString(&websiteItem.URI))
 	websiteEntry.Validator = nil
 
-	usernameEntry := widget.NewEntryWithData(binding.BindString(&item.Username))
+	usernameEntry := widget.NewEntryWithData(binding.BindString(&websiteItem.Username))
 	usernameEntry.Validator = nil
 
-	totpForm, totpItem := item.TOTP.Edit(ctx, w)
-	item.TOTP = totpItem
+	totpForm, totpItem := websiteItem.TOTP.Edit(ctx, w)
+	websiteItem.TOTP = totpItem
 
 	// the note field
-	noteEntry := widget.NewEntryWithData(binding.BindString(&item.Note.Value))
+	noteEntry := widget.NewEntryWithData(binding.BindString(&websiteItem.Note.Value))
 	noteEntry.MultiLine = true
 	noteEntry.Validator = nil
 
@@ -82,7 +91,7 @@ func (website *Website) Edit(ctx context.Context, w fyne.Window) (fyne.CanvasObj
 	})
 
 	passwordMakeButton := widget.NewButtonWithIcon("Generate", icon.KeyOutlinedIconThemed, func() {
-		website.Password.fpg.ShowPasswordGenerator(passwordBind, &item.Password, w)
+		website.Password.fpg.ShowPasswordGenerator(passwordBind, websiteItem.Password, w)
 	})
 
 	form := container.New(layout.NewFormLayout())
@@ -104,7 +113,7 @@ func (website *Website) Edit(ctx context.Context, w fyne.Window) (fyne.CanvasObj
 	form.Add(labelWithStyle("Note"))
 	form.Add(noteEntry)
 
-	return form, &item
+	return form, websiteItem
 }
 
 func (website *Website) Show(ctx context.Context, w fyne.Window) fyne.CanvasObject {
@@ -112,7 +121,7 @@ func (website *Website) Show(ctx context.Context, w fyne.Window) fyne.CanvasObje
 	obj = append(obj, copiableRow("Website", website.URI, w)...)
 	obj = append(obj, copiableRow("Username", website.Username, w)...)
 	obj = append(obj, copiablePasswordRow("Password", website.Password.Value, w)...)
-	if website.TOTP != nil && website.TOTP.Secret != "" {
+	if website.TOTP.Secret != "" {
 		obj = append(obj, website.TOTP.Show(ctx, w)...)
 	}
 	if website.Note.Value != "" {

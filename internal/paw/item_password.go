@@ -60,18 +60,18 @@ type Password struct {
 	Length int          `json:"length,omitempty"`
 	Mode   PasswordMode `json:"mode,omitempty"`
 
-	Metadata `json:"metadata,omitempty"`
-	Note     `json:"note,omitempty"`
+	*Metadata `json:"metadata,omitempty"`
+	*Note     `json:"note,omitempty"`
 
 	fpg FynePasswordGenerator
 }
 
 func NewPassword() *Password {
 	return &Password{
-		Metadata: Metadata{
+		Metadata: &Metadata{
 			Type: PasswordItemType,
 		},
-		Note: Note{},
+		Note: &Note{},
 	}
 }
 
@@ -80,8 +80,13 @@ func (p *Password) SetPasswordGenerator(fpg FynePasswordGenerator) {
 }
 
 func (p *Password) Edit(ctx context.Context, w fyne.Window) (fyne.CanvasObject, Item) {
+	passwordItem := &Password{}
+	*passwordItem = *p
+	passwordItem.Metadata = &Metadata{}
+	*passwordItem.Metadata = *p.Metadata
+	passwordItem.Note = &Note{}
+	*passwordItem.Note = *p.Note
 
-	passwordItem := *p
 	passwordBind := binding.BindString(&passwordItem.Value)
 	titleEntry := widget.NewEntryWithData(binding.BindString(&passwordItem.Name))
 	titleEntry.Validator = nil
@@ -107,7 +112,7 @@ func (p *Password) Edit(ctx context.Context, w fyne.Window) (fyne.CanvasObject, 
 	})
 
 	passwordMakeButton := widget.NewButtonWithIcon("Generate", icon.KeyOutlinedIconThemed, func() {
-		p.fpg.ShowPasswordGenerator(passwordBind, &passwordItem, w)
+		p.fpg.ShowPasswordGenerator(passwordBind, passwordItem, w)
 	})
 
 	form := container.New(layout.NewFormLayout())
@@ -121,7 +126,7 @@ func (p *Password) Edit(ctx context.Context, w fyne.Window) (fyne.CanvasObject, 
 	form.Add(labelWithStyle("Note"))
 	form.Add(noteEntry)
 
-	return form, &passwordItem
+	return form, passwordItem
 }
 
 func (p *Password) Show(ctx context.Context, w fyne.Window) fyne.CanvasObject {

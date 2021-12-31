@@ -22,20 +22,24 @@ var _ Item = (*Note)(nil)
 var _ FyneObject = (*Note)(nil)
 
 type Note struct {
-	Value    string `json:"value,omitempty"`
-	Metadata `json:"metadata,omitempty"`
+	Value     string `json:"value,omitempty"`
+	*Metadata `json:"metadata,omitempty"`
 }
 
 func NewNote() *Note {
 	return &Note{
-		Metadata: Metadata{
+		Metadata: &Metadata{
 			Type: NoteItemType,
 		},
 	}
 }
 
 func (n *Note) Edit(ctx context.Context, w fyne.Window) (fyne.CanvasObject, Item) {
-	noteItem := *n
+	noteItem := &Note{}
+	*noteItem = *n
+	noteItem.Metadata = &Metadata{}
+	*noteItem.Metadata = *n.Metadata
+
 	titleEntry := widget.NewEntryWithData(binding.BindString(&noteItem.Metadata.Name))
 	titleEntry.Validator = nil
 	titleEntry.PlaceHolder = "Untitled note"
@@ -50,7 +54,7 @@ func (n *Note) Edit(ctx context.Context, w fyne.Window) (fyne.CanvasObject, Item
 	form.Add(labelWithStyle("Note"))
 	form.Add(noteEntry)
 
-	return form, &noteItem
+	return form, noteItem
 }
 
 func (n *Note) Show(ctx context.Context, w fyne.Window) fyne.CanvasObject {
