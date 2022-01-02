@@ -14,8 +14,6 @@ import (
 	"strconv"
 	"time"
 
-	"fyne.io/fyne/v2/data/binding"
-	"golang.org/x/sync/errgroup"
 	"lucor.dev/paw/internal/paw"
 )
 
@@ -37,44 +35,21 @@ type Pwned struct {
 
 // Search searches if the password has been exposed in data
 // breaches using the Have I Been Pwned APIs
-func Search(ctx context.Context, items []paw.Item, progress binding.Float) (pwned []Pwned, err error) {
-	g, ctx := errgroup.WithContext(ctx)
-
-	for _, item := range items {
-		meta := item.GetMetadata()
-		if meta == nil {
-			continue
-		}
-		var p string
-		switch meta.Type {
-		case paw.PasswordItemType:
-			p = item.(*paw.Password).Value
-		case paw.WebsiteItemType:
-			p = item.(*paw.Website).Password.Value
-		default:
-			continue
-		}
-
-		g.Go(func() error {
-			defer func() {
-				if progress != nil {
-					progress.Set(1.0)
-				}
-			}()
-			isPwned, count, err := hibp(ctx, defaultClient, p)
-			if err != nil {
-				return err
-			}
-			if isPwned {
-				pwned = append(pwned, Pwned{Item: item, Count: count})
-			}
-			return nil
-		})
+func Search(ctx context.Context, item paw.Item) (pwned bool, count int, err error) {
+	meta := item.GetMetadata()
+	if meta == nil {
+		return pwned, count, fmt.Errorf("metadata cannot be nil")
 	}
-	if err := g.Wait(); err != nil {
-		return nil, err
+	var p string
+	switch meta.Type {
+	case paw.PasswordItemType:
+		p = item.(*paw.Password).Value
+	case paw.WebsiteItemType:
+		p = item.(*paw.Website).Password.Value
+	default:
+		return pwned, count, fmt.Errorf("invalid item type %q", meta.Type)
 	}
-	return pwned, err
+	return hibp(ctx, defaultClient, p)
 }
 
 // hibp consumes the range endpoint. It returns true if the provided password has been

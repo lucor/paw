@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"image/color"
 	"log"
-	"runtime"
+	"sort"
 	"sync/atomic"
 	"time"
 
@@ -424,8 +424,12 @@ func (vw *vaultView) auditPasswordView() fyne.CanvasObject {
 	text.Alignment = fyne.TextAlignCenter
 
 	auditBtn := widget.NewButtonWithIcon("Audit", icon.FactCheckOutlinedIconThemed, func() {
+
+		ctx, cancel := context.WithCancel(context.Background())
+
 		itemMetadata := vw.vault.FilterItemMetadata(&paw.VaultFilterOptions{ItemType: paw.PasswordItemType | paw.WebsiteItemType})
 
+		modalTitle := widget.NewLabel("Auditing items...")
 		progressBind := binding.NewFloat()
 		progressbar := widget.NewProgressBarWithData(progressBind)
 		progressbar.TextFormatter = func() string {
@@ -433,62 +437,99 @@ func (vw *vaultView) auditPasswordView() fyne.CanvasObject {
 			return fmt.Sprintf("%.0f of %d", v, len(itemMetadata))
 		}
 
-		ctx, cancel := context.WithCancel(context.Background())
-		d := dialog.NewCustom("Checking passwords...", "Cancel", progressbar, vw.mainView.Window)
-		d.SetOnClosed(func() {
+		var cancelButton *widget.Button
+		cancelButton = widget.NewButton("Cancel", func() {
+			modalTitle.SetText("Cancelling auditing, please wait...")
+			progressbar.Hide()
+			cancelButton.Disable()
 			cancel()
 		})
-		d.Show()
 
-		var items []paw.Item
-		for _, meta := range itemMetadata {
-			item, err := vw.mainView.storage.LoadItem(vw.vault, meta)
-			if err != nil {
-				fyne.LogError("audit", err)
-			}
-			items = append(items, item)
-		}
+		modalContent := container.NewBorder(modalTitle, nil, nil, nil, container.NewCenter(container.NewVBox(progressbar, cancelButton)))
+		modal := widget.NewModalPopUp(modalContent, vw.mainView.Canvas())
 
-		pwend, err := haveibeenpwned.Search(ctx, items, progressBind)
-		if err != nil {
-			dialog.ShowError(err, vw.mainView.Window)
-			return
-		}
-		d.Hide()
+		var counter uint32
+		pwendItems := []haveibeenpwned.Pwned{}
 
-		num := len(pwend)
-		if num == 0 {
-			image = imageFromResource(icon.CheckCircleOutlinedIconThemed)
-			text.SetText("No password found in data breaches")
-			vw.setContent(container.NewVBox(image, heading, text))
-			return
-		}
+		sem := semaphore.NewWeighted(int64(maxWorkers))
+		g := &errgroup.Group{}
 
-		image = imageFromResource(theme.WarningIcon())
-		text.SetText("Passwords of the items below have been found in a data breaches and should not be used")
-		list := widget.NewList(
-			func() int {
-				return len(pwend)
-			},
-			func() fyne.CanvasObject {
-				return container.NewBorder(nil, nil, widget.NewIcon(icon.PasswordOutlinedIconThemed), widget.NewButtonWithIcon("", theme.DocumentCreateIcon(), nil), widget.NewLabel("item label"))
-			},
-			func(lii widget.ListItemID, co fyne.CanvasObject) {
-				v := pwend[lii]
-				co.(*fyne.Container).Objects[0].(*widget.Label).SetText(fmt.Sprintf("%s (found %d times)", v.Item.GetMetadata().Name, v.Count))
-				co.(*fyne.Container).Objects[1].(*widget.Icon).SetResource(v.Item.(paw.FyneObject).Icon())
-				co.(*fyne.Container).Objects[2].(*widget.Button).OnTapped = func() {
-					vw.setContentItem(v.Item, vw.editItemView)
+		go func() {
+			for _, meta := range itemMetadata {
+				meta := meta
+
+				err := sem.Acquire(ctx, 1)
+				if err != nil {
+					cancel()
+					break
 				}
-			},
-		)
-		list.OnSelected = func(id widget.ListItemID) {
-			v := pwend[id]
-			vw.setContentItem(v.Item, vw.itemView)
-		}
 
-		c := container.NewBorder(container.NewVBox(image, heading, text), nil, nil, nil, list)
-		vw.setContent(c)
+				g.Go(func() error {
+					defer sem.Release(1)
+
+					item, err := vw.mainView.storage.LoadItem(vw.vault, meta)
+					if err != nil {
+						return err
+					}
+
+					isPwend, count, err := haveibeenpwned.Search(ctx, item)
+					if err != nil {
+						return err
+					}
+					if isPwend {
+						pwendItems = append(pwendItems, haveibeenpwned.Pwned{Item: item, Count: count})
+					}
+
+					v := atomic.AddUint32(&counter, 1)
+					progressBind.Set(float64(v))
+					return nil
+				})
+			}
+
+			defer modal.Hide()
+			err := g.Wait()
+			if err != nil || errors.Is(ctx.Err(), context.Canceled) {
+				ShowErrorDialog("Error auditing items", err, vw.mainView)
+				return
+			}
+
+			sort.Slice(pwendItems, func(i, j int) bool { return pwendItems[i].Count > pwendItems[j].Count })
+
+			num := len(pwendItems)
+			if num == 0 {
+				image = imageFromResource(icon.CheckCircleOutlinedIconThemed)
+				text.SetText("No password found in data breaches")
+				vw.setContent(container.NewVBox(image, heading, text))
+				return
+			}
+
+			image = imageFromResource(theme.WarningIcon())
+			text.SetText("Passwords of the items below have been found in a data breaches and should not be used")
+			list := widget.NewList(
+				func() int {
+					return len(pwendItems)
+				},
+				func() fyne.CanvasObject {
+					return container.NewBorder(nil, nil, widget.NewIcon(icon.PasswordOutlinedIconThemed), widget.NewButtonWithIcon("", theme.DocumentCreateIcon(), nil), widget.NewLabel("item label"))
+				},
+				func(lii widget.ListItemID, co fyne.CanvasObject) {
+					v := pwendItems[lii]
+					co.(*fyne.Container).Objects[0].(*widget.Label).SetText(fmt.Sprintf("%s (found %d times)", v.Item.GetMetadata().Name, v.Count))
+					co.(*fyne.Container).Objects[1].(*widget.Icon).SetResource(v.Item.(paw.FyneObject).Icon())
+					co.(*fyne.Container).Objects[2].(*widget.Button).OnTapped = func() {
+						vw.setContentItem(v.Item, vw.editItemView)
+					}
+				},
+			)
+			list.OnSelected = func(id widget.ListItemID) {
+				v := pwendItems[id]
+				vw.setContentItem(v.Item, vw.itemView)
+			}
+
+			c := container.NewBorder(container.NewVBox(image, heading, text), nil, nil, nil, list)
+			vw.setContent(c)
+		}()
+		modal.Show()
 	})
 	auditBtn.Resize(auditBtn.MinSize())
 
@@ -546,7 +587,6 @@ func (vw *vaultView) importFromFile() {
 				return
 			}
 
-			maxWorkers := runtime.NumCPU()
 			sem := semaphore.NewWeighted(int64(maxWorkers))
 			g := &errgroup.Group{}
 
