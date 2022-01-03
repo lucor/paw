@@ -1,6 +1,6 @@
 # Changelog - Paw
 
-## Unreleased
+## 0.12.0 - 03 January 2022
 
 > This release updates the internal storage, so previous versions won't be compatible.
 
