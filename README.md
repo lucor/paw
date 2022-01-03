@@ -8,6 +8,12 @@ Paw is a cross platform application to manage your passwords and identities secu
 
 It is written in Go and uses [Fyne](https://github.com/fyne-io/fyne) as UI toolkit and [age](https://github.com/FiloSottile/age) as encryption library.
 
+## Warning
+
+**This software is work in progress, and didn't went through a full security audit.**
+
+**Do not expect it to be bug free and do not rely on it for any type of security.**
+
 ## Screenshot
 
 <div align="center">
@@ -22,6 +28,7 @@ It is written in Go and uses [Fyne](https://github.com/fyne-io/fyne) as UI toolk
 * Only one secret key to remember used to store securely your passwords
 * Audit passwords against data breaches
 * TOTP support
+* Password import/export
 
 ### Later goals
 
@@ -29,7 +36,6 @@ It is written in Go and uses [Fyne](https://github.com/fyne-io/fyne) as UI toolk
 * Automatic backup / syncronization
 * CLI application
 * Mobile / Web applications
-* Password import/export
 * Stateless password derivation support
 * Unicode password support
 

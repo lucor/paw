@@ -1,5 +1,13 @@
 # Changelog - Paw
 
+## 0.12.0 - 03 January 2022
+
+> This release updates the internal storage, so previous versions won't be compatible.
+
+- paw,ui: import items from file #6
+- paw,ui: export items to file #7
+- haveibeenpwned,ui: improve password audit
+
 ## 0.11.0 - 28 December 2021
 
 > This release updates the internal storage, so previous versions won't be compatible.

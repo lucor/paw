@@ -57,10 +57,8 @@ func TestStorageRoundTrip(t *testing.T) {
 
 	// test item creation for the vault
 	website := NewWebsite()
-	website.Password = Password{
-		Value: "a secret password",
-	}
 	website.Name = "test website"
+	website.Password.Value = "a secret password"
 
 	// add website item to vault
 	vault.AddItem(website)

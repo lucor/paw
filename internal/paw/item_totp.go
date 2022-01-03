@@ -39,10 +39,10 @@ const (
 )
 
 type TOTP struct {
-	Digits   int
-	Hash     TOTPHash
-	Interval int
-	Secret   string
+	Digits   int      `json:"digits,omitempty"`
+	Hash     TOTPHash `json:"hash,omitempty"`
+	Interval int      `json:"interval,omitempty"`
+	Secret   string   `json:"secret,omitempty"`
 }
 
 func NewDefaultTOTP() *TOTP {
@@ -54,7 +54,8 @@ func NewDefaultTOTP() *TOTP {
 }
 
 func (t *TOTP) Edit(ctx context.Context, w fyne.Window) (fyne.CanvasObject, *TOTP) {
-	totp := *t
+	totp := &TOTP{}
+	*totp = *t
 
 	secretBind := binding.BindString(&totp.Secret)
 	secretEntry := widget.NewPasswordEntry()
@@ -104,7 +105,7 @@ func (t *TOTP) Edit(ctx context.Context, w fyne.Window) (fyne.CanvasObject, *TOT
 	form.Add(labelWithStyle("TOTP Secret"))
 	form.Add(container.NewBorder(nil, nil, nil, settingsButton, secretEntry))
 
-	return form, &totp
+	return form, totp
 }
 
 func (t *TOTP) Show(ctx context.Context, w fyne.Window) []fyne.CanvasObject {

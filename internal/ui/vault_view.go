@@ -2,9 +2,13 @@ package ui
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"image/color"
 	"log"
+	"sort"
+	"sync/atomic"
 	"time"
 
 	"fyne.io/fyne/v2"
@@ -14,6 +18,8 @@ import (
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
+	"golang.org/x/sync/errgroup"
+	"golang.org/x/sync/semaphore"
 
 	"lucor.dev/paw/internal/haveibeenpwned"
 	"lucor.dev/paw/internal/icon"
@@ -80,9 +86,10 @@ func (vw *vaultView) Reload() {
 // emptyVaultContent returns the content to display when the vault has no items
 func (vw *vaultView) emptyVaultContent() fyne.CanvasObject {
 	msg := fmt.Sprintf("Vault %q is empty", vw.vault.Name)
-	t := headingText(msg)
-	b := vw.makeAddItemButton()
-	return container.NewCenter(container.NewVBox(t, b))
+	text := headingText(msg)
+	addItemButton := vw.makeAddItemButton()
+	importItemButton := widget.NewButton("Import From File", vw.importFromFile)
+	return container.NewCenter(container.NewVBox(text, addItemButton, importItemButton))
 }
 
 // defaultContent returns the object to display for default states
@@ -155,8 +162,34 @@ func (vw *vaultView) makeVaultMenu() fyne.CanvasObject {
 		vw.setContent(vw.auditPasswordView())
 	})
 
+	importFromFile := fyne.NewMenuItem("Import From File", vw.importFromFile)
+
+	exportToFile := fyne.NewMenuItem("Export To File", func() {
+		d := dialog.NewFileSave(func(uc fyne.URIWriteCloser, e error) {
+			defer uc.Close()
+			data := map[string][]paw.Item{}
+			for _, meta := range vw.vault.ItemMetadata {
+				item, err := vw.mainView.storage.LoadItem(vw.vault, meta)
+				if err != nil {
+					dialog.ShowError(err, vw.mainView)
+					return
+				}
+				itemType := item.GetMetadata().Type.String()
+				data[itemType] = append(data[itemType], item)
+			}
+			err = json.NewEncoder(uc).Encode(data)
+			if err != nil {
+				dialog.ShowError(err, vw.mainView)
+			}
+		}, vw.mainView)
+		d.SetFileName(fmt.Sprintf("%s.paw.json", vw.vault.Name))
+		d.Show()
+	})
+
 	menuItems := []*fyne.MenuItem{
 		passwordAudit,
+		importFromFile,
+		exportToFile,
 		fyne.NewMenuItemSeparator(),
 		switchVault,
 		lockVault,
@@ -225,9 +258,7 @@ func (vw *vaultView) makeTypeSelectEntry() *widget.Select {
 func (vw *vaultView) makeItems() []paw.Item {
 	note := paw.NewNote()
 	password := paw.NewPassword()
-
 	website := paw.NewWebsite()
-	website.Password = *password
 	website.TOTP = &paw.TOTP{
 		Digits:   TOTPDigits(),
 		Hash:     paw.TOTPHash(TOTPHash()),
@@ -380,7 +411,7 @@ func (vw *vaultView) editItemView(ctx context.Context, item paw.Item) fyne.Canva
 	return container.NewBorder(top, bottom, nil, nil, content)
 }
 
-// auditPasswordView returns a view with the list of available vaults
+// auditPasswordView returns a view to audit passwords
 func (vw *vaultView) auditPasswordView() fyne.CanvasObject {
 
 	image := imageFromResource(icon.FactCheckOutlinedIconThemed)
@@ -393,73 +424,220 @@ func (vw *vaultView) auditPasswordView() fyne.CanvasObject {
 	text.Alignment = fyne.TextAlignCenter
 
 	auditBtn := widget.NewButtonWithIcon("Audit", icon.FactCheckOutlinedIconThemed, func() {
+
+		ctx, cancel := context.WithCancel(context.Background())
+
 		itemMetadata := vw.vault.FilterItemMetadata(&paw.VaultFilterOptions{ItemType: paw.PasswordItemType | paw.WebsiteItemType})
 
+		modalTitle := widget.NewLabel("Auditing items...")
 		progressBind := binding.NewFloat()
 		progressbar := widget.NewProgressBarWithData(progressBind)
 		progressbar.TextFormatter = func() string {
-			return fmt.Sprintf("%.0f of %d", progressbar.Value, len(itemMetadata))
+			v, _ := progressBind.Get()
+			return fmt.Sprintf("%.0f of %d", v, len(itemMetadata))
 		}
 
-		ctx, cancel := context.WithCancel(context.Background())
-		d := dialog.NewCustom("Checking passwords...", "Cancel", progressbar, vw.mainView.Window)
-		d.SetOnClosed(func() {
+		var cancelButton *widget.Button
+		cancelButton = widget.NewButton("Cancel", func() {
+			modalTitle.SetText("Cancelling auditing, please wait...")
+			progressbar.Hide()
+			cancelButton.Disable()
 			cancel()
 		})
-		d.Show()
 
-		var items []paw.Item
-		for _, meta := range itemMetadata {
-			item, err := vw.mainView.storage.LoadItem(vw.vault, meta)
-			if err != nil {
-				fyne.LogError("audit", err)
-			}
-			items = append(items, item)
-		}
+		modalContent := container.NewBorder(modalTitle, nil, nil, nil, container.NewCenter(container.NewVBox(progressbar, cancelButton)))
+		modal := widget.NewModalPopUp(modalContent, vw.mainView.Canvas())
 
-		pwend, err := haveibeenpwned.Search(ctx, items, progressBind)
-		if err != nil {
-			dialog.ShowError(err, vw.mainView.Window)
-			return
-		}
-		d.Hide()
+		var counter uint32
+		pwendItems := []haveibeenpwned.Pwned{}
 
-		num := len(pwend)
-		if num == 0 {
-			image = imageFromResource(icon.CheckCircleOutlinedIconThemed)
-			text.SetText("No password found in data breaches")
-			vw.setContent(container.NewVBox(image, heading, text))
-			return
-		}
+		sem := semaphore.NewWeighted(int64(maxWorkers))
+		g := &errgroup.Group{}
 
-		image = imageFromResource(theme.WarningIcon())
-		text.SetText("Passwords of the items below have been found in a data breaches and should not be used")
-		list := widget.NewList(
-			func() int {
-				return len(pwend)
-			},
-			func() fyne.CanvasObject {
-				return container.NewBorder(nil, nil, widget.NewIcon(icon.PasswordOutlinedIconThemed), widget.NewButtonWithIcon("", theme.DocumentCreateIcon(), nil), widget.NewLabel("item label"))
-			},
-			func(lii widget.ListItemID, co fyne.CanvasObject) {
-				v := pwend[lii]
-				co.(*fyne.Container).Objects[0].(*widget.Label).SetText(fmt.Sprintf("%s (found %d times)", v.Item.GetMetadata().Name, v.Count))
-				co.(*fyne.Container).Objects[1].(*widget.Icon).SetResource(v.Item.(paw.FyneObject).Icon())
-				co.(*fyne.Container).Objects[2].(*widget.Button).OnTapped = func() {
-					vw.setContentItem(v.Item, vw.editItemView)
+		go func() {
+			for _, meta := range itemMetadata {
+				meta := meta
+
+				err := sem.Acquire(ctx, 1)
+				if err != nil {
+					cancel()
+					break
 				}
-			},
-		)
-		list.OnSelected = func(id widget.ListItemID) {
-			v := pwend[id]
-			vw.setContentItem(v.Item, vw.itemView)
-		}
 
-		c := container.NewBorder(container.NewVBox(image, heading, text), nil, nil, nil, list)
-		vw.setContent(c)
+				g.Go(func() error {
+					defer sem.Release(1)
+
+					item, err := vw.mainView.storage.LoadItem(vw.vault, meta)
+					if err != nil {
+						return err
+					}
+
+					isPwend, count, err := haveibeenpwned.Search(ctx, item)
+					if err != nil {
+						return err
+					}
+					if isPwend {
+						pwendItems = append(pwendItems, haveibeenpwned.Pwned{Item: item, Count: count})
+					}
+
+					v := atomic.AddUint32(&counter, 1)
+					progressBind.Set(float64(v))
+					return nil
+				})
+			}
+
+			defer modal.Hide()
+			err := g.Wait()
+			if err != nil || errors.Is(ctx.Err(), context.Canceled) {
+				ShowErrorDialog("Error auditing items", err, vw.mainView)
+				return
+			}
+
+			sort.Slice(pwendItems, func(i, j int) bool { return pwendItems[i].Count > pwendItems[j].Count })
+
+			num := len(pwendItems)
+			if num == 0 {
+				image = imageFromResource(icon.CheckCircleOutlinedIconThemed)
+				text.SetText("No password found in data breaches")
+				vw.setContent(container.NewVBox(image, heading, text))
+				return
+			}
+
+			image = imageFromResource(theme.WarningIcon())
+			text.SetText("Passwords of the items below have been found in a data breaches and should not be used")
+			list := widget.NewList(
+				func() int {
+					return len(pwendItems)
+				},
+				func() fyne.CanvasObject {
+					return container.NewBorder(nil, nil, widget.NewIcon(icon.PasswordOutlinedIconThemed), widget.NewButtonWithIcon("", theme.DocumentCreateIcon(), nil), widget.NewLabel("item label"))
+				},
+				func(lii widget.ListItemID, co fyne.CanvasObject) {
+					v := pwendItems[lii]
+					co.(*fyne.Container).Objects[0].(*widget.Label).SetText(fmt.Sprintf("%s (found %d times)", v.Item.GetMetadata().Name, v.Count))
+					co.(*fyne.Container).Objects[1].(*widget.Icon).SetResource(v.Item.(paw.FyneObject).Icon())
+					co.(*fyne.Container).Objects[2].(*widget.Button).OnTapped = func() {
+						vw.setContentItem(v.Item, vw.editItemView)
+					}
+				},
+			)
+			list.OnSelected = func(id widget.ListItemID) {
+				v := pwendItems[id]
+				vw.setContentItem(v.Item, vw.itemView)
+			}
+
+			c := container.NewBorder(container.NewVBox(image, heading, text), nil, nil, nil, list)
+			vw.setContent(c)
+		}()
+		modal.Show()
 	})
 	auditBtn.Resize(auditBtn.MinSize())
 
 	empty := widget.NewLabel("")
 	return container.NewVBox(image, heading, text, container.NewGridWithColumns(3, empty, auditBtn, empty))
+}
+
+func (vw *vaultView) importFromFile() {
+	d := dialog.NewFileOpen(func(uc fyne.URIReadCloser, e error) {
+
+		ctx, cancel := context.WithCancel(context.Background())
+
+		data := paw.Imported{}
+		var counter uint32
+
+		modalTitle := widget.NewLabel("Importing items...")
+
+		progressBind := binding.NewFloat()
+		progressbar := widget.NewProgressBarWithData(progressBind)
+		progressbar.TextFormatter = func() string {
+			v, _ := progressBind.Get()
+			return fmt.Sprintf("%.0f of %d", v, len(data.Items))
+		}
+
+		var cancelButton *widget.Button
+		cancelButton = widget.NewButton("Cancel", func() {
+			modalTitle.SetText("Cancelling import, please wait...")
+			progressbar.Hide()
+			cancelButton.Disable()
+			cancel()
+		})
+
+		c := container.NewBorder(modalTitle, nil, nil, nil, container.NewCenter(container.NewVBox(progressbar, cancelButton)))
+		modal := widget.NewModalPopUp(c, vw.mainView.Canvas())
+
+		rollback := func(vault *paw.Vault, items []paw.Item) {
+			for _, item := range items {
+				vw.mainView.storage.DeleteItem(vw.vault, item)
+				vw.vault.DeleteItem(item)
+			}
+		}
+
+		go func() {
+			if uc == nil {
+				// file open dialog has been cancelled
+				modal.Hide()
+				return
+			}
+			defer uc.Close()
+			// Decode the JSON input file
+			err := json.NewDecoder(uc).Decode(&data)
+			if err != nil {
+				modal.Hide()
+				ShowErrorDialog("Error importing items", err, vw.mainView)
+				return
+			}
+
+			sem := semaphore.NewWeighted(int64(maxWorkers))
+			g := &errgroup.Group{}
+
+			processed := []paw.Item{}
+			// TODO: handle if an item with same name and type already exists
+			for _, item := range data.Items {
+				item := item
+
+				err = sem.Acquire(ctx, 1)
+				if err != nil {
+					cancel()
+					break
+				}
+
+				g.Go(func() error {
+					defer sem.Release(1)
+					err := vw.mainView.storage.StoreItem(vw.vault, item)
+					if err != nil {
+						return err
+					}
+					processed = append(processed, item)
+					v := atomic.AddUint32(&counter, 1)
+					progressBind.Set(float64(v))
+					return nil
+				})
+			}
+
+			defer modal.Hide()
+			err = g.Wait()
+			if err != nil || errors.Is(ctx.Err(), context.Canceled) {
+				rollback(vw.vault, processed)
+				ShowErrorDialog("Error importing items", err, vw.mainView)
+				return
+			}
+
+			for _, item := range processed {
+				vw.vault.AddItem(item)
+			}
+			err = vw.mainView.storage.StoreVault(vw.vault)
+			if err != nil {
+				rollback(vw.vault, processed)
+				ShowErrorDialog("Error importing items", err, vw.mainView)
+				return
+			}
+			vw.itemsWidget.Reload(nil, vw.filterOptions)
+			vw.setContent(vw.defaultContent())
+			vw.Reload()
+		}()
+
+		modal.Show()
+
+	}, vw.mainView)
+	d.Show()
 }

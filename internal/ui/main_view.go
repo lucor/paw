@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/url"
+	"runtime"
 	"runtime/debug"
 
 	"filippo.io/age"
@@ -18,6 +19,9 @@ import (
 	"lucor.dev/paw/internal/icon"
 	"lucor.dev/paw/internal/paw"
 )
+
+// maxWorkers represents the max number of workers to use in parallel processing
+var maxWorkers = runtime.NumCPU()
 
 // mainView represents the Paw main view
 type mainView struct {

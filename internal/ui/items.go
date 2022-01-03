@@ -1,6 +1,9 @@
 package ui
 
 import (
+	"sort"
+	"strings"
+
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/widget"
@@ -58,6 +61,9 @@ func (iw *itemsWidget) Reload(selectedItem paw.Item, opts *paw.VaultFilterOption
 // makeList makes the Fyne list widget
 func (iw *itemsWidget) makeList(selectedItem paw.Item, opts *paw.VaultFilterOptions) *widget.List {
 	itemMetadata := iw.vault.FilterItemMetadata(opts)
+	sort.Slice(itemMetadata, func(i, j int) bool {
+		return strings.ToLower(itemMetadata[i].Name) < strings.ToLower(itemMetadata[j].Name)
+	})
 	list := widget.NewList(
 		func() int {
 			return len(itemMetadata)
