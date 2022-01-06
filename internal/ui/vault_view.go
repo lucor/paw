@@ -369,7 +369,7 @@ func (vw *vaultView) editItemView(ctx context.Context, item paw.Item) fyne.Canva
 			return
 		}
 
-		if item.ID() != editItem.ID() {
+		if item.ID() != editItem.ID() || item.GetMetadata().IconResource != editItem.GetMetadata().IconResource {
 			vw.itemsWidget.Reload(editItem, vw.filterOptions)
 		}
 
