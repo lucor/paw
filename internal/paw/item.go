@@ -37,8 +37,8 @@ const (
 	NoteItemType
 	// PasswordItemType is the Password Item type
 	PasswordItemType
-	// WebsiteItemType is the Website Item type
-	WebsiteItemType
+	// LoginItemType is the Website Item type
+	LoginItemType
 )
 
 func (it ItemType) String() string {
@@ -49,8 +49,8 @@ func (it ItemType) String() string {
 		return "note"
 	case PasswordItemType:
 		return "password"
-	case WebsiteItemType:
-		return "website"
+	case LoginItemType:
+		return "login"
 	}
 	return "invalid"
 }
@@ -122,7 +122,7 @@ func (m *Metadata) Icon() fyne.Resource {
 		return icon.NoteOutlinedIconThemed
 	case PasswordItemType:
 		return icon.PasswordOutlinedIconThemed
-	case WebsiteItemType:
+	case LoginItemType:
 		return icon.PublicOutlinedIconThemed
 	}
 	return nil

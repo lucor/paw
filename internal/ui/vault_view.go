@@ -258,7 +258,7 @@ func (vw *vaultView) makeTypeSelectEntry() *widget.Select {
 func (vw *vaultView) makeItems() []paw.Item {
 	note := paw.NewNote()
 	password := paw.NewPassword()
-	website := paw.NewWebsite()
+	website := paw.NewLogin()
 	website.TOTP = &paw.TOTP{
 		Digits:   TOTPDigits(),
 		Hash:     paw.TOTPHash(TOTPHash()),
@@ -331,7 +331,7 @@ func (vw *vaultView) editItemView(ctx context.Context, item paw.Item) fyne.Canva
 	case (*paw.Password):
 		v.SetPasswordGenerator(d)
 		fo = v
-	case (*paw.Website):
+	case (*paw.Login):
 		v.SetPasswordGenerator(d)
 		fo = v
 	default:
@@ -427,7 +427,7 @@ func (vw *vaultView) auditPasswordView() fyne.CanvasObject {
 
 		ctx, cancel := context.WithCancel(context.Background())
 
-		itemMetadata := vw.vault.FilterItemMetadata(&paw.VaultFilterOptions{ItemType: paw.PasswordItemType | paw.WebsiteItemType})
+		itemMetadata := vw.vault.FilterItemMetadata(&paw.VaultFilterOptions{ItemType: paw.PasswordItemType | paw.LoginItemType})
 
 		modalTitle := widget.NewLabel("Auditing items...")
 		progressBind := binding.NewFloat()

@@ -96,8 +96,8 @@ func (s *Storage) LoadItem(vault *Vault, itemMetadata *Metadata) (Item, error) {
 		item = &Note{}
 	case PasswordItemType:
 		item = &Password{}
-	case WebsiteItemType:
-		item = &Website{}
+	case LoginItemType:
+		item = &Login{}
 	}
 	err := s.decrypt(vault.key, s.itemURI(vault.Name, itemMetadata.ID()), item)
 	if err != nil {

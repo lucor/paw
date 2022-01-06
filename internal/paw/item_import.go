@@ -23,8 +23,8 @@ func (i *Imported) UnmarshalJSON(data []byte) error {
 				t = &Note{}
 			case PasswordItemType.String():
 				t = &Password{}
-			case WebsiteItemType.String():
-				t = &Website{}
+			case LoginItemType.String():
+				t = &Login{}
 			}
 			err := json.Unmarshal(message, t)
 			if err != nil {

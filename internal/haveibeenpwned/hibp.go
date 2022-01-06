@@ -44,8 +44,8 @@ func Search(ctx context.Context, item paw.Item) (pwned bool, count int, err erro
 	switch meta.Type {
 	case paw.PasswordItemType:
 		p = item.(*paw.Password).Value
-	case paw.WebsiteItemType:
-		p = item.(*paw.Website).Password.Value
+	case paw.LoginItemType:
+		p = item.(*paw.Login).Password.Value
 	default:
 		return pwned, count, fmt.Errorf("invalid item type %q", meta.Type)
 	}

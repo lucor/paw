@@ -20,29 +20,29 @@ import (
 )
 
 func init() {
-	gob.Register((*Website)(nil))
+	gob.Register((*Login)(nil))
 }
 
 // Declare conformity to Item interface
-var _ Item = (*Website)(nil)
+var _ Item = (*Login)(nil)
 
 // Declare conformity to FyneObject interface
-var _ FyneObject = (*Website)(nil)
+var _ FyneObject = (*Login)(nil)
 
-type Website struct {
+type Login struct {
 	*Password `json:"password,omitempty"`
 	*TOTP     `json:"totp,omitempty"`
 	*Note     `json:"note,omitempty"`
 	*Metadata `json:"metadata,omitempty"`
 
 	Username string `json:"username,omitempty"`
-	URI      string `json:"uri,omitempty"`
+	URL      string `json:"url,omitempty"`
 }
 
-func NewWebsite() *Website {
-	return &Website{
+func NewLogin() *Login {
+	return &Login{
 		Metadata: &Metadata{
-			Type: WebsiteItemType,
+			Type: LoginItemType,
 		},
 		Note:     &Note{},
 		Password: &Password{},
@@ -50,40 +50,40 @@ func NewWebsite() *Website {
 	}
 }
 
-func (website *Website) Edit(ctx context.Context, w fyne.Window) (fyne.CanvasObject, Item) {
+func (login *Login) Edit(ctx context.Context, w fyne.Window) (fyne.CanvasObject, Item) {
 
-	websiteIcon := widget.NewIcon(website.Icon())
+	loginIcon := widget.NewIcon(login.Icon())
 
-	websiteItem := &Website{}
-	*websiteItem = *website
-	websiteItem.Metadata = &Metadata{}
-	*websiteItem.Metadata = *website.Metadata
-	websiteItem.Note = &Note{}
-	*websiteItem.Note = *website.Note
-	websiteItem.Password = &Password{}
-	*websiteItem.Password = *website.Password
-	websiteItem.TOTP = &TOTP{}
-	*websiteItem.TOTP = *website.TOTP
+	loginItem := &Login{}
+	*loginItem = *login
+	loginItem.Metadata = &Metadata{}
+	*loginItem.Metadata = *login.Metadata
+	loginItem.Note = &Note{}
+	*loginItem.Note = *login.Note
+	loginItem.Password = &Password{}
+	*loginItem.Password = *login.Password
+	loginItem.TOTP = &TOTP{}
+	*loginItem.TOTP = *login.TOTP
 
-	passwordBind := binding.BindString(&websiteItem.Password.Value)
-	titleEntry := widget.NewEntryWithData(binding.BindString(&websiteItem.Name))
+	passwordBind := binding.BindString(&loginItem.Password.Value)
+	titleEntry := widget.NewEntryWithData(binding.BindString(&loginItem.Name))
 	titleEntry.Validator = nil
-	titleEntry.PlaceHolder = "Untitled website"
+	titleEntry.PlaceHolder = "Untitled login"
 
-	websiteEntry := newWebsiteEntryWithData(ctx, binding.BindString(&websiteItem.URI))
-	websiteEntry.FaviconListener = func(favicon fyne.Resource) {
-		websiteItem.Metadata.IconResource = favicon
-		websiteIcon.SetResource(favicon)
+	urlEntry := newURLEntryWithData(ctx, binding.BindString(&loginItem.URL))
+	urlEntry.FaviconListener = func(favicon fyne.Resource) {
+		loginItem.Metadata.IconResource = favicon
+		loginIcon.SetResource(favicon)
 	}
 
-	usernameEntry := widget.NewEntryWithData(binding.BindString(&websiteItem.Username))
+	usernameEntry := widget.NewEntryWithData(binding.BindString(&loginItem.Username))
 	usernameEntry.Validator = nil
 
-	totpForm, totpItem := websiteItem.TOTP.Edit(ctx, w)
-	websiteItem.TOTP = totpItem
+	totpForm, totpItem := loginItem.TOTP.Edit(ctx, w)
+	loginItem.TOTP = totpItem
 
 	// the note field
-	noteEntry := widget.NewEntryWithData(binding.BindString(&websiteItem.Note.Value))
+	noteEntry := widget.NewEntryWithData(binding.BindString(&loginItem.Note.Value))
 	noteEntry.MultiLine = true
 	noteEntry.Validator = nil
 
@@ -102,15 +102,15 @@ func (website *Website) Edit(ctx context.Context, w fyne.Window) (fyne.CanvasObj
 	})
 
 	passwordMakeButton := widget.NewButtonWithIcon("Generate", icon.KeyOutlinedIconThemed, func() {
-		website.Password.fpg.ShowPasswordGenerator(passwordBind, websiteItem.Password, w)
+		login.Password.fpg.ShowPasswordGenerator(passwordBind, loginItem.Password, w)
 	})
 
 	form := container.New(layout.NewFormLayout())
-	form.Add(websiteIcon)
+	form.Add(loginIcon)
 	form.Add(titleEntry)
 
-	form.Add(labelWithStyle("Website"))
-	form.Add(websiteEntry)
+	form.Add(labelWithStyle("URL"))
+	form.Add(urlEntry)
 
 	form.Add(labelWithStyle("Username"))
 	form.Add(usernameEntry)
@@ -124,24 +124,24 @@ func (website *Website) Edit(ctx context.Context, w fyne.Window) (fyne.CanvasObj
 	form.Add(labelWithStyle("Note"))
 	form.Add(noteEntry)
 
-	return form, websiteItem
+	return form, loginItem
 }
 
-func (website *Website) Show(ctx context.Context, w fyne.Window) fyne.CanvasObject {
-	obj := titleRow(website.Icon(), website.Name)
-	obj = append(obj, copiableLinkRow("Website", website.URI, w)...)
-	obj = append(obj, copiableRow("Username", website.Username, w)...)
-	obj = append(obj, copiablePasswordRow("Password", website.Password.Value, w)...)
-	if website.TOTP != nil && website.TOTP.Secret != "" {
-		obj = append(obj, website.TOTP.Show(ctx, w)...)
+func (login *Login) Show(ctx context.Context, w fyne.Window) fyne.CanvasObject {
+	obj := titleRow(login.Icon(), login.Name)
+	obj = append(obj, copiableLinkRow("Login", login.URL, w)...)
+	obj = append(obj, copiableRow("Username", login.Username, w)...)
+	obj = append(obj, copiablePasswordRow("Password", login.Password.Value, w)...)
+	if login.TOTP != nil && login.TOTP.Secret != "" {
+		obj = append(obj, login.TOTP.Show(ctx, w)...)
 	}
-	if website.Note != nil && website.Note.Value != "" {
-		obj = append(obj, copiableRow("Note", website.Note.Value, w)...)
+	if login.Note != nil && login.Note.Value != "" {
+		obj = append(obj, copiableRow("Note", login.Note.Value, w)...)
 	}
 	return container.New(layout.NewFormLayout(), obj...)
 }
 
-type websiteEntry struct {
+type urlEntry struct {
 	ctx context.Context
 	widget.Entry
 	host            string // host keep track of the initial value before editing
@@ -149,8 +149,8 @@ type websiteEntry struct {
 	FaviconListener func(fyne.Resource)
 }
 
-func newWebsiteEntryWithData(ctx context.Context, bind binding.String) *websiteEntry {
-	e := &websiteEntry{
+func newURLEntryWithData(ctx context.Context, bind binding.String) *urlEntry {
+	e := &urlEntry{
 		ctx: ctx,
 	}
 	e.ExtendBaseWidget(e)
@@ -172,7 +172,7 @@ func newWebsiteEntryWithData(ctx context.Context, bind binding.String) *websiteE
 }
 
 // FocusLost is a hook called by the focus handling logic after this object lost the focus.
-func (e *websiteEntry) FocusLost() {
+func (e *urlEntry) FocusLost() {
 	defer e.Entry.FocusLost()
 
 	host := e.host
