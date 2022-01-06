@@ -369,11 +369,28 @@ func (vw *vaultView) editItemView(ctx context.Context, item paw.Item) fyne.Canva
 			return
 		}
 
-		if item.ID() != editItem.ID() || item.GetMetadata().IconResource != editItem.GetMetadata().IconResource {
-			vw.itemsWidget.Reload(editItem, vw.filterOptions)
+		var reloadItems bool
+
+		if item.GetMetadata().IconResource != editItem.GetMetadata().IconResource {
+			reloadItems = true
+		}
+
+		if item.ID() != editItem.ID() {
+			reloadItems = true
+			// item ID is changed, delete the old one
+			vw.vault.DeleteItem(item)
+			err := vw.mainView.storage.DeleteItem(vw.vault, item)
+			if err != nil {
+				return
+			}
 		}
 
 		item = editItem
+
+		if reloadItems {
+			vw.itemsWidget.Reload(item, vw.filterOptions)
+		}
+
 		vw.setContentItem(item, vw.itemView)
 		vw.Reload()
 
