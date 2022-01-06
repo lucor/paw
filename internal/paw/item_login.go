@@ -66,11 +66,13 @@ func (login *Login) Edit(ctx context.Context, w fyne.Window) (fyne.CanvasObject,
 	*loginItem.TOTP = *login.TOTP
 
 	passwordBind := binding.BindString(&loginItem.Password.Value)
+
 	titleEntry := widget.NewEntryWithData(binding.BindString(&loginItem.Name))
 	titleEntry.Validator = nil
 	titleEntry.PlaceHolder = "Untitled login"
 
 	urlEntry := newURLEntryWithData(ctx, binding.BindString(&loginItem.URL))
+	urlEntry.TitleEntry = titleEntry
 	urlEntry.FaviconListener = func(favicon fyne.Resource) {
 		loginItem.Metadata.IconResource = favicon
 		loginIcon.SetResource(favicon)
@@ -129,9 +131,15 @@ func (login *Login) Edit(ctx context.Context, w fyne.Window) (fyne.CanvasObject,
 
 func (login *Login) Show(ctx context.Context, w fyne.Window) fyne.CanvasObject {
 	obj := titleRow(login.Icon(), login.Name)
-	obj = append(obj, copiableLinkRow("Login", login.URL, w)...)
-	obj = append(obj, copiableRow("Username", login.Username, w)...)
-	obj = append(obj, copiablePasswordRow("Password", login.Password.Value, w)...)
+	if login.URL != "" {
+		obj = append(obj, copiableLinkRow("URL", login.URL, w)...)
+	}
+	if login.Username != "" {
+		obj = append(obj, copiableRow("Username", login.Username, w)...)
+	}
+	if login.Password.Value != "" {
+		obj = append(obj, copiablePasswordRow("Password", login.Password.Value, w)...)
+	}
 	if login.TOTP != nil && login.TOTP.Secret != "" {
 		obj = append(obj, login.TOTP.Show(ctx, w)...)
 	}
@@ -142,11 +150,12 @@ func (login *Login) Show(ctx context.Context, w fyne.Window) fyne.CanvasObject {
 }
 
 type urlEntry struct {
-	ctx context.Context
 	widget.Entry
-	host            string // host keep track of the initial value before editing
-	BaseURL         string
+	TitleEntry      *widget.Entry
 	FaviconListener func(fyne.Resource)
+
+	ctx  context.Context
+	host string // host keep track of the initial value before editing
 }
 
 func newURLEntryWithData(ctx context.Context, bind binding.String) *urlEntry {
@@ -155,30 +164,47 @@ func newURLEntryWithData(ctx context.Context, bind binding.String) *urlEntry {
 	}
 	e.ExtendBaseWidget(e)
 	e.Bind(bind)
-	e.Validator = func(s string) error {
-		rawurl, _ := bind.Get()
-		e.host = ""
-		u, err := url.Parse(rawurl)
-		if err != nil {
-			return err
-		}
+	e.Validator = nil
 
-		if strings.HasPrefix(u.Scheme, "http") {
-			e.host = u.Host
-		}
-		return nil
+	rawurl, _ := bind.Get()
+	if rawurl == "" {
+		rawurl = "https://"
+		e.SetText(rawurl)
 	}
+
+	e.host = e.hostFromRawURL(rawurl)
 	return e
+}
+
+func (e *urlEntry) hostFromRawURL(rawurl string) string {
+	if rawurl == "" {
+		return rawurl
+	}
+
+	u, err := url.Parse(rawurl)
+	if err != nil {
+		return rawurl
+	}
+
+	if u.Host != "" {
+		return u.Host
+	}
+	parts := strings.Split(u.Path, "/")
+	return parts[0]
 }
 
 // FocusLost is a hook called by the focus handling logic after this object lost the focus.
 func (e *urlEntry) FocusLost() {
 	defer e.Entry.FocusLost()
 
-	host := e.host
-	if host == "" {
+	host := e.hostFromRawURL(e.Text)
+	if e.TitleEntry.Text == "" {
+		e.TitleEntry.SetText(host)
+	}
+	if host == e.host {
 		return
 	}
+	e.host = host
 
 	go func() {
 		var resource fyne.Resource

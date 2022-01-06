@@ -131,7 +131,9 @@ func (p *Password) Edit(ctx context.Context, w fyne.Window) (fyne.CanvasObject, 
 
 func (p *Password) Show(ctx context.Context, w fyne.Window) fyne.CanvasObject {
 	obj := titleRow(p.Icon(), p.Name)
-	obj = append(obj, copiablePasswordRow("Password", p.Value, w)...)
+	if p.Value != "" {
+		obj = append(obj, copiablePasswordRow("Password", p.Value, w)...)
+	}
 	if p.Note.Value != "" {
 		obj = append(obj, copiableRow("Note", p.Note.Value, w)...)
 	}
