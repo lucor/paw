@@ -1,8 +1,12 @@
 package paw
 
 import (
+	"bytes"
 	"context"
 	"encoding/gob"
+	"image/png"
+	"net/url"
+	"strings"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
@@ -11,6 +15,7 @@ import (
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
+	"lucor.dev/paw/internal/favicon"
 	"lucor.dev/paw/internal/icon"
 )
 
@@ -46,6 +51,9 @@ func NewWebsite() *Website {
 }
 
 func (website *Website) Edit(ctx context.Context, w fyne.Window) (fyne.CanvasObject, Item) {
+
+	websiteIcon := widget.NewIcon(website.Icon())
+
 	websiteItem := &Website{}
 	*websiteItem = *website
 	websiteItem.Metadata = &Metadata{}
@@ -62,8 +70,11 @@ func (website *Website) Edit(ctx context.Context, w fyne.Window) (fyne.CanvasObj
 	titleEntry.Validator = nil
 	titleEntry.PlaceHolder = "Untitled website"
 
-	websiteEntry := widget.NewEntryWithData(binding.BindString(&websiteItem.URI))
-	websiteEntry.Validator = nil
+	websiteEntry := newWebsiteEntryWithData(ctx, binding.BindString(&websiteItem.URI))
+	websiteEntry.FaviconListener = func(favicon fyne.Resource) {
+		websiteItem.Metadata.IconResource = favicon
+		websiteIcon.SetResource(favicon)
+	}
 
 	usernameEntry := widget.NewEntryWithData(binding.BindString(&websiteItem.Username))
 	usernameEntry.Validator = nil
@@ -95,7 +106,7 @@ func (website *Website) Edit(ctx context.Context, w fyne.Window) (fyne.CanvasObj
 	})
 
 	form := container.New(layout.NewFormLayout())
-	form.Add(widget.NewIcon(website.Icon()))
+	form.Add(websiteIcon)
 	form.Add(titleEntry)
 
 	form.Add(labelWithStyle("Website"))
@@ -118,14 +129,76 @@ func (website *Website) Edit(ctx context.Context, w fyne.Window) (fyne.CanvasObj
 
 func (website *Website) Show(ctx context.Context, w fyne.Window) fyne.CanvasObject {
 	obj := titleRow(website.Icon(), website.Name)
-	obj = append(obj, copiableRow("Website", website.URI, w)...)
+	obj = append(obj, copiableLinkRow("Website", website.URI, w)...)
 	obj = append(obj, copiableRow("Username", website.Username, w)...)
 	obj = append(obj, copiablePasswordRow("Password", website.Password.Value, w)...)
-	if website.TOTP.Secret != "" {
+	if website.TOTP != nil && website.TOTP.Secret != "" {
 		obj = append(obj, website.TOTP.Show(ctx, w)...)
 	}
-	if website.Note.Value != "" {
+	if website.Note != nil && website.Note.Value != "" {
 		obj = append(obj, copiableRow("Note", website.Note.Value, w)...)
 	}
 	return container.New(layout.NewFormLayout(), obj...)
+}
+
+type websiteEntry struct {
+	ctx context.Context
+	widget.Entry
+	host            string // host keep track of the initial value before editing
+	BaseURL         string
+	FaviconListener func(fyne.Resource)
+}
+
+func newWebsiteEntryWithData(ctx context.Context, bind binding.String) *websiteEntry {
+	e := &websiteEntry{
+		ctx: ctx,
+	}
+	e.ExtendBaseWidget(e)
+	e.Bind(bind)
+	e.Validator = func(s string) error {
+		rawurl, _ := bind.Get()
+		e.host = ""
+		u, err := url.Parse(rawurl)
+		if err != nil {
+			return err
+		}
+
+		if strings.HasPrefix(u.Scheme, "http") {
+			e.host = u.Host
+		}
+		return nil
+	}
+	return e
+}
+
+// FocusLost is a hook called by the focus handling logic after this object lost the focus.
+func (e *websiteEntry) FocusLost() {
+	defer e.Entry.FocusLost()
+
+	host := e.host
+	if host == "" {
+		return
+	}
+
+	go func() {
+		var resource fyne.Resource
+		resource = icon.PublicOutlinedIconThemed
+
+		img, err := favicon.Download(e.ctx, host, favicon.Options{
+			ForceMinSize: true,
+		})
+		if err != nil {
+			e.FaviconListener(resource)
+			return
+		}
+
+		w := &bytes.Buffer{}
+		err = png.Encode(w, img)
+		if err != nil {
+			e.FaviconListener(resource)
+			return
+		}
+		resource = fyne.NewStaticResource(host, w.Bytes())
+		e.FaviconListener(resource)
+	}()
 }
