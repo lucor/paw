@@ -20,11 +20,11 @@ func (i *Imported) UnmarshalJSON(data []byte) error {
 		for _, message := range messages {
 			switch itemType {
 			case NoteItemType.String():
-				t = &Note{}
+				t = NewNote()
 			case PasswordItemType.String():
-				t = &Password{}
-			case WebsiteItemType.String():
-				t = &Website{}
+				t = NewPassword()
+			case LoginItemType.String():
+				t = NewLogin()
 			}
 			err := json.Unmarshal(message, t)
 			if err != nil {

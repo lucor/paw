@@ -1,5 +1,14 @@
 # Changelog - Paw
 
+## 0.13.0 - 07 January 2022
+
+> This release updates the internal storage, so previous versions won't be compatible.
+
+- paw: the website item has be renamed into login to make it more general purpose
+- ui: support showing website favicons #8
+- favicon: add package favicon that provides a favicon downloader #8
+- ico: add package ico that implements a minimal ICO image decoder #8
+
 ## 0.12.0 - 03 January 2022
 
 > This release updates the internal storage, so previous versions won't be compatible.

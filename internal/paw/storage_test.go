@@ -56,30 +56,30 @@ func TestStorageRoundTrip(t *testing.T) {
 	assert.Equal(t, note.Name, item.GetMetadata().Name)
 
 	// test item creation for the vault
-	website := NewWebsite()
-	website.Name = "test website"
-	website.Password.Value = "a secret password"
+	login := NewLogin()
+	login.Name = "test login"
+	login.Password.Value = "a secret password"
 
-	// add website item to vault
-	vault.AddItem(website)
-	require.Len(t, vault.ItemMetadata, 2) // website and note type
+	// add login item to vault
+	vault.AddItem(login)
+	require.Len(t, vault.ItemMetadata, 2) // login and note type
 
-	err = storage.StoreItem(vault, website)
+	err = storage.StoreItem(vault, login)
 	require.NoError(t, err)
 
 	loadedVault, err := storage.LoadVault(key, name)
 	require.NoError(t, err)
 	require.Equal(t, name, loadedVault.Name)
-	require.Len(t, loadedVault.ItemMetadata, 2) // website and note type
+	require.Len(t, loadedVault.ItemMetadata, 2) // login and note type
 
-	meta, ok = loadedVault.ItemMetadata[website.ID()]
+	meta, ok = loadedVault.ItemMetadata[login.ID()]
 	require.True(t, ok)
-	assert.Equal(t, website.Name, meta.Name)
+	assert.Equal(t, login.Name, meta.Name)
 
 	itemWebsite, err := storage.LoadItem(vault, meta)
 	require.NoError(t, err)
 	require.NotNil(t, itemWebsite)
-	assert.Equal(t, website.Name, itemWebsite.GetMetadata().Name)
-	assert.Equal(t, website.Password.Value, itemWebsite.(*Website).Password.Value)
+	assert.Equal(t, login.Name, itemWebsite.GetMetadata().Name)
+	assert.Equal(t, login.Password.Value, itemWebsite.(*Login).Password.Value)
 
 }

@@ -5,6 +5,8 @@ import (
 	"encoding/gob"
 	"encoding/hex"
 	"fmt"
+	"net/url"
+	"strings"
 	"time"
 
 	"fyne.io/fyne/v2"
@@ -35,8 +37,8 @@ const (
 	NoteItemType
 	// PasswordItemType is the Password Item type
 	PasswordItemType
-	// WebsiteItemType is the Website Item type
-	WebsiteItemType
+	// LoginItemType is the Website Item type
+	LoginItemType
 )
 
 func (it ItemType) String() string {
@@ -47,8 +49,8 @@ func (it ItemType) String() string {
 		return "note"
 	case PasswordItemType:
 		return "password"
-	case WebsiteItemType:
-		return "website"
+	case LoginItemType:
+		return "login"
 	}
 	return "invalid"
 }
@@ -120,7 +122,7 @@ func (m *Metadata) Icon() fyne.Resource {
 		return icon.NoteOutlinedIconThemed
 	case PasswordItemType:
 		return icon.PasswordOutlinedIconThemed
-	case WebsiteItemType:
+	case LoginItemType:
 		return icon.PublicOutlinedIconThemed
 	}
 	return nil
@@ -149,8 +151,10 @@ func titleRow(icon fyne.Resource, text string) []fyne.CanvasObject {
 	t := canvas.NewText(text, theme.ForegroundColor())
 	t.TextStyle = fyne.TextStyle{Bold: true}
 	t.TextSize = theme.TextHeadingSize()
+	i := widget.NewIcon(icon)
+	i.Resize(fyne.NewSize(32, 32))
 	return []fyne.CanvasObject{
-		widget.NewIcon(icon),
+		i,
 		t,
 	}
 }
@@ -161,6 +165,26 @@ func labelWithStyle(label string) *widget.Label {
 
 func copiableRow(label string, text string, w fyne.Window) []fyne.CanvasObject {
 	t := widget.NewLabel(text)
+	b := widget.NewButtonWithIcon("Copy", theme.ContentCopyIcon(), func() {
+		w.Clipboard().SetContent(text)
+		fyne.CurrentApp().SendNotification(&fyne.Notification{
+			Title:   "paw",
+			Content: fmt.Sprintf("%s copied", label),
+		})
+	})
+
+	l := labelWithStyle(label)
+	return []fyne.CanvasObject{l, container.NewBorder(nil, nil, nil, b, t)}
+}
+
+func copiableLinkRow(label string, text string, w fyne.Window) []fyne.CanvasObject {
+	var t fyne.CanvasObject
+	t = widget.NewLabel(text)
+	u, err := url.Parse(text)
+	if err == nil && strings.HasPrefix(u.Scheme, "http") {
+		t = widget.NewHyperlink(text, u)
+	}
+
 	b := widget.NewButtonWithIcon("Copy", theme.ContentCopyIcon(), func() {
 		w.Clipboard().SetContent(text)
 		fyne.CurrentApp().SendNotification(&fyne.Notification{
