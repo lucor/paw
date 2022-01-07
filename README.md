@@ -78,7 +78,7 @@ Where a generated password is not applicable a custom password can be specified.
 Vault internally is organized hierarchically like:
 ```
 - vault
-    ├── website
+    ├── login
     |    └── www.example.com
     |    └── my.site.com
     ├── password
@@ -87,7 +87,7 @@ Vault internally is organized hierarchically like:
          └── mysecretnote
 ```
 
-where website, password and note are the Paw items, see the dedicated section for details.
+where login, password and note are the Paw items, see the dedicated section for details.
 
 ### Items
 
@@ -95,9 +95,9 @@ Items are special templates aim to help the identity management.
 
 Currently the following items are available:
 
+- login
 - note
 - password
-- website
 
 ## Threat model
 
