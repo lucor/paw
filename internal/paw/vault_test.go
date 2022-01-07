@@ -8,7 +8,7 @@ import (
 func TestVault_FilterItemMetadata(t *testing.T) {
 	v := &Vault{
 		Name:         "test vault",
-		ItemMetadata: make(map[string]*Metadata),
+		ItemMetadata: make(map[ItemType]map[string]*Metadata),
 	}
 	note := NewNote()
 	note.Name = "test name"

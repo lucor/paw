@@ -684,13 +684,12 @@ func (vw *vaultView) exportToFile() {
 
 			mu := &sync.Mutex{}
 			data := map[string][]paw.Item{}
-			for _, meta := range vw.vault.ItemMetadata {
-				meta := meta
 
+			vw.vault.Range(func(id string, meta *paw.Metadata) bool {
 				err := sem.Acquire(ctx, 1)
 				if err != nil {
 					cancel()
-					break
+					return false
 				}
 
 				g.Go(func() error {
@@ -710,7 +709,8 @@ func (vw *vaultView) exportToFile() {
 					progressBind.Set(float64(v))
 					return nil
 				})
-			}
+				return true
+			})
 
 			defer modal.Hide()
 			err := g.Wait()

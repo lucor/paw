@@ -37,7 +37,7 @@ func TestStorageRoundTrip(t *testing.T) {
 
 	vault.AddItem(note)
 	// add note vault to item
-	meta, ok := vault.ItemMetadata[note.ID()]
+	meta, ok := vault.ItemMetadata[note.Type][note.ID()]
 	require.True(t, ok)
 	assert.Equal(t, note.Name, meta.Name)
 
@@ -72,7 +72,7 @@ func TestStorageRoundTrip(t *testing.T) {
 	require.Equal(t, name, loadedVault.Name)
 	require.Len(t, loadedVault.ItemMetadata, 2) // login and note type
 
-	meta, ok = loadedVault.ItemMetadata[login.ID()]
+	meta, ok = loadedVault.ItemMetadata[login.Type][login.ID()]
 	require.True(t, ok)
 	assert.Equal(t, login.Name, meta.Name)
 
