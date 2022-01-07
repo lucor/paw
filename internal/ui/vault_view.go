@@ -8,6 +8,7 @@ import (
 	"image/color"
 	"log"
 	"sort"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -164,27 +165,7 @@ func (vw *vaultView) makeVaultMenu() fyne.CanvasObject {
 
 	importFromFile := fyne.NewMenuItem("Import From File", vw.importFromFile)
 
-	exportToFile := fyne.NewMenuItem("Export To File", func() {
-		d := dialog.NewFileSave(func(uc fyne.URIWriteCloser, e error) {
-			defer uc.Close()
-			data := map[string][]paw.Item{}
-			for _, meta := range vw.vault.ItemMetadata {
-				item, err := vw.mainView.storage.LoadItem(vw.vault, meta)
-				if err != nil {
-					dialog.ShowError(err, vw.mainView)
-					return
-				}
-				itemType := item.GetMetadata().Type.String()
-				data[itemType] = append(data[itemType], item)
-			}
-			err = json.NewEncoder(uc).Encode(data)
-			if err != nil {
-				dialog.ShowError(err, vw.mainView)
-			}
-		}, vw.mainView)
-		d.SetFileName(fmt.Sprintf("%s.paw.json", vw.vault.Name))
-		d.Show()
-	})
+	exportToFile := fyne.NewMenuItem("Export To File", vw.exportToFile)
 
 	menuItems := []*fyne.MenuItem{
 		passwordAudit,
@@ -660,5 +641,91 @@ func (vw *vaultView) importFromFile() {
 		modal.Show()
 
 	}, vw.mainView)
+	d.Show()
+}
+
+func (vw *vaultView) exportToFile() {
+	d := dialog.NewFileSave(func(uc fyne.URIWriteCloser, e error) {
+
+		ctx, cancel := context.WithCancel(context.Background())
+
+		var counter uint32
+
+		modalTitle := widget.NewLabel("Exporting items...")
+
+		progressBind := binding.NewFloat()
+		progressbar := widget.NewProgressBarWithData(progressBind)
+		progressbar.TextFormatter = func() string {
+			v, _ := progressBind.Get()
+			return fmt.Sprintf("%.0f of %d", v, vw.vault.Size())
+		}
+
+		var cancelButton *widget.Button
+		cancelButton = widget.NewButton("Cancel", func() {
+			modalTitle.SetText("Cancelling export, please wait...")
+			progressbar.Hide()
+			cancelButton.Disable()
+			cancel()
+		})
+
+		c := container.NewBorder(modalTitle, nil, nil, nil, container.NewCenter(container.NewVBox(progressbar, cancelButton)))
+		modal := widget.NewModalPopUp(c, vw.mainView.Canvas())
+
+		go func() {
+			if uc == nil {
+				// file open dialog has been cancelled
+				modal.Hide()
+				return
+			}
+			defer uc.Close()
+
+			sem := semaphore.NewWeighted(int64(maxWorkers))
+			g := &errgroup.Group{}
+
+			mu := &sync.Mutex{}
+			data := map[string][]paw.Item{}
+			for _, meta := range vw.vault.ItemMetadata {
+				meta := meta
+
+				err := sem.Acquire(ctx, 1)
+				if err != nil {
+					cancel()
+					break
+				}
+
+				g.Go(func() error {
+					defer sem.Release(1)
+					item, err := vw.mainView.storage.LoadItem(vw.vault, meta)
+					if err != nil {
+						return err
+					}
+
+					itemType := item.GetMetadata().Type.String()
+
+					mu.Lock()
+					data[itemType] = append(data[itemType], item)
+					mu.Unlock()
+
+					v := atomic.AddUint32(&counter, 1)
+					progressBind.Set(float64(v))
+					return nil
+				})
+			}
+
+			defer modal.Hide()
+			err := g.Wait()
+			if err != nil || errors.Is(ctx.Err(), context.Canceled) {
+				ShowErrorDialog("Error exporting items", err, vw.mainView)
+				return
+			}
+
+			err = json.NewEncoder(uc).Encode(data)
+			if err != nil {
+				ShowErrorDialog("Error exporting items", err, vw.mainView)
+			}
+		}()
+		modal.Show()
+	}, vw.mainView)
+	d.SetFileName(fmt.Sprintf("%s.paw.json", vw.vault.Name))
 	d.Show()
 }

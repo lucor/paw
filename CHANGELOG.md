@@ -3,6 +3,7 @@
 ## Unreleased
 
 - ui: fix renaming an item when a filter is specified could display the vault empty view
+- paw,ui: export item UX improvement: items are now decoded concurrently and a progress bar is shown if needed
 
 ## 0.13.1 - 07 January 2022
 
