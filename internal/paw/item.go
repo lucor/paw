@@ -2,7 +2,6 @@ package paw
 
 import (
 	"context"
-	"encoding/gob"
 	"encoding/hex"
 	"fmt"
 	"net/url"
@@ -20,12 +19,6 @@ import (
 
 	"lucor.dev/paw/internal/icon"
 )
-
-func init() {
-	gob.Register((*Metadata)(nil))
-	gob.Register((*icon.ThemedResource)(nil))
-	gob.Register((*fyne.StaticResource)(nil))
-}
 
 // ItemType represents the Item type
 type ItemType int
@@ -93,7 +86,7 @@ type Metadata struct {
 	// Created holds the creation date
 	Created time.Time `json:"created,omitempty"`
 	// Icon
-	IconResource fyne.Resource `json:"icon_resource,omitempty"`
+	Favicon *icon.Favicon `json:"favicon,omitempty"`
 }
 
 func (m *Metadata) ID() string {
@@ -114,8 +107,8 @@ func (m *Metadata) String() string {
 }
 
 func (m *Metadata) Icon() fyne.Resource {
-	if m.IconResource != nil {
-		return m.IconResource
+	if m.Favicon != nil {
+		return m.Favicon
 	}
 	switch m.Type {
 	case NoteItemType:
@@ -125,7 +118,7 @@ func (m *Metadata) Icon() fyne.Resource {
 	case LoginItemType:
 		return icon.PublicOutlinedIconThemed
 	}
-	return nil
+	return icon.PawIcon
 }
 
 func (m *Metadata) InfoUI() fyne.CanvasObject {

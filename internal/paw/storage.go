@@ -1,7 +1,7 @@
 package paw
 
 import (
-	"encoding/gob"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -160,7 +160,7 @@ func (s *Storage) encrypt(key *Key, uri fyne.URI, v interface{}) error {
 	}
 	defer encWriter.Close()
 
-	err = gob.NewEncoder(encWriter).Encode(v)
+	err = json.NewEncoder(encWriter).Encode(v)
 	if err != nil {
 		return fmt.Errorf("could not encode data for URI: %w", err)
 	}
@@ -180,7 +180,7 @@ func (s *Storage) decrypt(key *Key, uri fyne.URI, v interface{}) error {
 		return fmt.Errorf("could not decrypt URI content: %w", err)
 	}
 
-	err = gob.NewDecoder(encReader).Decode(v)
+	err = json.NewDecoder(encReader).Decode(v)
 	if err != nil {
 		return fmt.Errorf("could not decode URI content: %w", err)
 	}

@@ -2,7 +2,6 @@ package paw
 
 import (
 	"context"
-	"encoding/gob"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
@@ -10,10 +9,6 @@ import (
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/widget"
 )
-
-func init() {
-	gob.Register((*Note)(nil))
-}
 
 // Declare conformity to Item interface
 var _ Item = (*Note)(nil)

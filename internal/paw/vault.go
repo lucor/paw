@@ -80,12 +80,12 @@ func (v *Vault) DeleteItem(item Item) {
 	if meta == nil {
 		return
 	}
-	metaByType, ok := v.ItemMetadata[meta.Type]
+	_, ok := v.ItemMetadata[meta.Type]
 	if !ok {
 		return
 	}
 
-	delete(metaByType, item.ID())
+	delete(v.ItemMetadata[meta.Type], item.ID())
 }
 
 func (v *Vault) Range(f func(id string, meta *Metadata) bool) {

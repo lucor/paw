@@ -354,7 +354,7 @@ func (vw *vaultView) editItemView(ctx context.Context, item paw.Item) fyne.Canva
 			return
 		}
 
-		if item.GetMetadata().IconResource != editItem.GetMetadata().IconResource {
+		if item.GetMetadata().Favicon != editItem.GetMetadata().Favicon {
 			reloadItems = true
 		}
 
