@@ -8,6 +8,7 @@ import (
 	"image/color"
 	"log"
 	"sort"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -81,6 +82,7 @@ func (vw *vaultView) CreateRenderer() fyne.WidgetRenderer {
 
 // Reload reloads the widget according the specified options
 func (vw *vaultView) Reload() {
+	vw.typeSelectEntry = vw.makeTypeSelectEntry()
 	vw.view.Objects[0] = vw.makeView()
 }
 
@@ -207,20 +209,19 @@ func (vw *vaultView) makeSearchEntry() *widget.Entry {
 
 // makeTypeSelectEntry returns the select entry used to filter the item list by type
 func (vw *vaultView) makeTypeSelectEntry() *widget.Select {
-
-	options := []string{"All items"}
-
 	itemTypeMap := map[string]paw.ItemType{}
+	options := []string{fmt.Sprintf("All items (%d)", vw.vault.Size())}
 	for _, item := range vw.makeItems() {
 		i := item
-		name := i.GetMetadata().Type.String()
+		t := i.GetMetadata().Type
+		name := fmt.Sprintf("%s (%d)", strings.Title(t.String()), vw.vault.SizeByType(t))
 		options = append(options, name)
-		itemTypeMap[name] = i.GetMetadata().Type
+		itemTypeMap[name] = t
 	}
 
 	filter := widget.NewSelect(options, func(s string) {
 		var v paw.ItemType
-		if s == "All items" {
+		if s == options[0] {
 			v = paw.ItemType(0) // No item type will be selected
 		} else {
 			v = itemTypeMap[s]

@@ -6,10 +6,11 @@
 > Starting from this release the data is encoded in json in place of gob. 
 > This will make the data directly accessible once decrypted with age.
 
-- ui: fix renaming an item when a filter is specified could display the vault empty view
-- paw,ui: export item UX improvement: items are now decoded concurrently and a progress bar is shown if needed
 - paw: data encoded in json in place of gob
 - paw,ui: group vault ItemMetadata by ItemType
+- paw,ui: export item UX improvement: items are now decoded concurrently and a progress bar is shown if needed
+- ui: show item count into the item select list
+- ui: fix renaming an item when a filter is specified could display the vault empty view
 
 ## 0.13.1 - 07 January 2022
 
