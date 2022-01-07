@@ -95,7 +95,7 @@ func (vw *vaultView) emptyVaultContent() fyne.CanvasObject {
 
 // defaultContent returns the object to display for default states
 func (vw *vaultView) defaultContent() fyne.CanvasObject {
-	if vw.itemsWidget.Length() == 0 {
+	if vw.vault.Size() == 0 {
 		return vw.emptyVaultContent()
 	}
 	img := canvas.NewImageFromResource(icon.PawIcon)
