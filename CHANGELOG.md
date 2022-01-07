@@ -1,5 +1,9 @@
 # Changelog - Paw
 
+## Unreleased
+
+- ui: fix renaming an item when a filter is specified could display the vault empty view
+
 ## 0.13.1 - 07 January 2022
 
 - paw: item creation was not working correctly

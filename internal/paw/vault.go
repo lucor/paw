@@ -31,6 +31,11 @@ func NewVault(key *Key, name string) *Vault {
 	}
 }
 
+// Size return the total number of items into the vault
+func (v *Vault) Size() int {
+	return len(v.ItemMetadata)
+}
+
 func (v *Vault) Key() *Key {
 	return v.key
 }

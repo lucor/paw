@@ -127,7 +127,7 @@ func (vw *vaultView) setContent(o fyne.CanvasObject) {
 
 // makeView returns the view container
 func (vw *vaultView) makeView() fyne.CanvasObject {
-	if vw.itemsWidget.Length() == 0 {
+	if vw.vault.Size() == 0 {
 		vw.setContent(vw.defaultContent())
 		return vw.content
 	}
