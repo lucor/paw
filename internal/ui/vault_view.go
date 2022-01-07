@@ -356,8 +356,12 @@ func (vw *vaultView) editItemView(ctx context.Context, item paw.Item) fyne.Canva
 			return
 		}
 
+		var reloadItems bool
+		var isNew bool
+
 		metadata.Modified = time.Now()
-		if metadata.Created.IsZero() || item.ID() != editItem.ID() {
+		if metadata.Created.IsZero() {
+			isNew = true
 			metadata.Created = time.Now()
 		}
 
@@ -369,19 +373,19 @@ func (vw *vaultView) editItemView(ctx context.Context, item paw.Item) fyne.Canva
 			return
 		}
 
-		var reloadItems bool
-
 		if item.GetMetadata().IconResource != editItem.GetMetadata().IconResource {
 			reloadItems = true
 		}
 
 		if item.ID() != editItem.ID() {
 			reloadItems = true
-			// item ID is changed, delete the old one
-			vw.vault.DeleteItem(item)
-			err := vw.mainView.storage.DeleteItem(vw.vault, item)
-			if err != nil {
-				return
+			if !isNew {
+				// item ID is changed, delete the old one
+				vw.vault.DeleteItem(item)
+				err := vw.mainView.storage.DeleteItem(vw.vault, item)
+				if err != nil {
+					log.Printf("item rename: could not remove old item from storage: %s", err)
+				}
 			}
 		}
 

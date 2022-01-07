@@ -1,5 +1,10 @@
 # Changelog - Paw
 
+## 0.13.1 - 07 January 2022
+
+- paw: item creation was not working correctly
+- doc: update screenshot
+
 ## 0.13.0 - 07 January 2022
 
 > This release updates the internal storage, so previous versions won't be compatible.
