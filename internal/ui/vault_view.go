@@ -84,6 +84,7 @@ func (vw *vaultView) CreateRenderer() fyne.WidgetRenderer {
 func (vw *vaultView) Reload() {
 	vw.typeSelectEntry = vw.makeTypeSelectEntry()
 	vw.view.Objects[0] = vw.makeView()
+	vw.view.Refresh()
 }
 
 // emptyVaultContent returns the content to display when the vault has no items

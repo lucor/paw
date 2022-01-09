@@ -52,11 +52,16 @@ func Make(a fyne.App, w fyne.Window) fyne.CanvasObject {
 	return mw.view
 }
 
+func (mw *mainView) setView(v fyne.CanvasObject) {
+	mw.view.Objects[0] = v
+	mw.view.Refresh()
+}
+
 func (mw *mainView) makeMainMenu() *fyne.MainMenu {
 	// a Quit item will is appended automatically by Fyne to the first menu item
 	fileMenu := fyne.NewMenu("File",
 		fyne.NewMenuItem("New Vault", func() {
-			mw.view.Objects[0] = mw.createVaultView()
+			mw.setView(mw.createVaultView())
 		}),
 	)
 	switchItem := fyne.NewMenuItem("Switch Vault", func() {
@@ -104,7 +109,7 @@ func (mw *mainView) makeMainMenu() *fyne.MainMenu {
 }
 
 func (mw *mainView) Reload() {
-	mw.view.Objects[0] = mw.buildMainView()
+	mw.setView(mw.buildMainView())
 	mw.SetMainMenu(mw.makeMainMenu())
 }
 
@@ -146,7 +151,7 @@ func (mw *mainView) initVaultView() fyne.CanvasObject {
 			return
 		}
 		mw.unlockedVault[name.Text] = vault
-		mw.view.Objects[0] = newVaultView(mw, vault)
+		mw.setView(newVaultView(mw, vault))
 	})
 	btn.Importance = widget.HighImportance
 
@@ -184,7 +189,7 @@ func (mw *mainView) createVaultView() fyne.CanvasObject {
 			return
 		}
 		mw.unlockedVault[name.Text] = vault
-		mw.view.Objects[0] = newVaultView(mw, vault)
+		mw.setView(newVaultView(mw, vault))
 		mw.SetMainMenu(mw.makeMainMenu())
 	})
 	createButton.Importance = widget.HighImportance
@@ -217,7 +222,7 @@ func (mw *mainView) vaultListView() fyne.CanvasObject {
 			resource = icon.LockOutlinedIconThemed
 		}
 		btn := widget.NewButtonWithIcon(name, resource, func() {
-			mw.view.Objects[0] = mw.vaultViewByName(name)
+			mw.setView(mw.vaultViewByName(name))
 		})
 		btn.Alignment = widget.ButtonAlignLeading
 		c.Add(btn)
@@ -247,7 +252,7 @@ func (mw *mainView) unlockVaultView(name string) fyne.CanvasObject {
 			return
 		}
 		mw.unlockedVault[name] = vault
-		mw.view.Objects[0] = newVaultView(mw, vault)
+		mw.setView(newVaultView(mw, vault))
 	})
 
 	return container.NewCenter(container.NewVBox(logo, heading, password, unlockBtn))

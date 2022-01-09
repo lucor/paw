@@ -108,6 +108,7 @@ func (pd *pwgenDialog) ShowPasswordGenerator(bind binding.String, password *paw.
 		default:
 			content.Objects[0] = randomPasswordOptions(pd.key, passwordBind, password, pd.options.RandomPasswordOptions)
 		}
+		content.Refresh()
 	})
 	switch password.Mode.String() {
 	case paw.CustomPassword.String():
