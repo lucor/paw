@@ -3,7 +3,6 @@ package paw
 import (
 	"bytes"
 	"context"
-	"encoding/gob"
 	"image/png"
 	"net/url"
 	"strings"
@@ -18,10 +17,6 @@ import (
 	"lucor.dev/paw/internal/favicon"
 	"lucor.dev/paw/internal/icon"
 )
-
-func init() {
-	gob.Register((*Login)(nil))
-}
 
 // Declare conformity to Item interface
 var _ Item = (*Login)(nil)
@@ -73,9 +68,14 @@ func (login *Login) Edit(ctx context.Context, w fyne.Window) (fyne.CanvasObject,
 
 	urlEntry := newURLEntryWithData(ctx, binding.BindString(&loginItem.URL))
 	urlEntry.TitleEntry = titleEntry
-	urlEntry.FaviconListener = func(favicon fyne.Resource) {
-		loginItem.Metadata.IconResource = favicon
-		loginIcon.SetResource(favicon)
+	urlEntry.FaviconListener = func(favicon *icon.Favicon) {
+		loginItem.Metadata.Favicon = favicon
+		if favicon != nil {
+			loginIcon.SetResource(favicon)
+			return
+		}
+		// no favicon found, fallback to default
+		loginIcon.SetResource(icon.PublicOutlinedIconThemed)
 	}
 
 	usernameEntry := widget.NewEntryWithData(binding.BindString(&loginItem.Username))
@@ -152,7 +152,7 @@ func (login *Login) Show(ctx context.Context, w fyne.Window) fyne.CanvasObject {
 type urlEntry struct {
 	widget.Entry
 	TitleEntry      *widget.Entry
-	FaviconListener func(fyne.Resource)
+	FaviconListener func(*icon.Favicon)
 
 	ctx  context.Context
 	host string // host keep track of the initial value before editing
@@ -207,24 +207,24 @@ func (e *urlEntry) FocusLost() {
 	e.host = host
 
 	go func() {
-		var resource fyne.Resource
-		resource = icon.PublicOutlinedIconThemed
+		var fav *icon.Favicon
 
 		img, err := favicon.Download(e.ctx, host, favicon.Options{
 			ForceMinSize: true,
 		})
 		if err != nil {
-			e.FaviconListener(resource)
+			e.FaviconListener(fav)
 			return
 		}
 
 		w := &bytes.Buffer{}
 		err = png.Encode(w, img)
 		if err != nil {
-			e.FaviconListener(resource)
+			e.FaviconListener(fav)
 			return
 		}
-		resource = fyne.NewStaticResource(host, w.Bytes())
-		e.FaviconListener(resource)
+
+		fav = icon.NewFavicon(host, w.Bytes())
+		e.FaviconListener(fav)
 	}()
 }

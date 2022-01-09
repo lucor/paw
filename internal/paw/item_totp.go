@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/sha1"
 	"encoding/base32"
-	"encoding/gob"
 	"fmt"
 	"strconv"
 	"time"
@@ -19,10 +18,6 @@ import (
 
 	"lucor.dev/paw/internal/otp"
 )
-
-func init() {
-	gob.Register((*TOTP)(nil))
-}
 
 type TOTPHash string
 

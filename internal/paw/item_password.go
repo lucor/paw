@@ -2,7 +2,6 @@ package paw
 
 import (
 	"context"
-	"encoding/gob"
 	"fmt"
 
 	"fyne.io/fyne/v2"
@@ -14,10 +13,6 @@ import (
 
 	"lucor.dev/paw/internal/icon"
 )
-
-func init() {
-	gob.Register((*Password)(nil))
-}
 
 // Declare conformity to Item interface
 var _ Item = (*Password)(nil)

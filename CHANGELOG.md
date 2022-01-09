@@ -1,5 +1,19 @@
 # Changelog - Paw
 
+## 0.14.0 - 09 January 2022
+
+> This release updates the internal storage, so previous versions won't be compatible.
+> Starting from this release the data is encoded in json in place of gob 
+> and update to use a password protected age key (X25519) to decrypt and encrypt the vault data.
+> This allow to decrypt the items using the age tool and have the content directly accessible once decrypted.
+
+- paw: update to use a password protected age key (X25519) to decrypt and encrypt the vault data
+- paw: data encoded in json in place of gob
+- paw,ui: group vault ItemMetadata by ItemType
+- paw,ui: export item UX improvement: items are now decoded concurrently and a progress bar is shown if needed
+- ui: show item count into the item select list
+- ui: fix renaming an item when a filter is specified could display the vault empty view
+
 ## 0.13.1 - 07 January 2022
 
 - paw: item creation was not working correctly

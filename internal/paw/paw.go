@@ -4,18 +4,15 @@ import (
 	"bytes"
 	"crypto/rand"
 	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"io"
+	"time"
 
 	"filippo.io/age"
+	"filippo.io/age/armor"
 	"golang.org/x/crypto/hkdf"
-	"golang.org/x/crypto/scrypt"
-)
 
-const (
-	keySize    = 64
-	workFactor = 16
+	"lucor.dev/paw/internal/age/bech32"
 )
 
 const (
@@ -40,44 +37,107 @@ type SecretMaker interface {
 }
 
 type Key struct {
-	seedKey      []byte
-	pubKey       []byte
-	ageRecipient *age.ScryptRecipient
-	ageIdentity  *age.ScryptIdentity
+	ageIdentity *age.X25519Identity
 }
 
-func NewKey(name string, password string) (*Key, error) {
+// MakeKey generates an age secret key. The key is encrypted to w and protect using the provided password
+func MakeKey(password string, w io.Writer) (key *Key, err error) {
 
-	secret := bytes.Buffer{}
-	secret.WriteString(name)
-	secret.WriteString(password)
+	wrapErr := func(err error) error {
+		return fmt.Errorf("paw: makekey error: %w", err)
+	}
 
-	ageIdentity, err := age.NewScryptIdentity(secret.String())
+	// Generate the age X25519 Identity
+	ageIdentity, ierr := age.GenerateX25519Identity()
+	if ierr != nil {
+		err = wrapErr(ierr)
+		return
+	}
+
+	ageScryptRecipient, ierr := age.NewScryptRecipient(password)
+	if ierr != nil {
+		err = wrapErr(ierr)
+		return
+	}
+
+	a := armor.NewWriter(w)
+	defer func() {
+		// make sure to handle the error, if any
+		if ierr := a.Close(); ierr != nil {
+			err = wrapErr(ierr)
+			return
+		}
+	}()
+	e, err := age.Encrypt(a, ageScryptRecipient)
 	if err != nil {
-		return nil, fmt.Errorf("failed to generate age identity: %v", err)
+		err = wrapErr(ierr)
+		return
 	}
 
-	ageRecipient, err := age.NewScryptRecipient(secret.String())
+	data := &bytes.Buffer{}
+	fmt.Fprintf(data, "# created: %s\n", time.Now().Format(time.RFC3339))
+	fmt.Fprintf(data, "# public key: %s\n", ageIdentity.Recipient())
+	fmt.Fprintf(data, "%s\n", ageIdentity)
+
+	_, err = e.Write(data.Bytes())
 	if err != nil {
-		return nil, fmt.Errorf("failed to generate age recipient: %v", err)
+		err = wrapErr(ierr)
+		return
 	}
-	ageRecipient.SetWorkFactor(workFactor)
-
-	salt := []byte(Version)
-	key, err := scrypt.Key(secret.Bytes(), salt, 1<<workFactor, 8, 1, keySize)
+	err = e.Close()
 	if err != nil {
-		return nil, fmt.Errorf("failed to generate seedKey: %v", err)
+		err = wrapErr(ierr)
+		return
 	}
 
-	kc := &Key{
-		ageIdentity:  ageIdentity,
-		ageRecipient: ageRecipient,
-		seedKey:      make([]byte, 32),
-		pubKey:       make([]byte, 32),
+	key = &Key{
+		ageIdentity: ageIdentity,
 	}
-	copy(kc.seedKey, key[:32])
-	copy(kc.pubKey, key[32:])
-	return kc, nil
+	return
+}
+
+// LoadKey decrypts an age secret key from the reader r using the provided password
+func LoadKey(password string, r io.Reader) (key *Key, err error) {
+
+	wrapErr := func(err error) error {
+		return fmt.Errorf("paw: loadkey error: %w", err)
+	}
+
+	ageScryptIdentity, ierr := age.NewScryptIdentity(password)
+	if ierr != nil {
+		err = wrapErr(ierr)
+		return
+	}
+
+	a := armor.NewReader(r)
+	d, ierr := age.Decrypt(a, ageScryptIdentity)
+	if ierr != nil {
+		err = wrapErr(ierr)
+		return
+	}
+
+	// Generate the age X25519 Identity
+	ageIdentities, ierr := age.ParseIdentities(d)
+	if ierr != nil {
+		err = wrapErr(ierr)
+		return
+	}
+
+	if len(ageIdentities) > 1 {
+		err = wrapErr(fmt.Errorf("only one identity per file is supported, found %d", len(ageIdentities)))
+		return
+	}
+
+	ageIdentity, ok := ageIdentities[0].(*age.X25519Identity)
+	if !ok {
+		err = wrapErr(fmt.Errorf("only *age.X25519Identity are supported, got %T", ageIdentities[0]))
+		return
+	}
+
+	key = &Key{
+		ageIdentity: ageIdentity,
+	}
+	return
 }
 
 // Secret derives a secret from the seeder
@@ -93,8 +153,14 @@ func (k *Key) Secret(seeder Seeder) (string, error) {
 		}
 	}
 
+	// decode the age identity to be used as secret for HKDF function
+	_, data, err := bech32.Decode(k.ageIdentity.String())
+	if err != nil {
+		return "", fmt.Errorf("could not decode the age identity %w", err)
+	}
+
 	// reader to derive a key
-	reader := hkdf.New(sha256.New, k.seedKey, salt, seeder.Info())
+	reader := hkdf.New(sha256.New, data, salt, seeder.Info())
 	template, err := seeder.Template()
 	if err != nil {
 		return "", err
@@ -130,10 +196,5 @@ func (k *Key) Decrypt(src io.Reader) (io.Reader, error) {
 
 // Encrypt a message
 func (k *Key) Encrypt(dst io.Writer) (io.WriteCloser, error) {
-	return age.Encrypt(dst, k.ageRecipient)
-}
-
-// String returns a string representation of the key
-func (k *Key) String() string {
-	return hex.EncodeToString(k.pubKey)
+	return age.Encrypt(dst, k.ageIdentity.Recipient())
 }

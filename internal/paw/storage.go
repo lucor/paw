@@ -1,7 +1,7 @@
 package paw
 
 import (
-	"encoding/gob"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -33,14 +33,46 @@ func NewStorage(storage fyne.Storage) (*Storage, error) {
 }
 
 // CreateVault encrypts and stores an empty vault into the underlying storage.
-func (s *Storage) CreateVault(key *Key, name string) (*Vault, error) {
+func (s *Storage) CreateVault(name string, password string) (*Vault, error) {
+	root := s.vaultRootURI(name)
+	exists, err := fyneStorage.Exists(root)
+	if err != nil {
+		return nil, fmt.Errorf("could not check for vault URI: %w", err)
+	}
+	if !exists {
+		err = fyneStorage.CreateListable(root)
+		if err != nil {
+			return nil, fmt.Errorf("could not create vault root URI: %w", err)
+		}
+	}
+
 	vaultURI := s.vaultURI(name)
-	exists, err := fyneStorage.Exists(vaultURI)
+	exists, err = fyneStorage.Exists(vaultURI)
 	if err != nil {
 		return nil, fmt.Errorf("could not check for the existence of the vault: %w", err)
 	}
 	if exists {
 		return nil, errors.New("vault with the same name already exists")
+	}
+
+	keyURI := s.keyURI(name)
+	exists, err = fyneStorage.Exists(keyURI)
+	if err != nil {
+		return nil, fmt.Errorf("could not check for the existence of the key: %w", err)
+	}
+	if exists {
+		return nil, errors.New("key with the same name already exists")
+	}
+
+	writer, err := fyneStorage.Writer(keyURI)
+	if err != nil {
+		return nil, fmt.Errorf("could not create writer for the key URI: %w", err)
+	}
+	defer writer.Close()
+
+	key, err := MakeKey(password, writer)
+	if err != nil {
+		return nil, fmt.Errorf("could not create the vault key: %w", err)
 	}
 
 	vault := NewVault(key, name)
@@ -60,10 +92,25 @@ func (s *Storage) DeleteVault(name string) error {
 	return nil
 }
 
+// LoadVaultIdentity returns a vault decrypting from the underlying storage
+func (s *Storage) LoadVaultKey(name string, password string) (*Key, error) {
+	uri := s.keyURI(name)
+	reader, err := fyneStorage.Reader(uri)
+	if err != nil {
+		return nil, fmt.Errorf("could not read URI: %w", err)
+	}
+	defer reader.Close()
+	return LoadKey(password, reader)
+}
+
 // LoadVault returns a vault decrypting from the underlying storage
-func (s *Storage) LoadVault(key *Key, name string) (*Vault, error) {
+func (s *Storage) LoadVault(name string, password string) (*Vault, error) {
+	key, err := s.LoadVaultKey(name, password)
+	if err != nil {
+		return nil, fmt.Errorf("could not load the vault key: %w", err)
+	}
 	vault := NewVault(key, name)
-	err := s.decrypt(key, s.vaultURI(name), vault)
+	err = s.decrypt(key, s.vaultURI(name), vault)
 	if err != nil {
 		return nil, fmt.Errorf("could not read and decrypt the vault: %w", err)
 	}
@@ -132,22 +179,6 @@ func (s *Storage) Vaults() ([]string, error) {
 }
 
 func (s *Storage) encrypt(key *Key, uri fyne.URI, v interface{}) error {
-	root, err := fyneStorage.Parent(uri)
-	if err != nil {
-		return fmt.Errorf("could not retrieve parent for URI: %w", err)
-	}
-
-	exists, err := fyneStorage.Exists(root)
-	if err != nil {
-		return fmt.Errorf("could not check parent for URI: %w", err)
-	}
-	if !exists {
-		err = fyneStorage.CreateListable(root)
-		if err != nil {
-			return fmt.Errorf("could not create parent for URI: %w", err)
-		}
-	}
-
 	writer, err := fyneStorage.Writer(uri)
 	if err != nil {
 		return fmt.Errorf("could not create writer for URI: %w", err)
@@ -160,7 +191,7 @@ func (s *Storage) encrypt(key *Key, uri fyne.URI, v interface{}) error {
 	}
 	defer encWriter.Close()
 
-	err = gob.NewEncoder(encWriter).Encode(v)
+	err = json.NewEncoder(encWriter).Encode(v)
 	if err != nil {
 		return fmt.Errorf("could not encode data for URI: %w", err)
 	}
@@ -180,7 +211,7 @@ func (s *Storage) decrypt(key *Key, uri fyne.URI, v interface{}) error {
 		return fmt.Errorf("could not decrypt URI content: %w", err)
 	}
 
-	err = gob.NewDecoder(encReader).Decode(v)
+	err = json.NewDecoder(encReader).Decode(v)
 	if err != nil {
 		return fmt.Errorf("could not decode URI content: %w", err)
 	}
@@ -197,6 +228,10 @@ func (s *Storage) vaultsRootURI() fyne.URI {
 
 func (s *Storage) vaultRootURI(name string) fyne.URI {
 	return fyneStorage.NewFileURI(filepath.Join(s.vaultsRootURI().Path(), name))
+}
+
+func (s *Storage) keyURI(name string) fyne.URI {
+	return fyneStorage.NewFileURI(filepath.Join(s.vaultRootURI(name).Path(), "key.age"))
 }
 
 func (s *Storage) vaultURI(name string) fyne.URI {

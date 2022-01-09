@@ -57,6 +57,7 @@ func (iw *itemsWidget) Length() int {
 func (iw *itemsWidget) Reload(selectedItem paw.Item, opts *paw.VaultFilterOptions) {
 	iw.listEntry = iw.makeList(selectedItem, opts)
 	iw.view.Objects[0] = iw.listEntry
+	iw.view.Refresh()
 }
 
 // makeList makes the Fyne list widget
