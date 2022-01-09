@@ -1,6 +1,6 @@
 # Changelog - Paw
 
-## Unreleased
+## 0.14.0 - 09 January 2022
 
 > This release updates the internal storage, so previous versions won't be compatible.
 > Starting from this release the data is encoded in json in place of gob 
