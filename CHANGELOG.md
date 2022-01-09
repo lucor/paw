@@ -3,8 +3,9 @@
 ## Unreleased
 
 > This release updates the internal storage, so previous versions won't be compatible.
-> Starting from this release the data is encoded in json in place of gob. 
-> This will make the data directly accessible once decrypted with age.
+> Starting from this release the data is encoded in json in place of gob 
+> and update to use a password protected age key (X25519) to decrypt and encrypt the vault data.
+> This allow to decrypt the items using the age tool and have the content directly accessible once decrypted.
 
 - paw: update to use a password protected age key (X25519) to decrypt and encrypt the vault data
 - paw: data encoded in json in place of gob
