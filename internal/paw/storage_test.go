@@ -12,21 +12,26 @@ import (
 func TestStorageRoundTrip(t *testing.T) {
 	name := "test"
 	password := "secret"
-	key, err := NewKey(name, password)
-	require.NoError(t, err)
 
 	app := test.NewApp()
 
 	storage, err := NewStorage(app.Storage())
 	require.NoError(t, err)
-	defer fyneStorage.Delete(storage.vaultURI(name))
+	defer func() {
+		fyneStorage.Delete(storage.vaultURI(name))
+		fyneStorage.Delete(storage.keyURI(name))
+	}()
 
 	// test vault creation
-	vault, err := storage.CreateVault(key, name)
+	vault, err := storage.CreateVault(name, password)
 	require.NoError(t, err)
 	require.Equal(t, name, vault.Name)
 
 	ok, err := fyneStorage.Exists(storage.vaultURI(name))
+	require.NoError(t, err)
+	require.True(t, ok)
+
+	ok, err = fyneStorage.Exists(storage.keyURI(name))
 	require.NoError(t, err)
 	require.True(t, ok)
 
@@ -67,7 +72,7 @@ func TestStorageRoundTrip(t *testing.T) {
 	err = storage.StoreItem(vault, login)
 	require.NoError(t, err)
 
-	loadedVault, err := storage.LoadVault(key, name)
+	loadedVault, err := storage.LoadVault(name, password)
 	require.NoError(t, err)
 	require.Equal(t, name, loadedVault.Name)
 	require.Len(t, loadedVault.ItemMetadata, 2) // login and note type

@@ -140,12 +140,7 @@ func (mw *mainView) initVaultView() fyne.CanvasObject {
 	password.SetPlaceHolder("Password")
 
 	btn := widget.NewButton("Create Vault", func() {
-		key, err := paw.NewKey(name.Text, password.Text)
-		if err != nil {
-			dialog.ShowError(err, mw.Window)
-			return
-		}
-		vault, err := mw.storage.CreateVault(key, name.Text)
+		vault, err := mw.storage.CreateVault(name.Text, password.Text)
 		if err != nil {
 			dialog.ShowError(err, mw.Window)
 			return
@@ -183,12 +178,7 @@ func (mw *mainView) createVaultView() fyne.CanvasObject {
 			d.Show()
 			return
 		}
-		key, err := paw.NewKey(name.Text, password.Text)
-		if err != nil {
-			dialog.ShowError(err, mw.Window)
-			return
-		}
-		vault, err := mw.storage.CreateVault(key, name.Text)
+		vault, err := mw.storage.CreateVault(name.Text, password.Text)
 		if err != nil {
 			dialog.ShowError(err, mw.Window)
 			return
@@ -247,12 +237,7 @@ func (mw *mainView) unlockVaultView(name string) fyne.CanvasObject {
 	password.SetPlaceHolder("Password")
 
 	unlockBtn := widget.NewButtonWithIcon("Unlock", icon.LockOpenOutlinedIconThemed, func() {
-		key, err := paw.NewKey(name, password.Text)
-		if err != nil {
-			dialog.ShowError(err, mw.Window)
-			return
-		}
-		vault, err := mw.storage.LoadVault(key, name)
+		vault, err := mw.storage.LoadVault(name, password.Text)
 		if err != nil {
 			var invalidPasswordError *age.NoIdentityMatchError
 			if errors.As(err, &invalidPasswordError) {

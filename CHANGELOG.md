@@ -6,6 +6,7 @@
 > Starting from this release the data is encoded in json in place of gob. 
 > This will make the data directly accessible once decrypted with age.
 
+- paw: update to use a password protected age key (X25519) to decrypt and encrypt the vault data
 - paw: data encoded in json in place of gob
 - paw,ui: group vault ItemMetadata by ItemType
 - paw,ui: export item UX improvement: items are now decoded concurrently and a progress bar is shown if needed
