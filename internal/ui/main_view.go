@@ -27,7 +27,7 @@ var maxWorkers = runtime.NumCPU()
 type mainView struct {
 	fyne.Window
 
-	storage *paw.Storage
+	storage paw.Storage
 
 	unlockedVault map[string]*paw.Vault // this act as cache
 
@@ -36,7 +36,7 @@ type mainView struct {
 
 // Make returns the fyne user interface
 func Make(a fyne.App, w fyne.Window) fyne.CanvasObject {
-	s, err := paw.NewStorage(a.Storage())
+	s, err := paw.NewFyneStorage(a.Storage())
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -145,7 +145,12 @@ func (mw *mainView) initVaultView() fyne.CanvasObject {
 	password.SetPlaceHolder("Password")
 
 	btn := widget.NewButton("Create Vault", func() {
-		vault, err := mw.storage.CreateVault(name.Text, password.Text)
+		key, err := mw.storage.CreateVaultKey(name.Text, password.Text)
+		if err != nil {
+			dialog.ShowError(err, mw.Window)
+			return
+		}
+		vault, err := mw.storage.CreateVault(name.Text, key)
 		if err != nil {
 			dialog.ShowError(err, mw.Window)
 			return
@@ -183,7 +188,12 @@ func (mw *mainView) createVaultView() fyne.CanvasObject {
 			d.Show()
 			return
 		}
-		vault, err := mw.storage.CreateVault(name.Text, password.Text)
+		key, err := mw.storage.CreateVaultKey(name.Text, password.Text)
+		if err != nil {
+			dialog.ShowError(err, mw.Window)
+			return
+		}
+		vault, err := mw.storage.CreateVault(name.Text, key)
 		if err != nil {
 			dialog.ShowError(err, mw.Window)
 			return

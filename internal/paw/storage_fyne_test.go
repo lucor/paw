@@ -15,23 +15,32 @@ func TestStorageRoundTrip(t *testing.T) {
 
 	app := test.NewApp()
 
-	storage, err := NewStorage(app.Storage())
+	storage, err := NewFyneStorage(app.Storage())
 	require.NoError(t, err)
+
+	fs := storage.(*FyneStorage)
+	vaultURI := fyneStorage.NewFileURI(vaultPath(fs, name))
+	keyURI := fyneStorage.NewFileURI(keyPath(fs, name))
+
 	defer func() {
-		fyneStorage.Delete(storage.vaultURI(name))
-		fyneStorage.Delete(storage.keyURI(name))
+		fyneStorage.Delete(vaultURI)
+		fyneStorage.Delete(keyURI)
 	}()
 
+	// test key creation
+	key, err := fs.CreateVaultKey(name, password)
+	require.NoError(t, err)
+
 	// test vault creation
-	vault, err := storage.CreateVault(name, password)
+	vault, err := fs.CreateVault(name, key)
 	require.NoError(t, err)
 	require.Equal(t, name, vault.Name)
 
-	ok, err := fyneStorage.Exists(storage.vaultURI(name))
+	ok, err := fyneStorage.Exists(vaultURI)
 	require.NoError(t, err)
 	require.True(t, ok)
 
-	ok, err = fyneStorage.Exists(storage.keyURI(name))
+	ok, err = fyneStorage.Exists(keyURI)
 	require.NoError(t, err)
 	require.True(t, ok)
 
@@ -47,15 +56,16 @@ func TestStorageRoundTrip(t *testing.T) {
 	assert.Equal(t, note.Name, meta.Name)
 
 	// store note item
-	err = storage.StoreItem(vault, note)
+	err = fs.StoreItem(vault, note)
 	require.NoError(t, err)
 
-	ok, err = fyneStorage.Exists(storage.itemURI(name, note.ID()))
+	itemURI := fyneStorage.NewFileURI(itemPath(fs, name, note.ID()))
+	ok, err = fyneStorage.Exists(itemURI)
 	require.NoError(t, err)
 	require.True(t, ok)
 
 	// test item load for the vault
-	item, err := storage.LoadItem(vault, meta)
+	item, err := fs.LoadItem(vault, meta)
 	require.NoError(t, err)
 	require.NotNil(t, item)
 	assert.Equal(t, note.Name, item.GetMetadata().Name)
@@ -69,10 +79,10 @@ func TestStorageRoundTrip(t *testing.T) {
 	vault.AddItem(login)
 	require.Len(t, vault.ItemMetadata, 2) // login and note type
 
-	err = storage.StoreItem(vault, login)
+	err = fs.StoreItem(vault, login)
 	require.NoError(t, err)
 
-	loadedVault, err := storage.LoadVault(name, password)
+	loadedVault, err := fs.LoadVault(name, password)
 	require.NoError(t, err)
 	require.Equal(t, name, loadedVault.Name)
 	require.Len(t, loadedVault.ItemMetadata, 2) // login and note type
@@ -81,7 +91,7 @@ func TestStorageRoundTrip(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, login.Name, meta.Name)
 
-	itemWebsite, err := storage.LoadItem(vault, meta)
+	itemWebsite, err := fs.LoadItem(vault, meta)
 	require.NoError(t, err)
 	require.NotNil(t, itemWebsite)
 	assert.Equal(t, login.Name, itemWebsite.GetMetadata().Name)

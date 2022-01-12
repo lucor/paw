@@ -16,6 +16,7 @@ import (
 )
 
 const (
+	ID      = "dev.lucor.paw"
 	Version = "lucor/paw/v1"
 )
 
