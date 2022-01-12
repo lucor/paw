@@ -36,7 +36,13 @@ type mainView struct {
 
 // Make returns the fyne user interface
 func Make(a fyne.App, w fyne.Window) fyne.CanvasObject {
-	s, err := paw.NewFyneStorage(a.Storage())
+	var s paw.Storage
+	var err error
+	if a.Driver().Device().IsMobile() {
+		s, err = paw.NewFyneStorage(a.Storage())
+	} else {
+		s, err = paw.NewOSStorage()
+	}
 	if err != nil {
 		log.Fatal(err)
 	}
