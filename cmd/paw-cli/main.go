@@ -5,14 +5,21 @@ import (
 	"os"
 
 	"lucor.dev/paw/internal/cli"
+	"lucor.dev/paw/internal/paw"
 )
 
 func main() {
 
 	log.SetFlags(0)
 
+	s, err := paw.NewOSStorage()
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	// Define the command to use
 	commands := []cli.Cmd{
+		&cli.ListCmd{},
 		&cli.VersionCmd{},
 	}
 
@@ -40,13 +47,13 @@ func main() {
 	// Parse the arguments for the command
 	// It will display the command usage if -help is specified
 	// and will exit in case of error
-	err := cmd.Parse(os.Args[2:])
+	err = cmd.Parse(os.Args[2:])
 	if err != nil {
 		log.Fatalf("[✗] %s", err)
 	}
 
 	// Finally run the command
-	err = cmd.Run()
+	err = cmd.Run(s)
 	if err != nil {
 		log.Fatalf("[✗] %s", err)
 	}

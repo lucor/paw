@@ -3,6 +3,8 @@ package cli
 import (
 	"fmt"
 	"runtime/debug"
+
+	"lucor.dev/paw/internal/paw"
 )
 
 const version = "develop"
@@ -21,7 +23,7 @@ func (cmd *VersionCmd) Description() string {
 }
 
 // Run runs the command
-func (cmd *VersionCmd) Run() error {
+func (cmd *VersionCmd) Run(s paw.Storage) error {
 	fmt.Printf("paw-cli version %s\n", getVersion())
 	return nil
 }

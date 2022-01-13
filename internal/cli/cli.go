@@ -1,10 +1,15 @@
 package cli
 
 import (
+	"bufio"
+	"fmt"
 	"io"
 	"log"
 	"os"
 	"text/template"
+
+	"golang.org/x/term"
+	"lucor.dev/paw/internal/paw"
 )
 
 // Cmd wraps the methods for a paw-cli command
@@ -13,7 +18,7 @@ type Cmd interface {
 	Description() string       // Description returns the command description
 	Parse(args []string) error // Parse parses the cli arguments
 	Usage()                    // Usage displays the command usage
-	Run() error                // Run runs the command
+	Run(s paw.Storage) error   // Run runs the command
 }
 
 // Usage prints the command usage
@@ -45,4 +50,24 @@ func printTemplate(w io.Writer, textTemplate string, data interface{}) {
 	if err != nil {
 		log.Fatalf("Could not execute the template: %s", err)
 	}
+}
+
+func readPassword(question string) (string, error) {
+	fmt.Print(question, " ")
+	if !term.IsTerminal(int(os.Stdin.Fd())) {
+		return "", fmt.Errorf("standard input is not a terminal")
+	}
+	defer fmt.Println("")
+	password, err := term.ReadPassword(int(os.Stdin.Fd()))
+	if err != nil {
+		return "", fmt.Errorf("could not read password from standard input: %w", err)
+	}
+	return string(password), nil
+}
+
+func readLine(question string) (string, error) {
+	fmt.Print(question, " ")
+	r := bufio.NewReader(os.Stdin)
+	defer fmt.Println("")
+	return r.ReadString('\n')
 }
