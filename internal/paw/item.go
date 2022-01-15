@@ -58,15 +58,18 @@ type Item interface {
 	fmt.Stringer
 }
 
-func NewItemFromType(itemType ItemType) (Item, error) {
+func NewItem(name string, itemType ItemType) (Item, error) {
+	var item Item
 	switch itemType {
 	case LoginItemType:
-		return NewLogin(), nil
+		item = NewLogin()
 	case NoteItemType:
-		return NewNote(), nil
+		item = NewNote()
 	case PasswordItemType:
-		return NewPassword(), nil
+		item = NewPassword()
 	default:
 		return nil, fmt.Errorf("invalid item type %q", itemType)
 	}
+	item.GetMetadata().Name = name
+	return item, nil
 }

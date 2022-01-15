@@ -37,11 +37,10 @@ func (cmd *EditCmd) Run(s paw.Storage) error {
 		return err
 	}
 
-	item, err := paw.NewItemFromType(cmd.itemType)
+	item, err := paw.NewItem(cmd.itemName, cmd.itemType)
 	if err != nil {
 		return err
 	}
-	item.GetMetadata().Name = cmd.itemName
 
 	item, err = s.LoadItem(vault, item.GetMetadata())
 	if err != nil {

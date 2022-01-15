@@ -8,25 +8,25 @@ import (
 	"lucor.dev/paw/internal/paw"
 )
 
-// Add adds an item to the vault
-type AddCmd struct {
+// RemoveCmd removes an item from the vault
+type RemoveCmd struct {
 	itemName  string
 	itemType  paw.ItemType
 	vaultName string
 }
 
 // Name returns the one word command name
-func (cmd *AddCmd) Name() string {
-	return "add"
+func (cmd *RemoveCmd) Name() string {
+	return "rm"
 }
 
 // Description returns the command description
-func (cmd *AddCmd) Description() string {
-	return "Adds an item to the vault"
+func (cmd *RemoveCmd) Description() string {
+	return "Removes an item from the vault"
 }
 
 // Run runs the command
-func (cmd *AddCmd) Run(s paw.Storage) error {
+func (cmd *RemoveCmd) Run(s paw.Storage) error {
 	password, err := askPassword("Enter the vault password")
 	if err != nil {
 		return err
@@ -42,39 +42,28 @@ func (cmd *AddCmd) Run(s paw.Storage) error {
 		return err
 	}
 
-	if ok := vault.HasItem(item); ok {
-		return fmt.Errorf("item with same name already exists")
+	if ok := vault.HasItem(item); !ok {
+		return fmt.Errorf("item does not exists")
 	}
 
-	switch cmd.itemType {
-	case paw.LoginItemType:
-		cmd.addLoginItem(item)
-	case paw.NoteItemType:
-		cmd.addNoteItem(item)
-	case paw.PasswordItemType:
-		cmd.addPasswordItem(item)
-	default:
-		return fmt.Errorf("unsupported item type: %q", cmd.itemType)
-	}
-
-	err = s.StoreItem(vault, item)
+	err = s.DeleteItem(vault, item)
 	if err != nil {
 		return err
 	}
-	err = vault.AddItem(item)
-	if err != nil {
-		return err
-	}
+
+	vault.DeleteItem(item)
+
 	err = s.StoreVault(vault)
 	if err != nil {
 		return err
 	}
-	log.Printf("[✓] item %q added", cmd.itemName)
+
+	log.Printf("[✓] item %q removed", cmd.itemName)
 	return nil
 }
 
 // Parse parses the arguments and set the usage for the command
-func (cmd *AddCmd) Parse(args []string) error {
+func (cmd *RemoveCmd) Parse(args []string) error {
 	if len(args) == 0 {
 		return nil
 	}
@@ -111,7 +100,7 @@ func (cmd *AddCmd) Parse(args []string) error {
 }
 
 // Usage displays the command usage
-func (cmd *AddCmd) Usage() {
+func (cmd *RemoveCmd) Usage() {
 	template := `Usage: paw-cli add VAULT_NAME/ITEM_TYPE/ITEM_NAME
 
 {{ . }}
@@ -119,7 +108,7 @@ func (cmd *AddCmd) Usage() {
 	printUsage(template, cmd.Description())
 }
 
-func (cmd *AddCmd) addLoginItem(item paw.Item) error {
+func (cmd *RemoveCmd) addLoginItem(item paw.Item) error {
 	v := item.(*paw.Login)
 
 	url, err := ask("URL")
@@ -150,7 +139,7 @@ func (cmd *AddCmd) addLoginItem(item paw.Item) error {
 	return nil
 }
 
-func (cmd *AddCmd) addNoteItem(item paw.Item) error {
+func (cmd *RemoveCmd) addNoteItem(item paw.Item) error {
 	v := item.(*paw.Note)
 
 	note, err := ask("Note")
@@ -163,7 +152,7 @@ func (cmd *AddCmd) addNoteItem(item paw.Item) error {
 	return nil
 }
 
-func (cmd *AddCmd) addPasswordItem(item paw.Item) error {
+func (cmd *RemoveCmd) addPasswordItem(item paw.Item) error {
 	v := item.(*paw.Password)
 
 	password, err := ask("Password")
