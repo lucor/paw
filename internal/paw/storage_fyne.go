@@ -235,27 +235,6 @@ func (s *FyneStorage) Vaults() ([]string, error) {
 	return vaults, nil
 }
 
-// func (s *FyneStorage) encrypt(key *Key, uri fyne.URI, v interface{}) error {
-// 	writer, err := fyneStorage.Writer(uri)
-// 	if err != nil {
-// 		return fmt.Errorf("could not create writer: %w", err)
-// 	}
-// 	defer writer.Close()
-
-// 	encWriter, err := key.Encrypt(writer)
-// 	if err != nil {
-// 		return fmt.Errorf("could not create encrypted writer for URI: %w", err)
-// 	}
-// 	defer encWriter.Close()
-
-// 	err = json.NewEncoder(encWriter).Encode(v)
-// 	if err != nil {
-// 		return fmt.Errorf("could not encode data for URI: %w", err)
-// 	}
-
-// 	return nil
-// }
-
 // migrateDeprecatedRootStorage migrates the deprecated 'vaults' storage folder to new one
 func (s *FyneStorage) migrateDeprecatedRootStorage() (bool, error) {
 	src := filepath.Join(s.Root(), "vaults")

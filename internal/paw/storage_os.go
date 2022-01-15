@@ -26,6 +26,15 @@ func NewOSStorage() (Storage, error) {
 	storageRoot := filepath.Join(urd, ".paw")
 
 	s := &OSStorage{root: storageRoot}
+
+	migrated, err := s.migrateDeprecatedRootStorage()
+	if migrated {
+		if err != nil {
+			return nil, fmt.Errorf("found deprecated storage but was unable to move to new location: %w", err)
+		}
+		return s, nil
+	}
+
 	err = s.mkdirIfNotExists(storageRootPath(s))
 	return s, err
 }
@@ -218,4 +227,21 @@ func (s *OSStorage) mkdirIfNotExists(path string) error {
 
 func (s *OSStorage) createFile(name string) (*os.File, error) {
 	return os.OpenFile(name, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
+}
+
+// migrateDeprecatedRootStorage migrates the deprecated 'vaults' storage folder to new one
+func (s *OSStorage) migrateDeprecatedRootStorage() (bool, error) {
+	oldRoot, err := os.UserConfigDir()
+	if err != nil {
+		return false, nil
+	}
+
+	src := filepath.Join(oldRoot, "fyne", ID, "vaults")
+	_, err = os.Stat(src)
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	dest := storageRootPath(s)
+	err = os.Rename(src, dest)
+	return true, err
 }
