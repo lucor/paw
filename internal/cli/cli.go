@@ -52,8 +52,8 @@ func printTemplate(w io.Writer, textTemplate string, data interface{}) {
 	}
 }
 
-func readPassword(question string) (string, error) {
-	fmt.Print(question, " ")
+func askPassword(prompt string) (string, error) {
+	fmt.Printf("%s: ", prompt)
 	if !term.IsTerminal(int(os.Stdin.Fd())) {
 		return "", fmt.Errorf("standard input is not a terminal")
 	}
@@ -65,9 +65,32 @@ func readPassword(question string) (string, error) {
 	return string(password), nil
 }
 
-func readLine(question string) (string, error) {
-	fmt.Print(question, " ")
-	r := bufio.NewReader(os.Stdin)
-	defer fmt.Println("")
-	return r.ReadString('\n')
+func askWithDefault(prompt string, old string) (string, error) {
+	fmt.Printf("%s [%s]: ", prompt, old)
+	line, err := readLine()
+	if err != nil {
+		return old, err
+	}
+	if line == "" {
+		return old, err
+	}
+	return line, nil
+}
+
+func ask(prompt string) (string, error) {
+	fmt.Printf("%s: ", prompt)
+	return readLine()
+}
+
+func readLine() (string, error) {
+	var out string
+	scanner := bufio.NewScanner(bufio.NewReader(os.Stdin))
+	for scanner.Scan() {
+		out = scanner.Text()
+		break
+	}
+	if err := scanner.Err(); err != nil {
+		return out, fmt.Errorf("error reading standard input: %w", err)
+	}
+	return out, nil
 }
