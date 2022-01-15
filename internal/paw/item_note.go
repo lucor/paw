@@ -2,6 +2,7 @@ package paw
 
 import (
 	"context"
+	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
@@ -22,9 +23,12 @@ type Note struct {
 }
 
 func NewNote() *Note {
+	now := time.Now()
 	return &Note{
 		Metadata: &Metadata{
-			Type: NoteItemType,
+			Type:     NoteItemType,
+			Created:  now,
+			Modified: now,
 		},
 	}
 }

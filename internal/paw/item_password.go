@@ -3,6 +3,7 @@ package paw
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
@@ -62,9 +63,12 @@ type Password struct {
 }
 
 func NewPassword() *Password {
+	now := time.Now()
 	return &Password{
 		Metadata: &Metadata{
-			Type: PasswordItemType,
+			Type:     PasswordItemType,
+			Created:  now,
+			Modified: now,
 		},
 		Note: &Note{},
 	}

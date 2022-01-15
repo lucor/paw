@@ -6,6 +6,7 @@ import (
 	"image/png"
 	"net/url"
 	"strings"
+	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
@@ -35,9 +36,12 @@ type Login struct {
 }
 
 func NewLogin() *Login {
+	now := time.Now()
 	return &Login{
 		Metadata: &Metadata{
-			Type: LoginItemType,
+			Type:     LoginItemType,
+			Created:  now,
+			Modified: now,
 		},
 		Note:     &Note{},
 		Password: &Password{},

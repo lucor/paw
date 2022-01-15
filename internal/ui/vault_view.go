@@ -343,9 +343,8 @@ func (vw *vaultView) editItemView(ctx context.Context, item paw.Item) fyne.Canva
 		var isNew bool
 
 		metadata.Modified = time.Now()
-		if metadata.Created.IsZero() {
+		if metadata.Created == metadata.Modified {
 			isNew = true
-			metadata.Created = time.Now()
 		}
 
 		// add item to vault and store into the storage
