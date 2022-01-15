@@ -19,7 +19,11 @@ func main() {
 
 	// Define the command to use
 	commands := []cli.Cmd{
+		&cli.AddCmd{},
+		&cli.EditCmd{},
+		&cli.InitCmd{},
 		&cli.ListCmd{},
+		&cli.ShowCmd{},
 		&cli.VersionCmd{},
 	}
 

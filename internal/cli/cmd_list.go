@@ -2,17 +2,18 @@ package cli
 
 import (
 	"fmt"
+	"log"
 	"strings"
 
 	"lucor.dev/paw/internal/paw"
 	"lucor.dev/paw/internal/tree"
 )
 
-// List is the version command
+// List lists the vaults content
 type ListCmd struct {
-	vault    string
-	itemType paw.ItemType
-	itemName string
+	itemName  string
+	itemType  paw.ItemType
+	vaultName string
 }
 
 // Name returns the one word command name
@@ -31,7 +32,7 @@ func (cmd *ListCmd) Run(s paw.Storage) error {
 	if err != nil {
 		return err
 	}
-	if cmd.vault == "" {
+	if cmd.vaultName == "" {
 		tree.Print(vaultNode)
 		return nil
 	}
@@ -41,13 +42,19 @@ func (cmd *ListCmd) Run(s paw.Storage) error {
 		return err
 	}
 
-	n := tree.Node{Value: "paw/" + cmd.vault}
+	n := tree.Node{Value: "paw/" + cmd.vaultName}
 	for _, v := range itemsNode {
 		if len(v.Child) == 0 {
 			continue
 		}
 		n.Child = append(n.Child, v)
 	}
+
+	if len(n.Child) == 0 {
+		log.Printf("vault %q is empty", cmd.vaultName)
+		return nil
+	}
+
 	tree.Print(n)
 	return nil
 }
@@ -65,20 +72,15 @@ func (cmd *ListCmd) Parse(args []string) error {
 	for i, v := range parts {
 		switch i {
 		case 0:
-			cmd.vault = v
+			cmd.vaultName = v
 		case 1:
 			var itemType paw.ItemType
-			switch v {
-			case paw.LoginItemType.String():
-				itemType = paw.LoginItemType
-			case paw.NoteItemType.String():
-				itemType = paw.NoteItemType
-			case paw.PasswordItemType.String():
-				itemType = paw.PasswordItemType
-			}
-
-			if itemType == 0 && v != "" && v != "*" {
-				return fmt.Errorf("invalid Paw item type %q", v)
+			var err error
+			if v != "*" && v != "" {
+				itemType, err = paw.ItemTypeFromString(v)
+				if err != nil {
+					return err
+				}
 			}
 			cmd.itemType = itemType
 		case 2:
@@ -98,11 +100,11 @@ func (cmd *ListCmd) Usage() {
 }
 
 func (cmd *ListCmd) items(s paw.Storage) ([]tree.Node, error) {
-	password, err := readPassword("Enter the vault password:")
+	password, err := askPassword("Enter the vault password")
 	if err != nil {
 		return nil, err
 	}
-	vault, err := s.LoadVault(cmd.vault, password)
+	vault, err := s.LoadVault(cmd.vaultName, password)
 	if err != nil {
 		return nil, err
 	}
@@ -143,13 +145,13 @@ func (cmd *ListCmd) vaults(s paw.Storage) (tree.Node, error) {
 		return n, err
 	}
 	for _, v := range vaults {
-		if cmd.vault != "" && cmd.vault != v {
+		if cmd.vaultName != "" && cmd.vaultName != v {
 			continue
 		}
 		n.Child = append(n.Child, tree.Node{Value: v})
 	}
 	if len(n.Child) == 0 {
-		return n, fmt.Errorf("vault %q does not exists", cmd.vault)
+		return n, fmt.Errorf("vault %q does not exists", cmd.vaultName)
 	}
 	return n, nil
 }
