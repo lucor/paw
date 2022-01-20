@@ -1,4 +1,4 @@
-package paw
+package ui
 
 import (
 	"context"
@@ -12,23 +12,39 @@ import (
 	"fyne.io/fyne/v2/data/binding"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
+
+	"lucor.dev/paw/internal/paw"
 )
 
-// FyneObject wraps all methods allow to handle an Item as Fyne object
-type FyneObject interface {
-	// Type returns a widget icon for the identity type
+// FyneItem wraps all methods allow to handle an Item as Fyne canvas object
+type FyneItem interface {
+	// Icon returns a fyne resource associated to the imte
 	Icon() fyne.Resource
-	// Show returns a fyne CanvasObject used to view the identity
+	// Show returns a fyne CanvasObject used to view the item
 	Show(ctx context.Context, w fyne.Window) fyne.CanvasObject
-	// Edit returns a fyne CanvasObject used to edit the identity
-	Edit(ctx context.Context, w fyne.Window) (fyne.CanvasObject, Item)
-	//
-	InfoUI() fyne.CanvasObject
+	// Edit returns a fyne CanvasObject used to edit the item
+	Edit(ctx context.Context, key *paw.Key, w fyne.Window) (fyne.CanvasObject, paw.Item)
+	// Item returns the paw Item
+	Item() paw.Item
 }
 
 // FynePasswordGenerator wraps all methods to show a Fyne dialog to generate passwords
 type FynePasswordGenerator interface {
-	ShowPasswordGenerator(bind binding.String, password *Password, w fyne.Window)
+	ShowPasswordGenerator(bind binding.String, password *paw.Password, w fyne.Window)
+}
+
+func NewFyneItem(item paw.Item) FyneItem {
+	var fyneItem FyneItem
+	switch item.GetMetadata().Type {
+	case paw.NoteItemType:
+		fyneItem = &Note{Note: item.(*paw.Note)}
+	case paw.LoginItemType:
+		fyneItem = &Login{Login: item.(*paw.Login)}
+	case paw.PasswordItemType:
+		fyneItem = &Password{Password: item.(*paw.Password)}
+
+	}
+	return fyneItem
 }
 
 func titleRow(icon fyne.Resource, text string) []fyne.CanvasObject {

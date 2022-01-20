@@ -431,7 +431,3 @@ func pwgen(key *paw.Key, password *paw.Password) (string, error) {
 	}
 	return secret, nil
 }
-
-func labelWithStyle(label string) *widget.Label {
-	return widget.NewLabelWithStyle(label, fyne.TextAlignTrailing, fyne.TextStyle{Bold: true})
-}

@@ -4,12 +4,7 @@ import (
 	"encoding/hex"
 	"time"
 
-	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/layout"
-	"fyne.io/fyne/v2/widget"
 	"golang.org/x/crypto/blake2b"
-	"lucor.dev/paw/internal/icon"
 )
 
 // Item represents the basic paw identity
@@ -23,7 +18,7 @@ type Metadata struct {
 	// Created holds the creation date
 	Created time.Time `json:"created,omitempty"`
 	// Icon
-	Favicon *icon.Favicon `json:"favicon,omitempty"`
+	Favicon *Favicon `json:"favicon,omitempty"`
 }
 
 func (m *Metadata) ID() string {
@@ -41,31 +36,6 @@ func (m *Metadata) GetMetadata() *Metadata {
 
 func (m *Metadata) String() string {
 	return m.Name
-}
-
-func (m *Metadata) Icon() fyne.Resource {
-	if m.Favicon != nil {
-		return m.Favicon
-	}
-	switch m.Type {
-	case NoteItemType:
-		return icon.NoteOutlinedIconThemed
-	case PasswordItemType:
-		return icon.PasswordOutlinedIconThemed
-	case LoginItemType:
-		return icon.PublicOutlinedIconThemed
-	}
-	return icon.PawIcon
-}
-
-func (m *Metadata) InfoUI() fyne.CanvasObject {
-	return container.New(
-		layout.NewFormLayout(),
-		widget.NewLabel("Modified"),
-		widget.NewLabel(m.Modified.Format(time.RFC1123)),
-		widget.NewLabel("Created"),
-		widget.NewLabel(m.Created.Format(time.RFC1123)),
-	)
 }
 
 // ByID implements sort.Interface Metadata on the ID value.

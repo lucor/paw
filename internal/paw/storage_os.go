@@ -20,10 +20,19 @@ func NewOSStorage() (Storage, error) {
 	if err != nil {
 		return nil, fmt.Errorf("could not get the default root directory to use for user-specific configuration data: %w", err)
 	}
+	return NewOSStorageRooted(urd)
+}
+
+// NewOSStorageRooted returns an OS Storage implementation rooted at root
+func NewOSStorageRooted(root string) (Storage, error) {
+
+	if !filepath.IsAbs(root) {
+		return nil, fmt.Errorf("storage root must be an absolute path, got %s", root)
+	}
 
 	// Fyne does not allow to customize the root for a storage
 	// so we'll use the same
-	storageRoot := filepath.Join(urd, ".paw")
+	storageRoot := filepath.Join(root, ".paw")
 
 	s := &OSStorage{root: storageRoot}
 

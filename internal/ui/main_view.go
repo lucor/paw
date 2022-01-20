@@ -38,11 +38,8 @@ type mainView struct {
 func Make(a fyne.App, w fyne.Window) fyne.CanvasObject {
 	var s paw.Storage
 	var err error
-	if a.Driver().Device().IsMobile() {
-		s, err = paw.NewFyneStorage(a.Storage())
-	} else {
-		s, err = paw.NewOSStorage()
-	}
+
+	s, err = paw.NewOSStorage()
 	if err != nil {
 		log.Fatal(err)
 	}
