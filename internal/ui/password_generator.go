@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log"
 	"strconv"
-	"strings"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
@@ -14,7 +13,6 @@ import (
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
-	"lucor.dev/paw/internal/age"
 	"lucor.dev/paw/internal/paw"
 )
 
@@ -425,11 +423,7 @@ func randomPasswordOptions(key *paw.Key, passwordBind binding.String, password *
 
 func pwgen(key *paw.Key, password *paw.Password) (string, error) {
 	if password.Mode == paw.PassphrasePassword {
-		var words []string
-		for i := 0; i < password.Length; i++ {
-			words = append(words, age.RandomWord())
-		}
-		return strings.Join(words, "-"), nil
+		return key.Passphrase(password.Length)
 	}
 	secret, err := key.Secret(password)
 	if err != nil {

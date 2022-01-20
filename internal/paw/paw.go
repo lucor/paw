@@ -6,12 +6,14 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"io"
+	"strings"
 	"time"
 
 	"filippo.io/age"
 	"filippo.io/age/armor"
 	"golang.org/x/crypto/hkdf"
 
+	agepaw "lucor.dev/paw/internal/age"
 	"lucor.dev/paw/internal/age/bech32"
 )
 
@@ -39,6 +41,25 @@ type SecretMaker interface {
 
 type Key struct {
 	ageIdentity *age.X25519Identity
+}
+
+// MakeOneTimeKey generates a one time age secret key.
+// The key can be used to generate random passwords
+func MakeOneTimeKey() (key *Key, err error) {
+	wrapErr := func(err error) error {
+		return fmt.Errorf("paw: makekey error: %w", err)
+	}
+
+	// Generate the age X25519 Identity
+	ageIdentity, ierr := age.GenerateX25519Identity()
+	if ierr != nil {
+		err = wrapErr(ierr)
+		return
+	}
+	key = &Key{
+		ageIdentity: ageIdentity,
+	}
+	return
 }
 
 // MakeKey generates an age secret key. The key is encrypted to w and protect using the provided password
@@ -139,6 +160,14 @@ func LoadKey(password string, r io.Reader) (key *Key, err error) {
 		ageIdentity: ageIdentity,
 	}
 	return
+}
+
+func (k *Key) Passphrase(numWords int) (string, error) {
+	var words []string
+	for i := 0; i < numWords; i++ {
+		words = append(words, agepaw.RandomWord())
+	}
+	return strings.Join(words, "-"), nil
 }
 
 // Secret derives a secret from the seeder

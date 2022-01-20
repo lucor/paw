@@ -3,7 +3,7 @@ package cli
 import (
 	"fmt"
 	"log"
-	"strings"
+	"os"
 
 	"lucor.dev/paw/internal/paw"
 	"lucor.dev/paw/internal/tree"
@@ -11,9 +11,7 @@ import (
 
 // List lists the vaults content
 type ListCmd struct {
-	itemName  string
-	itemType  paw.ItemType
-	vaultName string
+	itemPath
 }
 
 // Name returns the one word command name
@@ -26,12 +24,51 @@ func (cmd *ListCmd) Description() string {
 	return "List vaults and items"
 }
 
+// Usage displays the command usage
+func (cmd *ListCmd) Usage() {
+	template := `Usage: paw-cli ls [OPTION] [VAULT_NAME/ITEM_TYPE/ITEM_NAME]
+
+{{ . }}
+
+Options:
+  -h, --help  Displays this help and exit
+`
+	printUsage(template, cmd.Description())
+}
+
+// Parse parses the arguments and set the usage for the command
+func (cmd *ListCmd) Parse(args []string) error {
+	flags, err := newCommonFlags()
+	if err != nil {
+		return err
+	}
+
+	flagSet.Parse(args)
+	if flags.Help {
+		cmd.Usage()
+		os.Exit(0)
+	}
+
+	if len(flagSet.Args()) == 0 {
+		return nil
+	}
+
+	itemPath, err := parseItemPath(flagSet.Arg(0), itemPathOptions{wildcard: true})
+	if err != nil {
+		return err
+	}
+
+	cmd.itemPath = itemPath
+	return nil
+}
+
 // Run runs the command
 func (cmd *ListCmd) Run(s paw.Storage) error {
 	vaultNode, err := cmd.vaults(s)
 	if err != nil {
 		return err
 	}
+
 	if cmd.vaultName == "" {
 		tree.Print(vaultNode)
 		return nil
@@ -57,46 +94,6 @@ func (cmd *ListCmd) Run(s paw.Storage) error {
 
 	tree.Print(n)
 	return nil
-}
-
-// Parse parses the arguments and set the usage for the command
-func (cmd *ListCmd) Parse(args []string) error {
-	if len(args) == 0 {
-		return nil
-	}
-
-	parts := strings.Split(args[0], "/")
-	if len(parts) > 3 {
-		return fmt.Errorf("invalid path: %s", args[0])
-	}
-	for i, v := range parts {
-		switch i {
-		case 0:
-			cmd.vaultName = v
-		case 1:
-			var itemType paw.ItemType
-			var err error
-			if v != "*" && v != "" {
-				itemType, err = paw.ItemTypeFromString(v)
-				if err != nil {
-					return err
-				}
-			}
-			cmd.itemType = itemType
-		case 2:
-			cmd.itemName = v
-		}
-	}
-	return nil
-}
-
-// Usage displays the command usage
-func (cmd *ListCmd) Usage() {
-	template := `Usage: paw-cli ls
-
-{{ . }}
-`
-	printUsage(template, cmd.Description())
 }
 
 func (cmd *ListCmd) items(s paw.Storage) ([]tree.Node, error) {

@@ -28,9 +28,9 @@ const (
 )
 
 const (
-	DefaultTOTPHash     = SHA1
-	DefaultTOTPDigits   = otp.DefaultDigits
-	DefaultTOTPInterval = otp.DefaultInterval
+	TOTPHashDefault     = SHA1
+	TOTPDigitsDefault   = otp.DefaultDigits
+	TOTPIntervalDefault = otp.DefaultInterval
 )
 
 type TOTP struct {
@@ -42,9 +42,9 @@ type TOTP struct {
 
 func NewDefaultTOTP() *TOTP {
 	return &TOTP{
-		Digits:   DefaultTOTPDigits,
-		Hash:     DefaultTOTPHash,
-		Interval: DefaultTOTPInterval,
+		Digits:   TOTPDigitsDefault,
+		Hash:     TOTPHashDefault,
+		Interval: TOTPIntervalDefault,
 	}
 }
 

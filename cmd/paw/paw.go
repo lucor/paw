@@ -14,7 +14,6 @@ func main() {
 
 	w := a.NewWindow("Paw")
 	w.SetMaster()
-
 	w.Resize(fyne.NewSize(800, 600))
 	w.SetContent(ui.Make(a, w))
 	w.ShowAndRun()

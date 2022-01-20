@@ -6,6 +6,9 @@ import (
 	"io"
 	"log"
 	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
 	"text/template"
 
 	"golang.org/x/term"
@@ -52,12 +55,29 @@ func printTemplate(w io.Writer, textTemplate string, data interface{}) {
 	}
 }
 
+func askPasswordWithConfirm() (string, error) {
+	for {
+		password, err := askPassword("Password")
+		if err != nil {
+			return "", err
+		}
+		confirm, err := askPassword("Confirm password")
+		if err != nil {
+			return "", err
+		}
+		if password == confirm {
+			return password, nil
+		}
+		fmt.Println("[✗] Passwords do not match")
+	}
+}
+
 func askPassword(prompt string) (string, error) {
-	fmt.Printf("%s: ", prompt)
 	if !term.IsTerminal(int(os.Stdin.Fd())) {
 		return "", fmt.Errorf("standard input is not a terminal")
 	}
 	defer fmt.Println("")
+	fmt.Printf("%s: ", prompt)
 	password, err := term.ReadPassword(int(os.Stdin.Fd()))
 	if err != nil {
 		return "", fmt.Errorf("could not read password from standard input: %w", err)
@@ -82,6 +102,80 @@ func ask(prompt string) (string, error) {
 	return readLine()
 }
 
+func askPasswordMode(prompt string, options []paw.PasswordMode, defaultMode paw.PasswordMode) (paw.PasswordMode, error) {
+	var defaultIdx int
+	for i, v := range options {
+		if v == defaultMode {
+			defaultIdx = i
+			break
+		}
+	}
+	fmt.Printf("%s [%s]:\n", prompt, options[defaultIdx])
+	for i, v := range options {
+		fmt.Printf("  [%d] %s\n", i, v)
+	}
+	for {
+		fmt.Print("> ")
+		choice, err := readLine()
+		if err != nil {
+			continue
+		}
+		if choice == "" {
+			return options[defaultIdx], nil
+		}
+		idx, err := strconv.Atoi(choice)
+		if err != nil {
+			continue
+		}
+		if idx >= 0 && idx < len(options) {
+			return options[idx], nil
+		}
+	}
+}
+
+func askIntWithDefaultAndRange(prompt string, def int, min int, max int) (int, error) {
+	for {
+		fmt.Printf("%s [%d]: ", prompt, def)
+		v, err := readLine()
+		if err != nil {
+			continue
+		}
+		if v == "" {
+			return def, nil
+		}
+		i, err := strconv.Atoi(v)
+		if err != nil {
+			continue
+		}
+		if i >= min && i <= max {
+			return i, nil
+		}
+	}
+}
+
+func askYesNo(prompt string, defaultYes bool) (bool, error) {
+	def := "y/N"
+	if defaultYes {
+		def = "Y/n"
+	}
+	for {
+		fmt.Printf("%s [%s]: ", prompt, def)
+		v, err := readLine()
+		if err != nil {
+			continue
+		}
+		if v == "" {
+			return defaultYes, nil
+		}
+		switch strings.ToLower(v) {
+		case "y":
+			return true, nil
+		case "n":
+			return false, nil
+		}
+	}
+}
+
 func readLine() (string, error) {
 	var out string
 	scanner := bufio.NewScanner(bufio.NewReader(os.Stdin))
@@ -93,4 +187,55 @@ func readLine() (string, error) {
 		return out, fmt.Errorf("error reading standard input: %w", err)
 	}
 	return out, nil
+}
+
+type itemPath struct {
+	itemName  string
+	itemType  paw.ItemType
+	vaultName string
+}
+
+func (i itemPath) String() string {
+	return filepath.Join(i.vaultName, i.itemType.String(), i.itemName)
+}
+
+type itemPathOptions struct {
+	fullPath bool
+	wildcard bool
+}
+
+func parseItemPath(path string, opts itemPathOptions) (itemPath, error) {
+	parts := strings.Split(path, "/")
+	ip := itemPath{}
+
+	if len(parts) > 3 || (opts.fullPath && len(parts) != 3) {
+		return ip, fmt.Errorf("invalid vault item path. Got %q, expected VAULT_NAME/ITEM_TYPE/ITEM_NAME", path)
+	}
+
+	for i, v := range parts {
+		if opts.fullPath && v == "" {
+			return ip, fmt.Errorf("a path element is empty. Got %s, expected VAULT_NAME/ITEM_TYPE/ITEM_NAME", path)
+		}
+		switch i {
+		case 0:
+			ip.vaultName = v
+		case 1:
+			var itemType paw.ItemType
+			var err error
+			if opts.wildcard && v == "*" {
+				break
+			}
+			itemType, err = paw.ItemTypeFromString(v)
+			if err != nil {
+				return ip, err
+			}
+			ip.itemType = itemType
+		case 2:
+			if opts.fullPath && v == "" {
+				return ip, fmt.Errorf("item name cannot be empty")
+			}
+			ip.itemName = v
+		}
+	}
+	return ip, nil
 }

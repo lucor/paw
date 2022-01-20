@@ -3,16 +3,14 @@ package cli
 import (
 	"fmt"
 	"log"
-	"strings"
+	"os"
 
 	"lucor.dev/paw/internal/paw"
 )
 
 // Edit edits an item into the vault
 type EditCmd struct {
-	itemName  string
-	itemType  paw.ItemType
-	vaultName string
+	itemPath
 }
 
 // Name returns the one word command name
@@ -23,6 +21,39 @@ func (cmd *EditCmd) Name() string {
 // Description returns the command description
 func (cmd *EditCmd) Description() string {
 	return "Edits an item into the vault"
+}
+
+// Usage displays the command usage
+func (cmd *EditCmd) Usage() {
+	template := `Usage: paw-cli [OPTION] edit VAULT_NAME/ITEM_TYPE/ITEM_NAME
+
+{{ . }}
+
+Options:
+  -h, --help  Displays this help and exit
+`
+	printUsage(template, cmd.Description())
+}
+
+// Parse parses the arguments and set the usage for the command
+func (cmd *EditCmd) Parse(args []string) error {
+	flags, err := newCommonFlags()
+	if err != nil {
+		return err
+	}
+
+	flagSet.Parse(args)
+	if flags.Help || len(flagSet.Args()) != 1 {
+		cmd.Usage()
+		os.Exit(0)
+	}
+
+	itemPath, err := parseItemPath(flagSet.Arg(0), itemPathOptions{fullPath: true})
+	if err != nil {
+		return err
+	}
+	cmd.itemPath = itemPath
+	return nil
 }
 
 // Run runs the command
@@ -49,11 +80,11 @@ func (cmd *EditCmd) Run(s paw.Storage) error {
 
 	switch cmd.itemType {
 	case paw.LoginItemType:
-		cmd.editLoginItem(item)
+		cmd.editLoginItem(vault.Key(), item)
 	case paw.NoteItemType:
 		cmd.editNoteItem(item)
 	case paw.PasswordItemType:
-		cmd.editPasswordItem(item)
+		cmd.editPasswordItem(vault.Key(), item)
 	default:
 		return fmt.Errorf("unsupported item type: %q", cmd.itemType)
 	}
@@ -74,53 +105,7 @@ func (cmd *EditCmd) Run(s paw.Storage) error {
 	return nil
 }
 
-// Parse parses the arguments and set the usage for the command
-func (cmd *EditCmd) Parse(args []string) error {
-	if len(args) == 0 {
-		return nil
-	}
-
-	parts := strings.Split(args[0], "/")
-	if len(parts) != 3 {
-		return fmt.Errorf("invalid path. Got %s, expected VAULT_NAME/ITEM_TYPE/ITEM_NAME", args[0])
-	}
-
-	for i, v := range parts {
-		switch i {
-		case 0:
-			if v == "" {
-				return fmt.Errorf("vault name cannot be empty")
-			}
-			cmd.vaultName = v
-		case 1:
-			if v == "" {
-				return fmt.Errorf("item type cannot be empty")
-			}
-			itemType, err := paw.ItemTypeFromString(v)
-			if err != nil {
-				return err
-			}
-			cmd.itemType = itemType
-		case 2:
-			if v == "" {
-				return fmt.Errorf("item name cannot be empty")
-			}
-			cmd.itemName = v
-		}
-	}
-	return nil
-}
-
-// Usage displays the command usage
-func (cmd *EditCmd) Usage() {
-	template := `Usage: paw-cli add VAULT_NAME/ITEM_TYPE/ITEM_NAME
-
-{{ . }}
-`
-	printUsage(template, cmd.Description())
-}
-
-func (cmd *EditCmd) editLoginItem(item paw.Item) error {
+func (cmd *EditCmd) editLoginItem(key *paw.Key, item paw.Item) error {
 	v := item.(*paw.Login)
 
 	url, err := askWithDefault("URL", v.URL)
@@ -135,11 +120,21 @@ func (cmd *EditCmd) editLoginItem(item paw.Item) error {
 	}
 	v.Username = username
 
-	password, err := askWithDefault("Password", v.Password.Value)
+	pwgenCmd := &PwGenCmd{}
+	modes := []paw.PasswordMode{
+		paw.CustomPassword,
+		paw.RandomPassword,
+		paw.PassphrasePassword,
+		paw.PinPassword,
+	}
+	password, err := pwgenCmd.Pwgen(key, modes, v.Mode)
 	if err != nil {
 		return err
 	}
-	v.Password.Value = password
+	v.Password.Value = password.Value
+	v.Password.Mode = password.Mode
+	v.Password.Format = password.Format
+	v.Password.Length = password.Length
 
 	note, err := askWithDefault("Note", v.Note.Value)
 	if err != nil {
@@ -164,14 +159,24 @@ func (cmd *EditCmd) editNoteItem(item paw.Item) error {
 	return nil
 }
 
-func (cmd *EditCmd) editPasswordItem(item paw.Item) error {
+func (cmd *EditCmd) editPasswordItem(key *paw.Key, item paw.Item) error {
 	v := item.(*paw.Password)
 
-	password, err := askWithDefault("Password", v.Value)
+	pwgenCmd := &PwGenCmd{}
+	modes := []paw.PasswordMode{
+		paw.CustomPassword,
+		paw.RandomPassword,
+		paw.PassphrasePassword,
+		paw.PinPassword,
+	}
+	password, err := pwgenCmd.Pwgen(key, modes, v.Mode)
 	if err != nil {
 		return err
 	}
-	v.Value = password
+	v.Value = password.Value
+	v.Mode = password.Mode
+	v.Format = password.Format
+	v.Length = password.Length
 
 	note, err := askWithDefault("Note", v.Note.Value)
 	if err != nil {

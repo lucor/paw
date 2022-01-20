@@ -1,9 +1,8 @@
 package cli
 
 import (
-	"fmt"
 	"log"
-	"strings"
+	"os"
 	"time"
 
 	"lucor.dev/paw/internal/paw"
@@ -11,9 +10,7 @@ import (
 
 // Show shows an item details
 type ShowCmd struct {
-	itemName  string
-	itemType  paw.ItemType
-	vaultName string
+	itemPath
 }
 
 // Name returns the one word command name
@@ -24,6 +21,39 @@ func (cmd *ShowCmd) Name() string {
 // Description returns the command description
 func (cmd *ShowCmd) Description() string {
 	return "Shows an item details"
+}
+
+// Usage displays the command usage
+func (cmd *ShowCmd) Usage() {
+	template := `Usage: paw-cli show [OPTION] VAULT_NAME/ITEM_TYPE/ITEM_NAME
+
+{{ . }}
+
+Options:
+  -h, --help  Displays this help and exit
+`
+	printUsage(template, cmd.Description())
+}
+
+// Parse parses the arguments and set the usage for the command
+func (cmd *ShowCmd) Parse(args []string) error {
+	flags, err := newCommonFlags()
+	if err != nil {
+		return err
+	}
+
+	flagSet.Parse(args)
+	if flags.Help || len(flagSet.Args()) != 1 {
+		cmd.Usage()
+		os.Exit(0)
+	}
+
+	itemPath, err := parseItemPath(args[0], itemPathOptions{fullPath: true})
+	if err != nil {
+		return err
+	}
+	cmd.itemPath = itemPath
+	return nil
 }
 
 // Run runs the command
@@ -71,50 +101,4 @@ func (cmd *ShowCmd) Run(s paw.Storage) error {
 	log.Printf("Created: %s", item.GetMetadata().Created.Format(time.RFC1123))
 	log.Printf("Modified: %s", item.GetMetadata().Modified.Format(time.RFC1123))
 	return nil
-}
-
-// Parse parses the arguments and set the usage for the command
-func (cmd *ShowCmd) Parse(args []string) error {
-	if len(args) == 0 {
-		return nil
-	}
-
-	parts := strings.Split(args[0], "/")
-	if len(parts) != 3 {
-		return fmt.Errorf("invalid path. Got %s, expected VAULT_NAME/ITEM_TYPE/ITEM_NAME", args[0])
-	}
-
-	for i, v := range parts {
-		switch i {
-		case 0:
-			if v == "" {
-				return fmt.Errorf("vault name cannot be empty")
-			}
-			cmd.vaultName = v
-		case 1:
-			if v == "" {
-				return fmt.Errorf("item type cannot be empty")
-			}
-			itemType, err := paw.ItemTypeFromString(v)
-			if err != nil {
-				return err
-			}
-			cmd.itemType = itemType
-		case 2:
-			if v == "" {
-				return fmt.Errorf("item name cannot be empty")
-			}
-			cmd.itemName = v
-		}
-	}
-	return nil
-}
-
-// Usage displays the command usage
-func (cmd *ShowCmd) Usage() {
-	template := `Usage: paw-cli show VAULT_NAME/ITEM_TYPE/ITEM_NAME
-
-{{ . }}
-`
-	printUsage(template, cmd.Description())
 }

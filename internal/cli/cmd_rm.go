@@ -3,16 +3,14 @@ package cli
 import (
 	"fmt"
 	"log"
-	"strings"
+	"os"
 
 	"lucor.dev/paw/internal/paw"
 )
 
 // RemoveCmd removes an item from the vault
 type RemoveCmd struct {
-	itemName  string
-	itemType  paw.ItemType
-	vaultName string
+	itemPath
 }
 
 // Name returns the one word command name
@@ -23,6 +21,39 @@ func (cmd *RemoveCmd) Name() string {
 // Description returns the command description
 func (cmd *RemoveCmd) Description() string {
 	return "Removes an item from the vault"
+}
+
+// Usage displays the command usage
+func (cmd *RemoveCmd) Usage() {
+	template := `Usage: paw-cli rm [OPTION] VAULT_NAME/ITEM_TYPE/ITEM_NAME
+
+{{ . }}
+
+Options:
+  -h, --help  Displays this help and exit
+`
+	printUsage(template, cmd.Description())
+}
+
+// Parse parses the arguments and set the usage for the command
+func (cmd *RemoveCmd) Parse(args []string) error {
+	flags, err := newCommonFlags()
+	if err != nil {
+		return err
+	}
+
+	flagSet.Parse(args)
+	if flags.Help || len(flagSet.Args()) != 1 {
+		cmd.Usage()
+		os.Exit(0)
+	}
+
+	itemPath, err := parseItemPath(flagSet.Arg(0), itemPathOptions{fullPath: true})
+	if err != nil {
+		return err
+	}
+	cmd.itemPath = itemPath
+	return nil
 }
 
 // Run runs the command
@@ -46,6 +77,15 @@ func (cmd *RemoveCmd) Run(s paw.Storage) error {
 		return fmt.Errorf("item does not exists")
 	}
 
+	msg := fmt.Sprintf("Are you sure you want to delete %q?", cmd.itemPath)
+	confirm, err := askYesNo(msg, false)
+	if err != nil {
+		return err
+	}
+	if !confirm {
+		os.Exit(0)
+	}
+
 	err = s.DeleteItem(vault, item)
 	if err != nil {
 		return err
@@ -59,114 +99,5 @@ func (cmd *RemoveCmd) Run(s paw.Storage) error {
 	}
 
 	log.Printf("[✓] item %q removed", cmd.itemName)
-	return nil
-}
-
-// Parse parses the arguments and set the usage for the command
-func (cmd *RemoveCmd) Parse(args []string) error {
-	if len(args) == 0 {
-		return nil
-	}
-
-	parts := strings.Split(args[0], "/")
-	if len(parts) != 3 {
-		return fmt.Errorf("invalid path. Got %s, expected VAULT_NAME/ITEM_TYPE/ITEM_NAME", args[0])
-	}
-
-	for i, v := range parts {
-		switch i {
-		case 0:
-			if v == "" {
-				return fmt.Errorf("vault name cannot be empty")
-			}
-			cmd.vaultName = v
-		case 1:
-			if v == "" {
-				return fmt.Errorf("item type cannot be empty")
-			}
-			itemType, err := paw.ItemTypeFromString(v)
-			if err != nil {
-				return err
-			}
-			cmd.itemType = itemType
-		case 2:
-			if v == "" {
-				return fmt.Errorf("item name cannot be empty")
-			}
-			cmd.itemName = v
-		}
-	}
-	return nil
-}
-
-// Usage displays the command usage
-func (cmd *RemoveCmd) Usage() {
-	template := `Usage: paw-cli add VAULT_NAME/ITEM_TYPE/ITEM_NAME
-
-{{ . }}
-`
-	printUsage(template, cmd.Description())
-}
-
-func (cmd *RemoveCmd) addLoginItem(item paw.Item) error {
-	v := item.(*paw.Login)
-
-	url, err := ask("URL")
-	if err != nil {
-		return err
-	}
-	v.URL = url
-
-	username, err := ask("Username")
-	if err != nil {
-		return err
-	}
-	v.Username = username
-
-	password, err := ask("Password")
-	if err != nil {
-		return err
-	}
-	v.Password.Value = password
-
-	note, err := ask("Note")
-	if err != nil {
-		return err
-	}
-	v.Note.Value = note
-
-	item = v
-	return nil
-}
-
-func (cmd *RemoveCmd) addNoteItem(item paw.Item) error {
-	v := item.(*paw.Note)
-
-	note, err := ask("Note")
-	if err != nil {
-		return err
-	}
-	v.Value = note
-
-	item = v
-	return nil
-}
-
-func (cmd *RemoveCmd) addPasswordItem(item paw.Item) error {
-	v := item.(*paw.Password)
-
-	password, err := ask("Password")
-	if err != nil {
-		return err
-	}
-	v.Value = password
-
-	note, err := ask("Note")
-	if err != nil {
-		return err
-	}
-
-	v.Note.Value = note
-	item = v
 	return nil
 }

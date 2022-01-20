@@ -23,6 +23,8 @@ func main() {
 		&cli.EditCmd{},
 		&cli.InitCmd{},
 		&cli.ListCmd{},
+		&cli.PwGenCmd{},
+		&cli.RemoveCmd{},
 		&cli.ShowCmd{},
 		&cli.VersionCmd{},
 	}
