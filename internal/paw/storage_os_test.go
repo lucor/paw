@@ -1,39 +1,42 @@
 package paw
 
 import (
+	"log"
+	"os"
 	"testing"
 
-	fyneStorage "fyne.io/fyne/v2/storage"
-	"fyne.io/fyne/v2/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestStorageRoundTrip(t *testing.T) {
+func TestStorageOSRoundTrip(t *testing.T) {
 	name := "test"
 	password := "secret"
 
-	app := test.NewApp()
-
-	storage, err := NewStorage(app.Storage())
+	root, err := os.MkdirTemp(os.TempDir(), "paw")
 	require.NoError(t, err)
-	defer func() {
-		fyneStorage.Delete(storage.vaultURI(name))
-		fyneStorage.Delete(storage.keyURI(name))
-	}()
+	defer os.RemoveAll(root)
+
+	storage, err := NewOSStorageRooted(root)
+	require.NoError(t, err)
+
+	vaultURI := vaultPath(storage, name)
+	keyURI := keyPath(storage, name)
+
+	log.Println(vaultURI)
+	log.Println(keyURI)
+
+	// test key creation
+	key, err := storage.CreateVaultKey(name, password)
+	require.NoError(t, err)
 
 	// test vault creation
-	vault, err := storage.CreateVault(name, password)
+	vault, err := storage.CreateVault(name, key)
 	require.NoError(t, err)
 	require.Equal(t, name, vault.Name)
 
-	ok, err := fyneStorage.Exists(storage.vaultURI(name))
-	require.NoError(t, err)
-	require.True(t, ok)
-
-	ok, err = fyneStorage.Exists(storage.keyURI(name))
-	require.NoError(t, err)
-	require.True(t, ok)
+	require.FileExists(t, vaultURI)
+	require.FileExists(t, keyURI)
 
 	// test item creation for the vault
 	note := NewNote()
@@ -50,9 +53,8 @@ func TestStorageRoundTrip(t *testing.T) {
 	err = storage.StoreItem(vault, note)
 	require.NoError(t, err)
 
-	ok, err = fyneStorage.Exists(storage.itemURI(name, note.ID()))
-	require.NoError(t, err)
-	require.True(t, ok)
+	itemURI := itemPath(storage, name, note.ID())
+	require.FileExists(t, itemURI)
 
 	// test item load for the vault
 	item, err := storage.LoadItem(vault, meta)

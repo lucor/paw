@@ -42,16 +42,29 @@ It is written in Go and uses [Fyne](https://github.com/fyne-io/fyne) as UI toolk
 
 ### Latest version
 
+#### Desktop application
+
 ```
 go install lucor.dev/paw/cmd/paw@latest
+```
+
+#### CLI application
+
+```
+go install lucor.dev/paw/cmd/paw-cli@latest
 ```
 
 ### Development version
 
 To try the development version or help with testing:
 
+
 ```
+# Desktop application
 go install lucor.dev/paw/cmd/paw@develop
+
+# CLI application
+go install lucor.dev/paw/cmd/paw-cli@develop
 ```
 
 ## How it works - cryptography details

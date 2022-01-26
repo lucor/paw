@@ -74,7 +74,7 @@ func (iw *itemsWidget) makeList(selectedItem paw.Item, opts *paw.VaultFilterOpti
 			return container.NewHBox(widget.NewIcon(icon.LockOutlinedIconThemed), widget.NewLabel("Identity label"))
 		},
 		func(id int, obj fyne.CanvasObject) {
-			metadata := itemMetadata[id]
+			metadata := &Metadata{Metadata: itemMetadata[id]}
 			obj.(*fyne.Container).Objects[0].(*widget.Icon).SetResource(metadata.Icon())
 			obj.(*fyne.Container).Objects[1].(*widget.Label).SetText(metadata.String())
 		})

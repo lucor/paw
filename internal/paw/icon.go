@@ -1,11 +1,4 @@
-package icon
-
-import (
-	"fyne.io/fyne/v2"
-)
-
-// Declare conformity to fyne.Resource interface
-var _ fyne.Resource = (*Favicon)(nil)
+package paw
 
 func NewFavicon(host string, data []byte) *Favicon {
 	return &Favicon{

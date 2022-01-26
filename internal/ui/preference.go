@@ -6,29 +6,12 @@ import (
 	"lucor.dev/paw/internal/paw"
 )
 
-const (
-	randomPasswordDefaultLength     = 16
-	randomPasswordMinLength         = 8
-	randomPasswordMaxLength         = 120
-	randomPasswordFormat            = paw.LowercaseFormat | paw.DigitsFormat | paw.SymbolsFormat | paw.UppercaseFormat
-	pinPasswordDefaultLength        = 4
-	pinPasswordMinLength            = 3
-	pinPasswordMaxLength            = 10
-	passphrasePasswordDefaultLength = 4
-	passphrasePasswordMinLength     = 3
-	passphrasePasswordMaxLength     = 12
-
-	totpHASH     = paw.DefaultTOTPHash
-	totpDigits   = paw.DefaultTOTPDigits
-	totpInterval = paw.DefaultTOTPInterval
-)
-
 // Random Password options
 
 func RandomPasswordDefaultFormat() paw.Format {
 	f := fyne.CurrentApp().Preferences().Int("random_password_default_format")
 	if f == 0 {
-		return randomPasswordFormat
+		return paw.RandomPasswordDefaultFormat
 	}
 	return paw.Format(f)
 }
@@ -38,103 +21,103 @@ func SetRandomPasswordDefaultFormat(format paw.Format) {
 }
 
 func RandomPasswordDefaultLength() int {
-	return fyne.CurrentApp().Preferences().IntWithFallback("random_password_default_length", randomPasswordDefaultLength)
+	return fyne.CurrentApp().Preferences().IntWithFallback("random_password_default_length", paw.RandomPasswordDefaultLength)
 }
 
 func SetRandomPasswordDefaultLength(len int) {
-	fyne.CurrentApp().Preferences().SetInt("random_password_default_length", randomPasswordDefaultLength)
+	fyne.CurrentApp().Preferences().SetInt("random_password_default_length", paw.RandomPasswordDefaultLength)
 }
 
 func RandomPasswordMinLength() int {
-	return fyne.CurrentApp().Preferences().IntWithFallback("random_password_min_length", randomPasswordMinLength)
+	return fyne.CurrentApp().Preferences().IntWithFallback("random_password_min_length", paw.RandomPasswordMinLength)
 }
 
 func SetRandomPasswordMinLength(len int) {
-	fyne.CurrentApp().Preferences().SetInt("random_password_min_length", randomPasswordMinLength)
+	fyne.CurrentApp().Preferences().SetInt("random_password_min_length", paw.RandomPasswordMinLength)
 }
 
 func RandomPasswordMaxLength() int {
-	return fyne.CurrentApp().Preferences().IntWithFallback("random_password_max_length", randomPasswordMaxLength)
+	return fyne.CurrentApp().Preferences().IntWithFallback("random_password_max_length", paw.RandomPasswordMaxLength)
 }
 
 func SetRandomPasswordMaxLength(len int) {
-	fyne.CurrentApp().Preferences().SetInt("random_password_max_length", randomPasswordMaxLength)
+	fyne.CurrentApp().Preferences().SetInt("random_password_max_length", paw.RandomPasswordMaxLength)
 }
 
 // Pin Password options
 
 func PinPasswordDefaultLength() int {
-	return fyne.CurrentApp().Preferences().IntWithFallback("pin_password_default_length", pinPasswordDefaultLength)
+	return fyne.CurrentApp().Preferences().IntWithFallback("pin_password_default_length", paw.PinPasswordDefaultLength)
 }
 
 func SetPinPasswordDefaultLength(len int) {
-	fyne.CurrentApp().Preferences().SetInt("pin_password_default_length", pinPasswordDefaultLength)
+	fyne.CurrentApp().Preferences().SetInt("pin_password_default_length", paw.PinPasswordDefaultLength)
 }
 
 func PinPasswordMinLength() int {
-	return fyne.CurrentApp().Preferences().IntWithFallback("pin_password_min_length", pinPasswordMinLength)
+	return fyne.CurrentApp().Preferences().IntWithFallback("pin_password_min_length", paw.PinPasswordMinLength)
 }
 
 func SetPinPasswordMinLength(len int) {
-	fyne.CurrentApp().Preferences().SetInt("pin_password_min_length", pinPasswordMinLength)
+	fyne.CurrentApp().Preferences().SetInt("pin_password_min_length", paw.PinPasswordMinLength)
 }
 
 func PinPasswordMaxLength() int {
-	return fyne.CurrentApp().Preferences().IntWithFallback("pin_password_max_length", pinPasswordMaxLength)
+	return fyne.CurrentApp().Preferences().IntWithFallback("pin_password_max_length", paw.PinPasswordMaxLength)
 }
 
 func SetPinPasswordMaxLength(len int) {
-	fyne.CurrentApp().Preferences().SetInt("pin_password_max_length", pinPasswordMaxLength)
+	fyne.CurrentApp().Preferences().SetInt("pin_password_max_length", paw.PinPasswordMaxLength)
 }
 
 // Passphrase Password options
 
 func PassphrasePasswordDefaultLength() int {
-	return fyne.CurrentApp().Preferences().IntWithFallback("passphrase_password_default_length", passphrasePasswordDefaultLength)
+	return fyne.CurrentApp().Preferences().IntWithFallback("passphrase_password_default_length", paw.PassphrasePasswordDefaultLength)
 }
 
 func SetPassphrasePasswordDefaultLength(len int) {
-	fyne.CurrentApp().Preferences().SetInt("passphrase_password_default_length", passphrasePasswordDefaultLength)
+	fyne.CurrentApp().Preferences().SetInt("passphrase_password_default_length", paw.PassphrasePasswordDefaultLength)
 }
 
 func PassphrasePasswordMinLength() int {
-	return fyne.CurrentApp().Preferences().IntWithFallback("passphrase_password_min_length", passphrasePasswordMinLength)
+	return fyne.CurrentApp().Preferences().IntWithFallback("passphrase_password_min_length", paw.PassphrasePasswordMinLength)
 }
 
 func SetPassphrasePasswordMinLength(len int) {
-	fyne.CurrentApp().Preferences().SetInt("passphrase_password_min_length", passphrasePasswordMinLength)
+	fyne.CurrentApp().Preferences().SetInt("passphrase_password_min_length", paw.PassphrasePasswordMinLength)
 }
 
 func PassphrasePasswordMaxLength() int {
-	return fyne.CurrentApp().Preferences().IntWithFallback("passphrase_password_max_length", passphrasePasswordMaxLength)
+	return fyne.CurrentApp().Preferences().IntWithFallback("passphrase_password_max_length", paw.PassphrasePasswordMaxLength)
 }
 
 func SetPassphrasePasswordMaxLength(len int) {
-	fyne.CurrentApp().Preferences().SetInt("passphrase_password_max_length", passphrasePasswordMaxLength)
+	fyne.CurrentApp().Preferences().SetInt("passphrase_password_max_length", paw.PassphrasePasswordMaxLength)
 }
 
 // TOTP Password options
 
 func TOTPDigits() int {
-	return fyne.CurrentApp().Preferences().IntWithFallback("totp_digits", totpDigits)
+	return fyne.CurrentApp().Preferences().IntWithFallback("totp_digits", paw.TOTPDigitsDefault)
 }
 
 func SetTOTPDigits(digits int) {
-	fyne.CurrentApp().Preferences().SetInt("totp_digits", totpDigits)
+	fyne.CurrentApp().Preferences().SetInt("totp_digits", paw.TOTPDigitsDefault)
 }
 
 func TOTPHash() string {
-	return fyne.CurrentApp().Preferences().StringWithFallback("totp_string", string(totpHASH))
+	return fyne.CurrentApp().Preferences().StringWithFallback("totp_string", string(paw.TOTPHashDefault))
 }
 
 func SetTOTPHash(len int) {
-	fyne.CurrentApp().Preferences().SetString("totp_string", string(totpHASH))
+	fyne.CurrentApp().Preferences().SetString("totp_string", string(paw.TOTPHashDefault))
 }
 
 func TOTPInverval() int {
-	return fyne.CurrentApp().Preferences().IntWithFallback("totp_interval", totpInterval)
+	return fyne.CurrentApp().Preferences().IntWithFallback("totp_interval", paw.TOTPIntervalDefault)
 }
 
 func SetTOTPInverval(interval int) {
-	fyne.CurrentApp().Preferences().SetInt("totp_interval", totpInterval)
+	fyne.CurrentApp().Preferences().SetInt("totp_interval", paw.TOTPIntervalDefault)
 }
