@@ -8,6 +8,9 @@ import (
 	"lucor.dev/paw/internal/paw"
 )
 
+// Version allow to set the version at link time
+var Version string
+
 func main() {
 
 	log.SetFlags(0)
@@ -26,7 +29,7 @@ func main() {
 		&cli.PwGenCmd{},
 		&cli.RemoveCmd{},
 		&cli.ShowCmd{},
-		&cli.VersionCmd{},
+		&cli.VersionCmd{Version: Version},
 	}
 
 	// display the usage if no command is specified

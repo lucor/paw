@@ -6,7 +6,6 @@ import (
 	"log"
 	"net/url"
 	"runtime"
-	"runtime/debug"
 
 	"filippo.io/age"
 	"fyne.io/fyne/v2"
@@ -32,10 +31,12 @@ type mainView struct {
 	unlockedVault map[string]*paw.Vault // this act as cache
 
 	view *fyne.Container
+
+	version string
 }
 
 // Make returns the fyne user interface
-func Make(a fyne.App, w fyne.Window) fyne.CanvasObject {
+func Make(a fyne.App, w fyne.Window, ver string) fyne.CanvasObject {
 	var s paw.Storage
 	var err error
 
@@ -44,10 +45,15 @@ func Make(a fyne.App, w fyne.Window) fyne.CanvasObject {
 		log.Fatal(err)
 	}
 
+	if ver == "" {
+		ver = "(unknown)"
+	}
+
 	mw := &mainView{
 		Window:        w,
 		storage:       s,
 		unlockedVault: make(map[string]*paw.Vault),
+		version:       ver,
 	}
 
 	mw.view = container.NewMax(mw.buildMainView())
@@ -82,14 +88,8 @@ func (mw *mainView) makeMainMenu() *fyne.MainMenu {
 
 	helpMenu := fyne.NewMenu("Help",
 		fyne.NewMenuItem("About", func() {
-			version := "devel"
-			info, ok := debug.ReadBuildInfo()
-			if ok {
-				version = info.Main.Version
-			}
-
 			u, _ := url.Parse("https://lucor.dev/paw")
-			l := widget.NewLabel("Paw - " + version)
+			l := widget.NewLabel("Paw - " + mw.version)
 			l.Alignment = fyne.TextAlignCenter
 			link := widget.NewHyperlink("https://lucor.dev/paw", u)
 			link.Alignment = fyne.TextAlignCenter
