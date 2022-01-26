@@ -23,6 +23,7 @@ It is written in Go and uses [Fyne](https://github.com/fyne-io/fyne) as UI toolk
 ## Main features
 
 * Cross platform application (linux, macOS, Windows, BSD ...) with a single codebase
+* Desktop and CLI application
 * Minimal direct dependencies
 * Open source: code can be audited
 * Audit passwords against data breaches
@@ -33,7 +34,6 @@ It is written in Go and uses [Fyne](https://github.com/fyne-io/fyne) as UI toolk
 
 * Automatically detect and use password rules for known web sites that require ones
 * Automatic backup / syncronization
-* CLI application
 * Mobile / Web applications
 * Stateless password derivation support
 * Unicode password support
@@ -42,16 +42,29 @@ It is written in Go and uses [Fyne](https://github.com/fyne-io/fyne) as UI toolk
 
 ### Latest version
 
+#### Desktop application
+
 ```
 go install lucor.dev/paw/cmd/paw@latest
+```
+
+#### CLI application
+
+```
+go install lucor.dev/paw/cmd/paw-cli@latest
 ```
 
 ### Development version
 
 To try the development version or help with testing:
 
+
 ```
+# Desktop application
 go install lucor.dev/paw/cmd/paw@develop
+
+# CLI application
+go install lucor.dev/paw/cmd/paw-cli@develop
 ```
 
 ## How it works - cryptography details

@@ -1,17 +1,11 @@
 package paw
 
 import (
-	"context"
 	"fmt"
+	"strings"
+	"time"
 
-	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/data/binding"
-	"fyne.io/fyne/v2/layout"
-	"fyne.io/fyne/v2/theme"
-	"fyne.io/fyne/v2/widget"
-
-	"lucor.dev/paw/internal/icon"
+	"lucor.dev/paw/internal/age"
 )
 
 // Declare conformity to Item interface
@@ -20,8 +14,19 @@ var _ Item = (*Password)(nil)
 // Declare conformity to Seeder interface
 var _ Seeder = (*Password)(nil)
 
-// Declare conformity to FyneObject interface
-var _ FyneObject = (*Password)(nil)
+const (
+	RandomPasswordDefaultLength     = 16
+	RandomPasswordMinLength         = 8
+	RandomPasswordMaxLength         = 120
+	RandomPasswordDefaultFormat     = LowercaseFormat | DigitsFormat | SymbolsFormat | UppercaseFormat
+	PinPasswordDefaultLength        = 4
+	PinPasswordMinLength            = 3
+	PinPasswordMaxLength            = 10
+	PinPasswordDefaultFormat        = DigitsFormat
+	PassphrasePasswordDefaultLength = 4
+	PassphrasePasswordMinLength     = 3
+	PassphrasePasswordMaxLength     = 12
+)
 
 type PasswordMode uint32
 
@@ -57,82 +62,47 @@ type Password struct {
 
 	*Metadata `json:"metadata,omitempty"`
 	*Note     `json:"note,omitempty"`
-
-	fpg FynePasswordGenerator
 }
 
 func NewPassword() *Password {
+	now := time.Now()
 	return &Password{
 		Metadata: &Metadata{
-			Type: PasswordItemType,
+			Type:     PasswordItemType,
+			Created:  now,
+			Modified: now,
 		},
 		Note: &Note{},
 	}
 }
 
-func (p *Password) SetPasswordGenerator(fpg FynePasswordGenerator) {
-	p.fpg = fpg
+func NewRandomPassword() *Password {
+	password := NewPassword()
+	password.Mode = RandomPassword
+	password.Format = RandomPasswordDefaultFormat
+	password.Length = RandomPasswordDefaultLength
+	return password
 }
 
-func (p *Password) Edit(ctx context.Context, w fyne.Window) (fyne.CanvasObject, Item) {
-	passwordItem := &Password{}
-	*passwordItem = *p
-	passwordItem.Metadata = &Metadata{}
-	*passwordItem.Metadata = *p.Metadata
-	passwordItem.Note = &Note{}
-	*passwordItem.Note = *p.Note
-
-	passwordBind := binding.BindString(&passwordItem.Value)
-	titleEntry := widget.NewEntryWithData(binding.BindString(&passwordItem.Name))
-	titleEntry.Validator = nil
-	titleEntry.PlaceHolder = "Untitled password"
-
-	// the note field
-	noteEntry := widget.NewEntryWithData(binding.BindString(&passwordItem.Note.Value))
-	noteEntry.MultiLine = true
-	noteEntry.Validator = nil
-
-	// center
-	passwordEntry := widget.NewPasswordEntry()
-	passwordEntry.Bind(passwordBind)
-	passwordEntry.Validator = nil
-	passwordEntry.SetPlaceHolder("Password")
-
-	passwordCopyButton := widget.NewButtonWithIcon("Copy", theme.ContentCopyIcon(), func() {
-		w.Clipboard().SetContent(passwordEntry.Text)
-		fyne.CurrentApp().SendNotification(&fyne.Notification{
-			Title:   "paw",
-			Content: "Password copied to clipboard",
-		})
-	})
-
-	passwordMakeButton := widget.NewButtonWithIcon("Generate", icon.KeyOutlinedIconThemed, func() {
-		p.fpg.ShowPasswordGenerator(passwordBind, passwordItem, w)
-	})
-
-	form := container.New(layout.NewFormLayout())
-	form.Add(widget.NewIcon(p.Icon()))
-	form.Add(titleEntry)
-
-	form.Add(labelWithStyle("Password"))
-
-	form.Add(container.NewBorder(nil, nil, nil, container.NewHBox(passwordCopyButton, passwordMakeButton), passwordEntry))
-
-	form.Add(labelWithStyle("Note"))
-	form.Add(noteEntry)
-
-	return form, passwordItem
+func NewPinPassword() *Password {
+	password := NewPassword()
+	password.Mode = PinPassword
+	password.Format = PinPasswordDefaultFormat
+	password.Length = PinPasswordDefaultLength
+	return password
 }
 
-func (p *Password) Show(ctx context.Context, w fyne.Window) fyne.CanvasObject {
-	obj := titleRow(p.Icon(), p.Name)
-	if p.Value != "" {
-		obj = append(obj, copiablePasswordRow("Password", p.Value, w)...)
-	}
-	if p.Note.Value != "" {
-		obj = append(obj, copiableRow("Note", p.Note.Value, w)...)
-	}
-	return container.New(layout.NewFormLayout(), obj...)
+func NewPassphrasePassword() *Password {
+	password := NewPassword()
+	password.Mode = PassphrasePassword
+	password.Length = PassphrasePasswordDefaultLength
+	return password
+}
+
+func NewCustomPassword() *Password {
+	password := NewPassword()
+	password.Mode = CustomPassword
+	return password
 }
 
 // Implemets Seeder interface
@@ -158,4 +128,19 @@ func (p *Password) Template() (string, error) {
 
 func (p *Password) Len() int {
 	return p.Length
+}
+
+func (p *Password) Pwgen(key *Key) (string, error) {
+	if p.Mode == PassphrasePassword {
+		var words []string
+		for i := 0; i < p.Length; i++ {
+			words = append(words, age.RandomWord())
+		}
+		return strings.Join(words, "-"), nil
+	}
+	secret, err := key.Secret(p)
+	if err != nil {
+		return "", fmt.Errorf("could not generate password: %w", err)
+	}
+	return secret, nil
 }
