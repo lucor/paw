@@ -3,6 +3,7 @@ package paw
 import (
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 )
@@ -206,7 +207,7 @@ func (s *OSStorage) StoreItem(vault *Vault, item Item) error {
 // Vaults returns the list of vault names from the storage
 func (s *OSStorage) Vaults() ([]string, error) {
 	root := storageRootPath(s)
-	dirEntries, err := os.ReadDir(root)
+	dirEntries, err := ioutil.ReadDir(root)
 	if err != nil {
 		return nil, err
 	}
