@@ -1,6 +1,6 @@
 # Changelog - Paw
 
-## Unreleased 
+## 0.15.0 - 26 January 2022 
 
 - cli: add CLI application #3
 
