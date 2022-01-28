@@ -1,5 +1,9 @@
 # Changelog - Paw
 
+## Unreleased
+
+- cli: add the "-c, --clip" option to copy password to clipboard
+
 ## 0.15.0 - 26 January 2022 
 
 - cli: add CLI application #3
