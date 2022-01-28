@@ -140,6 +140,9 @@ func (cmd *ListCmd) vaults(s paw.Storage) (tree.Node, error) {
 	if err != nil {
 		return n, err
 	}
+	if len(vaults) == 0 {
+		return n, fmt.Errorf("no vaults found. To create one: paw-cli init VAULT")
+	}
 	for _, v := range vaults {
 		if cmd.vaultName != "" && cmd.vaultName != v {
 			continue
