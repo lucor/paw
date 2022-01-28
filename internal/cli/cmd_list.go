@@ -2,7 +2,6 @@ package cli
 
 import (
 	"fmt"
-	"log"
 	"os"
 
 	"lucor.dev/paw/internal/paw"
@@ -88,7 +87,7 @@ func (cmd *ListCmd) Run(s paw.Storage) error {
 	}
 
 	if len(n.Child) == 0 {
-		log.Printf("vault %q is empty", cmd.vaultName)
+		fmt.Printf("vault %q is empty\n", cmd.vaultName)
 		return nil
 	}
 

@@ -2,7 +2,6 @@ package cli
 
 import (
 	"fmt"
-	"log"
 	"os"
 
 	"lucor.dev/paw/internal/paw"
@@ -100,7 +99,7 @@ func (cmd *AddCmd) Run(s paw.Storage) error {
 	if err != nil {
 		return err
 	}
-	log.Printf("[✓] item %q added", cmd.itemName)
+	fmt.Printf("[✓] item %q added\n", cmd.itemName)
 	return nil
 }
 

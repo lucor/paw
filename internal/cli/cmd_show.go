@@ -1,7 +1,7 @@
 package cli
 
 import (
-	"log"
+	"fmt"
 	"os"
 	"time"
 
@@ -48,7 +48,7 @@ func (cmd *ShowCmd) Parse(args []string) error {
 		os.Exit(0)
 	}
 
-	itemPath, err := parseItemPath(args[0], itemPathOptions{fullPath: true})
+	itemPath, err := parseItemPath(flagSet.Arg(0), itemPathOptions{fullPath: true})
 	if err != nil {
 		return err
 	}
@@ -81,24 +81,24 @@ func (cmd *ShowCmd) Run(s paw.Storage) error {
 	switch cmd.itemType {
 	case paw.LoginItemType:
 		v := item.(*paw.Login)
-		log.Printf("URL: %s", v.URL)
-		log.Printf("Username: %s", v.Username)
-		log.Printf("Password: %s", v.Password.Value)
+		fmt.Printf("URL: %s\n", v.URL)
+		fmt.Printf("Username: %s\n", v.Username)
+		fmt.Printf("Password: %s\n", v.Password.Value)
 		if v.Note != nil {
-			log.Printf("Note: %s", v.Note.Value)
+			fmt.Printf("Note: %s\n", v.Note.Value)
 		}
 	case paw.PasswordItemType:
 		v := item.(*paw.Password)
-		log.Printf("Password: %s", v.Value)
+		fmt.Printf("Password: %s\n", v.Value)
 		if v.Note != nil {
-			log.Printf("Note: %s", v.Note.Value)
+			fmt.Printf("Note: %s\n", v.Note.Value)
 		}
 	case paw.NoteItemType:
 		v := item.(*paw.Note)
-		log.Printf("Note: %s", v.Value)
+		fmt.Printf("Note: %s\n", v.Value)
 	}
 
-	log.Printf("Created: %s", item.GetMetadata().Created.Format(time.RFC1123))
-	log.Printf("Modified: %s", item.GetMetadata().Modified.Format(time.RFC1123))
+	fmt.Printf("Created: %s\n", item.GetMetadata().Created.Format(time.RFC1123))
+	fmt.Printf("Modified: %s\n", item.GetMetadata().Modified.Format(time.RFC1123))
 	return nil
 }
