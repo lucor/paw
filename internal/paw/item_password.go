@@ -3,7 +3,6 @@ package paw
 import (
 	"fmt"
 	"strings"
-	"time"
 
 	"lucor.dev/paw/internal/age"
 )
@@ -65,12 +64,9 @@ type Password struct {
 }
 
 func NewPassword() *Password {
-	now := time.Now()
 	return &Password{
 		Metadata: &Metadata{
-			Type:     PasswordItemType,
-			Created:  now,
-			Modified: now,
+			Type: PasswordItemType,
 		},
 		Note: &Note{},
 	}

@@ -1,9 +1,5 @@
 package paw
 
-import (
-	"time"
-)
-
 // Declare conformity to Item interface
 var _ Item = (*Login)(nil)
 
@@ -18,12 +14,9 @@ type Login struct {
 }
 
 func NewLogin() *Login {
-	now := time.Now()
 	return &Login{
 		Metadata: &Metadata{
-			Type:     LoginItemType,
-			Created:  now,
-			Modified: now,
+			Type: LoginItemType,
 		},
 		Note:     &Note{},
 		Password: &Password{},

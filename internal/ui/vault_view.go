@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
@@ -301,6 +302,7 @@ func (vw *vaultView) itemView(ctx context.Context, fyneItem FyneItem) fyne.Canva
 // editItemView returns the view that allow to edit an item
 func (vw *vaultView) editItemView(ctx context.Context, fyneItem FyneItem) fyne.CanvasObject {
 
+	var isNew bool
 	item := fyneItem.Item()
 	metadata := item.GetMetadata()
 
@@ -312,6 +314,10 @@ func (vw *vaultView) editItemView(ctx context.Context, fyneItem FyneItem) fyne.C
 		}
 		vw.setContentItem(fyneItem, vw.itemView)
 	})
+
+	if metadata.Created.IsZero() {
+		isNew = true
+	}
 
 	content, editItem := fyneItem.Edit(ctx, vw.vault.Key(), vw.mainView.Window)
 	saveBtn := widget.NewButtonWithIcon("Save", theme.DocumentSaveIcon(), func() {
@@ -325,9 +331,12 @@ func (vw *vaultView) editItemView(ctx context.Context, fyneItem FyneItem) fyne.C
 		}
 
 		var reloadItems bool
-		var isNew bool
-		if metadata.Created == metadata.Modified {
-			isNew = true
+		now := time.Now()
+		if isNew {
+			metadata.Created = now
+			metadata.Modified = now
+		} else {
+			metadata.Modified = now
 		}
 
 		if isNew && vw.vault.HasItem(editItem) {
