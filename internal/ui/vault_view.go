@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
@@ -326,8 +327,10 @@ func (vw *vaultView) editItemView(ctx context.Context, fyneItem FyneItem) fyne.C
 
 		var reloadItems bool
 		var isNew bool
-		if metadata.Created == metadata.Modified {
+		if item.GetMetadata().IsEmpty() {
 			isNew = true
+		} else {
+			metadata.Modified = time.Now()
 		}
 
 		if isNew && vw.vault.HasItem(editItem) {
