@@ -2,7 +2,6 @@ package cli
 
 import (
 	"fmt"
-	"log"
 	"os"
 
 	"lucor.dev/paw/internal/paw"
@@ -98,6 +97,6 @@ func (cmd *RemoveCmd) Run(s paw.Storage) error {
 		return err
 	}
 
-	log.Printf("[✓] item %q removed", cmd.itemName)
+	fmt.Printf("[✓] item %q removed\n", cmd.itemName)
 	return nil
 }

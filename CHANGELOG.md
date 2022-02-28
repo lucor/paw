@@ -1,5 +1,14 @@
 # Changelog - Paw
 
+## 0.16.0 - 28 February 2022 
+
+- all: fix regression about setting item date
+- cli: add the "-c, --clip" option to copy password to clipboard
+- cli: update messages to printed correctly on stdout and stderr
+- cli:list command will show an hint message if no vaults are found
+- cli,deps: add golang.design/x/clipboard
+- gui,deps: update fyne.io/fyne to v2.1.3 
+
 ## 0.15.0 - 26 January 2022 
 
 - cli: add CLI application #3

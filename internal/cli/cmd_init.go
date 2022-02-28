@@ -2,7 +2,6 @@ package cli
 
 import (
 	"fmt"
-	"log"
 	"os"
 
 	"lucor.dev/paw/internal/paw"
@@ -68,6 +67,6 @@ func (cmd *InitCmd) Run(s paw.Storage) error {
 	if err != nil {
 		return err
 	}
-	log.Printf("[✓] vault %q created", cmd.vaultName)
+	fmt.Printf("[✓] vault %q created\n", cmd.vaultName)
 	return nil
 }

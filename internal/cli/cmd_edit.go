@@ -2,8 +2,8 @@ package cli
 
 import (
 	"fmt"
-	"log"
 	"os"
+	"time"
 
 	"lucor.dev/paw/internal/paw"
 )
@@ -89,6 +89,8 @@ func (cmd *EditCmd) Run(s paw.Storage) error {
 		return fmt.Errorf("unsupported item type: %q", cmd.itemType)
 	}
 
+	item.GetMetadata().Modified = time.Now()
+
 	err = s.StoreItem(vault, item)
 	if err != nil {
 		return err
@@ -101,7 +103,7 @@ func (cmd *EditCmd) Run(s paw.Storage) error {
 	if err != nil {
 		return err
 	}
-	log.Printf("[✓] item %q modified", cmd.itemName)
+	fmt.Printf("[✓] item %q modified\n", cmd.itemName)
 	return nil
 }
 

@@ -34,6 +34,10 @@ func (m *Metadata) GetMetadata() *Metadata {
 	return m
 }
 
+func (m *Metadata) IsEmpty() bool {
+	return m.Name == ""
+}
+
 func (m *Metadata) String() string {
 	return m.Name
 }

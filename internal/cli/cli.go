@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"fmt"
 	"io"
-	"log"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -12,6 +11,7 @@ import (
 	"text/template"
 
 	"golang.org/x/term"
+
 	"lucor.dev/paw/internal/paw"
 )
 
@@ -47,11 +47,13 @@ func printUsage(textTemplate string, data interface{}) {
 func printTemplate(w io.Writer, textTemplate string, data interface{}) {
 	tpl, err := template.New("tpl").Parse(textTemplate)
 	if err != nil {
-		log.Fatalf("Could not parse the template: %s", err)
+		fmt.Fprintf(os.Stderr, "[✗] could not parse the template: %s\n", err)
+		os.Exit(1)
 	}
 	err = tpl.Execute(w, data)
 	if err != nil {
-		log.Fatalf("Could not execute the template: %s", err)
+		fmt.Fprintf(os.Stderr, "[✗] could not execute the template: %s\n", err)
+		os.Exit(1)
 	}
 }
 

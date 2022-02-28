@@ -1,9 +1,12 @@
 package cli
 
 import (
-	"log"
+	"context"
+	"fmt"
 	"os"
 	"time"
+
+	"golang.design/x/clipboard"
 
 	"lucor.dev/paw/internal/paw"
 )
@@ -11,6 +14,7 @@ import (
 // Show shows an item details
 type ShowCmd struct {
 	itemPath
+	clipboard bool
 }
 
 // Name returns the one word command name
@@ -30,6 +34,7 @@ func (cmd *ShowCmd) Usage() {
 {{ . }}
 
 Options:
+  -c, --clip  Do not print the password but instead copy to the clipboard
   -h, --help  Displays this help and exit
 `
 	printUsage(template, cmd.Description())
@@ -42,13 +47,23 @@ func (cmd *ShowCmd) Parse(args []string) error {
 		return err
 	}
 
+	flagSet.BoolVar(&cmd.clipboard, "c", false, "")
+	flagSet.BoolVar(&cmd.clipboard, "clip", false, "")
+
 	flagSet.Parse(args)
 	if flags.Help || len(flagSet.Args()) != 1 {
 		cmd.Usage()
 		os.Exit(0)
 	}
 
-	itemPath, err := parseItemPath(args[0], itemPathOptions{fullPath: true})
+	if cmd.clipboard {
+		err := clipboard.Init()
+		if err != nil {
+			return err
+		}
+	}
+
+	itemPath, err := parseItemPath(flagSet.Arg(0), itemPathOptions{fullPath: true})
 	if err != nil {
 		return err
 	}
@@ -78,27 +93,46 @@ func (cmd *ShowCmd) Run(s paw.Storage) error {
 		return err
 	}
 
+	var pclip []byte
 	switch cmd.itemType {
 	case paw.LoginItemType:
 		v := item.(*paw.Login)
-		log.Printf("URL: %s", v.URL)
-		log.Printf("Username: %s", v.Username)
-		log.Printf("Password: %s", v.Password.Value)
+		fmt.Printf("URL: %s\n", v.URL)
+		fmt.Printf("Username: %s\n", v.Username)
+		if !cmd.clipboard {
+			fmt.Printf("Password: %s\n", v.Password.Value)
+		} else {
+			pclip = []byte(v.Password.Value)
+		}
 		if v.Note != nil {
-			log.Printf("Note: %s", v.Note.Value)
+			fmt.Printf("Note: %s\n", v.Note.Value)
 		}
 	case paw.PasswordItemType:
 		v := item.(*paw.Password)
-		log.Printf("Password: %s", v.Value)
+		if !cmd.clipboard {
+			fmt.Printf("Password: %s\n", v.Value)
+		} else {
+			pclip = []byte(v.Value)
+		}
 		if v.Note != nil {
-			log.Printf("Note: %s", v.Note.Value)
+			fmt.Printf("Note: %s\n", v.Note.Value)
 		}
 	case paw.NoteItemType:
 		v := item.(*paw.Note)
-		log.Printf("Note: %s", v.Value)
+		fmt.Printf("Note: %s\n", v.Value)
 	}
 
-	log.Printf("Created: %s", item.GetMetadata().Created.Format(time.RFC1123))
-	log.Printf("Modified: %s", item.GetMetadata().Modified.Format(time.RFC1123))
+	fmt.Printf("Modified: %s\n", item.GetMetadata().Modified.Format(time.RFC1123))
+	fmt.Printf("Created: %s\n", item.GetMetadata().Created.Format(time.RFC1123))
+
+	if pclip != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), clipboardWriteTimeout)
+		defer cancel()
+		err := writeToClipboard(ctx, pclip)
+		if err != nil {
+			return nil
+		}
+		fmt.Println("[✓] password copied to clipboard")
+	}
 	return nil
 }

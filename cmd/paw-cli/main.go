@@ -1,7 +1,7 @@
 package main
 
 import (
-	"log"
+	"fmt"
 	"os"
 
 	"lucor.dev/paw/internal/cli"
@@ -12,12 +12,10 @@ import (
 var Version string
 
 func main() {
-
-	log.SetFlags(0)
-
 	s, err := paw.NewOSStorage()
 	if err != nil {
-		log.Fatal(err)
+		fmt.Fprintf(os.Stderr, "[✗] %s\n", err)
+		os.Exit(1)
 	}
 
 	// Define the command to use
@@ -58,12 +56,14 @@ func main() {
 	// and will exit in case of error
 	err = cmd.Parse(os.Args[2:])
 	if err != nil {
-		log.Fatalf("[✗] %s", err)
+		fmt.Fprintf(os.Stderr, "[✗] %s\n", err)
+		os.Exit(1)
 	}
 
 	// Finally run the command
 	err = cmd.Run(s)
 	if err != nil {
-		log.Fatalf("[✗] %s", err)
+		fmt.Fprintf(os.Stderr, "[✗] %s\n", err)
+		os.Exit(1)
 	}
 }

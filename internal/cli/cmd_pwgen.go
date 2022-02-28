@@ -2,7 +2,6 @@ package cli
 
 import (
 	"fmt"
-	"log"
 	"os"
 
 	"lucor.dev/paw/internal/paw"
@@ -61,7 +60,7 @@ func (cmd *PwGenCmd) Run(s paw.Storage) error {
 		return err
 	}
 
-	log.Println(password.Value)
+	fmt.Println(password.Value)
 	return nil
 }
 

@@ -2,7 +2,6 @@ package cli
 
 import (
 	"fmt"
-	"log"
 	"os"
 
 	"lucor.dev/paw/internal/paw"
@@ -88,7 +87,7 @@ func (cmd *ListCmd) Run(s paw.Storage) error {
 	}
 
 	if len(n.Child) == 0 {
-		log.Printf("vault %q is empty", cmd.vaultName)
+		fmt.Printf("vault %q is empty\n", cmd.vaultName)
 		return nil
 	}
 
@@ -140,6 +139,9 @@ func (cmd *ListCmd) vaults(s paw.Storage) (tree.Node, error) {
 	vaults, err := s.Vaults()
 	if err != nil {
 		return n, err
+	}
+	if len(vaults) == 0 {
+		return n, fmt.Errorf("no vaults found. To create one: paw-cli init VAULT")
 	}
 	for _, v := range vaults {
 		if cmd.vaultName != "" && cmd.vaultName != v {
