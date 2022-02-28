@@ -100,7 +100,7 @@ func (v *Vault) Range(f func(id string, meta *Metadata) bool) {
 
 func (v *Vault) FilterItemMetadata(opts *VaultFilterOptions) []*Metadata {
 	metadata := []*Metadata{}
-	nameFilter := opts.Name
+	nameFilter := strings.ToLower(opts.Name)
 
 	for t, itemMetadataByType := range v.ItemMetadata {
 		if opts.ItemType != 0 && (opts.ItemType&t) == 0 {
@@ -108,7 +108,7 @@ func (v *Vault) FilterItemMetadata(opts *VaultFilterOptions) []*Metadata {
 		}
 
 		for _, itemMetadata := range itemMetadataByType {
-			if nameFilter != "" && !strings.Contains(itemMetadata.Name, nameFilter) {
+			if nameFilter != "" && !strings.Contains(strings.ToLower(itemMetadata.Name), nameFilter) {
 				continue
 			}
 			metadata = append(metadata, itemMetadata)
