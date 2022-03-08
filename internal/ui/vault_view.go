@@ -382,7 +382,7 @@ func (vw *vaultView) editItemView(ctx context.Context, fyneItem FyneItem) fyne.C
 	// elements should not be displayed on create but only on edit
 	var bottomContent fyne.CanvasObject
 	var deleteBtn fyne.CanvasObject
-	if !metadata.Created.IsZero() {
+	if !metadata.IsEmpty() {
 		bottomContent = ShowMetadata(metadata)
 		button := widget.NewButtonWithIcon("Delete", theme.DeleteIcon(), func() {
 			msg := widget.NewLabel(fmt.Sprintf("Are you sure you want to delete %q?", item.String()))
