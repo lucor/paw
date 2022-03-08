@@ -1,6 +1,6 @@
 # Changelog - Paw
 
-## 0.17.0 - Unreleased
+## 0.16.1 - 08 March 2022
 
 gui: fix item creation should show default content on cancel
 
