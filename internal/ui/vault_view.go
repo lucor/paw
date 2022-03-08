@@ -307,7 +307,7 @@ func (vw *vaultView) editItemView(ctx context.Context, fyneItem FyneItem) fyne.C
 
 	cancelBtn := widget.NewButtonWithIcon("Cancel", theme.CancelIcon(), func() {
 		vw.cancelCtx()
-		if metadata.Created.IsZero() {
+		if metadata.IsEmpty() {
 			vw.setContent(vw.defaultContent())
 			return
 		}
