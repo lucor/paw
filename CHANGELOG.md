@@ -1,5 +1,9 @@
 # Changelog - Paw
 
+## 0.16.1 - 08 March 2022
+
+gui: fix item creation should show default content on cancel
+
 ## 0.16.0 - 28 February 2022 
 
 - all: fix regression about setting item date
