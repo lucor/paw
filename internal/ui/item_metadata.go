@@ -35,6 +35,8 @@ func (m *Metadata) Icon() fyne.Resource {
 		return icon.PasswordOutlinedIconThemed
 	case paw.LoginItemType:
 		return icon.PublicOutlinedIconThemed
+	case paw.SSHKeyItemType:
+		return icon.KeyOutlinedIconThemed
 	}
 	return icon.PawIcon
 }

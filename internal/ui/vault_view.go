@@ -268,11 +268,13 @@ func (vw *vaultView) makeItems() []paw.Item {
 		Hash:     paw.TOTPHash(TOTPHash()),
 		Interval: TOTPInverval(),
 	}
+	sshkey := paw.NewSSHKey()
 
 	return []paw.Item{
 		note,
 		password,
 		website,
+		sshkey,
 	}
 }
 

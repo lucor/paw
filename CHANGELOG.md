@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- gui: add Ed25519 and RSA SSH keys support
 - deps add:
     - github.com/mikesmitty/edkey v0.0.0-20170222072505-3356ea4e686a
 - deps upgrade:

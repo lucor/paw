@@ -16,6 +16,8 @@ const (
 	PasswordItemType
 	// LoginItemType is the Website Item type
 	LoginItemType
+	// SSHKeyItemType is the SSH Key Item type
+	SSHKeyItemType
 )
 
 func (it ItemType) String() string {
@@ -28,6 +30,8 @@ func (it ItemType) String() string {
 		return "password"
 	case LoginItemType:
 		return "login"
+	case SSHKeyItemType:
+		return "ssh_key"
 	}
 	return "invalid"
 }
@@ -42,6 +46,8 @@ func ItemTypeFromString(v string) (ItemType, error) {
 		itemType = NoteItemType
 	case PasswordItemType.String():
 		itemType = PasswordItemType
+	case SSHKeyItemType.String():
+		itemType = SSHKeyItemType
 	default:
 		err = fmt.Errorf("invalid item type %q", v)
 	}
@@ -67,6 +73,8 @@ func NewItem(name string, itemType ItemType) (Item, error) {
 		item = NewNote()
 	case PasswordItemType:
 		item = NewPassword()
+	case SSHKeyItemType:
+		item = NewSSHKey()
 	default:
 		return nil, fmt.Errorf("invalid item type %q", itemType)
 	}

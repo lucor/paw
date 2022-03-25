@@ -10,9 +10,11 @@ import (
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/data/binding"
+	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
+	"lucor.dev/paw/internal/icon"
 	"lucor.dev/paw/internal/paw"
 )
 
@@ -42,7 +44,8 @@ func NewFyneItem(item paw.Item) FyneItem {
 		fyneItem = &Login{Login: item.(*paw.Login)}
 	case paw.PasswordItemType:
 		fyneItem = &Password{Password: item.(*paw.Password)}
-
+	case paw.SSHKeyItemType:
+		fyneItem = &SSHKey{SSHKey: item.(*paw.SSHKey)}
 	}
 	return fyneItem
 }
@@ -63,8 +66,55 @@ func labelWithStyle(label string) *widget.Label {
 	return widget.NewLabelWithStyle(label, fyne.TextAlignTrailing, fyne.TextStyle{Bold: true})
 }
 
+type rowActions struct {
+	copy     bool
+	ellipsis int
+	export   string
+}
+
+func rowWithAction(label string, text string, actions rowActions, w fyne.Window) []fyne.CanvasObject {
+	labelText := text
+	if actions.ellipsis > 0 {
+		labelText = text[0:actions.ellipsis] + "..."
+	}
+	t := widget.NewLabel(labelText)
+	t.Wrapping = fyne.TextWrapBreak
+
+	c := container.NewVBox()
+	if actions.copy {
+		b := widget.NewButtonWithIcon("Copy", theme.ContentCopyIcon(), func() {
+			w.Clipboard().SetContent(text)
+			fyne.CurrentApp().SendNotification(&fyne.Notification{
+				Title:   "paw",
+				Content: fmt.Sprintf("%s copied", label),
+			})
+		})
+		c.Add(b)
+	}
+
+	if actions.export != "" {
+		b := widget.NewButtonWithIcon("Export", icon.DownloadOutlinedIconThemed, func() {
+			d := dialog.NewFileSave(func(uc fyne.URIWriteCloser, err error) {
+				if uc == nil {
+					// file open dialog has been cancelled
+					return
+				}
+				defer uc.Close()
+				uc.Write([]byte(text))
+			}, w)
+			d.SetFileName(actions.export)
+			d.Show()
+		})
+		c.Add(b)
+	}
+
+	l := labelWithStyle(label)
+	return []fyne.CanvasObject{l, container.NewBorder(nil, nil, nil, c, t)}
+}
+
 func copiableRow(label string, text string, w fyne.Window) []fyne.CanvasObject {
 	t := widget.NewLabel(text)
+	t.Wrapping = fyne.TextWrapBreak
 	b := widget.NewButtonWithIcon("Copy", theme.ContentCopyIcon(), func() {
 		w.Clipboard().SetContent(text)
 		fyne.CurrentApp().SendNotification(&fyne.Notification{
@@ -74,7 +124,7 @@ func copiableRow(label string, text string, w fyne.Window) []fyne.CanvasObject {
 	})
 
 	l := labelWithStyle(label)
-	return []fyne.CanvasObject{l, container.NewBorder(nil, nil, nil, b, t)}
+	return []fyne.CanvasObject{l, container.NewBorder(nil, nil, nil, container.NewVBox(b), t)}
 }
 
 func copiableLinkRow(label string, text string, w fyne.Window) []fyne.CanvasObject {
