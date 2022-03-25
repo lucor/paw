@@ -186,7 +186,7 @@ func (k *Key) Secret(seeder Seeder) (string, error) {
 	// decode the age identity to be used as secret for HKDF function
 	_, data, err := bech32.Decode(k.ageIdentity.String())
 	if err != nil {
-		return "", fmt.Errorf("could not decode the age identity %w", err)
+		panic(fmt.Sprintf("could not decode the age identity %s", err))
 	}
 
 	// reader to derive a key
