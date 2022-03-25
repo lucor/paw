@@ -2,6 +2,12 @@
 
 ## Unreleased 
 
+- deps upgrade:
+    - fyne.io/fyne v2.1.4
+    - golang.org/x/crypto v0.0.0-20220321153916-2c7772ba3064
+    - golang.org/x/image v0.0.0-20220321031419-a8550c1d254a
+    - golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
+    - golang.org/x/term v0.0.0-20210927222741-03fcf44c2211
 ## 0.16.1 - 08 March 2022
 
 - gui: fix item creation should show default content on cancel
