@@ -113,6 +113,7 @@ func (cmd *ListCmd) items(s paw.Storage) ([]tree.Node, error) {
 	loginNode := tree.Node{Value: paw.LoginItemType.String()}
 	noteNode := tree.Node{Value: paw.NoteItemType.String()}
 	passwordNode := tree.Node{Value: paw.PasswordItemType.String()}
+	sshkeyNode := tree.Node{Value: paw.SSHKeyItemType.String()}
 	for _, v := range meta {
 		switch v.Type {
 		case paw.LoginItemType:
@@ -121,6 +122,8 @@ func (cmd *ListCmd) items(s paw.Storage) ([]tree.Node, error) {
 			noteNode.Child = append(noteNode.Child, tree.Node{Value: v.Name})
 		case paw.PasswordItemType:
 			passwordNode.Child = append(passwordNode.Child, tree.Node{Value: v.Name})
+		case paw.SSHKeyItemType:
+			sshkeyNode.Child = append(sshkeyNode.Child, tree.Node{Value: v.Name})
 		}
 	}
 
@@ -128,6 +131,7 @@ func (cmd *ListCmd) items(s paw.Storage) ([]tree.Node, error) {
 		loginNode,
 		noteNode,
 		passwordNode,
+		sshkeyNode,
 	}, nil
 }
 

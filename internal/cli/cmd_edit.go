@@ -85,6 +85,8 @@ func (cmd *EditCmd) Run(s paw.Storage) error {
 		cmd.editNoteItem(item)
 	case paw.PasswordItemType:
 		cmd.editPasswordItem(vault.Key(), item)
+	case paw.SSHKeyItemType:
+		cmd.editSSHKeyItem(item)
 	default:
 		return fmt.Errorf("unsupported item type: %q", cmd.itemType)
 	}
@@ -179,6 +181,19 @@ func (cmd *EditCmd) editPasswordItem(key *paw.Key, item paw.Item) error {
 	v.Mode = password.Mode
 	v.Format = password.Format
 	v.Length = password.Length
+
+	note, err := askWithDefault("Note", v.Note.Value)
+	if err != nil {
+		return err
+	}
+
+	v.Note.Value = note
+	item = v
+	return nil
+}
+
+func (cmd *EditCmd) editSSHKeyItem(item paw.Item) error {
+	v := item.(*paw.SSHKey)
 
 	note, err := askWithDefault("Note", v.Note.Value)
 	if err != nil {

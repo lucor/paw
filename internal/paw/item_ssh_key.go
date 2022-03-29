@@ -20,6 +20,7 @@ func NewSSHKey() *SSHKey {
 	now := time.Now()
 	return &SSHKey{
 		Metadata: &Metadata{
+			Type:     SSHKeyItemType,
 			Created:  now,
 			Modified: now,
 		},
