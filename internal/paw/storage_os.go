@@ -172,6 +172,8 @@ func (s *OSStorage) LoadItem(vault *Vault, itemMetadata *Metadata) (Item, error)
 		item = &Password{}
 	case LoginItemType:
 		item = &Login{}
+	case SSHKeyItemType:
+		item = &SSHKey{}
 	}
 
 	itemFile := itemPath(s, vault.Name, itemMetadata.ID())

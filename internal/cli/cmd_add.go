@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"lucor.dev/paw/internal/paw"
+	"lucor.dev/paw/internal/sshkey"
 )
 
 // Add adds an item to the vault
@@ -83,6 +84,8 @@ func (cmd *AddCmd) Run(s paw.Storage) error {
 		cmd.addNoteItem(item)
 	case paw.PasswordItemType:
 		cmd.addPasswordItem(vault.Key(), item)
+	case paw.SSHKeyItemType:
+		cmd.addSSHKeyItem(item)
 	default:
 		return fmt.Errorf("unsupported item type: %q", cmd.itemType)
 	}
@@ -175,6 +178,28 @@ func (cmd *AddCmd) addPasswordItem(key *paw.Key, item paw.Item) error {
 	v.Mode = password.Mode
 	v.Format = password.Format
 	v.Length = password.Length
+
+	note, err := ask("Note")
+	if err != nil {
+		return err
+	}
+
+	v.Note.Value = note
+	item = v
+	return nil
+}
+
+func (cmd *AddCmd) addSSHKeyItem(item paw.Item) error {
+	v := item.(*paw.SSHKey)
+
+	k, err := sshkey.GenerateKey()
+	if err != nil {
+		return err
+	}
+
+	v.PrivateKey = string(k.PrivateKey())
+	v.PublicKey = string(k.PublicKey())
+	v.Fingerprint = k.Fingerprint()
 
 	note, err := ask("Note")
 	if err != nil {

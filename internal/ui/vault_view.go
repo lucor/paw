@@ -66,7 +66,28 @@ func newVaultView(mw *mainView, vault *paw.Vault) *vaultView {
 
 	vw.itemsWidget = newItemsWidget(vw.vault, vw.filterOptions)
 	vw.itemsWidget.OnSelected = func(meta *paw.Metadata) {
-		item, _ := vw.mainView.storage.LoadItem(vw.vault, meta)
+		item, err := vw.mainView.storage.LoadItem(vw.vault, meta)
+		if err != nil {
+			msg := fmt.Sprintf("error loading %q.\nDo you want delete from the vault?", meta.Name)
+			fyne.LogError("error loading item from vault", err)
+			dialog.NewConfirm(
+				"Error",
+				msg,
+				func(delete bool) {
+					if delete {
+						item, _ = paw.NewItem(meta.Name, meta.Type)
+						vw.vault.DeleteItem(item)                      // remove item from vault
+						vw.mainView.storage.DeleteItem(vw.vault, item) // remove item from storage
+						vw.mainView.storage.StoreVault(vw.vault)       // ensure vault is up-to-date
+						vw.itemsWidget.Reload(nil, vw.filterOptions)
+						vw.setContent(vw.defaultContent())
+						vw.Reload()
+					}
+				},
+				vw.mainView,
+			).Show()
+			return
+		}
 		vw.setContentItem(NewFyneItem(item), vw.itemView)
 	}
 	vw.typeSelectEntry = vw.makeTypeSelectEntry()
@@ -247,11 +268,13 @@ func (vw *vaultView) makeItems() []paw.Item {
 		Hash:     paw.TOTPHash(TOTPHash()),
 		Interval: TOTPInverval(),
 	}
+	sshkey := paw.NewSSHKey()
 
 	return []paw.Item{
 		note,
 		password,
 		website,
+		sshkey,
 	}
 }
 
@@ -486,7 +509,7 @@ func (vw *vaultView) auditPasswordView() fyne.CanvasObject {
 			defer modal.Hide()
 			err := g.Wait()
 			if err != nil || errors.Is(ctx.Err(), context.Canceled) {
-				ShowErrorDialog("Error auditing items", err, vw.mainView)
+				dialog.ShowError(err, vw.mainView)
 				return
 			}
 
@@ -583,7 +606,7 @@ func (vw *vaultView) importFromFile() {
 			err := json.NewDecoder(uc).Decode(&data)
 			if err != nil {
 				modal.Hide()
-				ShowErrorDialog("Error importing items", err, vw.mainView)
+				dialog.ShowError(err, vw.mainView)
 				return
 			}
 
@@ -618,7 +641,7 @@ func (vw *vaultView) importFromFile() {
 			err = g.Wait()
 			if err != nil || errors.Is(ctx.Err(), context.Canceled) {
 				rollback(vw.vault, processed)
-				ShowErrorDialog("Error importing items", err, vw.mainView)
+				dialog.ShowError(err, vw.mainView)
 				return
 			}
 
@@ -628,7 +651,7 @@ func (vw *vaultView) importFromFile() {
 			err = vw.mainView.storage.StoreVault(vw.vault)
 			if err != nil {
 				rollback(vw.vault, processed)
-				ShowErrorDialog("Error importing items", err, vw.mainView)
+				dialog.ShowError(err, vw.mainView)
 				return
 			}
 			vw.itemsWidget.Reload(nil, vw.filterOptions)
@@ -713,13 +736,13 @@ func (vw *vaultView) exportToFile() {
 			defer modal.Hide()
 			err := g.Wait()
 			if err != nil || errors.Is(ctx.Err(), context.Canceled) {
-				ShowErrorDialog("Error exporting items", err, vw.mainView)
+				dialog.ShowError(err, vw.mainView)
 				return
 			}
 
 			err = json.NewEncoder(uc).Encode(data)
 			if err != nil {
-				ShowErrorDialog("Error exporting items", err, vw.mainView)
+				dialog.ShowError(err, vw.mainView)
 			}
 		}()
 		modal.Show()

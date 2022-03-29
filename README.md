@@ -112,6 +112,7 @@ Currently the following items are available:
 - login
 - note
 - password
+- ssh_key
 
 ## Threat model
 

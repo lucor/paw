@@ -94,6 +94,7 @@ func (cmd *ShowCmd) Run(s paw.Storage) error {
 	}
 
 	var pclip []byte
+	var pclipMsg string
 	switch cmd.itemType {
 	case paw.LoginItemType:
 		v := item.(*paw.Login)
@@ -103,6 +104,7 @@ func (cmd *ShowCmd) Run(s paw.Storage) error {
 			fmt.Printf("Password: %s\n", v.Password.Value)
 		} else {
 			pclip = []byte(v.Password.Value)
+			pclipMsg = "[✓] password copied to clipboard"
 		}
 		if v.Note != nil {
 			fmt.Printf("Note: %s\n", v.Note.Value)
@@ -113,7 +115,21 @@ func (cmd *ShowCmd) Run(s paw.Storage) error {
 			fmt.Printf("Password: %s\n", v.Value)
 		} else {
 			pclip = []byte(v.Value)
+			pclipMsg = "[✓] password copied to clipboard"
 		}
+		if v.Note != nil {
+			fmt.Printf("Note: %s\n", v.Note.Value)
+		}
+	case paw.SSHKeyItemType:
+		v := item.(*paw.SSHKey)
+		if !cmd.clipboard {
+			fmt.Printf("Private key: %s\n", v.PrivateKey)
+		} else {
+			pclip = []byte(v.PrivateKey)
+			pclipMsg = "[✓] private key copied to clipboard"
+		}
+		fmt.Printf("Public key: %s\n", v.PublicKey)
+		fmt.Printf("Fingerprint: %s\n", v.Fingerprint)
 		if v.Note != nil {
 			fmt.Printf("Note: %s\n", v.Note.Value)
 		}
@@ -132,7 +148,7 @@ func (cmd *ShowCmd) Run(s paw.Storage) error {
 		if err != nil {
 			return nil
 		}
-		fmt.Println("[✓] password copied to clipboard")
+		fmt.Println(pclipMsg)
 	}
 	return nil
 }
