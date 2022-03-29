@@ -1,6 +1,6 @@
 # Changelog - Paw
 
-## Unreleased
+## 0.17.0 - 29 March 2022
 
 - all: add Ed25519 and RSA SSH keys support
 - deps add:
