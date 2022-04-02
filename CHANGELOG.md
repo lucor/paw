@@ -1,5 +1,9 @@
 # Changelog - Paw
 
+## 0.17.1 - 02 April 2022
+
+- gui: fix incorrect value for the public key displayed into thr ssh key view 
+
 ## 0.17.0 - 29 March 2022
 
 - all: add Ed25519 and RSA SSH keys support

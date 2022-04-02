@@ -176,7 +176,7 @@ func (sh *SSHKey) Edit(ctx context.Context, key *paw.Key, w fyne.Window) (fyne.C
 func (sh *SSHKey) Show(ctx context.Context, w fyne.Window) fyne.CanvasObject {
 	obj := titleRow(sh.Icon(), sh.Name)
 	obj = append(obj, rowWithAction("Private Key", sh.PrivateKey, rowActions{copy: true, ellipsis: 64, export: sh.Name}, w)...)
-	obj = append(obj, rowWithAction("Public Key", sh.PrivateKey, rowActions{copy: true, ellipsis: 64, export: sh.Name + ".pub"}, w)...)
+	obj = append(obj, rowWithAction("Public Key", sh.PublicKey, rowActions{copy: true, ellipsis: 64, export: sh.Name + ".pub"}, w)...)
 	obj = append(obj, copiableRow("Fingerprint", sh.Fingerprint, w)...)
 	obj = append(obj, copiableRow("Note", sh.Note.Value, w)...)
 	return container.New(layout.NewFormLayout(), obj...)
