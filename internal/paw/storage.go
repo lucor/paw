@@ -1,6 +1,7 @@
 package paw
 
 import (
+	"crypto/ed25519"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -10,18 +11,30 @@ import (
 const (
 	storageRootName = "storage"
 	keyFileName     = "key.age"
+	syncKeyFileName = "synckey.age"
 	vaultFileName   = "vault.age"
 )
 
 type Storage interface {
 	Root() string
-	VaultStorage
 	ItemStorage
+	SyncStorage
+	VaultStorage
 }
+
+type SyncStorage interface {
+	// CreateSyncKey creates and stores an ed25519 key used to sync the vault data with git+ssh
+	// The file is encrypted using the vault's key
+	CreateSyncKey(vault *Vault) (ed25519.PrivateKey, error)
+	// LoadSyncKey returns ed25519 key used to sync the vault data with git+ssh
+	// The file is decrypted using the vault's key
+	LoadSyncKey(vault *Vault) (ed25519.PrivateKey, error)
+}
+
 type VaultStorage interface {
 	// CreateVault encrypts and stores an empty vault into the underlying storage.
 	CreateVault(name string, key *Key) (*Vault, error)
-	// LoadVaultKey creates and stores a Key used to encrypt and decrypt the vault data
+	// CreateVaultKey creates and stores a key used to encrypt and decrypt the vault data
 	// The file containing the key is encrypted using the provided password
 	CreateVaultKey(name string, password string) (*Key, error)
 	// DeleteVault delete the specified vault
@@ -51,6 +64,10 @@ func storageRootPath(s Storage) string {
 
 func vaultRootPath(s Storage, name string) string {
 	return filepath.Join(storageRootPath(s), name)
+}
+
+func syncKeyPath(s Storage, vaultName string) string {
+	return filepath.Join(vaultRootPath(s, vaultName), syncKeyFileName)
 }
 
 func keyPath(s Storage, name string) string {

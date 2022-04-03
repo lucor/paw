@@ -1,6 +1,7 @@
 package paw
 
 import (
+	"crypto/ed25519"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -53,6 +54,29 @@ func (s *OSStorage) Root() string {
 	return s.root
 }
 
+// CreateSyncKey encrypts and stores a sync key for the vault into the underlying storage.
+func (s *OSStorage) CreateSyncKey(vault *Vault) (ed25519.PrivateKey, error) {
+	_, priv, err := ed25519.GenerateKey(nil)
+	if err != nil {
+		return nil, err
+	}
+
+	keyFile := syncKeyPath(s, vault.Name)
+	// override sync key if exists
+	w, err := s.createFile(keyFile)
+	if err != nil {
+		return nil, fmt.Errorf("could not create writer for the key file: %w", err)
+	}
+	defer w.Close()
+
+	err = encrypt(vault.key, w, priv)
+	if err != nil {
+		return nil, fmt.Errorf("could not encrypt and store the vault: %w", err)
+	}
+
+	return priv, nil
+}
+
 // CreateVault encrypts and stores an empty vault into the underlying storage.
 func (s *OSStorage) CreateVaultKey(name string, password string) (*Key, error) {
 	err := s.mkdirIfNotExists(vaultRootPath(s, name))
@@ -101,6 +125,19 @@ func (s *OSStorage) DeleteVault(name string) error {
 		return fmt.Errorf("could not delete the vault: %w", err)
 	}
 	return nil
+}
+
+// LoadSyncKey returns the sync key for the vault decrypting from the underlying storage
+func (s *OSStorage) LoadSyncKey(vault *Vault) (ed25519.PrivateKey, error) {
+	keyFile := syncKeyPath(s, vault.Name)
+	r, err := os.Open(keyFile)
+	if err != nil {
+		return nil, fmt.Errorf("could not read URI: %w", err)
+	}
+	defer r.Close()
+	var v ed25519.PrivateKey
+	err = decrypt(vault.key, r, &v)
+	return v, err
 }
 
 // LoadVaultIdentity returns a vault decrypting from the underlying storage

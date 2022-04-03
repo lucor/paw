@@ -27,6 +27,7 @@ func main() {
 		&cli.PwGenCmd{},
 		&cli.RemoveCmd{},
 		&cli.ShowCmd{},
+		&cli.SyncCmd{},
 		&cli.VersionCmd{Version: Version},
 	}
 
