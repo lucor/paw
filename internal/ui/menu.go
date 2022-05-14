@@ -1,7 +1,6 @@
 package ui
 
 import (
-	"log"
 	"net/url"
 
 	"fyne.io/fyne/v2"
@@ -15,22 +14,9 @@ func (a *app) makeMainMenu() *fyne.MainMenu {
 	// a Quit item will is appended automatically by Fyne to the first menu item
 	fileMenu := fyne.NewMenu("File",
 		fyne.NewMenuItem("New Vault", func() {
-			a.setContent(a.makeInitVaultView())
+			a.showCreateVaultView()
 		}),
 	)
-
-	switchItem := fyne.NewMenuItem("Switch Vault", func() {
-		a.setContent(a.makeSelectVaultView())
-	})
-
-	vaults, err := a.storage.Vaults()
-	if err != nil {
-		log.Fatal(err)
-	}
-	if len(vaults) <= 1 {
-		switchItem.Disabled = true
-	}
-	fileMenu.Items = append(fileMenu.Items, switchItem)
 
 	helpMenu := fyne.NewMenu("Help",
 		fyne.NewMenuItem("About", a.about),
@@ -63,25 +49,14 @@ func (a *app) about() {
 func (a *app) makeVaultMenu() fyne.CanvasObject {
 	d := fyne.CurrentApp().Driver()
 
-	switchVault := fyne.NewMenuItem("Switch Vault", func() {
-		a.setContent(a.makeSelectVaultView())
-		return
-	})
-
-	vaults, err := a.storage.Vaults()
-	if err != nil {
-		log.Fatal(err)
-	}
-	if len(vaults) == 1 {
-		switchVault.Disabled = true
-	}
-
 	lockVault := fyne.NewMenuItem("Lock Vault", func() {
+		a.appTabs.CurrentTab().Content = a.makeUnlockVaultView(a.vault.Name)
 		a.lockVault()
+		a.appTabs.Refresh()
 	})
 
 	passwordAudit := fyne.NewMenuItem("Password Audit", func() {
-		a.setContent(a.makeAuditPasswordView())
+		a.showAuditPasswordView()
 	})
 
 	importFromFile := fyne.NewMenuItem("Import From File", a.importFromFile)
@@ -93,7 +68,6 @@ func (a *app) makeVaultMenu() fyne.CanvasObject {
 		importFromFile,
 		exportToFile,
 		fyne.NewMenuItemSeparator(),
-		switchVault,
 		lockVault,
 	}
 	popUpMenu := widget.NewPopUpMenu(fyne.NewMenu("", menuItems...), a.win.Canvas())
@@ -110,6 +84,5 @@ func (a *app) makeVaultMenu() fyne.CanvasObject {
 		popUpMenu.ShowAtPosition(popUpPos)
 	})
 
-	label := widget.NewLabel(a.vault.Name)
-	return container.NewBorder(nil, nil, nil, button, label)
+	return button
 }

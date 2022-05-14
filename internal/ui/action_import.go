@@ -111,7 +111,8 @@ func (a *app) importFromFile() {
 				dialog.ShowError(err, a.win)
 				return
 			}
-			a.setContent(a.makeVaultView(a.vault))
+			a.refreshCurrentView()
+			a.showCurrentVaultView()
 		}()
 
 		modal.Show()

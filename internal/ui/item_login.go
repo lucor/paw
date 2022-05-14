@@ -11,7 +11,6 @@ import (
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/data/binding"
 	"fyne.io/fyne/v2/layout"
-	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
 	"lucor.dev/paw/internal/favicon"
@@ -91,13 +90,13 @@ func (login *Login) Edit(ctx context.Context, key *paw.Key, w fyne.Window) (fyne
 	passwordEntry.Validator = nil
 	passwordEntry.SetPlaceHolder("Password")
 
-	passwordCopyButton := widget.NewButtonWithIcon("Copy", theme.ContentCopyIcon(), func() {
-		w.Clipboard().SetContent(passwordEntry.Text)
-		fyne.CurrentApp().SendNotification(&fyne.Notification{
-			Title:   "paw",
-			Content: "Password copied to clipboard",
-		})
-	})
+	// passwordCopyButton := widget.NewButtonWithIcon("Copy", theme.ContentCopyIcon(), func() {
+	// 	w.Clipboard().SetContent(passwordEntry.Text)
+	// 	fyne.CurrentApp().SendNotification(&fyne.Notification{
+	// 		Title:   "paw",
+	// 		Content: "Password copied to clipboard",
+	// 	})
+	// })
 
 	passwordMakeButton := widget.NewButtonWithIcon("Generate", icon.KeyOutlinedIconThemed, func() {
 		pg := NewPasswordGenerator(key)
@@ -116,7 +115,7 @@ func (login *Login) Edit(ctx context.Context, key *paw.Key, w fyne.Window) (fyne
 
 	form.Add(labelWithStyle("Password"))
 
-	form.Add(container.NewBorder(nil, nil, nil, container.NewHBox(passwordCopyButton, passwordMakeButton), passwordEntry))
+	form.Add(container.NewBorder(nil, nil, nil, passwordMakeButton, passwordEntry))
 
 	form.Objects = append(form.Objects, totpForm.(*fyne.Container).Objects...)
 

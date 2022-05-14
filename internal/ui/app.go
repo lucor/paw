@@ -1,16 +1,12 @@
 package ui
 
 import (
-	"errors"
-	"fmt"
 	"log"
 	"runtime"
 
-	"filippo.io/age"
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 	"lucor.dev/paw/internal/icon"
@@ -55,160 +51,128 @@ func MakeApp(w fyne.Window, ver string) fyne.CanvasObject {
 	}
 
 	a.win.SetMainMenu(a.makeMainMenu())
-	return a.mainView()
+
+	a.appTabs = a.makeAppTabs()
+
+	if len(a.appTabs.Items) == 0 {
+		return a.makeCreateVaultView()
+	}
+	return a.appTabs
 }
 
-func (a *app) mainView() fyne.CanvasObject {
+func (a *app) makeAppTabs() *container.AppTabs {
 	vaults, err := a.storage.Vaults()
 	if err != nil {
 		log.Fatal(err)
 	}
-	switch len(vaults) {
-	case 0:
-		return a.makeInitVaultView()
-	case 1:
-		return a.makeUnlockVaultView(vaults[0])
+
+	// init the application tabs
+	at := container.NewAppTabs()
+	for _, vaultName := range vaults {
+		at.Append(container.NewTabItemWithIcon(vaultName, icon.PawIcon, a.makeUnlockVaultView(vaultName)))
 	}
-	return a.makeSelectVaultView()
+	at.SetTabLocation(container.TabLocationTop)
+	at.OnSelected = func(ti *container.TabItem) {
+		vaultName := ti.Text
+		var vault *paw.Vault
+		v, ok := a.unlockedVault[vaultName]
+		if ok {
+			vault = v
+		}
+		a.vault = vault
+	}
+	return at
+}
+
+// addVaultView adds a vault view to app tabs and set to default
+func (a *app) addVaultView(vault *paw.Vault) {
+	a.vault = vault
+	a.unlockedVault[vault.Name] = vault
+
+	a.appTabs.Append(container.NewTabItemWithIcon(vault.Name, icon.PawIcon, a.makeCurrentVaultView()))
+	index := len(a.appTabs.Items)
+
+	a.appTabs.SelectTabIndex(index)
+}
+
+func (a *app) setCurrentVaultView(vault *paw.Vault) {
+	a.vault = vault
+	a.unlockedVault[vault.Name] = vault
+	a.appTabs.CurrentTab().Content = a.makeCurrentVaultView()
+	a.appTabs.Refresh()
+}
+
+func (a *app) showAuditPasswordView() {
+	a.win.SetContent(a.appTabs)
+}
+
+func (a *app) showCreateVaultView() {
+	a.win.SetContent(a.makeCreateVaultView())
+}
+
+func (a *app) showCurrentVaultView() {
+	a.win.SetContent(a.appTabs)
+}
+
+func (a *app) showAddItemView() {
+	a.win.SetContent(a.makeAddItemView())
+}
+
+func (a *app) showItemView(fyneItem FyneItem) {
+	a.win.SetContent(a.makeShowItemView(fyneItem))
+}
+
+func (a *app) showEditItemView(fyneItem FyneItem) {
+	a.win.SetContent(a.makeEditItemView(fyneItem))
 }
 
 func (a *app) lockVault() {
 	delete(a.unlockedVault, a.vault.Name)
 	a.vault = nil
-	a.win.SetContent(a.mainView())
 }
 
-const (
-	tabHomeIndex = iota
-	tabAddIndex
-)
-
-func (a *app) setContent(c fyne.CanvasObject) {
-	a.win.SetContent(c)
-}
-
-func (a *app) setVaultView(vault *paw.Vault) {
+func (a *app) unlockVault(vault *paw.Vault) {
+	a.unlockedVault[vault.Name] = vault
 	a.vault = vault
-
-	at := container.NewAppTabs(
-		container.NewTabItemWithIcon("Home", icon.PawIcon, a.makeVaultView(vault)),
-		container.NewTabItemWithIcon("Add", theme.ContentAddIcon(), a.makeAddItemView()),
-	)
-	at.SetTabLocation(container.TabLocationBottom)
-
-	a.appTabs = at
-	a.setContent(at)
 }
 
-func (a *app) makeInitVaultView() fyne.CanvasObject {
-	logo := pawLogo()
+// func (a *app) setVaultView(vault *paw.Vault) {
+// 	a.vault = vault
+// 	items := a.appTabs.Items
 
-	heading := headingText("Welcome to Paw")
-	heading.Alignment = fyne.TextAlignCenter
+// 	index := -1
+// 	for i, item := range items {
+// 		if item.Text == vault.Name {
+// 			index = i
+// 		}
+// 	}
 
-	name := widget.NewEntry()
-	name.SetPlaceHolder("Name")
+// 	if index == -1 {
+// 		a.appTabs.Append(container.NewTabItemWithIcon(vault.Name, icon.PawIcon, a.makeCurrentVaultView()))
+// 		index = len(a.appTabs.Items)
+// 	}
 
-	password := widget.NewPasswordEntry()
-	password.SetPlaceHolder("Password")
+// 	a.appTabs.SelectTabIndex(index)
+// 	a.setContent(a.appTabs)
+// }
 
-	btn := widget.NewButton("Create Vault", func() {
-		key, err := a.storage.CreateVaultKey(name.Text, password.Text)
-		if err != nil {
-			dialog.ShowError(err, a.win)
-			return
-		}
-		vault, err := a.storage.CreateVault(name.Text, key)
-		if err != nil {
-			dialog.ShowError(err, a.win)
-			return
-		}
-		a.unlockedVault[name.Text] = vault
-
-		a.setVaultView(vault)
-	})
-	btn.Importance = widget.HighImportance
-
-	return container.NewCenter(container.NewVBox(logo, heading, name, password, btn))
-
+func (a *app) refreshCurrentView() {
+	a.appTabs.CurrentTab().Content = a.makeCurrentVaultView()
+	a.appTabs.Refresh()
 }
 
-func (a *app) makeUnlockVaultView(vaultName string) fyne.CanvasObject {
-	logo := pawLogo()
-
-	msg := fmt.Sprintf("Vault %q is locked", vaultName)
-	heading := headingText(msg)
-
-	password := widget.NewPasswordEntry()
-	password.SetPlaceHolder("Password")
-
-	unlockBtn := widget.NewButtonWithIcon("Unlock", icon.LockOpenOutlinedIconThemed, func() {
-		vault, err := a.storage.LoadVault(vaultName, password.Text)
-		if err != nil {
-			var invalidPasswordError *age.NoIdentityMatchError
-			if errors.As(err, &invalidPasswordError) {
-				err = errors.New("the password is incorrect")
-			}
-			dialog.ShowError(err, a.win)
-			return
-		}
-		a.unlockedVault[vaultName] = vault
-		a.setVaultView(vault)
-	})
-
-	return container.NewCenter(container.NewVBox(logo, heading, password, unlockBtn))
-}
-
-func (a *app) makeSelectVaultView() fyne.CanvasObject {
-
-	heading := headingText("Select a Vault")
-	heading.Alignment = fyne.TextAlignCenter
-
-	logo := pawLogo()
-
-	c := container.NewVBox(logo, heading)
-
-	vaults, err := a.storage.Vaults()
-	if err != nil {
-		log.Fatal(err)
-	}
-	for _, v := range vaults {
-		name := v
-		resource := icon.LockOpenOutlinedIconThemed
-		if _, ok := a.unlockedVault[name]; !ok {
-			resource = icon.LockOutlinedIconThemed
-		}
-		btn := widget.NewButtonWithIcon(name, resource, func() {
-			// TODO show appTabs and select first tab
-			vault, ok := a.unlockedVault[name]
-			if !ok {
-				a.setContent(a.makeUnlockVaultView(name))
-				return
-			}
-			a.setVaultView(vault)
-			return
-		})
-		btn.Alignment = widget.ButtonAlignLeading
-		c.Add(btn)
-	}
-
-	return container.NewCenter(c)
-}
-
-func (a *app) makeNavigationHeader(title string, parentView int) fyne.CanvasObject {
+func (a *app) makeCancelHeaderButton() fyne.CanvasObject {
 	var left, right fyne.CanvasObject
 	if fyne.CurrentDevice().IsMobile() {
 		right = widget.NewButtonWithIcon("", theme.CancelIcon(), func() {
-			a.appTabs.SelectIndex(parentView)
-			a.setContent(a.appTabs)
+			a.showCurrentVaultView()
 		})
 	} else {
 		left = widget.NewButtonWithIcon("", theme.NavigateBackIcon(), func() {
-			a.appTabs.SelectIndex(parentView)
-			a.setContent(a.appTabs)
+			a.showCurrentVaultView()
 		})
 	}
-	return container.NewBorder(nil, nil, left, right, widget.NewLabel(title))
+	return container.NewBorder(nil, nil, left, right, widget.NewLabel(""))
 }
 
 // headingText returns a text formatted as heading

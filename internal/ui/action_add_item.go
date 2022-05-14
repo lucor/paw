@@ -8,22 +8,20 @@ import (
 )
 
 func (a *app) makeAddItemView() fyne.CanvasObject {
-
 	c := container.NewVBox()
 	for _, item := range a.makeEmptyItems() {
 		i := item
 		metadata := i.GetMetadata()
 		fyneItem := NewFyneItem(i)
 		o := widget.NewButtonWithIcon(metadata.Type.String(), fyneItem.Icon(), func() {
-			a.setContent(a.makeEditItemView(fyneItem))
+			a.showEditItemView(fyneItem)
 			return
 		})
 		o.Alignment = widget.ButtonAlignLeading
 		c.Add(o)
 	}
 
-	top := a.makeNavigationHeader("Add item", tabHomeIndex)
-	return container.NewBorder(top, nil, nil, nil, container.NewCenter(c))
+	return container.NewBorder(a.makeCancelHeaderButton(), nil, nil, nil, container.NewCenter(c))
 }
 
 // makeEmptyItems returns a slice of empty paw.Item ready to use as template for

@@ -1,18 +1,78 @@
 package ui
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
+	"filippo.io/age"
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
+	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
+	"lucor.dev/paw/internal/icon"
 	"lucor.dev/paw/internal/paw"
 )
 
-func (a *app) makeVaultView(vault *paw.Vault) fyne.CanvasObject {
+func (a *app) makeCreateVaultView() fyne.CanvasObject {
+	logo := pawLogo()
 
+	name := widget.NewEntry()
+	name.SetPlaceHolder("Name")
+
+	password := widget.NewPasswordEntry()
+	password.SetPlaceHolder("Password")
+
+	btn := widget.NewButton("Create Vault", func() {
+		key, err := a.storage.CreateVaultKey(name.Text, password.Text)
+		if err != nil {
+			dialog.ShowError(err, a.win)
+			return
+		}
+		vault, err := a.storage.CreateVault(name.Text, key)
+		if err != nil {
+			dialog.ShowError(err, a.win)
+			return
+		}
+		a.addVaultView(vault)
+		a.showCurrentVaultView()
+	})
+	btn.Importance = widget.HighImportance
+
+	return container.NewCenter(container.NewVBox(logo, nil, name, password, btn))
+
+}
+
+func (a *app) makeUnlockVaultView(vaultName string) fyne.CanvasObject {
+	logo := pawLogo()
+
+	msg := fmt.Sprintf("Vault %q is locked", vaultName)
+	heading := headingText(msg)
+
+	password := widget.NewPasswordEntry()
+	password.SetPlaceHolder("Password")
+
+	unlockBtn := widget.NewButtonWithIcon("Unlock", icon.LockOpenOutlinedIconThemed, func() {
+		vault, err := a.storage.LoadVault(vaultName, password.Text)
+		if err != nil {
+			var invalidPasswordError *age.NoIdentityMatchError
+			if errors.As(err, &invalidPasswordError) {
+				err = errors.New("the password is incorrect")
+			}
+			dialog.ShowError(err, a.win)
+			return
+		}
+
+		a.setCurrentVaultView(vault)
+		a.showCurrentVaultView()
+	})
+
+	return container.NewCenter(container.NewVBox(logo, heading, password, unlockBtn))
+}
+
+func (a *app) makeCurrentVaultView() fyne.CanvasObject {
+	vault := a.vault
 	filter, ok := a.filter[vault.Name]
 	if !ok {
 		filter = &paw.VaultFilterOptions{}
@@ -43,7 +103,7 @@ func (a *app) makeVaultView(vault *paw.Vault) fyne.CanvasObject {
 		}
 
 		fyneItem := NewFyneItem(item)
-		a.setContent(a.makeShowItemView(fyneItem))
+		a.showItemView(fyneItem)
 		itemsWidget.listEntry.UnselectAll()
 	}
 
@@ -81,5 +141,14 @@ func (a *app) makeVaultView(vault *paw.Vault) fyne.CanvasObject {
 
 	list.SetSelectedIndex(0)
 
-	return container.NewBorder(container.NewVBox(a.makeVaultMenu(), search, list), nil, nil, nil, itemsWidget)
+	header := container.NewVBox(
+		container.NewBorder(nil, nil, nil, a.makeVaultMenu(), search),
+		list,
+	)
+
+	button := widget.NewButtonWithIcon("Add item", theme.ContentAddIcon(), func() {
+		a.showAddItemView()
+	})
+
+	return container.NewBorder(header, button, nil, nil, itemsWidget)
 }

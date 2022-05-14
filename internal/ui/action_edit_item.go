@@ -67,18 +67,17 @@ func (a *app) makeEditItemView(fyneItem FyneItem) fyne.CanvasObject {
 
 		item = editItem
 		fyneItem := NewFyneItem(item)
-		a.setContent(a.makeShowItemView(fyneItem))
+		a.refreshCurrentView()
+		a.showItemView(fyneItem)
 	})
 	saveBtn.Importance = widget.HighImportance
 
 	// elements should not be displayed on create but only on edit
-	var bottomContent fyne.CanvasObject
-
-	buttonContainer := container.NewHBox(saveBtn)
-
+	var metadataContent fyne.CanvasObject
+	metadataContent = widget.NewLabel("")
 	var deleteBtn fyne.CanvasObject
 	if !metadata.IsEmpty() {
-		bottomContent = ShowMetadata(metadata)
+		metadataContent = ShowMetadata(metadata)
 		button := widget.NewButtonWithIcon("Delete", theme.DeleteIcon(), func() {
 			msg := widget.NewLabel(fmt.Sprintf("Are you sure you want to delete %q?", item.String()))
 			d := dialog.NewCustomConfirm("", "Delete", "Cancel", msg, func(b bool) {
@@ -89,16 +88,17 @@ func (a *app) makeEditItemView(fyneItem FyneItem) fyne.CanvasObject {
 						dialog.ShowError(err, a.win)
 						return
 					}
-					a.setContent(a.makeVaultView(a.vault))
+					a.refreshCurrentView()
+					a.showCurrentVaultView()
 				}
 			}, a.win)
 			d.Show()
 		})
 		deleteBtn = container.NewMax(canvas.NewRectangle(color.NRGBA{0xd0, 0x17, 0x2d, 0xff}), button)
-		buttonContainer.Add(deleteBtn)
 	}
 
-	top := a.makeNavigationHeader("Edit item", tabHomeIndex)
-	bottom := container.NewBorder(bottomContent, nil, nil, buttonContainer, widget.NewLabel(""))
-	return container.NewBorder(top, bottom, nil, nil, content)
+	buttonContainer := container.NewBorder(nil, nil, deleteBtn, saveBtn, widget.NewLabel(""))
+	bottom := container.NewBorder(nil, buttonContainer, nil, nil, metadataContent)
+
+	return container.NewBorder(a.makeCancelHeaderButton(), bottom, nil, nil, content)
 }

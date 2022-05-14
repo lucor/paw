@@ -23,8 +23,6 @@ import (
 // auditPasswordView returns a view to audit passwords
 func (a *app) makeAuditPasswordView() fyne.CanvasObject {
 
-	top := a.makeNavigationHeader("Password Audit", tabHomeIndex)
-
 	image := imageFromResource(icon.FactCheckOutlinedIconThemed)
 
 	text := widget.NewLabel("Check Vault passwords against existing data breaches")
@@ -131,13 +129,13 @@ func (a *app) makeAuditPasswordView() fyne.CanvasObject {
 					co.(*fyne.Container).Objects[0].(*widget.Label).SetText(fmt.Sprintf("%s (found %d times)", metadata.Name, v.Count))
 					co.(*fyne.Container).Objects[1].(*widget.Icon).SetResource(fyneItem.Icon())
 					co.(*fyne.Container).Objects[2].(*widget.Button).OnTapped = func() {
-						a.setContent(a.makeEditItemView(fyneItem))
+						a.showEditItemView(fyneItem)
 					}
 				},
 			)
 			list.OnSelected = func(id widget.ListItemID) {
 				fyneItem := NewFyneItem(pwendItems[id].Item)
-				a.setContent(a.makeShowItemView(fyneItem))
+				a.showItemView(fyneItem)
 			}
 
 			content.Objects = []fyne.CanvasObject{container.NewBorder(container.NewVBox(image, text), nil, nil, nil, list)}
@@ -149,5 +147,5 @@ func (a *app) makeAuditPasswordView() fyne.CanvasObject {
 
 	empty := widget.NewLabel("")
 	content = container.NewVBox(image, text, container.NewGridWithColumns(3, empty, auditBtn, empty))
-	return container.NewBorder(top, nil, nil, nil, content)
+	return container.NewBorder(a.makeCancelHeaderButton(), nil, nil, nil, content)
 }
