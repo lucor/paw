@@ -3,7 +3,6 @@ package ui
 import (
 	"errors"
 	"fmt"
-	"strings"
 
 	"filippo.io/age"
 	"fyne.io/fyne/v2"
@@ -11,6 +10,8 @@ import (
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 	"lucor.dev/paw/internal/icon"
 	"lucor.dev/paw/internal/paw"
 )
@@ -116,10 +117,11 @@ func (a *app) makeCurrentVaultView() fyne.CanvasObject {
 	// filter entries
 	itemTypeMap := map[string]paw.ItemType{}
 	options := []string{fmt.Sprintf("All items (%d)", vault.Size())}
+	ca := cases.Title(language.Und)
 	for _, item := range a.makeEmptyItems() {
 		i := item
 		t := i.GetMetadata().Type
-		name := fmt.Sprintf("%s (%d)", strings.Title(t.String()), vault.SizeByType(t))
+		name := fmt.Sprintf("%s (%d)", ca.String(t.String()), vault.SizeByType(t))
 		options = append(options, name)
 		itemTypeMap[name] = t
 	}

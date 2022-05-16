@@ -15,7 +15,6 @@ func (a *app) makeAddItemView() fyne.CanvasObject {
 		fyneItem := NewFyneItem(i)
 		o := widget.NewButtonWithIcon(metadata.Type.String(), fyneItem.Icon(), func() {
 			a.showEditItemView(fyneItem)
-			return
 		})
 		o.Alignment = widget.ButtonAlignLeading
 		c.Add(o)

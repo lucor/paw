@@ -80,6 +80,10 @@ func (sh *SSHKey) Edit(ctx context.Context, key *paw.Key, w fyne.Window) (fyne.C
 						// file open dialog has been cancelled
 						return
 					}
+					if err != nil {
+						dialog.NewError(err, w).Show()
+						return
+					}
 					defer uc.Close()
 					v, err := publicKeyEntryBind.Get()
 					if err != nil {
@@ -161,6 +165,10 @@ func (sh *SSHKey) Edit(ctx context.Context, key *paw.Key, w fyne.Window) (fyne.C
 				d := dialog.NewFileSave(func(uc fyne.URIWriteCloser, err error) {
 					if uc == nil {
 						// file open dialog has been cancelled
+						return
+					}
+					if err != nil {
+						dialog.NewError(err, w).Show()
 						return
 					}
 					defer uc.Close()

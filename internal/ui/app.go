@@ -97,18 +97,18 @@ func (a *app) addVaultView(vault *paw.Vault) {
 	a.appTabs.Append(container.NewTabItemWithIcon(vault.Name, icon.PawIcon, a.makeCurrentVaultView()))
 	index := len(a.appTabs.Items)
 
-	a.appTabs.SelectTabIndex(index)
+	a.appTabs.SelectIndex(index)
 }
 
 func (a *app) setCurrentVaultView(vault *paw.Vault) {
 	a.vault = vault
 	a.unlockedVault[vault.Name] = vault
-	a.appTabs.CurrentTab().Content = a.makeCurrentVaultView()
+	a.appTabs.Selected().Content = a.makeCurrentVaultView()
 	a.appTabs.Refresh()
 }
 
 func (a *app) showAuditPasswordView() {
-	a.win.SetContent(a.appTabs)
+	a.win.SetContent(a.makeAuditPasswordView())
 }
 
 func (a *app) showCreateVaultView() {
@@ -136,33 +136,8 @@ func (a *app) lockVault() {
 	a.vault = nil
 }
 
-func (a *app) unlockVault(vault *paw.Vault) {
-	a.unlockedVault[vault.Name] = vault
-	a.vault = vault
-}
-
-// func (a *app) setVaultView(vault *paw.Vault) {
-// 	a.vault = vault
-// 	items := a.appTabs.Items
-
-// 	index := -1
-// 	for i, item := range items {
-// 		if item.Text == vault.Name {
-// 			index = i
-// 		}
-// 	}
-
-// 	if index == -1 {
-// 		a.appTabs.Append(container.NewTabItemWithIcon(vault.Name, icon.PawIcon, a.makeCurrentVaultView()))
-// 		index = len(a.appTabs.Items)
-// 	}
-
-// 	a.appTabs.SelectTabIndex(index)
-// 	a.setContent(a.appTabs)
-// }
-
 func (a *app) refreshCurrentView() {
-	a.appTabs.CurrentTab().Content = a.makeCurrentVaultView()
+	a.appTabs.Selected().Content = a.makeCurrentVaultView()
 	a.appTabs.Refresh()
 }
 

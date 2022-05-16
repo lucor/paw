@@ -50,7 +50,7 @@ func (a *app) makeVaultMenu() fyne.CanvasObject {
 	d := fyne.CurrentApp().Driver()
 
 	lockVault := fyne.NewMenuItem("Lock Vault", func() {
-		a.appTabs.CurrentTab().Content = a.makeUnlockVaultView(a.vault.Name)
+		a.appTabs.Selected().Content = a.makeUnlockVaultView(a.vault.Name)
 		a.lockVault()
 		a.appTabs.Refresh()
 	})

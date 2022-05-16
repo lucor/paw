@@ -12,4 +12,5 @@ require (
 	golang.org/x/image v0.0.0-20220321031419-a8550c1d254a
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211
+	golang.org/x/text v0.3.6
 )
