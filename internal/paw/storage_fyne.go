@@ -3,7 +3,6 @@ package paw
 import (
 	"errors"
 	"fmt"
-	"log"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/storage"
@@ -216,7 +215,6 @@ func (s *FyneStorage) mkdirIfNotExists(path string) error {
 	if s.isExist(path) {
 		return nil
 	}
-	log.Println("ss")
 	return storage.CreateListable(storage.NewFileURI(path))
 }
 

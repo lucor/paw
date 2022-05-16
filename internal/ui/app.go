@@ -33,7 +33,12 @@ type app struct {
 func MakeApp(w fyne.Window, ver string) fyne.CanvasObject {
 	var s paw.Storage
 	var err error
-	s, err = paw.NewFyneStorage(fyne.CurrentApp().Storage())
+
+	if fyne.CurrentDevice().IsMobile() {
+		s, err = paw.NewFyneStorage(fyne.CurrentApp().Storage())
+	} else {
+		s, err = paw.NewOSStorage()
+	}
 	if err != nil {
 		log.Fatal(err)
 	}
