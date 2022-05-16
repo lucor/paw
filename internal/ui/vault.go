@@ -38,10 +38,7 @@ func (a *app) makeCreateVaultView() fyne.CanvasObject {
 		a.addVaultView(vault)
 		a.showCurrentVaultView()
 	})
-	btn.Importance = widget.HighImportance
-
-	return container.NewCenter(container.NewVBox(logo, nil, name, password, btn))
-
+	return container.NewCenter(container.NewVBox(logo, name, password, btn))
 }
 
 func (a *app) makeUnlockVaultView(vaultName string) fyne.CanvasObject {

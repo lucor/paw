@@ -70,7 +70,6 @@ func (a *app) makeEditItemView(fyneItem FyneItem) fyne.CanvasObject {
 		a.refreshCurrentView()
 		a.showItemView(fyneItem)
 	})
-	saveBtn.Importance = widget.HighImportance
 
 	// elements should not be displayed on create but only on edit
 	var metadataContent fyne.CanvasObject
