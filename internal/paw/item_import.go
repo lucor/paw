@@ -1,6 +1,9 @@
 package paw
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"fmt"
+)
 
 type Imported struct {
 	Items []Item
@@ -25,7 +28,12 @@ func (i *Imported) UnmarshalJSON(data []byte) error {
 				t = NewPassword()
 			case LoginItemType.String():
 				t = NewLogin()
+			case SSHKeyItemType.String():
+				t = NewSSHKey()
+			default:
+				return fmt.Errorf("unknown item type: %s", itemType)
 			}
+
 			err := json.Unmarshal(message, t)
 			if err != nil {
 				return err
