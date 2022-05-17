@@ -101,26 +101,17 @@ func (sh *SSHKey) Edit(ctx context.Context, key *paw.Key, w fyne.Window) (fyne.C
 
 	fingerprintEntryBind := binding.BindString(&sshKeyItem.Fingerprint)
 	fingerprintEntry := widget.NewLabelWithData(fingerprintEntryBind)
+	fingerprintEntry.Wrapping = fyne.TextWrapBreak
 
 	privateKeyEntryBind := binding.BindString(&sshKeyItem.PrivateKey)
 	privateKeyEntry := widget.NewEntryWithData(privateKeyEntryBind)
 	privateKeyEntry.Validator = nil
 	privateKeyEntry.MultiLine = true
+	privateKeyEntry.Wrapping = fyne.TextWrapBreak
 	privateKeyEntry.Disable()
 	privateKeyEntry.SetPlaceHolder("Private Key")
 
 	privateKeyActionMenu := []*fyne.MenuItem{
-		{
-			Label: "Copy",
-			Icon:  theme.ContentCopyIcon(),
-			Action: func() {
-				w.Clipboard().SetContent(privateKeyEntry.Text)
-				fyne.CurrentApp().SendNotification(&fyne.Notification{
-					Title:   "paw",
-					Content: "Private Key copied to clipboard",
-				})
-			},
-		},
 		{
 			Label: "Generate",
 			Icon:  icon.KeyOutlinedIconThemed,
@@ -133,6 +124,17 @@ func (sh *SSHKey) Edit(ctx context.Context, key *paw.Key, w fyne.Window) (fyne.C
 				privateKeyEntryBind.Set(string(sk.PrivateKey()))
 				publicKeyEntryBind.Set(string(sk.PublicKey()))
 				fingerprintEntryBind.Set(string(sk.Fingerprint()))
+			},
+		},
+		{
+			Label: "Copy",
+			Icon:  theme.ContentCopyIcon(),
+			Action: func() {
+				w.Clipboard().SetContent(privateKeyEntry.Text)
+				fyne.CurrentApp().SendNotification(&fyne.Notification{
+					Title:   "paw",
+					Content: "Private Key copied to clipboard",
+				})
 			},
 		},
 		{

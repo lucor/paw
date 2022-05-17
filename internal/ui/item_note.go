@@ -58,10 +58,10 @@ func (n *Note) Edit(ctx context.Context, key *paw.Key, w fyne.Window) (fyne.Canv
 }
 
 func (n *Note) Show(ctx context.Context, w fyne.Window) fyne.CanvasObject {
+	if n == nil {
+		return container.New(layout.NewFormLayout(), widget.NewLabel(""))
+	}
 	obj := titleRow(n.Icon(), n.Name)
-	obj = append(obj, copiableRow("Note", n.Value, w)...)
-	return container.New(
-		layout.NewFormLayout(),
-		obj...,
-	)
+	obj = append(obj, rowWithAction("Note", n.Value, rowActionOptions{copy: true}, w)...)
+	return container.New(layout.NewFormLayout(), obj...)
 }

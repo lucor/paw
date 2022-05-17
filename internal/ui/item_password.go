@@ -7,6 +7,7 @@ import (
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/data/binding"
 	"fyne.io/fyne/v2/layout"
+	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
 	"lucor.dev/paw/internal/icon"
@@ -58,18 +59,27 @@ func (p *Password) Edit(ctx context.Context, key *paw.Key, w fyne.Window) (fyne.
 	passwordEntry.Validator = nil
 	passwordEntry.SetPlaceHolder("Password")
 
-	// passwordCopyButton := widget.NewButtonWithIcon("Copy", theme.ContentCopyIcon(), func() {
-	// 	w.Clipboard().SetContent(passwordEntry.Text)
-	// 	fyne.CurrentApp().SendNotification(&fyne.Notification{
-	// 		Title:   "paw",
-	// 		Content: "Password copied to clipboard",
-	// 	})
-	// })
-
-	passwordMakeButton := widget.NewButtonWithIcon("Generate", icon.KeyOutlinedIconThemed, func() {
-		pg := NewPasswordGenerator(key)
-		pg.ShowPasswordGenerator(passwordBind, passwordItem, w)
-	})
+	passwordActionMenu := []*fyne.MenuItem{
+		{
+			Label: "Generate",
+			Icon:  icon.KeyOutlinedIconThemed,
+			Action: func() {
+				pg := NewPasswordGenerator(key)
+				pg.ShowPasswordGenerator(passwordBind, passwordItem, w)
+			},
+		},
+		{
+			Label: "Copy",
+			Icon:  theme.ContentCopyIcon(),
+			Action: func() {
+				w.Clipboard().SetContent(passwordEntry.Text)
+				fyne.CurrentApp().SendNotification(&fyne.Notification{
+					Title:   "paw",
+					Content: "Password copied to clipboard",
+				})
+			},
+		},
+	}
 
 	form := container.New(layout.NewFormLayout())
 	form.Add(widget.NewIcon(p.Icon()))
@@ -77,7 +87,7 @@ func (p *Password) Edit(ctx context.Context, key *paw.Key, w fyne.Window) (fyne.
 
 	form.Add(labelWithStyle("Password"))
 
-	form.Add(container.NewBorder(nil, nil, nil, passwordMakeButton, passwordEntry))
+	form.Add(container.NewBorder(nil, nil, nil, container.NewVBox(makeActionMenu(passwordActionMenu, w)), passwordEntry))
 
 	form.Add(labelWithStyle("Note"))
 	form.Add(noteEntry)
@@ -88,10 +98,10 @@ func (p *Password) Edit(ctx context.Context, key *paw.Key, w fyne.Window) (fyne.
 func (p *Password) Show(ctx context.Context, w fyne.Window) fyne.CanvasObject {
 	obj := titleRow(p.Icon(), p.Name)
 	if p.Value != "" {
-		obj = append(obj, copiablePasswordRow("Password", p.Value, w)...)
+		obj = append(obj, rowWithAction("Password", p.Value, rowActionOptions{widgetType: "password", copy: true}, w)...)
 	}
 	if p.Note.Value != "" {
-		obj = append(obj, copiableRow("Note", p.Note.Value, w)...)
+		obj = append(obj, rowWithAction("Note", p.Note.Value, rowActionOptions{copy: true}, w)...)
 	}
 	return container.New(layout.NewFormLayout(), obj...)
 }
