@@ -39,6 +39,7 @@ func (a *app) makeCreateVaultView() fyne.CanvasObject {
 		a.setVaultView(vault)
 		a.showCurrentVaultView()
 		a.win.SetMainMenu(a.makeMainMenu())
+		a.makeSysTray()
 	})
 
 	return container.NewCenter(container.NewVBox(logo, name, password, btn))
