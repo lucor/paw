@@ -94,8 +94,10 @@ func (a *app) makeApp() *container.Scroll {
 func (a *app) setVaultViewByName(name string) {
 	vault, ok := a.unlockedVault[name]
 	if !ok {
+		a.vault = nil
 		a.main.Content = a.makeUnlockVaultView(name)
 		a.main.Refresh()
+		a.setWindowTitle()
 		return
 	}
 	a.setVaultView(vault)
@@ -106,6 +108,7 @@ func (a *app) setVaultView(vault *paw.Vault) {
 	a.unlockedVault[vault.Name] = vault
 	a.main.Content = a.makeCurrentVaultView()
 	a.main.Refresh()
+	a.setWindowTitle()
 }
 
 func (a *app) showAuditPasswordView() {
@@ -118,6 +121,14 @@ func (a *app) showCreateVaultView() {
 
 func (a *app) showCurrentVaultView() {
 	a.win.SetContent(a.main)
+}
+
+func (a *app) setWindowTitle() {
+	title := "Paw"
+	if a.vault != nil {
+		title = a.vault.Name + " - " + title
+	}
+	a.win.SetTitle(title)
 }
 
 func (a *app) showAddItemView() {
