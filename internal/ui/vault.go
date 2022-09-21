@@ -39,7 +39,14 @@ func (a *app) makeCreateVaultView() fyne.CanvasObject {
 		a.addVaultView(vault)
 		a.showCurrentVaultView()
 	})
-	return container.NewCenter(container.NewVBox(logo, name, password, btn))
+
+	content := container.NewCenter(container.NewVBox(logo, name, password, btn))
+
+	if len(a.appTabs.Items) > 0 {
+		return container.NewBorder(a.makeCancelHeaderButton(), nil, nil, nil, content)
+	}
+
+	return content
 }
 
 func (a *app) makeUnlockVaultView(vaultName string) fyne.CanvasObject {

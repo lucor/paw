@@ -95,7 +95,7 @@ func (a *app) addVaultView(vault *paw.Vault) {
 	a.unlockedVault[vault.Name] = vault
 
 	a.appTabs.Append(container.NewTabItemWithIcon(vault.Name, icon.PawIcon, a.makeCurrentVaultView()))
-	index := len(a.appTabs.Items)
+	index := len(a.appTabs.Items) - 1
 
 	a.appTabs.SelectIndex(index)
 }
