@@ -91,18 +91,27 @@ func (login *Login) Edit(ctx context.Context, key *paw.Key, w fyne.Window) (fyne
 	passwordEntry.Validator = nil
 	passwordEntry.SetPlaceHolder("Password")
 
-	passwordCopyButton := widget.NewButtonWithIcon("Copy", theme.ContentCopyIcon(), func() {
-		w.Clipboard().SetContent(passwordEntry.Text)
-		fyne.CurrentApp().SendNotification(&fyne.Notification{
-			Title:   "paw",
-			Content: "Password copied to clipboard",
-		})
-	})
-
-	passwordMakeButton := widget.NewButtonWithIcon("Generate", icon.KeyOutlinedIconThemed, func() {
-		pg := NewPasswordGenerator(key)
-		pg.ShowPasswordGenerator(passwordBind, loginItem.Password, w)
-	})
+	passwordActionMenu := []*fyne.MenuItem{
+		{
+			Label: "Generate",
+			Icon:  icon.KeyOutlinedIconThemed,
+			Action: func() {
+				pg := NewPasswordGenerator(key)
+				pg.ShowPasswordGenerator(passwordBind, loginItem.Password, w)
+			},
+		},
+		{
+			Label: "Copy",
+			Icon:  theme.ContentCopyIcon(),
+			Action: func() {
+				w.Clipboard().SetContent(passwordEntry.Text)
+				fyne.CurrentApp().SendNotification(&fyne.Notification{
+					Title:   "paw",
+					Content: "Password copied to clipboard",
+				})
+			},
+		},
+	}
 
 	form := container.New(layout.NewFormLayout())
 	form.Add(loginIcon)
@@ -116,7 +125,7 @@ func (login *Login) Edit(ctx context.Context, key *paw.Key, w fyne.Window) (fyne
 
 	form.Add(labelWithStyle("Password"))
 
-	form.Add(container.NewBorder(nil, nil, nil, container.NewHBox(passwordCopyButton, passwordMakeButton), passwordEntry))
+	form.Add(container.NewBorder(nil, nil, nil, container.NewVBox(makeActionMenu(passwordActionMenu, w)), passwordEntry))
 
 	form.Objects = append(form.Objects, totpForm.(*fyne.Container).Objects...)
 
@@ -129,20 +138,20 @@ func (login *Login) Edit(ctx context.Context, key *paw.Key, w fyne.Window) (fyne
 func (login *Login) Show(ctx context.Context, w fyne.Window) fyne.CanvasObject {
 	obj := titleRow(login.Icon(), login.Name)
 	if login.URL != "" {
-		obj = append(obj, copiableLinkRow("URL", login.URL, w)...)
+		obj = append(obj, rowWithAction("URL", login.URL, rowActionOptions{widgetType: "url", copy: true}, w)...)
 	}
 	if login.Username != "" {
-		obj = append(obj, copiableRow("Username", login.Username, w)...)
+		obj = append(obj, rowWithAction("Username", login.Username, rowActionOptions{copy: true}, w)...)
 	}
 	if login.Password.Value != "" {
-		obj = append(obj, copiablePasswordRow("Password", login.Password.Value, w)...)
+		obj = append(obj, rowWithAction("Password", login.Password.Value, rowActionOptions{widgetType: "password", copy: true}, w)...)
 	}
 	if login.TOTP != nil && login.TOTP.Secret != "" {
 		uiTOTP := &TOTP{TOTP: login.TOTP}
 		obj = append(obj, uiTOTP.Show(ctx, w)...)
 	}
 	if login.Note != nil && login.Note.Value != "" {
-		obj = append(obj, copiableRow("Note", login.Note.Value, w)...)
+		obj = append(obj, rowWithAction("Note", login.Note.Value, rowActionOptions{copy: true}, w)...)
 	}
 	return container.New(layout.NewFormLayout(), obj...)
 }

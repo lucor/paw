@@ -1,5 +1,17 @@
 # Changelog - Paw
 
+## 0.18.0 - 21 September 2022
+
+- ui, storage: initial support for mobile
+- ui: systray initial implementation
+- import: add ssh key type
+
+- deps upgrade:
+    - fyne.io/fyne v2.2.3
+    - golang.design/x/clipboard v0.6.2
+    - golang.org/x/image v0.0.0-20220601225756-64ec528b34cd
+    - golang.org/x/text v0.3.7
+
 ## 0.17.1 - 02 April 2022
 
 - gui: fix incorrect value for the public key displayed into thr ssh key view 

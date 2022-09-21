@@ -58,97 +58,135 @@ func (sh *SSHKey) Edit(ctx context.Context, key *paw.Key, w fyne.Window) (fyne.C
 	publicKeyEntry.MultiLine = true
 	publicKeyEntry.Wrapping = fyne.TextWrapBreak
 	publicKeyEntry.Disable()
-	publicKeyCopyButton := widget.NewButtonWithIcon("Copy", theme.ContentCopyIcon(), func() {
-		w.Clipboard().SetContent(publicKeyEntry.Text)
-		fyne.CurrentApp().SendNotification(&fyne.Notification{
-			Title:   "paw",
-			Content: "Public Key copied to clipboard",
-		})
-	})
-	publicKeyExportButton := widget.NewButtonWithIcon("Export", icon.DownloadOutlinedIconThemed, func() {
-		d := dialog.NewFileSave(func(uc fyne.URIWriteCloser, err error) {
-			if uc == nil {
-				// file open dialog has been cancelled
-				return
-			}
-			defer uc.Close()
-			v, err := publicKeyEntryBind.Get()
-			if err != nil {
-				dialog.NewError(err, w).Show()
-				return
-			}
-			uc.Write([]byte(v))
-		}, w)
-		filename, _ := titleEntryBind.Get()
-		d.SetFileName(fmt.Sprintf("%s.pub", filename))
-		d.Show()
-	})
+
+	publicKeyActionMenu := []*fyne.MenuItem{
+		{
+			Label: "Copy",
+			Icon:  theme.ContentCopyIcon(),
+			Action: func() {
+				w.Clipboard().SetContent(publicKeyEntry.Text)
+				fyne.CurrentApp().SendNotification(&fyne.Notification{
+					Title:   "paw",
+					Content: "Public Key copied to clipboard",
+				})
+			},
+		},
+		{
+			Label: "Export",
+			Icon:  icon.DownloadOutlinedIconThemed,
+			Action: func() {
+				d := dialog.NewFileSave(func(uc fyne.URIWriteCloser, err error) {
+					if uc == nil {
+						// file open dialog has been cancelled
+						return
+					}
+					if err != nil {
+						dialog.NewError(err, w).Show()
+						return
+					}
+					defer uc.Close()
+					v, err := publicKeyEntryBind.Get()
+					if err != nil {
+						dialog.NewError(err, w).Show()
+						return
+					}
+					uc.Write([]byte(v))
+				}, w)
+				filename, _ := titleEntryBind.Get()
+				d.SetFileName(fmt.Sprintf("%s.pub", filename))
+				d.Show()
+			},
+		},
+	}
 
 	fingerprintEntryBind := binding.BindString(&sshKeyItem.Fingerprint)
 	fingerprintEntry := widget.NewLabelWithData(fingerprintEntryBind)
+	fingerprintEntry.Wrapping = fyne.TextWrapBreak
 
 	privateKeyEntryBind := binding.BindString(&sshKeyItem.PrivateKey)
 	privateKeyEntry := widget.NewEntryWithData(privateKeyEntryBind)
 	privateKeyEntry.Validator = nil
 	privateKeyEntry.MultiLine = true
+	privateKeyEntry.Wrapping = fyne.TextWrapBreak
 	privateKeyEntry.Disable()
 	privateKeyEntry.SetPlaceHolder("Private Key")
-	privateKeyCopyButton := widget.NewButtonWithIcon("Copy", theme.ContentCopyIcon(), func() {
-		w.Clipboard().SetContent(privateKeyEntry.Text)
-		fyne.CurrentApp().SendNotification(&fyne.Notification{
-			Title:   "paw",
-			Content: "Private Key copied to clipboard",
-		})
-	})
-	privateKeyMakeButton := widget.NewButtonWithIcon("Generate", icon.KeyOutlinedIconThemed, func() {
-		sk, err := sshkey.GenerateKey()
-		if err != nil {
-			dialog.NewError(err, w).Show()
-			return
-		}
-		privateKeyEntryBind.Set(string(sk.PrivateKey()))
-		publicKeyEntryBind.Set(string(sk.PublicKey()))
-		fingerprintEntryBind.Set(string(sk.Fingerprint()))
-	})
 
-	privateKeyImportButton := widget.NewButtonWithIcon("Import", icon.UploadOutlinedIconThemed, func() {
-		d := dialog.NewFileOpen(func(uc fyne.URIReadCloser, e error) {
-			b, err := io.ReadAll(uc)
-			uc.Close()
-			if err != nil {
-				dialog.NewError(err, w).Show()
-				return
-			}
-			sk, err := sshkey.ParseKey(b)
-			if err != nil {
-				dialog.NewError(err, w).Show()
-				return
-			}
-			privateKeyEntryBind.Set(string(sk.PrivateKey()))
-			publicKeyEntryBind.Set(string(sk.PublicKey()))
-			fingerprintEntryBind.Set(string(sk.Fingerprint()))
-		}, w)
-		d.Show()
-	})
-
-	privateKeyExportButton := widget.NewButtonWithIcon("Export", icon.DownloadOutlinedIconThemed, func() {
-		d := dialog.NewFileSave(func(uc fyne.URIWriteCloser, err error) {
-			if uc == nil {
-				// file open dialog has been cancelled
-				return
-			}
-			defer uc.Close()
-			v, err := privateKeyEntryBind.Get()
-			if err != nil {
-				dialog.NewError(err, w).Show()
-				return
-			}
-			uc.Write([]byte(v))
-		}, w)
-		filename, _ := titleEntryBind.Get()
-		d.SetFileName(filename)
-		d.Show()
-	})
+	privateKeyActionMenu := []*fyne.MenuItem{
+		{
+			Label: "Generate",
+			Icon:  icon.KeyOutlinedIconThemed,
+			Action: func() {
+				sk, err := sshkey.GenerateKey()
+				if err != nil {
+					dialog.NewError(err, w).Show()
+					return
+				}
+				privateKeyEntryBind.Set(string(sk.PrivateKey()))
+				publicKeyEntryBind.Set(string(sk.PublicKey()))
+				fingerprintEntryBind.Set(string(sk.Fingerprint()))
+			},
+		},
+		{
+			Label: "Copy",
+			Icon:  theme.ContentCopyIcon(),
+			Action: func() {
+				w.Clipboard().SetContent(privateKeyEntry.Text)
+				fyne.CurrentApp().SendNotification(&fyne.Notification{
+					Title:   "paw",
+					Content: "Private Key copied to clipboard",
+				})
+			},
+		},
+		{
+			Label: "Import",
+			Icon:  icon.UploadOutlinedIconThemed,
+			Action: func() {
+				d := dialog.NewFileOpen(func(uc fyne.URIReadCloser, e error) {
+					b, err := io.ReadAll(uc)
+					uc.Close()
+					if err != nil {
+						dialog.NewError(err, w).Show()
+						return
+					}
+					sk, err := sshkey.ParseKey(b)
+					if err != nil {
+						dialog.NewError(err, w).Show()
+						return
+					}
+					privateKeyEntryBind.Set(string(sk.PrivateKey()))
+					publicKeyEntryBind.Set(string(sk.PublicKey()))
+					fingerprintEntryBind.Set(string(sk.Fingerprint()))
+				}, w)
+				d.Show()
+			},
+		},
+		{
+			Label: "Export",
+			Icon:  icon.DownloadOutlinedIconThemed,
+			Action: func() {
+				d := dialog.NewFileSave(func(uc fyne.URIWriteCloser, err error) {
+					if uc == nil {
+						// file open dialog has been cancelled
+						return
+					}
+					if err != nil {
+						dialog.NewError(err, w).Show()
+						return
+					}
+					defer uc.Close()
+					v, err := privateKeyEntryBind.Get()
+					if err != nil {
+						dialog.NewError(err, w).Show()
+						return
+					}
+					uc.Write([]byte(v))
+				}, w)
+				filename, _ := titleEntryBind.Get()
+				d.SetFileName(filename)
+				d.Show()
+			},
+		},
+	}
 
 	noteEntry := widget.NewEntryWithData(binding.BindString(&sshKeyItem.Note.Value))
 	noteEntry.MultiLine = true
@@ -159,10 +197,10 @@ func (sh *SSHKey) Edit(ctx context.Context, key *paw.Key, w fyne.Window) (fyne.C
 	form.Add(titleEntry)
 
 	form.Add(labelWithStyle("Private Key"))
-	form.Add(container.NewBorder(nil, nil, nil, container.NewVBox(privateKeyCopyButton, privateKeyMakeButton, privateKeyImportButton, privateKeyExportButton), privateKeyEntry))
+	form.Add(container.NewBorder(nil, nil, nil, container.NewVBox(makeActionMenu(privateKeyActionMenu, w)), privateKeyEntry))
 
 	form.Add(labelWithStyle("Public Key"))
-	form.Add(container.NewBorder(nil, nil, nil, container.NewVBox(publicKeyCopyButton, publicKeyExportButton), publicKeyEntry))
+	form.Add(container.NewBorder(nil, nil, nil, container.NewVBox(makeActionMenu(publicKeyActionMenu, w)), publicKeyEntry))
 
 	form.Add(labelWithStyle("Fingerprint"))
 	form.Add(fingerprintEntry)
@@ -175,9 +213,11 @@ func (sh *SSHKey) Edit(ctx context.Context, key *paw.Key, w fyne.Window) (fyne.C
 
 func (sh *SSHKey) Show(ctx context.Context, w fyne.Window) fyne.CanvasObject {
 	obj := titleRow(sh.Icon(), sh.Name)
-	obj = append(obj, rowWithAction("Private Key", sh.PrivateKey, rowActions{copy: true, ellipsis: 64, export: sh.Name}, w)...)
-	obj = append(obj, rowWithAction("Public Key", sh.PublicKey, rowActions{copy: true, ellipsis: 64, export: sh.Name + ".pub"}, w)...)
-	obj = append(obj, copiableRow("Fingerprint", sh.Fingerprint, w)...)
-	obj = append(obj, copiableRow("Note", sh.Note.Value, w)...)
+	obj = append(obj, rowWithAction("Private Key", sh.PrivateKey, rowActionOptions{copy: true, ellipsis: 64, export: sh.Name}, w)...)
+	obj = append(obj, rowWithAction("Public Key", sh.PublicKey, rowActionOptions{copy: true, ellipsis: 64, export: sh.Name + ".pub"}, w)...)
+	obj = append(obj, rowWithAction("Fingerprint", sh.Fingerprint, rowActionOptions{copy: true}, w)...)
+	if sh.Note.Value != "" {
+		obj = append(obj, rowWithAction("Note", sh.Note.Value, rowActionOptions{copy: true}, w)...)
+	}
 	return container.New(layout.NewFormLayout(), obj...)
 }

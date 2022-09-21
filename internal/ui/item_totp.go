@@ -28,6 +28,10 @@ func (t *TOTP) Edit(ctx context.Context, w fyne.Window) (fyne.CanvasObject, *paw
 	totp := &paw.TOTP{}
 	*totp = *t.TOTP
 
+	if totp == nil || (*totp == paw.TOTP{}) {
+		totp = paw.NewDefaultTOTP()
+	}
+
 	secretBind := binding.BindString(&totp.Secret)
 	secretEntry := widget.NewPasswordEntry()
 	secretEntry.Bind(secretBind)
@@ -125,7 +129,7 @@ func (t *TOTP) Show(ctx context.Context, w fyne.Window) []fyne.CanvasObject {
 		}
 	}()
 
-	b := widget.NewButtonWithIcon("Copy", theme.ContentCopyIcon(), func() {
+	b := widget.NewButtonWithIcon("", theme.ContentCopyIcon(), func() {
 		v, _ := totp.Get()
 		w.Clipboard().SetContent(v)
 		fyne.CurrentApp().SendNotification(&fyne.Notification{
