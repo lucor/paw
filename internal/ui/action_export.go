@@ -20,7 +20,10 @@ import (
 
 func (a *app) exportToFile() {
 	d := dialog.NewFileSave(func(uc fyne.URIWriteCloser, e error) {
-
+		if e != nil {
+			dialog.NewError(e, a.win).Show()
+			return
+		}
 		ctx, cancel := context.WithCancel(context.Background())
 
 		var counter uint32

@@ -19,7 +19,10 @@ import (
 
 func (a *app) importFromFile() {
 	d := dialog.NewFileOpen(func(uc fyne.URIReadCloser, e error) {
-
+		if e != nil {
+			dialog.NewError(e, a.win).Show()
+			return
+		}
 		ctx, cancel := context.WithCancel(context.Background())
 
 		data := paw.Imported{}
