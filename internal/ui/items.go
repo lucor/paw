@@ -79,22 +79,8 @@ func (iw *itemsWidget) makeList(selectedItem paw.Item, opts *paw.VaultFilterOpti
 			obj.(*fyne.Container).Objects[1].(*widget.Label).SetText(metadata.String())
 		})
 
-	if selectedItem != nil {
-		for i, metadata := range itemMetadata {
-			if selectedItem.ID() == metadata.ID() {
-				iw.selectedIndex = i
-				break
-			}
-		}
-		list.Select(iw.selectedIndex)
-	} else {
-		iw.selectedIndex = -1
-		list.UnselectAll()
-	}
-
 	list.OnSelected = func(id widget.ListItemID) {
 		metadata := itemMetadata[id]
-		iw.selectedIndex = id
 		iw.OnSelected(metadata)
 	}
 
