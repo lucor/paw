@@ -7,6 +7,7 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 	"lucor.dev/paw/internal/icon"
@@ -18,7 +19,7 @@ var maxWorkers = runtime.NumCPU()
 
 type app struct {
 	win     fyne.Window
-	appTabs *container.AppTabs
+	main    *container.Scroll
 	storage paw.Storage
 
 	unlockedVault map[string]*paw.Vault // this act as cache
@@ -57,54 +58,54 @@ func MakeApp(w fyne.Window, ver string) fyne.CanvasObject {
 
 	a.win.SetMainMenu(a.makeMainMenu())
 
-	a.appTabs = a.makeAppTabs()
+	a.main = a.makeApp()
+	a.makeSysTray()
 
-	if len(a.appTabs.Items) == 0 {
-		return a.makeCreateVaultView()
-	}
-	return a.appTabs
+	return a.main
 }
 
-func (a *app) makeAppTabs() *container.AppTabs {
+func (a *app) makeSysTray() {
+	if desk, ok := fyne.CurrentApp().(desktop.App); ok {
+		a.win.SetCloseIntercept(a.win.Hide) // don't close the window if system tray used
+		menu := fyne.NewMenu("Vaults", a.makeVaultMenuItems()...)
+		desk.SetSystemTrayMenu(menu)
+	}
+}
+
+func (a *app) makeApp() *container.Scroll {
 	vaults, err := a.storage.Vaults()
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	// init the application tabs
-	at := container.NewAppTabs()
-	for _, vaultName := range vaults {
-		at.Append(container.NewTabItemWithIcon(vaultName, icon.PawIcon, a.makeUnlockVaultView(vaultName)))
+	var o fyne.CanvasObject
+
+	switch len(vaults) {
+	case 0:
+		o = a.makeCreateVaultView()
+	case 1:
+		o = a.makeUnlockVaultView(vaults[0])
+	default:
+		o = a.makeSelectVaultView(vaults)
 	}
-	at.SetTabLocation(container.TabLocationTop)
-	at.OnSelected = func(ti *container.TabItem) {
-		vaultName := ti.Text
-		var vault *paw.Vault
-		v, ok := a.unlockedVault[vaultName]
-		if ok {
-			vault = v
-		}
-		a.vault = vault
-	}
-	return at
+	return container.NewVScroll(o)
 }
 
-// addVaultView adds a vault view to app tabs and set to default
-func (a *app) addVaultView(vault *paw.Vault) {
-	a.vault = vault
-	a.unlockedVault[vault.Name] = vault
-
-	a.appTabs.Append(container.NewTabItemWithIcon(vault.Name, icon.PawIcon, a.makeCurrentVaultView()))
-	index := len(a.appTabs.Items) - 1
-
-	a.appTabs.SelectIndex(index)
+func (a *app) setVaultViewByName(name string) {
+	vault, ok := a.unlockedVault[name]
+	if !ok {
+		a.main.Content = a.makeUnlockVaultView(name)
+		a.main.Refresh()
+		return
+	}
+	a.setVaultView(vault)
 }
 
-func (a *app) setCurrentVaultView(vault *paw.Vault) {
+func (a *app) setVaultView(vault *paw.Vault) {
 	a.vault = vault
 	a.unlockedVault[vault.Name] = vault
-	a.appTabs.Selected().Content = a.makeCurrentVaultView()
-	a.appTabs.Refresh()
+	a.main.Content = a.makeCurrentVaultView()
+	a.main.Refresh()
 }
 
 func (a *app) showAuditPasswordView() {
@@ -116,7 +117,7 @@ func (a *app) showCreateVaultView() {
 }
 
 func (a *app) showCurrentVaultView() {
-	a.win.SetContent(a.appTabs)
+	a.win.SetContent(a.main)
 }
 
 func (a *app) showAddItemView() {
@@ -137,8 +138,8 @@ func (a *app) lockVault() {
 }
 
 func (a *app) refreshCurrentView() {
-	a.appTabs.Selected().Content = a.makeCurrentVaultView()
-	a.appTabs.Refresh()
+	a.main.Content = a.makeCurrentVaultView()
+	a.main.Refresh()
 }
 
 func (a *app) makeCancelHeaderButton() fyne.CanvasObject {

@@ -36,17 +36,33 @@ func (a *app) makeCreateVaultView() fyne.CanvasObject {
 			dialog.ShowError(err, a.win)
 			return
 		}
-		a.addVaultView(vault)
+		a.setVaultView(vault)
 		a.showCurrentVaultView()
+		a.win.SetMainMenu(a.makeMainMenu())
 	})
 
-	content := container.NewCenter(container.NewVBox(logo, name, password, btn))
+	return container.NewCenter(container.NewVBox(logo, name, password, btn))
+}
 
-	if len(a.appTabs.Items) > 0 {
-		return container.NewBorder(a.makeCancelHeaderButton(), nil, nil, nil, content)
+func (a *app) makeSelectVaultView(vaults []string) fyne.CanvasObject {
+	heading := headingText("Select a Vault")
+	heading.Alignment = fyne.TextAlignCenter
+
+	c := container.NewVBox(pawLogo(), heading)
+
+	for _, v := range vaults {
+		name := v
+		resource := icon.LockOpenOutlinedIconThemed
+		if _, ok := a.unlockedVault[name]; !ok {
+			resource = icon.LockOutlinedIconThemed
+		}
+		btn := widget.NewButtonWithIcon(name, resource, func() {
+			a.setVaultViewByName(name)
+		})
+		btn.Alignment = widget.ButtonAlignLeading
+		c.Add(btn)
 	}
-
-	return content
+	return container.NewCenter(c)
 }
 
 func (a *app) makeUnlockVaultView(vaultName string) fyne.CanvasObject {
@@ -69,7 +85,7 @@ func (a *app) makeUnlockVaultView(vaultName string) fyne.CanvasObject {
 			return
 		}
 
-		a.setCurrentVaultView(vault)
+		a.setVaultView(vault)
 		a.showCurrentVaultView()
 	})
 
