@@ -105,7 +105,7 @@ func (a *app) makeVaultMenuItems() []*fyne.MenuItem {
 		i := i
 		vaultName := vaultName
 		mi[i] = fyne.NewMenuItem(vaultName, func() {})
-		_, isDesktop := fyne.CurrentDevice().(desktop.App)
+		_, isDesktop := fyne.CurrentApp().(desktop.App)
 		if isDesktop && i < 9 {
 			shortcut := &desktop.CustomShortcut{KeyName: fyne.KeyName(fmt.Sprint(i + 1)), Modifier: fyne.KeyModifierControl}
 			a.win.Canvas().AddShortcut(shortcut, func(shortcut fyne.Shortcut) {
