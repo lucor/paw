@@ -129,7 +129,7 @@ func (t *TOTP) Show(ctx context.Context, w fyne.Window) []fyne.CanvasObject {
 		}
 	}()
 
-	b := widget.NewButtonWithIcon("Copy", theme.ContentCopyIcon(), func() {
+	b := widget.NewButtonWithIcon("", theme.ContentCopyIcon(), func() {
 		v, _ := totp.Get()
 		w.Clipboard().SetContent(v)
 		fyne.CurrentApp().SendNotification(&fyne.Notification{

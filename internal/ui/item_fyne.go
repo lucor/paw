@@ -67,9 +67,10 @@ func labelWithStyle(label string) *widget.Label {
 }
 
 type rowActionOptions struct {
-	copy     bool
-	ellipsis int
-	export   string
+	widgetType string
+	copy       bool
+	ellipsis   int
+	export     string
 }
 
 func makeActionMenu(menuItems []*fyne.MenuItem, w fyne.Window) fyne.CanvasObject {
@@ -113,19 +114,41 @@ func rowWithAction(label string, text string, opts rowActionOptions, w fyne.Wind
 		actionMenu = append(actionMenu, action)
 	}
 
-	l := labelWithStyle(label)
-	t := makeLabelWithEllipis(text, opts.ellipsis)
-	return []fyne.CanvasObject{l, container.NewBorder(nil, nil, nil, container.NewVBox(makeActionMenu(actionMenu, w)), t)}
-}
-
-func makeLabelWithEllipis(text string, ellipsis int) *widget.Label {
-	labelText := text
-	if ellipsis > 0 {
-		labelText = text[0:ellipsis] + "..."
+	var v fyne.CanvasObject
+	switch opts.widgetType {
+	case "password":
+		t := widget.NewPasswordEntry()
+		t.SetText(text)
+		t.Disable()
+		t.Validator = nil
+		v = t
+	case "url":
+		u, err := url.Parse(text)
+		if err == nil && strings.HasPrefix(u.Scheme, "http") {
+			v = widget.NewHyperlink(text, u)
+			break
+		}
+		v = &widget.Label{
+			Text:      text,
+			Alignment: fyne.TextAlignLeading,
+			Wrapping:  fyne.TextWrapBreak,
+		}
+	default:
+		t := text
+		if opts.ellipsis > 0 {
+			t = text[0:opts.ellipsis] + "..."
+		}
+		v = &widget.Label{
+			Text:      t,
+			Alignment: fyne.TextAlignLeading,
+			Wrapping:  fyne.TextWrapBreak,
+		}
 	}
-	l := widget.NewLabel(labelText)
-	l.Wrapping = fyne.TextWrapBreak
-	return l
+
+	return []fyne.CanvasObject{
+		labelWithStyle(label),
+		container.NewBorder(nil, nil, nil, container.NewVBox(makeActionMenu(actionMenu, w)), v),
+	}
 }
 
 func exportAction(filename string, data []byte, w fyne.Window) func() {
@@ -151,49 +174,4 @@ func copyAction(label string, text string, w fyne.Window) func() {
 			Content: fmt.Sprintf("%s copied", label),
 		})
 	}
-}
-
-func copiableRow(label string, text string, w fyne.Window) []fyne.CanvasObject {
-	t := widget.NewLabel(text)
-	t.Wrapping = fyne.TextWrapBreak
-	b := widget.NewButtonWithIcon("Copy", theme.ContentCopyIcon(), copyAction(label, text, w))
-
-	l := labelWithStyle(label)
-	return []fyne.CanvasObject{l, container.NewBorder(nil, nil, nil, container.NewVBox(b), t)}
-}
-
-func copiableLinkRow(label string, text string, w fyne.Window) []fyne.CanvasObject {
-	var t fyne.CanvasObject
-	t = widget.NewLabel(text)
-	u, err := url.Parse(text)
-	if err == nil && strings.HasPrefix(u.Scheme, "http") {
-		t = widget.NewHyperlink(text, u)
-	}
-
-	b := widget.NewButtonWithIcon("Copy", theme.ContentCopyIcon(), func() {
-		w.Clipboard().SetContent(text)
-		fyne.CurrentApp().SendNotification(&fyne.Notification{
-			Title:   "paw",
-			Content: fmt.Sprintf("%s copied", label),
-		})
-	})
-
-	l := labelWithStyle(label)
-	return []fyne.CanvasObject{l, container.NewBorder(nil, nil, nil, b, t)}
-}
-
-func copiablePasswordRow(label string, password string, w fyne.Window) []fyne.CanvasObject {
-	passwordEntry := widget.NewPasswordEntry()
-	passwordEntry.SetText(password)
-	passwordEntry.Disable()
-	passwordEntry.Validator = nil
-	passwordCopyButton := widget.NewButtonWithIcon("Copy", theme.ContentCopyIcon(), func() {
-		w.Clipboard().SetContent(password)
-		fyne.CurrentApp().SendNotification(&fyne.Notification{
-			Title:   "paw",
-			Content: fmt.Sprintf("%s copied", label),
-		})
-	})
-	l := labelWithStyle(label)
-	return []fyne.CanvasObject{l, container.NewBorder(nil, nil, nil, passwordCopyButton, passwordEntry)}
 }
