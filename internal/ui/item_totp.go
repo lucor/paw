@@ -28,6 +28,10 @@ func (t *TOTP) Edit(ctx context.Context, w fyne.Window) (fyne.CanvasObject, *paw
 	totp := &paw.TOTP{}
 	*totp = *t.TOTP
 
+	if totp == nil || (*totp == paw.TOTP{}) {
+		totp = paw.NewDefaultTOTP()
+	}
+
 	secretBind := binding.BindString(&totp.Secret)
 	secretEntry := widget.NewPasswordEntry()
 	secretEntry.Bind(secretBind)
