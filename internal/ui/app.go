@@ -7,6 +7,7 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
@@ -19,6 +20,7 @@ var maxWorkers = runtime.NumCPU()
 
 type app struct {
 	win     fyne.Window
+	config  *paw.Config
 	main    *container.Scroll
 	storage paw.Storage
 
@@ -48,9 +50,15 @@ func MakeApp(w fyne.Window, ver string) fyne.CanvasObject {
 		ver = "(unknown)"
 	}
 
+	config, err := s.LoadConfig()
+	if err != nil {
+		dialog.NewError(err, w)
+	}
+
 	a := &app{
 		win:           w,
 		storage:       s,
+		config:        config,
 		unlockedVault: make(map[string]*paw.Vault),
 		version:       ver,
 		filter:        make(map[string]*paw.VaultFilterOptions),
@@ -141,6 +149,10 @@ func (a *app) showItemView(fyneItem FyneItem) {
 
 func (a *app) showEditItemView(fyneItem FyneItem) {
 	a.win.SetContent(a.makeEditItemView(fyneItem))
+}
+
+func (a *app) showPreferencesView() {
+	a.win.SetContent(a.makePreferencesView())
 }
 
 func (a *app) lockVault() {

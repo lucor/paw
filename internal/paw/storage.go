@@ -9,15 +9,22 @@ import (
 
 const (
 	storageRootName = "storage"
+	configFileName  = "config.json"
 	keyFileName     = "key.age"
 	vaultFileName   = "vault.age"
 )
 
 type Storage interface {
 	Root() string
+	ConfigStorage
 	VaultStorage
 	ItemStorage
 }
+type ConfigStorage interface {
+	LoadConfig() (*Config, error)
+	StoreConfig(s *Config) error
+}
+
 type VaultStorage interface {
 	// CreateVault encrypts and stores an empty vault into the underlying storage.
 	CreateVault(name string, key *Key) (*Vault, error)
@@ -49,16 +56,24 @@ func storageRootPath(s Storage) string {
 	return filepath.Join(s.Root(), storageRootName)
 }
 
-func vaultRootPath(s Storage, name string) string {
-	return filepath.Join(storageRootPath(s), name)
+func configPath(s Storage) string {
+	return filepath.Join(storageRootPath(s), configFileName)
 }
 
-func keyPath(s Storage, name string) string {
-	return filepath.Join(vaultRootPath(s, name), keyFileName)
+func vaultRootPath(s Storage, vaultName string) string {
+	return filepath.Join(storageRootPath(s), vaultName)
 }
 
-func vaultPath(s Storage, name string) string {
-	return filepath.Join(vaultRootPath(s, name), vaultFileName)
+func vaultConfigPath(s Storage, vaultName string) string {
+	return filepath.Join(vaultRootPath(s, vaultName), configFileName)
+}
+
+func keyPath(s Storage, vaultName string) string {
+	return filepath.Join(vaultRootPath(s, vaultName), keyFileName)
+}
+
+func vaultPath(s Storage, vaultName string) string {
+	return filepath.Join(vaultRootPath(s, vaultName), vaultFileName)
 }
 
 func itemPath(s Storage, vaultName string, itemID string) string {

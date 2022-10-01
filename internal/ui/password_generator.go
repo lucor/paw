@@ -48,26 +48,26 @@ type pwgenDialog struct {
 	options pwgenOptions
 }
 
-func NewPasswordGenerator(key *paw.Key) *pwgenDialog {
+func NewPasswordGenerator(key *paw.Key, ps paw.PasswordConfig) *pwgenDialog {
 	pd := &pwgenDialog{
 		key: key,
 		options: pwgenOptions{
 			RandomPasswordOptions: RandomPasswordOptions{
-				DefaultFormat: RandomPasswordDefaultFormat(),
+				DefaultFormat: ps.Random.DefaultFormat,
 				DefaultMode:   paw.CustomPassword,
-				DefaultLength: RandomPasswordDefaultLength(),
-				MinLength:     RandomPasswordMinLength(),
-				MaxLength:     RandomPasswordMaxLength(),
+				DefaultLength: ps.Random.DefaultLength,
+				MinLength:     ps.Random.MinLength,
+				MaxLength:     ps.Random.MaxLength,
 			},
 			PinPasswordOptions: PinPasswordOptions{
-				DefaultLength: PinPasswordDefaultLength(),
-				MinLength:     PinPasswordMinLength(),
-				MaxLength:     PinPasswordMaxLength(),
+				DefaultLength: ps.Pin.DefaultLength,
+				MinLength:     ps.Pin.MinLength,
+				MaxLength:     ps.Pin.MaxLength,
 			},
 			PassphrasePasswordOptions: PassphrasePasswordOptions{
-				DefaultLength: PassphrasePasswordDefaultLength(),
-				MinLength:     PassphrasePasswordMinLength(),
-				MaxLength:     PassphrasePasswordMaxLength(),
+				DefaultLength: ps.Passphrase.DefaultLength,
+				MinLength:     ps.Passphrase.MinLength,
+				MaxLength:     ps.Passphrase.MaxLength,
 			},
 		},
 	}

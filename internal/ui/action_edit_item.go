@@ -66,7 +66,7 @@ func (a *app) makeEditItemView(fyneItem FyneItem) fyne.CanvasObject {
 		}
 
 		item = editItem
-		fyneItem := NewFyneItem(item)
+		fyneItem := NewFyneItem(item, a.config)
 		a.refreshCurrentView()
 		a.showItemView(fyneItem)
 	})

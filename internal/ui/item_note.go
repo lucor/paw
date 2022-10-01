@@ -44,9 +44,7 @@ func (n *Note) Edit(ctx context.Context, key *paw.Key, w fyne.Window) (fyne.Canv
 	titleEntry.Validator = nil
 	titleEntry.PlaceHolder = "Untitled note"
 
-	noteEntry := widget.NewEntryWithData(binding.BindString(&item.Value))
-	noteEntry.MultiLine = true
-	noteEntry.Validator = nil
+	noteEntry := newNoteEntryWithData(binding.BindString(&item.Value))
 
 	form := container.New(layout.NewFormLayout())
 	form.Add(widget.NewIcon(n.Icon()))
@@ -64,4 +62,29 @@ func (n *Note) Show(ctx context.Context, w fyne.Window) fyne.CanvasObject {
 	obj := titleRow(n.Icon(), n.Name)
 	obj = append(obj, rowWithAction("Note", n.Value, rowActionOptions{copy: true}, w)...)
 	return container.New(layout.NewFormLayout(), obj...)
+}
+
+// noteEntry is a multiline entry widget that does not accept tab
+// This will allow to change the widget focus when tab is pressed
+type noteEntry struct {
+	widget.Entry
+}
+
+func newNoteEntryWithData(bind binding.String) *noteEntry {
+	ne := &noteEntry{
+		Entry: widget.Entry{
+			MultiLine: true,
+			Wrapping:  fyne.TextTruncate,
+		},
+	}
+	ne.ExtendBaseWidget(ne)
+	ne.Bind(bind)
+	return ne
+}
+
+// AcceptsTab returns if Entry accepts the Tab key or not.
+//
+// Implements: fyne.Tabbable
+func (ne *noteEntry) AcceptsTab() bool {
+	return false
 }

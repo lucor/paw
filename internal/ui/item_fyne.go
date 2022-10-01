@@ -35,15 +35,15 @@ type FynePasswordGenerator interface {
 	ShowPasswordGenerator(bind binding.String, password *paw.Password, w fyne.Window)
 }
 
-func NewFyneItem(item paw.Item) FyneItem {
+func NewFyneItem(item paw.Item, config *paw.Config) FyneItem {
 	var fyneItem FyneItem
 	switch item.GetMetadata().Type {
 	case paw.NoteItemType:
 		fyneItem = &Note{Note: item.(*paw.Note)}
 	case paw.LoginItemType:
-		fyneItem = &Login{Login: item.(*paw.Login)}
+		fyneItem = &Login{Login: item.(*paw.Login), Config: config}
 	case paw.PasswordItemType:
-		fyneItem = &Password{Password: item.(*paw.Password)}
+		fyneItem = &Password{Password: item.(*paw.Password), Config: config}
 	case paw.SSHKeyItemType:
 		fyneItem = &SSHKey{SSHKey: item.(*paw.SSHKey)}
 	}
