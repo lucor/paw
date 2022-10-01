@@ -64,10 +64,6 @@ func vaultRootPath(s Storage, vaultName string) string {
 	return filepath.Join(storageRootPath(s), vaultName)
 }
 
-func vaultConfigPath(s Storage, vaultName string) string {
-	return filepath.Join(vaultRootPath(s, vaultName), configFileName)
-}
-
 func keyPath(s Storage, vaultName string) string {
 	return filepath.Join(vaultRootPath(s, vaultName), keyFileName)
 }
