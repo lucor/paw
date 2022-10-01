@@ -1,6 +1,7 @@
 package paw
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -204,6 +205,36 @@ func (s *FyneStorage) Vaults() ([]string, error) {
 	}
 
 	return vaults, nil
+}
+
+// LoadConfig load the configuration from the underlying storage
+func (s *FyneStorage) LoadConfig() (*Config, error) {
+	configFile := configPath(s)
+	if !s.isExist(configFile) {
+		return newDefaultConfig(), nil
+	}
+	r, err := storage.Reader(storage.NewFileURI(configFile))
+	if err != nil {
+		return newDefaultConfig(), fmt.Errorf("could not read URI: %w", err)
+	}
+	defer r.Close()
+	config := &Config{}
+	err = json.NewDecoder(r).Decode(config)
+	if err != nil {
+		return newDefaultConfig(), err
+	}
+	return config, nil
+}
+
+// StoreConfig store the configuration into the underlying storage
+func (s *FyneStorage) StoreConfig(config *Config) error {
+	configFile := configPath(s)
+	w, err := s.createFile(configFile)
+	if err != nil {
+		return err
+	}
+	defer w.Close()
+	return json.NewEncoder(w).Encode(config)
 }
 
 func (s *FyneStorage) isExist(path string) bool {

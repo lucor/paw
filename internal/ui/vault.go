@@ -124,7 +124,7 @@ func (a *app) makeCurrentVaultView() fyne.CanvasObject {
 			return
 		}
 
-		fyneItem := NewFyneItem(item)
+		fyneItem := NewFyneItem(item, a.config)
 		a.showItemView(fyneItem)
 		itemsWidget.listEntry.UnselectAll()
 	}

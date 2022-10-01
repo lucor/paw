@@ -125,7 +125,7 @@ func (a *app) makeAuditPasswordView() fyne.CanvasObject {
 					v := pwendItems[lii]
 					item := v.Item
 					metadata := item.GetMetadata()
-					fyneItem := NewFyneItem(v.Item)
+					fyneItem := NewFyneItem(v.Item, a.config)
 					co.(*fyne.Container).Objects[0].(*widget.Label).SetText(fmt.Sprintf("%s (found %d times)", metadata.Name, v.Count))
 					co.(*fyne.Container).Objects[1].(*widget.Icon).SetResource(fyneItem.Icon())
 					co.(*fyne.Container).Objects[2].(*widget.Button).OnTapped = func() {
@@ -134,7 +134,7 @@ func (a *app) makeAuditPasswordView() fyne.CanvasObject {
 				},
 			)
 			list.OnSelected = func(id widget.ListItemID) {
-				fyneItem := NewFyneItem(pwendItems[id].Item)
+				fyneItem := NewFyneItem(pwendItems[id].Item, a.config)
 				a.showItemView(fyneItem)
 			}
 

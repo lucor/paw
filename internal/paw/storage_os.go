@@ -1,6 +1,7 @@
 package paw
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -223,6 +224,36 @@ func (s *OSStorage) Vaults() ([]string, error) {
 	}
 
 	return vaults, nil
+}
+
+// LoadConfig load the configuration from the underlying storage
+func (s *OSStorage) LoadConfig() (*Config, error) {
+	configFile := configPath(s)
+	r, err := os.Open(configFile)
+	if os.IsNotExist(err) {
+		return newDefaultConfig(), nil
+	}
+	if err != nil {
+		return newDefaultConfig(), fmt.Errorf("could not read URI: %w", err)
+	}
+	defer r.Close()
+	config := &Config{}
+	err = json.NewDecoder(r).Decode(config)
+	if err != nil {
+		return newDefaultConfig(), err
+	}
+	return config, nil
+}
+
+// StoreConfig store the configuration into the underlying storage
+func (s *OSStorage) StoreConfig(config *Config) error {
+	configFile := configPath(s)
+	w, err := s.createFile(configFile)
+	if err != nil {
+		return err
+	}
+	defer w.Close()
+	return json.NewEncoder(w).Encode(config)
 }
 
 func (s *OSStorage) isExist(path string) bool {

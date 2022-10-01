@@ -22,6 +22,7 @@ var _ FyneItem = (*Password)(nil)
 
 type Password struct {
 	*paw.Password
+	Config *paw.Config
 }
 
 func (p *Password) Item() paw.Item {
@@ -43,6 +44,8 @@ func (p *Password) Edit(ctx context.Context, key *paw.Key, w fyne.Window) (fyne.
 	passwordItem.Note = &paw.Note{}
 	*passwordItem.Note = *p.Note
 
+	config := p.Config
+
 	passwordBind := binding.BindString(&passwordItem.Value)
 	titleEntry := widget.NewEntryWithData(binding.BindString(&passwordItem.Name))
 	titleEntry.Validator = nil
@@ -62,7 +65,7 @@ func (p *Password) Edit(ctx context.Context, key *paw.Key, w fyne.Window) (fyne.
 			Label: "Generate",
 			Icon:  icon.KeyOutlinedIconThemed,
 			Action: func() {
-				pg := NewPasswordGenerator(key)
+				pg := NewPasswordGenerator(key, config.Password)
 				pg.ShowPasswordGenerator(passwordBind, passwordItem, w)
 			},
 		},

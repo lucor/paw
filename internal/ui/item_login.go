@@ -27,6 +27,7 @@ var _ FyneItem = (*Login)(nil)
 
 type Login struct {
 	*paw.Login
+	Config *paw.Config
 }
 
 func (login *Login) Item() paw.Item {
@@ -54,6 +55,7 @@ func (login *Login) Edit(ctx context.Context, key *paw.Key, w fyne.Window) (fyne
 	*loginItem.Password = *login.Password
 	loginItem.TOTP = &paw.TOTP{}
 	*loginItem.TOTP = *login.TOTP
+	config := login.Config
 
 	passwordBind := binding.BindString(&loginItem.Password.Value)
 
@@ -94,7 +96,7 @@ func (login *Login) Edit(ctx context.Context, key *paw.Key, w fyne.Window) (fyne
 			Label: "Generate",
 			Icon:  icon.KeyOutlinedIconThemed,
 			Action: func() {
-				pg := NewPasswordGenerator(key)
+				pg := NewPasswordGenerator(key, config.Password)
 				pg.ShowPasswordGenerator(passwordBind, loginItem.Password, w)
 			},
 		},
