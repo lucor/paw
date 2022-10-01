@@ -81,9 +81,7 @@ func (login *Login) Edit(ctx context.Context, key *paw.Key, w fyne.Window) (fyne
 	loginItem.TOTP = totpItem
 
 	// the note field
-	noteEntry := widget.NewEntryWithData(binding.BindString(&loginItem.Note.Value))
-	noteEntry.MultiLine = true
-	noteEntry.Validator = nil
+	noteEntry := newNoteEntryWithData(binding.BindString(&loginItem.Note.Value))
 
 	// center
 	passwordEntry := widget.NewPasswordEntry()

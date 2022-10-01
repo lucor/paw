@@ -49,9 +49,7 @@ func (p *Password) Edit(ctx context.Context, key *paw.Key, w fyne.Window) (fyne.
 	titleEntry.PlaceHolder = "Untitled password"
 
 	// the note field
-	noteEntry := widget.NewEntryWithData(binding.BindString(&passwordItem.Note.Value))
-	noteEntry.MultiLine = true
-	noteEntry.Validator = nil
+	noteEntry := newNoteEntryWithData(binding.BindString(&passwordItem.Note.Value))
 
 	// center
 	passwordEntry := widget.NewPasswordEntry()

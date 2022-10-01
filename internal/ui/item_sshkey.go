@@ -188,9 +188,7 @@ func (sh *SSHKey) Edit(ctx context.Context, key *paw.Key, w fyne.Window) (fyne.C
 		},
 	}
 
-	noteEntry := widget.NewEntryWithData(binding.BindString(&sshKeyItem.Note.Value))
-	noteEntry.MultiLine = true
-	noteEntry.Validator = nil
+	noteEntry := newNoteEntryWithData(binding.BindString(&sshKeyItem.Note.Value))
 
 	form := container.New(layout.NewFormLayout())
 	form.Add(widget.NewIcon(sh.Icon()))
