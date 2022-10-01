@@ -1,5 +1,15 @@
 # Changelog - Paw
 
+## 0.19.0 - 01 October 2022
+
+- ui: quit from main menu does not quit the app
+- ui: add preferences view #9
+- ui: allow note entry to receive focus when tab is pressed
+- ui: allow item list to receive focus when tab is pressed (via fyne upgrade)
+
+- deps upgrade:
+    - fyne.io/fyne v2.2.4-0.20221001083711-23d1052ad20e
+
 ## 0.18.0 - 21 September 2022
 
 - ui, storage: initial support for mobile
