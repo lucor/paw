@@ -23,6 +23,9 @@ func (a *app) makeMainMenu() *fyne.MainMenu {
 			a.showCreateVaultView()
 		}),
 		vaultItem,
+		fyne.NewMenuItem("Preferences", func() {
+			a.showPreferencesView()
+		}),
 	)
 
 	helpMenu := fyne.NewMenu("Help",
@@ -56,27 +59,18 @@ func (a *app) about() {
 func (a *app) makeVaultMenu() fyne.CanvasObject {
 	d := fyne.CurrentApp().Driver()
 
-	lockVault := fyne.NewMenuItem("Lock Vault", func() {
-		a.main.Content = a.makeUnlockVaultView(a.vault.Name)
-		a.lockVault()
-		a.main.Refresh()
-	})
-
-	passwordAudit := fyne.NewMenuItem("Password Audit", func() {
-		a.showAuditPasswordView()
-	})
-
-	importFromFile := fyne.NewMenuItem("Import From File", a.importFromFile)
-
-	exportToFile := fyne.NewMenuItem("Export To File", a.exportToFile)
-
 	menuItems := []*fyne.MenuItem{
-		passwordAudit,
-		importFromFile,
-		exportToFile,
+		fyne.NewMenuItem("Password Audit", a.showAuditPasswordView),
+		fyne.NewMenuItem("Import From File", a.importFromFile),
+		fyne.NewMenuItem("Export To File", a.exportToFile),
 		fyne.NewMenuItemSeparator(),
-		lockVault,
+		fyne.NewMenuItem("Lock Vault", func() {
+			a.main.Content = a.makeUnlockVaultView(a.vault.Name)
+			a.lockVault()
+			a.main.Refresh()
+		}),
 	}
+
 	popUpMenu := widget.NewPopUpMenu(fyne.NewMenu("", menuItems...), a.win.Canvas())
 
 	var button *widget.Button

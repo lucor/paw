@@ -151,6 +151,10 @@ func (a *app) showEditItemView(fyneItem FyneItem) {
 	a.win.SetContent(a.makeEditItemView(fyneItem))
 }
 
+func (a *app) showPreferencesView() {
+	a.win.SetContent(a.makePreferencesView())
+}
+
 func (a *app) lockVault() {
 	delete(a.unlockedVault, a.vault.Name)
 	a.vault = nil
