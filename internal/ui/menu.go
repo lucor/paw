@@ -23,8 +23,17 @@ func (a *app) makeMainMenu() *fyne.MainMenu {
 			a.showCreateVaultView()
 		}),
 		vaultItem,
+		fyne.NewMenuItemSeparator(),
 		fyne.NewMenuItem("Preferences", func() {
 			a.showPreferencesView()
+		}),
+		fyne.NewMenuItemSeparator(),
+		fyne.NewMenuItem("Close Window", func() {
+			a.win.Hide()
+		}),
+		fyne.NewMenuItem("Quit", func() {
+			a.win.SetCloseIntercept(nil)
+			a.win.Close()
 		}),
 	)
 
