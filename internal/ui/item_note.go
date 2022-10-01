@@ -79,6 +79,7 @@ func newNoteEntryWithData(bind binding.String) *noteEntry {
 	}
 	ne.ExtendBaseWidget(ne)
 	ne.Bind(bind)
+	ne.Validator = nil
 	return ne
 }
 

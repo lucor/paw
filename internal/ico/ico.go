@@ -15,7 +15,6 @@ import (
 	"image"
 	"image/png"
 	"io"
-	"io/ioutil"
 
 	"golang.org/x/image/bmp"
 )
@@ -61,7 +60,7 @@ func Decode(r io.Reader) (image.Image, error) {
 
 	// discard data until the ImageOffset is reached
 	discardBytes := entry.ImageOffset - iconHeaderSize - iconEntrieSize*uint32(iconHeader.Count)
-	if _, err := io.CopyN(ioutil.Discard, r, int64(discardBytes)); err != nil {
+	if _, err := io.CopyN(io.Discard, r, int64(discardBytes)); err != nil {
 		return nil, fmt.Errorf("could not discard file data: %s", err)
 	}
 

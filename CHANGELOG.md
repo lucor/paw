@@ -1,5 +1,10 @@
 # Changelog - Paw
 
+## 0.19.1 - 01 October 2022
+
+- ui: update preferences view to be scrollable
+- ui: disable validation for the note entry
+
 ## 0.19.0 - 01 October 2022
 
 - ui: quit from main menu does not quit the app

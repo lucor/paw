@@ -14,9 +14,11 @@ import (
 )
 
 func (a *app) makePreferencesView() fyne.CanvasObject {
-	content := container.NewVBox(
-		a.makePasswordPreferencesCard(),
-		a.makeTOTPPreferencesCard(),
+	content := container.NewVScroll(
+		container.NewVBox(
+			a.makePasswordPreferencesCard(),
+			a.makeTOTPPreferencesCard(),
+		),
 	)
 
 	return container.NewBorder(a.makeCancelHeaderButton(), nil, nil, nil, content)
@@ -81,7 +83,11 @@ func (a *app) makeTOTPPreferencesCard() fyne.CanvasObject {
 	form.Add(labelWithStyle("Interval"))
 	form.Add(container.NewBorder(nil, nil, nil, intervalEntry, intervalSlider))
 
-	return container.NewBorder(widget.NewLabel("TOTP settings"), nil, nil, nil, form)
+	return widget.NewCard(
+		"TOTP",
+		"",
+		form,
+	)
 }
 
 func (a *app) makePreferenceLenghtWidget(lenght *int, min, max int) fyne.CanvasObject {
