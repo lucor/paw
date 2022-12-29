@@ -1,5 +1,11 @@
 # Changelog - Paw
 
+## Unreleased
+
+- deps upgrade:
+    - filippo.io/age v1.1.1
+    - fyne.io/fyne v2.3.0
+
 ## 0.19.1 - 01 October 2022
 
 - ui: update preferences view to be scrollable
