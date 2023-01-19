@@ -145,9 +145,20 @@ func rowWithAction(label string, text string, opts rowActionOptions, w fyne.Wind
 		}
 	}
 
+	var o fyne.CanvasObject
+	switch len(actionMenu) {
+	case 0:
+		o = widget.NewLabel("")
+	case 1:
+		e := actionMenu[0]
+		o = widget.NewButtonWithIcon("", e.Icon, e.Action)
+	default:
+		o = makeActionMenu(actionMenu, w)
+	}
+
 	return []fyne.CanvasObject{
 		labelWithStyle(label),
-		container.NewBorder(nil, nil, nil, container.NewVBox(makeActionMenu(actionMenu, w)), v),
+		container.NewBorder(nil, nil, nil, container.NewVBox(o), v),
 	}
 }
 

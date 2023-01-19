@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- ui: update edit view to display a single action instead of the menu 
 - deps upgrade:
     - filippo.io/age v1.1.1
     - fyne.io/fyne v2.3.0
