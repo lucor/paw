@@ -121,8 +121,8 @@ func (sh *SSHKey) Edit(ctx context.Context, key *paw.Key, w fyne.Window) (fyne.C
 					dialog.NewError(err, w).Show()
 					return
 				}
-				privateKeyEntryBind.Set(string(sk.PrivateKey()))
-				publicKeyEntryBind.Set(string(sk.PublicKey()))
+				privateKeyEntryBind.Set(string(sk.MarshalPrivateKey()))
+				publicKeyEntryBind.Set(string(sk.MarshalPublicKey()))
 				fingerprintEntryBind.Set(string(sk.Fingerprint()))
 			},
 		},
@@ -153,8 +153,8 @@ func (sh *SSHKey) Edit(ctx context.Context, key *paw.Key, w fyne.Window) (fyne.C
 						dialog.NewError(err, w).Show()
 						return
 					}
-					privateKeyEntryBind.Set(string(sk.PrivateKey()))
-					publicKeyEntryBind.Set(string(sk.PublicKey()))
+					privateKeyEntryBind.Set(string(sk.MarshalPrivateKey()))
+					publicKeyEntryBind.Set(string(sk.MarshalPublicKey()))
 					fingerprintEntryBind.Set(string(sk.Fingerprint()))
 				}, w)
 				d.Show()
@@ -188,6 +188,14 @@ func (sh *SSHKey) Edit(ctx context.Context, key *paw.Key, w fyne.Window) (fyne.C
 		},
 	}
 
+	commentEntryBind := binding.BindString(&sshKeyItem.Comment)
+	commentEntry := widget.NewEntryWithData(commentEntryBind)
+	commentEntry.Validator = nil
+	commentEntry.PlaceHolder = "Public Key Comment"
+
+	addToAgentCheckBind := binding.BindBool(&sshKeyItem.AddToAgent)
+	addToAgentCheck := widget.NewCheckWithData("", addToAgentCheckBind)
+
 	noteEntry := newNoteEntryWithData(binding.BindString(&sshKeyItem.Note.Value))
 
 	form := container.New(layout.NewFormLayout())
@@ -200,8 +208,14 @@ func (sh *SSHKey) Edit(ctx context.Context, key *paw.Key, w fyne.Window) (fyne.C
 	form.Add(labelWithStyle("Public Key"))
 	form.Add(container.NewBorder(nil, nil, nil, container.NewVBox(makeActionMenu(publicKeyActionMenu, w)), publicKeyEntry))
 
+	form.Add(labelWithStyle("Comment"))
+	form.Add(commentEntry)
+
 	form.Add(labelWithStyle("Fingerprint"))
 	form.Add(fingerprintEntry)
+
+	form.Add(labelWithStyle("Add to SSH Agent"))
+	form.Add(addToAgentCheck)
 
 	form.Add(labelWithStyle("Note"))
 	form.Add(noteEntry)
@@ -213,9 +227,15 @@ func (sh *SSHKey) Show(ctx context.Context, w fyne.Window) fyne.CanvasObject {
 	obj := titleRow(sh.Icon(), sh.Name)
 	obj = append(obj, rowWithAction("Private Key", sh.PrivateKey, rowActionOptions{copy: true, ellipsis: 64, export: sh.Name}, w)...)
 	obj = append(obj, rowWithAction("Public Key", sh.PublicKey, rowActionOptions{copy: true, ellipsis: 64, export: sh.Name + ".pub"}, w)...)
+	obj = append(obj, rowWithAction("Comment", sh.Comment, rowActionOptions{copy: true}, w)...)
 	obj = append(obj, rowWithAction("Fingerprint", sh.Fingerprint, rowActionOptions{copy: true}, w)...)
 	if sh.Note.Value != "" {
 		obj = append(obj, rowWithAction("Note", sh.Note.Value, rowActionOptions{copy: true}, w)...)
 	}
+	v := "No"
+	if sh.AddToAgent {
+		v = "Yes"
+	}
+	obj = append(obj, rowWithAction("Add to SSH Agent", v, rowActionOptions{}, w)...)
 	return container.New(layout.NewFormLayout(), obj...)
 }

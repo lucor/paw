@@ -28,11 +28,24 @@ func ParseKey(b []byte) (sshkey, error) {
 	if err != nil {
 		return sshkey{}, err
 	}
-	switch v := k.(type) {
+	return newSSHKeyFromPrivateKey(k)
+}
+
+// ParseKey parses a raw RSA or Ed22519 ssh key encrypted with a passphrase
+func ParseKeyWithPassphrase(b, passphrase []byte) (sshkey, error) {
+	k, err := ssh.ParseRawPrivateKeyWithPassphrase(b, passphrase)
+	if err != nil {
+		return sshkey{}, err
+	}
+	return newSSHKeyFromPrivateKey(k)
+}
+
+func newSSHKeyFromPrivateKey(key interface{}) (sshkey, error) {
+	switch v := key.(type) {
 	case *ed25519.PrivateKey:
-		return sshkey{privateKey: v, publicKey: v.Public()}, err
+		return sshkey{privateKey: v, publicKey: v.Public()}, nil
 	case *rsa.PrivateKey:
-		return sshkey{privateKey: v, publicKey: v.Public()}, err
+		return sshkey{privateKey: v, publicKey: v.Public()}, nil
 	default:
 		return sshkey{}, fmt.Errorf("unsupported type %T", v)
 	}
@@ -43,7 +56,11 @@ type sshkey struct {
 	publicKey  crypto.PublicKey
 }
 
-func (sk sshkey) PrivateKey() []byte {
+func (sk sshkey) PrivateKey() crypto.PrivateKey {
+	return sk.privateKey
+}
+
+func (sk sshkey) MarshalPrivateKey() []byte {
 	var pemBlock *pem.Block
 	switch v := sk.privateKey.(type) {
 	case *ed25519.PrivateKey:
@@ -62,7 +79,7 @@ func (sk sshkey) PrivateKey() []byte {
 	return pem.EncodeToMemory(pemBlock)
 }
 
-func (sk sshkey) sshPublicKey() ssh.PublicKey {
+func (sk sshkey) PublicKey() ssh.PublicKey {
 	sshPublicKey, err := ssh.NewPublicKey(sk.publicKey)
 	if err != nil {
 		panic("could not generate ssh public key from the crypto public key")
@@ -70,10 +87,10 @@ func (sk sshkey) sshPublicKey() ssh.PublicKey {
 	return sshPublicKey
 }
 
-func (sk sshkey) PublicKey() []byte {
-	return ssh.MarshalAuthorizedKey(sk.sshPublicKey())
+func (sk sshkey) MarshalPublicKey() []byte {
+	return ssh.MarshalAuthorizedKey(sk.PublicKey())
 }
 
 func (sk sshkey) Fingerprint() string {
-	return ssh.FingerprintSHA256(sk.sshPublicKey())
+	return ssh.FingerprintSHA256(sk.PublicKey())
 }

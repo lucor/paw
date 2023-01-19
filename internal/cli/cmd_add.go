@@ -197,8 +197,8 @@ func (cmd *AddCmd) addSSHKeyItem(item paw.Item) error {
 		return err
 	}
 
-	v.PrivateKey = string(k.PrivateKey())
-	v.PublicKey = string(k.PublicKey())
+	v.PrivateKey = string(k.MarshalPrivateKey())
+	v.PublicKey = string(k.MarshalPublicKey())
 	v.Fingerprint = k.Fingerprint()
 
 	note, err := ask("Note")

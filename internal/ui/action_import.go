@@ -52,6 +52,7 @@ func (a *app) importFromFile() {
 			for _, item := range items {
 				a.storage.DeleteItem(a.vault, item)
 				a.vault.DeleteItem(item)
+				a.removeSSHKeyFromAgent(item)
 			}
 		}
 
@@ -107,6 +108,7 @@ func (a *app) importFromFile() {
 
 			for _, item := range processed {
 				a.vault.AddItem(item)
+				a.addSSHKeyToAgent(item)
 			}
 			err = a.storage.StoreVault(a.vault)
 			if err != nil {

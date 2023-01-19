@@ -87,6 +87,7 @@ func (a *app) makeUnlockVaultView(vaultName string) fyne.CanvasObject {
 		}
 
 		a.setVaultView(vault)
+		a.addSSHKeysToAgent(vault)
 		a.showCurrentVaultView()
 	})
 
@@ -114,6 +115,7 @@ func (a *app) makeCurrentVaultView() fyne.CanvasObject {
 					if delete {
 						item, _ = paw.NewItem(meta.Name, meta.Type)
 						vault.DeleteItem(item)            // remove item from vault
+						a.removeSSHKeyFromAgent(item)     // remove item from ssh agent
 						a.storage.DeleteItem(vault, item) // remove item from storage
 						a.storage.StoreVault(vault)       // ensure vault is up-to-date
 						itemsWidget.Reload(nil, filter)

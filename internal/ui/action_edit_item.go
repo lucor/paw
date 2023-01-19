@@ -54,6 +54,9 @@ func (a *app) makeEditItemView(fyneItem FyneItem) fyne.CanvasObject {
 			return
 		}
 
+		// make sure key is removed from SSH agent to honour user's preference
+		_ = a.removeSSHKeyFromAgent(item)
+
 		if item.ID() != editItem.ID() {
 			if !isNew {
 				// item ID is changed, delete the old one
@@ -63,6 +66,11 @@ func (a *app) makeEditItemView(fyneItem FyneItem) fyne.CanvasObject {
 					log.Printf("item rename: could not remove old item from storage: %s", err)
 				}
 			}
+		}
+
+		err = a.addSSHKeyToAgent(editItem)
+		if err != nil {
+			log.Println(err)
 		}
 
 		item = editItem
@@ -86,6 +94,10 @@ func (a *app) makeEditItemView(fyneItem FyneItem) fyne.CanvasObject {
 					if err != nil {
 						dialog.ShowError(err, a.win)
 						return
+					}
+					err = a.removeSSHKeyFromAgent(item)
+					if err != nil {
+						log.Println(err)
 					}
 					a.refreshCurrentView()
 					a.showCurrentVaultView()
