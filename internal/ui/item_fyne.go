@@ -131,15 +131,7 @@ func rowWithAction(label string, text string, opts rowActionOptions, w fyne.Wind
 			Wrapping:  fyne.TextWrapBreak,
 		}
 	default:
-		t := text
-		if opts.ellipsis > 0 {
-			t = text[0:opts.ellipsis] + "..."
-		}
-		v = &widget.Label{
-			Text:      t,
-			Alignment: fyne.TextAlignLeading,
-			Wrapping:  fyne.TextWrapBreak,
-		}
+		v = container.NewHScroll(widget.NewLabel(text))
 	}
 
 	var o fyne.CanvasObject
