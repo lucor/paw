@@ -16,6 +16,7 @@ import (
 
 	"lucor.dev/paw/internal/icon"
 	"lucor.dev/paw/internal/paw"
+	pawwidget "lucor.dev/paw/internal/widget"
 )
 
 // FyneItem wraps all methods allow to handle an Item as Fyne canvas object
@@ -117,11 +118,7 @@ func rowWithAction(label string, text string, opts rowActionOptions, w fyne.Wind
 	var v fyne.CanvasObject
 	switch opts.widgetType {
 	case "password":
-		t := widget.NewPasswordEntry()
-		t.SetText(text)
-		t.Disable()
-		t.Validator = nil
-		v = t
+		v = pawwidget.NewPasswordRevealer(text)
 	case "url":
 		u, err := url.Parse(text)
 		if err == nil && strings.HasPrefix(u.Scheme, "http") {
