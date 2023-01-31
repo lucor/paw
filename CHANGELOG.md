@@ -2,11 +2,15 @@
 
 ## Unreleased
 
-- ssh-agent: initial implementation
+- agent: initial implementation of the server agent to handle SSH keys and CLI sessions
+- agent: initial implementation of the client agent to manage CLI sessions
+- storage: added SocketAgentPath method to the Storage interface
 - ui: update edit view to display a single action instead of the menu 
 - deps upgrade:
     - filippo.io/age v1.1.1
     - fyne.io/fyne v2.3.0
+    - golang.org/x/crypto v0.5.0
+    - golang.org/x/text v0.6.0
 
 ## 0.19.1 - 01 October 2022
 
