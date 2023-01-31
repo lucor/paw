@@ -66,11 +66,15 @@ func (a *Agent) processSessionRequest(contents []byte) ([]byte, error) {
 		return json.Marshal(session.key)
 	case SessionActionList:
 		sessions := []Session{}
+		a.mu.Lock()
+		defer a.mu.Unlock()
 		for _, session := range a.sessions {
 			v := Session{
-				ID:       session.id,
-				Vault:    session.vaultName,
-				Lifetime: time.Until(*session.expire),
+				ID:    session.id,
+				Vault: session.vaultName,
+			}
+			if session.expire != nil {
+				v.Lifetime = time.Until(*session.expire)
 			}
 			sessions = append(sessions, v)
 		}
