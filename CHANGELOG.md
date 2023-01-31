@@ -4,7 +4,8 @@
 
 - agent: initial implementation of the server agent to handle SSH keys and CLI sessions
 - agent: initial implementation of the client agent to manage CLI sessions
-- storage: added SocketAgentPath method to the Storage interface
+- cli,ui: add support for encrypted SSH keys with a passphrase for SSH item
+- storage: add SocketAgentPath method to the Storage interface
 - ui: update edit view to display a single action instead of the menu 
 - deps upgrade:
     - filippo.io/age v1.1.1

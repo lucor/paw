@@ -130,8 +130,16 @@ func (cmd *ShowCmd) Run(s paw.Storage) error {
 			pclip = []byte(v.PrivateKey)
 			pclipMsg = "[✓] private key copied to clipboard"
 		}
+		if v.Passphrase != nil {
+			fmt.Printf("Passphrase: %s\n", v.Passphrase.Value)
+		}
 		fmt.Printf("Public key: %s\n", v.PublicKey)
 		fmt.Printf("Fingerprint: %s\n", v.Fingerprint)
+		addToAgent := "No"
+		if v.AddToAgent {
+			addToAgent = "Yes"
+		}
+		fmt.Printf("Add to agent: %s\n", addToAgent)
 		if v.Note != nil {
 			fmt.Printf("Note: %s\n", v.Note.Value)
 		}
