@@ -74,7 +74,10 @@ func TestStorageOSRoundTrip(t *testing.T) {
 	err = storage.StoreItem(vault, login)
 	require.NoError(t, err)
 
-	loadedVault, err := storage.LoadVault(name, password)
+	loadedVaultKey, err := storage.LoadVaultKey(name, password)
+	require.NoError(t, err)
+
+	loadedVault, err := storage.LoadVault(name, loadedVaultKey)
 	require.NoError(t, err)
 	require.Equal(t, name, loadedVault.Name)
 	require.Len(t, loadedVault.ItemMetadata, 2) // login and note type

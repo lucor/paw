@@ -115,11 +115,7 @@ func (s *OSStorage) LoadVaultKey(name string, password string) (*Key, error) {
 }
 
 // LoadVault returns a vault decrypting from the underlying storage
-func (s *OSStorage) LoadVault(name string, password string) (*Vault, error) {
-	key, err := s.LoadVaultKey(name, password)
-	if err != nil {
-		return nil, fmt.Errorf("could not load the vault key: %w", err)
-	}
+func (s *OSStorage) LoadVault(name string, key *Key) (*Vault, error) {
 	vault := NewVault(key, name)
 	vaultFile := vaultPath(s, name)
 
@@ -253,6 +249,11 @@ func (s *OSStorage) StoreConfig(config *Config) error {
 	}
 	defer w.Close()
 	return json.NewEncoder(w).Encode(config)
+}
+
+// SocketAgentPath return the socket agent path
+func (s *OSStorage) SocketAgentPath() string {
+	return socketAgentPath(s)
 }
 
 func (s *OSStorage) isExist(path string) bool {
