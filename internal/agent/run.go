@@ -26,8 +26,8 @@ func Run(a *Agent, socketPath string) {
 		log.Println("Running multiple instances is likely to lead to conflicts.")
 		log.Println("Consider using the launchd or systemd services.")
 	}
+	c := make(chan os.Signal, 1)
 
-	c := make(chan os.Signal)
 	signal.Notify(c, syscall.SIGHUP)
 	go func() {
 		for range c {
