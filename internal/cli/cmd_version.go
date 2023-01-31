@@ -2,7 +2,6 @@ package cli
 
 import (
 	"fmt"
-	"os"
 	"runtime/debug"
 
 	"lucor.dev/paw/internal/paw"
@@ -37,16 +36,13 @@ Options:
 
 // Parse parses the arguments and set the usage for the command
 func (cmd *VersionCmd) Parse(args []string) error {
-	flags, err := newCommonFlags()
+	flags, err := newCommonFlags(flagOpts{})
 	if err != nil {
 		return err
 	}
 
-	flagSet.Parse(args)
-	if flags.Help {
-		cmd.Usage()
-		os.Exit(0)
-	}
+	flags.Parse(cmd, args)
+
 	return nil
 }
 

@@ -4,27 +4,28 @@ import (
 	"fmt"
 	"os"
 
+	"lucor.dev/paw/internal/agent"
 	"lucor.dev/paw/internal/paw"
 )
 
-// Init initializes a vault
-type InitCmd struct {
+// Lock locks a Paw vault removing all the associated sessions from the agent
+type LockCmd struct {
 	vaultName string
 }
 
 // Name returns the one word command name
-func (cmd *InitCmd) Name() string {
-	return "init"
+func (cmd *LockCmd) Name() string {
+	return "lock"
 }
 
 // Description returns the command description
-func (cmd *InitCmd) Description() string {
-	return "Initializes a vault"
+func (cmd *LockCmd) Description() string {
+	return "Lock a vault"
 }
 
 // Usage displays the command usage
-func (cmd *InitCmd) Usage() {
-	template := `Usage: paw-cli init VAULT
+func (cmd *LockCmd) Usage() {
+	template := `Usage: paw-cli lock [OPTION] VAULT
 
 {{ . }}
 
@@ -35,7 +36,7 @@ Options:
 }
 
 // Parse parses the arguments and set the usage for the command
-func (cmd *InitCmd) Parse(args []string) error {
+func (cmd *LockCmd) Parse(args []string) error {
 	flags, err := newCommonFlags(flagOpts{})
 	if err != nil {
 		return err
@@ -52,21 +53,16 @@ func (cmd *InitCmd) Parse(args []string) error {
 }
 
 // Run runs the command
-func (cmd *InitCmd) Run(s paw.Storage) error {
-	fmt.Printf("Initializing vault %q\n", cmd.vaultName)
-	password, err := askPasswordWithConfirm()
+func (cmd *LockCmd) Run(s paw.Storage) error {
+	c, err := agent.NewClient(s.SocketAgentPath())
 	if err != nil {
 		return err
 	}
-	key, err := s.CreateVaultKey(cmd.vaultName, password)
+	err = c.Lock(cmd.vaultName)
 	if err != nil {
 		return err
 	}
 
-	_, err = s.CreateVault(cmd.vaultName, key)
-	if err != nil {
-		return err
-	}
-	fmt.Printf("[✓] vault %q created\n", cmd.vaultName)
+	fmt.Println("[✓] vault locked")
 	return nil
 }

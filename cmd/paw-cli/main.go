@@ -20,13 +20,16 @@ func main() {
 
 	// Define the command to use
 	commands := []cli.Cmd{
+		&cli.AgentCmd{},
 		&cli.AddCmd{},
 		&cli.EditCmd{},
 		&cli.InitCmd{},
 		&cli.ListCmd{},
+		&cli.LockCmd{},
 		&cli.PwGenCmd{},
 		&cli.RemoveCmd{},
 		&cli.ShowCmd{},
+		&cli.UnlockCmd{},
 		&cli.VersionCmd{Version: Version},
 	}
 
