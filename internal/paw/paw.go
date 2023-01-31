@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/rand"
 	"crypto/sha256"
+	"encoding/json"
 	"fmt"
 	"io"
 	"strings"
@@ -227,4 +228,26 @@ func (k *Key) Decrypt(src io.Reader) (io.Reader, error) {
 // Encrypt a message
 func (k *Key) Encrypt(dst io.Writer) (io.WriteCloser, error) {
 	return age.Encrypt(dst, k.ageIdentity.Recipient())
+}
+
+func (k *Key) MarshalJSON() ([]byte, error) {
+	return json.Marshal(k.ageIdentity.String())
+}
+
+func (k *Key) UnmarshalJSON(data []byte) error {
+	var v string
+	err := json.Unmarshal(data, &v)
+	if err != nil {
+		return err
+	}
+	ageIdentity, err := age.ParseX25519Identity(v)
+	if err != nil {
+		return err
+	}
+	k.ageIdentity = ageIdentity
+	return nil
+}
+
+func (k *Key) String() string {
+	return k.ageIdentity.String()
 }
