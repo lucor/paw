@@ -2,11 +2,7 @@ package ui
 
 import (
 	"fmt"
-	"io"
 	"log"
-	"net"
-	"os"
-	"path/filepath"
 	"runtime"
 
 	"fyne.io/fyne/v2"
@@ -17,8 +13,7 @@ import (
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
-	"golang.org/x/crypto/ssh/agent"
-
+	"lucor.dev/paw/internal/agent"
 	"lucor.dev/paw/internal/icon"
 	"lucor.dev/paw/internal/paw"
 	"lucor.dev/paw/internal/sshkey"
@@ -41,8 +36,8 @@ type app struct {
 
 	version string
 
-	// SSH agent
-	agent.Agent
+	// Paw agent
+	*agent.Agent
 }
 
 func MakeApp(w fyne.Window, ver string) fyne.CanvasObject {
@@ -74,14 +69,14 @@ func MakeApp(w fyne.Window, ver string) fyne.CanvasObject {
 		unlockedVault: make(map[string]*paw.Vault),
 		version:       ver,
 		filter:        make(map[string]*paw.VaultFilterOptions),
-		Agent:         agent.NewKeyring(),
+		Agent:         agent.New(),
 	}
 
 	a.win.SetMainMenu(a.makeMainMenu())
 
 	a.main = a.makeApp()
 	a.makeSysTray()
-	a.startSSHAgent()
+	go agent.Run(a.Agent, s.SocketAgentPath())
 
 	return a.main
 }
@@ -92,37 +87,6 @@ func (a *app) makeSysTray() {
 		menu := fyne.NewMenu("Vaults", a.makeVaultMenuItems()...)
 		desk.SetSystemTrayMenu(menu)
 	}
-}
-
-func (a *app) startSSHAgent() error {
-	socketAddress := filepath.Join(a.storage.Root(), "agent.sock")
-	log.Println("Starting Paw SSH Agent: ", socketAddress)
-
-	err := os.RemoveAll(socketAddress)
-	if err != nil {
-		return fmt.Errorf("unable to remove agent socket: %s", socketAddress)
-	}
-
-	l, err := net.Listen("unix", socketAddress)
-	if err != nil {
-		return fmt.Errorf("listen error: %w", err)
-	}
-
-	go func() {
-		for {
-			c, err := l.Accept()
-			if err != nil {
-				fmt.Printf("failed to accept connections %v:", err)
-				continue
-			}
-			go func() {
-				if err := agent.ServeAgent(a.Agent, c); err != io.EOF {
-					log.Println("Agent client connection ended with error:", err)
-				}
-			}()
-		}
-	}()
-	return nil
 }
 
 func (a *app) makeApp() *container.Scroll {
@@ -168,10 +132,7 @@ func (a *app) addSSHKeyToAgent(item paw.Item) error {
 	if err != nil {
 		return fmt.Errorf("unable to parse SSH raw key: %w", err)
 	}
-	return a.Agent.Add(agent.AddedKey{
-		PrivateKey: k.PrivateKey(),
-		Comment:    v.Comment,
-	})
+	return a.Agent.AddSSHKey(k.PrivateKey(), v.Comment)
 }
 
 func (a *app) removeSSHKeyFromAgent(item paw.Item) error {
