@@ -72,7 +72,16 @@ func (cmd *AgentCmd) Parse(args []string) error {
 func (cmd *AgentCmd) Run(s paw.Storage) error {
 	switch cmd.command {
 	case agentStartSubCmd:
-		a := agent.New()
+		c, err := agent.NewClient(s.SocketAgentPath())
+		if err == nil {
+			t, err := c.Type()
+			if err == nil {
+				fmt.Printf("[✗] agent of type %s is already running\n", t)
+				os.Exit(1)
+			}
+		}
+
+		a := agent.NewCLI()
 		defer a.Close()
 		agent.Run(a, s.SocketAgentPath())
 	case agentSessionsSubCmd:

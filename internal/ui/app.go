@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"log"
+	"os"
 	"runtime"
 
 	"fyne.io/fyne/v2"
@@ -36,8 +37,8 @@ type app struct {
 
 	version string
 
-	// Paw agent
-	*agent.Agent
+	// Paw agent client
+	client agent.PawAgent
 }
 
 func MakeApp(w fyne.Window, ver string) fyne.CanvasObject {
@@ -57,6 +58,20 @@ func MakeApp(w fyne.Window, ver string) fyne.CanvasObject {
 		ver = "(unknown)"
 	}
 
+	// check for running instance
+	cliAgentRunning := false
+	c, err := agent.NewClient(s.SocketAgentPath())
+	if err == nil {
+		t, _ := c.Type()
+		switch t {
+		case agent.GUI:
+			// a GUI instance is already running, exit
+			os.Exit(1)
+		case agent.CLI:
+			cliAgentRunning = true
+		}
+	}
+
 	config, err := s.LoadConfig()
 	if err != nil {
 		dialog.NewError(err, w)
@@ -69,16 +84,29 @@ func MakeApp(w fyne.Window, ver string) fyne.CanvasObject {
 		unlockedVault: make(map[string]*paw.Vault),
 		version:       ver,
 		filter:        make(map[string]*paw.VaultFilterOptions),
-		Agent:         agent.New(),
 	}
 
 	a.win.SetMainMenu(a.makeMainMenu())
 
 	a.main = a.makeApp()
 	a.makeSysTray()
-	go agent.Run(a.Agent, s.SocketAgentPath())
+	if !cliAgentRunning {
+		go agent.Run(agent.NewGUI(), s.SocketAgentPath())
+	}
 
 	return a.main
+}
+
+func (a *app) agentClient() agent.PawAgent {
+	if a.client != nil {
+		return a.client
+	}
+	c, err := agent.NewClient(a.storage.SocketAgentPath())
+	if err != nil {
+		log.Println("agent not available: %w", err)
+		return nil
+	}
+	return c
 }
 
 func (a *app) makeSysTray() {
@@ -132,7 +160,10 @@ func (a *app) addSSHKeyToAgent(item paw.Item) error {
 	if err != nil {
 		return fmt.Errorf("unable to parse SSH raw key: %w", err)
 	}
-	return a.Agent.AddSSHKey(k.PrivateKey(), v.Comment)
+	if c := a.agentClient(); c != nil {
+		return c.AddSSHKey(k.PrivateKey(), v.Comment)
+	}
+	return nil
 }
 
 func (a *app) removeSSHKeyFromAgent(item paw.Item) error {
@@ -144,7 +175,10 @@ func (a *app) removeSSHKeyFromAgent(item paw.Item) error {
 	if err != nil {
 		return fmt.Errorf("unable to parse SSH raw key: %w", err)
 	}
-	return a.Agent.Remove(k.PublicKey())
+	if c := a.agentClient(); c != nil {
+		return c.RemoveSSHKey(k.PublicKey())
+	}
+	return nil
 }
 
 func (a *app) addSSHKeysToAgent(vault *paw.Vault) {
