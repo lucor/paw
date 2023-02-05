@@ -23,7 +23,7 @@ func Test_Client(t *testing.T) {
 	s, err := paw.NewOSStorageRooted(root)
 	require.NoError(t, err)
 
-	server := agent.New()
+	server := agent.NewCLI()
 	defer server.Close()
 	go agent.Run(server, s.SocketAgentPath())
 
@@ -37,6 +37,10 @@ func Test_Client(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("interface", func(t *testing.T) {
+		at, err := client.Type()
+		require.NoError(t, err)
+		require.Equal(t, agent.CLI, at)
+
 		sid, err := client.Unlock(t.Name(), key, 0)
 		require.NoError(t, err)
 		require.Contains(t, sid, agent.SessionIDPrefix)

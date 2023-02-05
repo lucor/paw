@@ -2,14 +2,28 @@ package agent
 
 import (
 	"bytes"
+	"crypto"
 	"encoding/json"
 	"errors"
 	"net"
 	"time"
 
+	"golang.org/x/crypto/ssh"
 	sshagent "golang.org/x/crypto/ssh/agent"
 	"lucor.dev/paw/internal/paw"
 )
+
+type PawAgent interface {
+	SSHAgent
+	PawSessionExtendedAgent
+	PawTypeExtendedAgent
+}
+
+// SSHAgent wraps the method for the Paw agent client to handle SSH keys
+type SSHAgent interface {
+	AddSSHKey(key crypto.PrivateKey, comment string) error
+	RemoveSSHKey(key ssh.PublicKey) error
+}
 
 // PawSessionExtendedAgent wraps the method for the Paw agent client to handle sessions
 type PawSessionExtendedAgent interface {
@@ -19,15 +33,20 @@ type PawSessionExtendedAgent interface {
 	Unlock(vaultName string, key *paw.Key, lifetime time.Duration) (string, error)
 }
 
-var _ PawSessionExtendedAgent = &client{}
+// PawSessionExtendedAgent wraps the method for the Paw agent client to handle sessions
+type PawTypeExtendedAgent interface {
+	Type() (Type, error)
+}
+
+var _ PawAgent = &client{}
 
 type client struct {
 	sshclient sshagent.ExtendedAgent
 }
 
-// NewClient returns a Paw agent client to manage sessions.
+// NewClient returns a Paw agent client to manage sessions and SSH keys
 // The communication with agent is done using the SSH agent protocol.
-func NewClient(socketPath string) (PawSessionExtendedAgent, error) {
+func NewClient(socketPath string) (PawAgent, error) {
 	a, err := net.Dial("unix", socketPath)
 	if err != nil {
 		return nil, err
@@ -38,6 +57,19 @@ func NewClient(socketPath string) (PawSessionExtendedAgent, error) {
 	}
 
 	return c, nil
+}
+
+// AddSSHKey adds an SSH key to agent along with a comment
+func (c *client) AddSSHKey(key crypto.PrivateKey, comment string) error {
+	return c.sshclient.Add(sshagent.AddedKey{
+		PrivateKey: key,
+		Comment:    comment,
+	})
+}
+
+// RemoveSSHKey removes an SSH key from the agent
+func (c *client) RemoveSSHKey(key ssh.PublicKey) error {
+	return c.sshclient.Remove(key)
 }
 
 // Sessions returns the list of active sessions
@@ -110,4 +142,13 @@ func (c *client) Unlock(vaultName string, key *paw.Key, lifetime time.Duration) 
 		return "", err
 	}
 	return string(response), err
+}
+
+// Type implements PawAgent
+func (c *client) Type() (Type, error) {
+	response, err := c.sshclient.Extension(TypeExtension, nil)
+	if err != nil {
+		return "", err
+	}
+	return Type(response), err
 }

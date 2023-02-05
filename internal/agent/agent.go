@@ -16,14 +16,35 @@ import (
 
 var ErrOperationUnsupported = errors.New("operation unsupported")
 
-func New() *Agent {
+// Type represents the agent type
+type Type string
+
+const (
+	// CLI represents the agent started in CLI mode
+	CLI Type = "CLI"
+	// GUI represents the agent started in GUI mode
+	GUI = "GUI"
+)
+
+func NewCLI() *Agent {
 	return &Agent{
 		sshagent: sshagent.NewKeyring(),
 		sessions: make(map[string]session),
+		t:        CLI,
+	}
+}
+
+func NewGUI() *Agent {
+	return &Agent{
+		sshagent: sshagent.NewKeyring(),
+		sessions: make(map[string]session),
+		t:        GUI,
 	}
 }
 
 type Agent struct {
+	t Type
+
 	sshagent sshagent.Agent
 
 	mu       sync.Mutex
@@ -98,6 +119,9 @@ func (a *Agent) SignWithFlags(key ssh.PublicKey, data []byte, flags sshagent.Sig
 func (a *Agent) Extension(extensionType string, contents []byte) ([]byte, error) {
 	if extensionType == SessionExtension {
 		return a.processSessionRequest(contents)
+	}
+	if extensionType == TypeExtension {
+		return a.processTypeRequest(contents)
 	}
 	return nil, sshagent.ErrExtensionUnsupported
 }
