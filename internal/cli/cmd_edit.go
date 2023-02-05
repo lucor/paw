@@ -197,6 +197,12 @@ func (cmd *EditCmd) editPasswordItem(key *paw.Key, item paw.Item) error {
 func (cmd *EditCmd) editSSHKeyItem(item paw.Item) error {
 	v := item.(*paw.SSHKey)
 
+	addToAgent, err := askYesNo("Add to agent", v.AddToAgent)
+	if err != nil {
+		return err
+	}
+	v.AddToAgent = addToAgent
+
 	note, err := askWithDefault("Note", v.Note.Value)
 	if err != nil {
 		return err
