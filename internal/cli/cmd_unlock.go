@@ -7,6 +7,7 @@ import (
 
 	"lucor.dev/paw/internal/agent"
 	"lucor.dev/paw/internal/paw"
+	"lucor.dev/paw/internal/sshkey"
 )
 
 // UnlockCmd unlock a vault and starts a session returning its ID
@@ -60,13 +61,12 @@ func (cmd *UnlockCmd) Parse(args []string) error {
 
 // Run runs the command
 func (cmd *UnlockCmd) Run(s paw.Storage) error {
-	os.Setenv(sessionEnvName, "")
-	key, err := loadVaultKey(s, cmd.vaultName)
+	c, err := agent.NewClient(s.SocketAgentPath())
 	if err != nil {
-		return err
+		return fmt.Errorf("agent not available: %w", err)
 	}
 
-	c, err := agent.NewClient(s.SocketAgentPath())
+	key, err := loadVaultKey(s, cmd.vaultName)
 	if err != nil {
 		return err
 	}
@@ -76,7 +76,45 @@ func (cmd *UnlockCmd) Run(s paw.Storage) error {
 		return err
 	}
 
-	fmt.Println("[✓] vault unlocked")
+	fmt.Println("adding SSH keys to the agent...")
+	err = cmd.addSSHKeysToAgent(c, s, key)
+	if err != nil {
+		fmt.Println("could not add SSH keys to the agent:", err)
+	}
 	fmt.Println("Session ID: ", sessionID)
+	fmt.Println("[✓] vault unlocked")
+	return nil
+}
+
+func (cmd *UnlockCmd) addSSHKeysToAgent(c agent.PawAgent, s paw.Storage, key *paw.Key) error {
+	vault, err := s.LoadVault(cmd.vaultName, key)
+	if err != nil {
+		return err
+	}
+	vault.Range(func(id string, meta *paw.Metadata) bool {
+		item, err := s.LoadItem(vault, meta)
+		if err != nil {
+			return false
+		}
+		if item.GetMetadata().Type != paw.SSHKeyItemType {
+			return true
+		}
+		v := item.(*paw.SSHKey)
+		if !v.AddToAgent {
+			return true
+		}
+		k, err := sshkey.ParseKey([]byte(v.PrivateKey))
+		if err != nil {
+			return true
+		}
+
+		err = c.AddSSHKey(k.PrivateKey(), v.Comment)
+		if err != nil {
+			fmt.Printf("could not add SSH key to agent. Error: %q - Public key: %s", err, k.MarshalPublicKey())
+			return true
+		}
+		fmt.Printf("added: %s", k.MarshalPublicKey())
+		return true
+	})
 	return nil
 }
