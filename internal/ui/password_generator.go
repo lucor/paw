@@ -79,7 +79,6 @@ func (pd *pwgenDialog) ShowPasswordGenerator(bind binding.String, password *paw.
 
 	passwordBind := binding.NewString()
 	passwordEntry := widget.NewEntryWithData(passwordBind)
-	passwordEntry.Disable()
 	passwordEntry.Validator = nil
 	refreshButton := widget.NewButtonWithIcon("", theme.ViewRefreshIcon(), func() {
 		secret, err := pwgen(pd.key, password)
