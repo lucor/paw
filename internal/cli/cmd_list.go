@@ -2,7 +2,6 @@ package cli
 
 import (
 	"fmt"
-	"os"
 
 	"lucor.dev/paw/internal/paw"
 	"lucor.dev/paw/internal/tree"
@@ -37,17 +36,13 @@ Options:
 
 // Parse parses the arguments and set the usage for the command
 func (cmd *ListCmd) Parse(args []string) error {
-	flags, err := newCommonFlags()
+	flags, err := newCommonFlags(flagOpts{Session: true})
 	if err != nil {
 		return err
 	}
 
-	flagSet.Parse(args)
-	if flags.Help {
-		cmd.Usage()
-		os.Exit(0)
-	}
-
+	flags.Parse(cmd, args)
+	flags.SetEnv()
 	if len(flagSet.Args()) == 0 {
 		return nil
 	}
@@ -96,11 +91,12 @@ func (cmd *ListCmd) Run(s paw.Storage) error {
 }
 
 func (cmd *ListCmd) items(s paw.Storage) ([]tree.Node, error) {
-	password, err := askPassword("Enter the vault password")
+	key, err := loadVaultKey(s, cmd.vaultName)
 	if err != nil {
 		return nil, err
 	}
-	vault, err := s.LoadVault(cmd.vaultName, password)
+
+	vault, err := s.LoadVault(cmd.vaultName, key)
 	if err != nil {
 		return nil, err
 	}

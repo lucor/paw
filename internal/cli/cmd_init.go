@@ -36,15 +36,15 @@ Options:
 
 // Parse parses the arguments and set the usage for the command
 func (cmd *InitCmd) Parse(args []string) error {
-	flags, err := newCommonFlags()
+	flags, err := newCommonFlags(flagOpts{})
 	if err != nil {
 		return err
 	}
 
-	flagSet.Parse(args)
-	if flags.Help || len(flagSet.Args()) != 1 {
+	flags.Parse(cmd, args)
+	if len(flagSet.Args()) != 1 {
 		cmd.Usage()
-		os.Exit(0)
+		os.Exit(1)
 	}
 
 	cmd.vaultName = flagSet.Arg(0)

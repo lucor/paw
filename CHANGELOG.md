@@ -1,5 +1,25 @@
 # Changelog - Paw
 
+## 0.20.0 - 09 November 2023
+
+- agent: initial implementation of the server agent to handle SSH keys and CLI sessions
+- agent: initial implementation of the client agent to manage CLI sessions
+- cli,ui: add support for encrypted SSH keys with a passphrase for SSH item
+- storage: add SocketAgentPath method to the Storage interface
+- ui: update edit view to display a single action instead of the menu 
+- deps upgrade:
+    - filippo.io/age v1.1.1
+    - fyne.io/fyne v2.4.1
+    - fyne.io/systray v1.10.1-0.20231105182847-18ba13a8fe2b
+    - golang.design/x/clipboard 0.7.0
+    - golang.org/x/crypto v0.14.0
+    - golang.org/x/sync v0.4.0
+    - golang.org/x/image v0.13.0
+    - golang.org/x/term v0.13.0
+    - golang.org/x/text v0.13.0
+- deps remove:
+    - github.com/mikesmitty/edkey
+
 ## 0.19.1 - 01 October 2022
 
 - ui: update preferences view to be scrollable

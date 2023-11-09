@@ -27,6 +27,7 @@ It is written in Go and uses [Fyne](https://github.com/fyne-io/fyne) as UI toolk
 * Cross platform application (linux, macOS, Windows, BSD ...) with a single codebase
 * Desktop, Mobile and CLI application
 * Minimal direct dependencies
+* Agent to handle SSH keys and CLI sessions
 * Open source: code can be audited
 * Audit passwords against data breaches
 * TOTP support

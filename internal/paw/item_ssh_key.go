@@ -11,9 +11,12 @@ type SSHKey struct {
 	*Metadata `json:"metadata,omitempty"`
 	*Note     `json:"note,omitempty"`
 
-	Fingerprint string `json:"fingerprint,omitempty"`
-	PrivateKey  string `json:"private_key,omitempty"`
-	PublicKey   string `json:"public_key,omitempty"`
+	AddToAgent  bool      `json:"add_to_agent,omitempty"`
+	Comment     string    `json:"comment,omitempty"`
+	Fingerprint string    `json:"fingerprint,omitempty"`
+	Passphrase  *Password `json:"passphrase,omitempty"`
+	PrivateKey  string    `json:"private_key,omitempty"`
+	PublicKey   string    `json:"public_key,omitempty"`
 }
 
 func NewSSHKey() *SSHKey {
@@ -24,6 +27,7 @@ func NewSSHKey() *SSHKey {
 			Created:  now,
 			Modified: now,
 		},
-		Note: &Note{},
+		Passphrase: &Password{},
+		Note:       &Note{},
 	}
 }

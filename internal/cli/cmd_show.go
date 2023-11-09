@@ -34,15 +34,16 @@ func (cmd *ShowCmd) Usage() {
 {{ . }}
 
 Options:
-  -c, --clip  Do not print the password but instead copy to the clipboard
-  -h, --help  Displays this help and exit
+  -c, --clip                  Do not print the password but instead copy to the clipboard
+  -h, --help                  Displays this help and exit
+      --session=SESSION_ID    Sets a session ID to use instead of the env var
 `
 	printUsage(template, cmd.Description())
 }
 
 // Parse parses the arguments and set the usage for the command
 func (cmd *ShowCmd) Parse(args []string) error {
-	flags, err := newCommonFlags()
+	flags, err := newCommonFlags(flagOpts{Session: true})
 	if err != nil {
 		return err
 	}
@@ -50,11 +51,12 @@ func (cmd *ShowCmd) Parse(args []string) error {
 	flagSet.BoolVar(&cmd.clipboard, "c", false, "")
 	flagSet.BoolVar(&cmd.clipboard, "clip", false, "")
 
-	flagSet.Parse(args)
-	if flags.Help || len(flagSet.Args()) != 1 {
+	flags.Parse(cmd, args)
+	if len(flagSet.Args()) != 1 {
 		cmd.Usage()
 		os.Exit(0)
 	}
+	flags.SetEnv()
 
 	if cmd.clipboard {
 		err := clipboard.Init()
@@ -73,12 +75,12 @@ func (cmd *ShowCmd) Parse(args []string) error {
 
 // Run runs the command
 func (cmd *ShowCmd) Run(s paw.Storage) error {
-	password, err := askPassword("Enter the vault password")
+	key, err := loadVaultKey(s, cmd.vaultName)
 	if err != nil {
 		return err
 	}
 
-	vault, err := s.LoadVault(cmd.vaultName, password)
+	vault, err := s.LoadVault(cmd.vaultName, key)
 	if err != nil {
 		return err
 	}
@@ -128,8 +130,16 @@ func (cmd *ShowCmd) Run(s paw.Storage) error {
 			pclip = []byte(v.PrivateKey)
 			pclipMsg = "[✓] private key copied to clipboard"
 		}
+		if v.Passphrase != nil {
+			fmt.Printf("Passphrase: %s\n", v.Passphrase.Value)
+		}
 		fmt.Printf("Public key: %s\n", v.PublicKey)
 		fmt.Printf("Fingerprint: %s\n", v.Fingerprint)
+		addToAgent := "No"
+		if v.AddToAgent {
+			addToAgent = "Yes"
+		}
+		fmt.Printf("Add to agent: %s\n", addToAgent)
 		if v.Note != nil {
 			fmt.Printf("Note: %s\n", v.Note.Value)
 		}

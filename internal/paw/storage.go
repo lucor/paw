@@ -12,6 +12,7 @@ const (
 	configFileName  = "config.json"
 	keyFileName     = "key.age"
 	vaultFileName   = "vault.age"
+	socketFileName  = "agent.sock"
 )
 
 type Storage interface {
@@ -19,6 +20,7 @@ type Storage interface {
 	ConfigStorage
 	VaultStorage
 	ItemStorage
+	SocketAgentPath() string
 }
 type ConfigStorage interface {
 	LoadConfig() (*Config, error)
@@ -34,7 +36,7 @@ type VaultStorage interface {
 	// DeleteVault delete the specified vault
 	DeleteVault(name string) error
 	// LoadVault returns a vault decrypting from the underlying storage
-	LoadVault(name string, password string) (*Vault, error)
+	LoadVault(name string, key *Key) (*Vault, error)
 	// LoadVaultKey returns the Key used to encrypt and decrypt the vault data
 	LoadVaultKey(name string, password string) (*Key, error)
 	// StoreVault encrypts and stores the vault into the underlying storage
@@ -75,6 +77,10 @@ func vaultPath(s Storage, vaultName string) string {
 func itemPath(s Storage, vaultName string, itemID string) string {
 	itemFileName := fmt.Sprintf("%s.age", itemID)
 	return filepath.Join(vaultRootPath(s, vaultName), itemFileName)
+}
+
+func socketAgentPath(s Storage) string {
+	return filepath.Join(s.Root(), socketFileName)
 }
 
 func encrypt(key *Key, w io.Writer, v interface{}) error {

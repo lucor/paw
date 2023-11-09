@@ -16,6 +16,7 @@ import (
 
 	"lucor.dev/paw/internal/icon"
 	"lucor.dev/paw/internal/paw"
+	pawwidget "lucor.dev/paw/internal/widget"
 )
 
 // FyneItem wraps all methods allow to handle an Item as Fyne canvas object
@@ -117,11 +118,7 @@ func rowWithAction(label string, text string, opts rowActionOptions, w fyne.Wind
 	var v fyne.CanvasObject
 	switch opts.widgetType {
 	case "password":
-		t := widget.NewPasswordEntry()
-		t.SetText(text)
-		t.Disable()
-		t.Validator = nil
-		v = t
+		v = pawwidget.NewPasswordRevealer(text)
 	case "url":
 		u, err := url.Parse(text)
 		if err == nil && strings.HasPrefix(u.Scheme, "http") {
@@ -134,20 +131,23 @@ func rowWithAction(label string, text string, opts rowActionOptions, w fyne.Wind
 			Wrapping:  fyne.TextWrapBreak,
 		}
 	default:
-		t := text
-		if opts.ellipsis > 0 {
-			t = text[0:opts.ellipsis] + "..."
-		}
-		v = &widget.Label{
-			Text:      t,
-			Alignment: fyne.TextAlignLeading,
-			Wrapping:  fyne.TextWrapBreak,
-		}
+		v = container.NewHScroll(widget.NewLabel(text))
+	}
+
+	var o fyne.CanvasObject
+	switch len(actionMenu) {
+	case 0:
+		o = widget.NewLabel("")
+	case 1:
+		e := actionMenu[0]
+		o = widget.NewButtonWithIcon("", e.Icon, e.Action)
+	default:
+		o = makeActionMenu(actionMenu, w)
 	}
 
 	return []fyne.CanvasObject{
 		labelWithStyle(label),
-		container.NewBorder(nil, nil, nil, container.NewVBox(makeActionMenu(actionMenu, w)), v),
+		container.NewBorder(nil, nil, nil, container.NewVBox(o), v),
 	}
 }
 

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"golang.org/x/crypto/ssh"
 	"lucor.dev/paw/internal/paw"
 	"lucor.dev/paw/internal/sshkey"
 )
@@ -11,6 +12,7 @@ import (
 // Add adds an item to the vault
 type AddCmd struct {
 	itemPath
+	importPath string
 }
 
 // Name returns the one word command name
@@ -30,23 +32,29 @@ func (cmd *AddCmd) Usage() {
 {{ . }}
 
 Options:
-  -h, --help  Displays this help and exit
+  -h, --help                  Displays this help and exit
+  -i, --input=FILE            Imports the item from file. Only SSH file supported
+      --session=SESSION_ID    Sets a session ID to use instead of the env var
 `
 	printUsage(template, cmd.Description())
 }
 
 // Parse parses the arguments and set the usage for the command
 func (cmd *AddCmd) Parse(args []string) error {
-	flags, err := newCommonFlags()
+	flags, err := newCommonFlags(flagOpts{Session: true})
 	if err != nil {
 		return err
 	}
 
-	flagSet.Parse(args)
-	if flags.Help || len(flagSet.Args()) != 1 {
+	flagSet.StringVar(&cmd.importPath, "i", "", "")
+	flagSet.StringVar(&cmd.importPath, "input", "", "")
+
+	flags.Parse(cmd, args)
+	if len(flagSet.Args()) != 1 {
 		cmd.Usage()
-		os.Exit(0)
+		os.Exit(1)
 	}
+	flags.SetEnv()
 
 	itemPath, err := parseItemPath(flagSet.Arg(0), itemPathOptions{fullPath: true})
 	if err != nil {
@@ -58,12 +66,12 @@ func (cmd *AddCmd) Parse(args []string) error {
 
 // Run runs the command
 func (cmd *AddCmd) Run(s paw.Storage) error {
-	password, err := askPassword("Enter the vault password")
+	key, err := loadVaultKey(s, cmd.vaultName)
 	if err != nil {
 		return err
 	}
 
-	vault, err := s.LoadVault(cmd.vaultName, password)
+	vault, err := s.LoadVault(cmd.vaultName, key)
 	if err != nil {
 		return err
 	}
@@ -192,14 +200,36 @@ func (cmd *AddCmd) addPasswordItem(key *paw.Key, item paw.Item) error {
 func (cmd *AddCmd) addSSHKeyItem(item paw.Item) error {
 	v := item.(*paw.SSHKey)
 
-	k, err := sshkey.GenerateKey()
+	if cmd.importPath != "" {
+		cmd.importSSHKey(v)
+		fmt.Println("The key fingerprint is:")
+		fmt.Println(v.Fingerprint)
+		answer, err := askYesNo("Continue?", true)
+		if err != nil {
+			return err
+		}
+		if !answer {
+			os.Exit(0)
+		}
+	} else {
+		k, err := sshkey.GenerateKey()
+		if err != nil {
+			return err
+		}
+
+		v.PrivateKey = string(k.MarshalPrivateKey())
+		v.PublicKey = string(k.MarshalPublicKey())
+		v.Fingerprint = k.Fingerprint()
+
+		fmt.Println("The key fingerprint is:")
+		fmt.Println(v.Fingerprint)
+	}
+
+	addToAgent, err := askYesNo("Add to SSH Agent?", false)
 	if err != nil {
 		return err
 	}
-
-	v.PrivateKey = string(k.PrivateKey())
-	v.PublicKey = string(k.PublicKey())
-	v.Fingerprint = k.Fingerprint()
+	v.AddToAgent = addToAgent
 
 	note, err := ask("Note")
 	if err != nil {
@@ -208,5 +238,40 @@ func (cmd *AddCmd) addSSHKeyItem(item paw.Item) error {
 
 	v.Note.Value = note
 	item = v
+	return nil
+}
+
+func (cmd *AddCmd) importSSHKey(item *paw.SSHKey) error {
+	content, err := os.ReadFile(cmd.importPath)
+	if err != nil {
+		return err
+	}
+
+	sk, err := sshkey.ParseKey(content)
+	if err == nil {
+		item.PrivateKey = string(sk.MarshalPrivateKey())
+		item.PublicKey = string(sk.MarshalPublicKey())
+		item.Fingerprint = string(sk.Fingerprint())
+
+		fmt.Println("[i] importing SSH key with public key:")
+		fmt.Println(item.PublicKey)
+		return nil
+	}
+	// Check if SSH Key is protected with a passphrase
+	if _, ok := err.(*ssh.PassphraseMissingError); !ok {
+		return err
+	}
+	passphrase, err := askPassword("Private Key is password protected")
+	if err != nil {
+		return err
+	}
+	sk, err = sshkey.ParseKeyWithPassphrase(content, []byte(passphrase))
+	if err != nil {
+		return err
+	}
+	item.Passphrase = &paw.Password{Value: passphrase, Mode: paw.CustomPassword}
+	item.PrivateKey = string(sk.MarshalPrivateKey())
+	item.PublicKey = string(sk.MarshalPublicKey())
+	item.Fingerprint = string(sk.Fingerprint())
 	return nil
 }

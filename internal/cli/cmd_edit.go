@@ -30,23 +30,25 @@ func (cmd *EditCmd) Usage() {
 {{ . }}
 
 Options:
-  -h, --help  Displays this help and exit
+  -h, --help                  Displays this help and exit
+      --session=SESSION_ID    Sets a session ID to use instead of the env var
 `
 	printUsage(template, cmd.Description())
 }
 
 // Parse parses the arguments and set the usage for the command
 func (cmd *EditCmd) Parse(args []string) error {
-	flags, err := newCommonFlags()
+	flags, err := newCommonFlags(flagOpts{Session: true})
 	if err != nil {
 		return err
 	}
 
-	flagSet.Parse(args)
-	if flags.Help || len(flagSet.Args()) != 1 {
+	flags.Parse(cmd, args)
+	if len(flagSet.Args()) != 1 {
 		cmd.Usage()
-		os.Exit(0)
+		os.Exit(1)
 	}
+	flags.SetEnv()
 
 	itemPath, err := parseItemPath(flagSet.Arg(0), itemPathOptions{fullPath: true})
 	if err != nil {
@@ -58,12 +60,12 @@ func (cmd *EditCmd) Parse(args []string) error {
 
 // Run runs the command
 func (cmd *EditCmd) Run(s paw.Storage) error {
-	password, err := askPassword("Enter the vault password")
+	key, err := loadVaultKey(s, cmd.vaultName)
 	if err != nil {
 		return err
 	}
 
-	vault, err := s.LoadVault(cmd.vaultName, password)
+	vault, err := s.LoadVault(cmd.vaultName, key)
 	if err != nil {
 		return err
 	}
@@ -194,6 +196,12 @@ func (cmd *EditCmd) editPasswordItem(key *paw.Key, item paw.Item) error {
 
 func (cmd *EditCmd) editSSHKeyItem(item paw.Item) error {
 	v := item.(*paw.SSHKey)
+
+	addToAgent, err := askYesNo("Add to agent", v.AddToAgent)
+	if err != nil {
+		return err
+	}
+	v.AddToAgent = addToAgent
 
 	note, err := askWithDefault("Note", v.Note.Value)
 	if err != nil {

@@ -1,7 +1,9 @@
 package ui
 
 import (
+	"fmt"
 	"log"
+	"os"
 	"runtime"
 
 	"fyne.io/fyne/v2"
@@ -11,8 +13,11 @@ import (
 	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
+
+	"lucor.dev/paw/internal/agent"
 	"lucor.dev/paw/internal/icon"
 	"lucor.dev/paw/internal/paw"
+	"lucor.dev/paw/internal/sshkey"
 )
 
 // maxWorkers represents the max number of workers to use in parallel processing
@@ -31,6 +36,9 @@ type app struct {
 	filter map[string]*paw.VaultFilterOptions
 
 	version string
+
+	// Paw agent client
+	client agent.PawAgent
 }
 
 func MakeApp(w fyne.Window, ver string) fyne.CanvasObject {
@@ -48,6 +56,20 @@ func MakeApp(w fyne.Window, ver string) fyne.CanvasObject {
 
 	if ver == "" {
 		ver = "(unknown)"
+	}
+
+	// check for running instance
+	cliAgentRunning := false
+	c, err := agent.NewClient(s.SocketAgentPath())
+	if err == nil {
+		t, _ := c.Type()
+		switch t {
+		case agent.GUI:
+			// a GUI instance is already running, exit
+			os.Exit(1)
+		case agent.CLI:
+			cliAgentRunning = true
+		}
 	}
 
 	config, err := s.LoadConfig()
@@ -68,8 +90,23 @@ func MakeApp(w fyne.Window, ver string) fyne.CanvasObject {
 
 	a.main = a.makeApp()
 	a.makeSysTray()
+	if !cliAgentRunning {
+		go agent.Run(agent.NewGUI(), s.SocketAgentPath())
+	}
 
 	return a.main
+}
+
+func (a *app) agentClient() agent.PawAgent {
+	if a.client != nil {
+		return a.client
+	}
+	c, err := agent.NewClient(a.storage.SocketAgentPath())
+	if err != nil {
+		log.Println("agent not available: %w", err)
+		return nil
+	}
+	return c
 }
 
 func (a *app) makeSysTray() {
@@ -109,6 +146,53 @@ func (a *app) setVaultViewByName(name string) {
 		return
 	}
 	a.setVaultView(vault)
+}
+
+func (a *app) addSSHKeyToAgent(item paw.Item) error {
+	if item.GetMetadata().Type != paw.SSHKeyItemType {
+		return nil
+	}
+	v := item.(*paw.SSHKey)
+	if !v.AddToAgent {
+		return nil
+	}
+	k, err := sshkey.ParseKey([]byte(v.PrivateKey))
+	if err != nil {
+		return fmt.Errorf("unable to parse SSH raw key: %w", err)
+	}
+	if c := a.agentClient(); c != nil {
+		return c.AddSSHKey(k.PrivateKey(), v.Comment)
+	}
+	return nil
+}
+
+func (a *app) removeSSHKeyFromAgent(item paw.Item) error {
+	if item.GetMetadata().Type != paw.SSHKeyItemType {
+		return nil
+	}
+	v := item.(*paw.SSHKey)
+	k, err := sshkey.ParseKey([]byte(v.PrivateKey))
+	if err != nil {
+		return fmt.Errorf("unable to parse SSH raw key: %w", err)
+	}
+	if c := a.agentClient(); c != nil {
+		return c.RemoveSSHKey(k.PublicKey())
+	}
+	return nil
+}
+
+func (a *app) addSSHKeysToAgent(vault *paw.Vault) {
+	a.vault.Range(func(id string, meta *paw.Metadata) bool {
+		item, err := a.storage.LoadItem(a.vault, meta)
+		if err != nil {
+			return false
+		}
+		err = a.addSSHKeyToAgent(item)
+		if err != nil {
+			log.Println("unable to add SSH Key to agent:", err)
+		}
+		return true
+	})
 }
 
 func (a *app) setVaultView(vault *paw.Vault) {

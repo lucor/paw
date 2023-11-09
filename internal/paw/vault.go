@@ -88,6 +88,8 @@ func (v *Vault) DeleteItem(item Item) {
 	delete(v.ItemMetadata[meta.Type], item.ID())
 }
 
+// Range calls f sequentially for each key and value present in the vault. If f
+// returns false, range stops the iteration.
 func (v *Vault) Range(f func(id string, meta *Metadata) bool) {
 	for _, itemMetadataByType := range v.ItemMetadata {
 		for id, itemMetadata := range itemMetadataByType {

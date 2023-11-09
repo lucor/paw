@@ -12,7 +12,12 @@ import (
 
 	"golang.org/x/term"
 
+	"lucor.dev/paw/internal/agent"
 	"lucor.dev/paw/internal/paw"
+)
+
+const (
+	sessionEnvName = "PAW_SESSION"
 )
 
 // Cmd wraps the methods for a paw-cli command
@@ -240,4 +245,32 @@ func parseItemPath(path string, opts itemPathOptions) (itemPath, error) {
 		}
 	}
 	return ip, nil
+}
+
+// loadVaultKey returns the key to unlock the vault from the storage
+// it will use a session from the PAW_SESSION env variable if set,
+// otherwise will ask for the vault's password
+func loadVaultKey(s paw.Storage, vaultName string) (*paw.Key, error) {
+	sessionID := os.Getenv(sessionEnvName)
+	if sessionID != "" {
+		key, err := loadVaultKeyWithSession(s, vaultName, sessionID)
+		if err == nil {
+			return key, nil
+		}
+		fmt.Println("[✗] Session is invalid or expired")
+	}
+
+	password, err := askPassword("Enter the vault password")
+	if err != nil {
+		return nil, err
+	}
+	return s.LoadVaultKey(vaultName, password)
+}
+
+func loadVaultKeyWithSession(s paw.Storage, vaultName string, sessionID string) (*paw.Key, error) {
+	client, err := agent.NewClient(s.SocketAgentPath())
+	if err != nil {
+		return nil, err
+	}
+	return client.Key(vaultName, sessionID)
 }

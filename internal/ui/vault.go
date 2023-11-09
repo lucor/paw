@@ -76,7 +76,7 @@ func (a *app) makeUnlockVaultView(vaultName string) fyne.CanvasObject {
 	password.SetPlaceHolder("Password")
 
 	unlockBtn := widget.NewButtonWithIcon("Unlock", icon.LockOpenOutlinedIconThemed, func() {
-		vault, err := a.storage.LoadVault(vaultName, password.Text)
+		key, err := a.storage.LoadVaultKey(vaultName, password.Text)
 		if err != nil {
 			var invalidPasswordError *age.NoIdentityMatchError
 			if errors.As(err, &invalidPasswordError) {
@@ -85,8 +85,13 @@ func (a *app) makeUnlockVaultView(vaultName string) fyne.CanvasObject {
 			dialog.ShowError(err, a.win)
 			return
 		}
-
+		vault, err := a.storage.LoadVault(vaultName, key)
+		if err != nil {
+			dialog.ShowError(err, a.win)
+			return
+		}
 		a.setVaultView(vault)
+		a.addSSHKeysToAgent(vault)
 		a.showCurrentVaultView()
 	})
 
@@ -114,6 +119,7 @@ func (a *app) makeCurrentVaultView() fyne.CanvasObject {
 					if delete {
 						item, _ = paw.NewItem(meta.Name, meta.Type)
 						vault.DeleteItem(item)            // remove item from vault
+						a.removeSSHKeyFromAgent(item)     // remove item from ssh agent
 						a.storage.DeleteItem(vault, item) // remove item from storage
 						a.storage.StoreVault(vault)       // ensure vault is up-to-date
 						itemsWidget.Reload(nil, filter)
