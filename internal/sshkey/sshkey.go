@@ -9,7 +9,6 @@ import (
 	"encoding/pem"
 	"fmt"
 
-	"github.com/mikesmitty/edkey"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -64,11 +63,10 @@ func (sk sshkey) MarshalPrivateKey() []byte {
 	var pemBlock *pem.Block
 	switch v := sk.privateKey.(type) {
 	case *ed25519.PrivateKey:
-		// TODO move to x/crypto/ssh once https://go-review.googlesource.com/c/crypto/+/218620/ is merged
-		// see golang/go#37132
-		pemBlock = &pem.Block{
-			Type:  "OPENSSH PRIVATE KEY",
-			Bytes: edkey.MarshalED25519PrivateKey(*v),
+		var err error
+		pemBlock, err = ssh.MarshalPrivateKey(*v, "")
+		if err != nil {
+			panic("could not marshal SSH private key:" + err.Error())
 		}
 	case *rsa.PrivateKey:
 		pemBlock = &pem.Block{
