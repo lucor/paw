@@ -9,7 +9,8 @@
 - ui: update edit view to display a single action instead of the menu 
 - deps upgrade:
     - filippo.io/age v1.1.1
-    - fyne.io/fyne v2.3.0
+    - fyne.io/fyne v2.4.1
+    - fyne.io/systray v1.10.1-0.20231105182847-18ba13a8fe2b
     - golang.design/x/clipboard 0.7.0
     - golang.org/x/crypto v0.14.0
     - golang.org/x/sync v0.4.0
