@@ -45,13 +45,14 @@ type Options struct {
 // Alternatively a third-party service can be used via the Service option.
 // Example:
 // // Use the DuckDuckGo service
-// ddg := func(host string) string  {
-// 	return fmt.Sprintf("https://icons.duckduckgo.com/ip3/%s.ico", host)
-// }
-// img, err := favicon.Download(e.ctx, host, favicon.Options{
-// 	ForceMinSize: true,
-// 	Service: ddg,
-// })
+//
+//	ddg := func(host string) string  {
+//		return fmt.Sprintf("https://icons.duckduckgo.com/ip3/%s.ico", host)
+//	}
+//	img, err := favicon.Download(e.ctx, host, favicon.Options{
+//		ForceMinSize: true,
+//		Service: ddg,
+//	})
 func Download(ctx context.Context, host string, opts Options) (image.Image, error) {
 	minSize := opts.MinSize
 	forceMinSize := opts.ForceMinSize
