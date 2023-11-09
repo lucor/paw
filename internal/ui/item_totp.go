@@ -68,7 +68,7 @@ func (t *TOTP) Edit(ctx context.Context, w fyne.Window) (fyne.CanvasObject, *paw
 		form.Add(labelWithStyle("Interval"))
 		form.Add(container.NewBorder(nil, nil, nil, intervalEntry, intervalSlider))
 
-		dialog.ShowCustomConfirm("TOTP custom settings", "OK", "Cancel", container.NewMax(form), func(b bool) {
+		dialog.ShowCustomConfirm("TOTP custom settings", "OK", "Cancel", container.NewStack(form), func(b bool) {
 			if b {
 				totp = copy
 			}

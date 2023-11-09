@@ -37,7 +37,7 @@ func newItemsWidget(vault *paw.Vault, opts *paw.VaultFilterOptions) *itemsWidget
 		selectedIndex: -1,
 	}
 	iw.listEntry = iw.makeList(nil, opts)
-	iw.view = container.NewMax(iw.listEntry)
+	iw.view = container.NewStack(iw.listEntry)
 	iw.OnSelected = func(i *paw.Metadata) {}
 	iw.ExtendBaseWidget(iw)
 	return iw

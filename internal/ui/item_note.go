@@ -74,7 +74,7 @@ func newNoteEntryWithData(bind binding.String) *noteEntry {
 	ne := &noteEntry{
 		Entry: widget.Entry{
 			MultiLine: true,
-			Wrapping:  fyne.TextTruncate,
+			Wrapping:  fyne.TextWrap(fyne.TextTruncateEllipsis),
 		},
 	}
 	ne.ExtendBaseWidget(ne)

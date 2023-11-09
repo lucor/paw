@@ -105,7 +105,7 @@ func (a *app) makeEditItemView(fyneItem FyneItem) fyne.CanvasObject {
 			}, a.win)
 			d.Show()
 		})
-		deleteBtn = container.NewMax(canvas.NewRectangle(color.NRGBA{0xd0, 0x17, 0x2d, 0xff}), button)
+		deleteBtn = container.NewStack(canvas.NewRectangle(color.NRGBA{0xd0, 0x17, 0x2d, 0xff}), button)
 	}
 
 	buttonContainer := container.NewBorder(nil, nil, deleteBtn, saveBtn, widget.NewLabel(""))

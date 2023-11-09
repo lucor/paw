@@ -90,7 +90,7 @@ func (pd *pwgenDialog) ShowPasswordGenerator(bind binding.String, password *paw.
 		passwordBind.Set(secret)
 	})
 
-	content := container.NewMax(widget.NewLabel(""))
+	content := container.NewStack(widget.NewLabel(""))
 	typeOptions := []string{
 		paw.RandomPassword.String(),
 		paw.PassphrasePassword.String(),
