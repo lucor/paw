@@ -1,6 +1,6 @@
 # Changelog - Paw
 
-## Unreleased
+## 0.20.0 - 09 November 2023
 
 - agent: initial implementation of the server agent to handle SSH keys and CLI sessions
 - agent: initial implementation of the client agent to manage CLI sessions
