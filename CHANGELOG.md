@@ -10,8 +10,10 @@
 - deps upgrade:
     - filippo.io/age v1.1.1
     - fyne.io/fyne v2.3.0
+    - golang.design/x/clipboard 0.7.0
     - golang.org/x/crypto v0.14.0
-    - golang.org/x/sync v0.1.0
+    - golang.org/x/sync v0.4.0
+    - golang.org/x/image v0.13.0
     - golang.org/x/term v0.13.0
     - golang.org/x/text v0.13.0
 - deps remove:
