@@ -170,14 +170,12 @@ func (a *app) makeCurrentVaultView() fyne.CanvasObject {
 
 	list.SetSelectedIndex(0)
 
-	header := container.NewVBox(
-		container.NewBorder(nil, nil, nil, a.makeVaultMenu(), search),
-		list,
-	)
+	header := container.NewBorder(nil, nil, nil, a.makeVaultMenu(), list)
 
 	button := widget.NewButtonWithIcon("Add item", theme.ContentAddIcon(), func() {
 		a.showAddItemView()
 	})
 
-	return container.NewBorder(header, button, nil, nil, itemsWidget)
+	// layout so we can focus the search box using shift+tab
+	return container.NewBorder(search, nil, nil, nil, container.NewBorder(header, button, nil, nil, itemsWidget))
 }

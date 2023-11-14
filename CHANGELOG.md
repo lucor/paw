@@ -1,5 +1,9 @@
 # Changelog - Paw
 
+## Unreleased
+
+- ui: update the vault layout to focus the search box using shift+tab
+
 ## 0.20.0 - 09 November 2023
 
 - agent: initial implementation of the server agent to handle SSH keys and CLI sessions
