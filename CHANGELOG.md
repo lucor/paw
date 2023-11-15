@@ -1,8 +1,9 @@
 # Changelog - Paw
 
-## Unreleased
+## 0.20.1 - 15 November 2023
 
 - ui: update the vault layout to focus the search box using shift+tab
+- deps: update systray to fix a possible panic
 
 ## 0.20.0 - 09 November 2023
 
