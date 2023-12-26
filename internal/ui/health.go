@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"time"
 
 	"lucor.dev/paw/internal/paw"
 )
@@ -13,6 +14,7 @@ import (
 const (
 	startPortRange = 54321
 	endPortRange   = 55000
+	timeout        = 100 * time.Millisecond
 )
 
 // handleConnection handles the connection returning the paw version
@@ -59,16 +61,16 @@ func HealthServiceCheck() bool {
 	var address string
 	for i := startPortRange; i < endPortRange; i++ {
 		address = fmt.Sprintf("127.0.0.1:%d", i)
-
-		conn, err := net.Dial("tcp", address)
+		conn, err := net.DialTimeout("tcp", address, timeout)
 		if err != nil {
 			continue
 		}
-		defer conn.Close()
 
-		// Read the service version from the app
+		// Read the service version from the app and close the connection
+		conn.SetReadDeadline(time.Now().Add(timeout))
 		buffer := make([]byte, 4)
 		_, err = conn.Read(buffer)
+		conn.Close()
 		if err != nil {
 			// error reading
 			continue
@@ -78,7 +80,6 @@ func HealthServiceCheck() bool {
 		if bytes.Equal([]byte(paw.ServicePrefix), buffer) {
 			return true
 		}
-		continue
 	}
 
 	return false
