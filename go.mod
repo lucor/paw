@@ -4,7 +4,7 @@ go 1.18
 
 require (
 	filippo.io/age v1.1.1
-	fyne.io/fyne/v2 v2.4.1
+	fyne.io/fyne/v2 v2.4.3
 	github.com/stretchr/testify v1.8.4
 	golang.design/x/clipboard v0.7.0
 	golang.org/x/crypto v0.14.0

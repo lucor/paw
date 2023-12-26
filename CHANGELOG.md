@@ -1,5 +1,9 @@
 # Changelog - Paw
 
+## Unreleased
+- deps upgrade:
+    - fyne.io/fyne v2.4.3
+
 ## 0.20.1 - 15 November 2023
 
 - ui: update the vault layout to focus the search box using shift+tab
