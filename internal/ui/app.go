@@ -3,7 +3,6 @@ package ui
 import (
 	"fmt"
 	"log"
-	"os"
 	"runtime"
 
 	"fyne.io/fyne/v2"
@@ -35,13 +34,11 @@ type app struct {
 
 	filter map[string]*paw.VaultFilterOptions
 
-	version string
-
 	// Paw agent client
 	client agent.PawAgent
 }
 
-func MakeApp(w fyne.Window, ver string) fyne.CanvasObject {
+func MakeApp(w fyne.Window) fyne.CanvasObject {
 	var s paw.Storage
 	var err error
 
@@ -54,24 +51,6 @@ func MakeApp(w fyne.Window, ver string) fyne.CanvasObject {
 		log.Fatal(err)
 	}
 
-	if ver == "" {
-		ver = "(unknown)"
-	}
-
-	// check for running instance
-	cliAgentRunning := false
-	c, err := agent.NewClient(s.SocketAgentPath())
-	if err == nil {
-		t, _ := c.Type()
-		switch t {
-		case agent.GUI:
-			// a GUI instance is already running, exit
-			os.Exit(1)
-		case agent.CLI:
-			cliAgentRunning = true
-		}
-	}
-
 	config, err := s.LoadConfig()
 	if err != nil {
 		dialog.NewError(err, w)
@@ -82,7 +61,6 @@ func MakeApp(w fyne.Window, ver string) fyne.CanvasObject {
 		storage:       s,
 		config:        config,
 		unlockedVault: make(map[string]*paw.Vault),
-		version:       ver,
 		filter:        make(map[string]*paw.VaultFilterOptions),
 	}
 
@@ -90,9 +68,6 @@ func MakeApp(w fyne.Window, ver string) fyne.CanvasObject {
 
 	a.main = a.makeApp()
 	a.makeSysTray()
-	if !cliAgentRunning {
-		go agent.Run(agent.NewGUI(), s.SocketAgentPath())
-	}
 
 	return a.main
 }

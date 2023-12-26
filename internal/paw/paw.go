@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"runtime/debug"
 	"strings"
 	"time"
 
@@ -19,8 +20,13 @@ import (
 )
 
 const (
-	ID      = "dev.lucor.paw"
-	Version = "lucor/paw/v1"
+	ID            = "dev.lucor.paw"
+	ServicePrefix = "paw/"
+)
+
+var (
+	// BuildVersion allow to set the version at link time
+	BuildVersion string
 )
 
 type Ruler interface {
@@ -250,4 +256,22 @@ func (k *Key) UnmarshalJSON(data []byte) error {
 
 func (k *Key) String() string {
 	return k.ageIdentity.String()
+}
+
+// Version returns the Paw's version
+func Version() string {
+	if BuildVersion != "" {
+		return BuildVersion
+	}
+
+	info, ok := debug.ReadBuildInfo()
+	if ok {
+		return info.Main.Version
+	}
+	return "(unknown)"
+}
+
+// ServiceVersion returns the Paw's service version
+func ServiceVersion() string {
+	return ServicePrefix + Version()
 }

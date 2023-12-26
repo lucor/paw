@@ -20,6 +20,61 @@ const (
 	sessionEnvName = "PAW_SESSION"
 )
 
+func New(s paw.Storage) {
+
+	// Define the command to use
+	commands := []Cmd{
+		&AgentCmd{},
+		&AddCmd{},
+		&EditCmd{},
+		&InitCmd{},
+		&ListCmd{},
+		&LockCmd{},
+		&PwGenCmd{},
+		&RemoveCmd{},
+		&ShowCmd{},
+		&UnlockCmd{},
+		&VersionCmd{},
+	}
+
+	// display the usage if no command is specified
+	if len(os.Args) == 2 {
+		Usage(commands)
+		os.Exit(1)
+	}
+
+	// check for valid command
+	var cmd Cmd
+	for _, v := range commands {
+		if os.Args[2] == v.Name() {
+			cmd = v
+			break
+		}
+	}
+
+	// If no valid command is specified display the usage
+	if cmd == nil {
+		Usage(commands)
+		os.Exit(1)
+	}
+
+	// Parse the arguments for the command
+	// It will display the command usage if -help is specified
+	// and will exit in case of error
+	err := cmd.Parse(os.Args[3:])
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "[✗] %s\n", err)
+		os.Exit(1)
+	}
+
+	// Finally run the command
+	err = cmd.Run(s)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "[✗] %s\n", err)
+		os.Exit(1)
+	}
+}
+
 // Cmd wraps the methods for a paw-cli command
 type Cmd interface {
 	Name() string              // Name returns the one word command name
@@ -31,14 +86,14 @@ type Cmd interface {
 
 // Usage prints the command usage
 func Usage(commands []Cmd) {
-	template := `paw-cli is the CLI application for Paw
+	template := `paw cli is the CLI application for Paw
 
-Usage: paw-cli <command> [arguments]
+Usage: paw cli <command> [arguments]
 
 The commands are:
 
 {{ range $k, $cmd := . }}	{{ printf "%-13s %s\n" $cmd.Name $cmd.Description }}{{ end }}
-Use "paw-cli <command> -help" for more information about a command.
+Use "paw cli <command> -help" for more information about a command.
 `
 	printTemplate(os.Stdout, template, commands)
 }

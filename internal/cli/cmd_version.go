@@ -2,15 +2,12 @@ package cli
 
 import (
 	"fmt"
-	"runtime/debug"
 
 	"lucor.dev/paw/internal/paw"
 )
 
 // Version is the version command
-type VersionCmd struct {
-	Version string
-}
+type VersionCmd struct{}
 
 // Name returns the one word command name
 func (cmd *VersionCmd) Name() string {
@@ -48,16 +45,6 @@ func (cmd *VersionCmd) Parse(args []string) error {
 
 // Run runs the command
 func (cmd *VersionCmd) Run(s paw.Storage) error {
-	fmt.Printf("paw-cli version %s\n", cmd.version())
+	fmt.Printf("paw-cli version %s\n", paw.Version())
 	return nil
-}
-
-func (cmd *VersionCmd) version() string {
-	if cmd.Version != "" {
-		return cmd.Version
-	}
-	if info, ok := debug.ReadBuildInfo(); ok {
-		return info.Main.Version
-	}
-	return "(unknown)"
 }

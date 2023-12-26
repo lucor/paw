@@ -1,6 +1,8 @@
 # Changelog - Paw
 
 ## Unreleased
+
+- all: merge CLI and GUI apps to provide only a binary
 - deps upgrade:
     - fyne.io/fyne v2.4.3
 

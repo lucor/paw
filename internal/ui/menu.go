@@ -11,6 +11,7 @@ import (
 	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
+	"lucor.dev/paw/internal/paw"
 )
 
 func (a *app) makeMainMenu() *fyne.MainMenu {
@@ -50,7 +51,7 @@ func (a *app) makeMainMenu() *fyne.MainMenu {
 
 func (a *app) about() {
 	u, _ := url.Parse("https://lucor.dev/paw")
-	l := widget.NewLabel("Paw - " + a.version)
+	l := widget.NewLabel("Paw - " + paw.Version())
 	l.Alignment = fyne.TextAlignCenter
 	link := widget.NewHyperlink("https://lucor.dev/paw", u)
 	link.Alignment = fyne.TextAlignCenter
