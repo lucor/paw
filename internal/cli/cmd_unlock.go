@@ -28,7 +28,7 @@ func (cmd *UnlockCmd) Description() string {
 
 // Usage displays the command usage
 func (cmd *UnlockCmd) Usage() {
-	template := `Usage: paw-cli session [OPTION] COMMAND VAULT
+	template := `Usage: paw cli session [OPTION] COMMAND VAULT
 
 {{ . }}
 

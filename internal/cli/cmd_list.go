@@ -24,7 +24,7 @@ func (cmd *ListCmd) Description() string {
 
 // Usage displays the command usage
 func (cmd *ListCmd) Usage() {
-	template := `Usage: paw-cli ls [OPTION] [VAULT_NAME/ITEM_TYPE/ITEM_NAME]
+	template := `Usage: paw cli ls [OPTION] [VAULT_NAME/ITEM_TYPE/ITEM_NAME]
 
 {{ . }}
 
@@ -141,7 +141,7 @@ func (cmd *ListCmd) vaults(s paw.Storage) (tree.Node, error) {
 		return n, err
 	}
 	if len(vaults) == 0 {
-		return n, fmt.Errorf("no vaults found. To create one: paw-cli init VAULT")
+		return n, fmt.Errorf("no vaults found. To create one: paw cli init VAULT")
 	}
 	for _, v := range vaults {
 		if cmd.vaultName != "" && cmd.vaultName != v {

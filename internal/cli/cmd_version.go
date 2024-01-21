@@ -21,7 +21,7 @@ func (cmd *VersionCmd) Description() string {
 
 // Usage displays the command usage
 func (cmd *VersionCmd) Usage() {
-	template := `Usage: paw-cli version
+	template := `Usage: paw cli version
 
 {{ . }}
 
@@ -45,6 +45,6 @@ func (cmd *VersionCmd) Parse(args []string) error {
 
 // Run runs the command
 func (cmd *VersionCmd) Run(s paw.Storage) error {
-	fmt.Printf("paw-cli version %s\n", paw.Version())
+	fmt.Printf("paw cli version %s\n", paw.Version())
 	return nil
 }

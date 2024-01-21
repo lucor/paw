@@ -25,7 +25,7 @@ func (cmd *EditCmd) Description() string {
 
 // Usage displays the command usage
 func (cmd *EditCmd) Usage() {
-	template := `Usage: paw-cli [OPTION] edit VAULT_NAME/ITEM_TYPE/ITEM_NAME
+	template := `Usage: paw cli [OPTION] edit VAULT_NAME/ITEM_TYPE/ITEM_NAME
 
 {{ . }}
 

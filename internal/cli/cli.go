@@ -75,7 +75,7 @@ func New(s paw.Storage) {
 	}
 }
 
-// Cmd wraps the methods for a paw-cli command
+// Cmd wraps the methods for a paw cli command
 type Cmd interface {
 	Name() string              // Name returns the one word command name
 	Description() string       // Description returns the command description

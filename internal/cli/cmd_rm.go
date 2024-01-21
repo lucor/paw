@@ -24,7 +24,7 @@ func (cmd *RemoveCmd) Description() string {
 
 // Usage displays the command usage
 func (cmd *RemoveCmd) Usage() {
-	template := `Usage: paw-cli rm [OPTION] VAULT_NAME/ITEM_TYPE/ITEM_NAME
+	template := `Usage: paw cli rm [OPTION] VAULT_NAME/ITEM_TYPE/ITEM_NAME
 
 {{ . }}
 
