@@ -1,6 +1,6 @@
 # Changelog - Paw
 
-## Unreleased
+## 0.21.0 - 21 January 2024
 
 - all: merge CLI and GUI apps to provide only a binary
 - deps upgrade:
