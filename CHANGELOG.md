@@ -5,6 +5,11 @@
 - all: merge CLI and GUI apps to provide only a binary
 - deps upgrade:
     - fyne.io/fyne v2.4.3
+	- golang.org/x/crypto v0.18.0
+	- golang.org/x/image v0.15.0
+	- golang.org/x/sync v0.6.0
+	- golang.org/x/term v0.16.0
+	- golang.org/x/text v0.14.0
 
 ## 0.20.1 - 15 November 2023
 
