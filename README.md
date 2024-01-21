@@ -25,7 +25,7 @@ It is written in Go and uses [Fyne](https://github.com/fyne-io/fyne) as UI toolk
 ## Main features
 
 * Cross platform application (linux, macOS, Windows, BSD ...) with a single codebase
-* Desktop, Mobile and CLI application
+* Desktop, Mobile and CLI application with a single binary
 * Minimal direct dependencies
 * Agent to handle SSH keys and CLI sessions
 * Open source: code can be audited
@@ -45,16 +45,9 @@ It is written in Go and uses [Fyne](https://github.com/fyne-io/fyne) as UI toolk
 
 ### Latest version
 
-#### Desktop application
 
 ```
 go install lucor.dev/paw/cmd/paw@latest
-```
-
-#### CLI application
-
-```
-go install lucor.dev/paw/cmd/paw-cli@latest
 ```
 
 ### Development version
@@ -63,11 +56,7 @@ To try the development version or help with testing:
 
 
 ```
-# Desktop application
 go install lucor.dev/paw/cmd/paw@develop
-
-# CLI application
-go install lucor.dev/paw/cmd/paw-cli@develop
 ```
 
 ## How it works - cryptography details

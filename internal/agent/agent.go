@@ -19,6 +19,10 @@ var ErrOperationUnsupported = errors.New("operation unsupported")
 // Type represents the agent type
 type Type string
 
+func (t Type) IsZero() bool {
+	return t == ""
+}
+
 const (
 	// CLI represents the agent started in CLI mode
 	CLI Type = "CLI"

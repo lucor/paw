@@ -24,7 +24,7 @@ func (cmd *InitCmd) Description() string {
 
 // Usage displays the command usage
 func (cmd *InitCmd) Usage() {
-	template := `Usage: paw-cli init VAULT
+	template := `Usage: paw cli init VAULT
 
 {{ . }}
 

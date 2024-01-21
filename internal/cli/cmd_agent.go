@@ -32,7 +32,7 @@ func (cmd *AgentCmd) Description() string {
 
 // Usage displays the command usage
 func (cmd *AgentCmd) Usage() {
-	template := `Usage: paw-cli agent COMMAND
+	template := `Usage: paw cli agent COMMAND
 
 {{ . }}
 

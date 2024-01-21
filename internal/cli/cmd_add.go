@@ -27,7 +27,7 @@ func (cmd *AddCmd) Description() string {
 
 // Usage displays the command usage
 func (cmd *AddCmd) Usage() {
-	template := `Usage: paw-cli add [OPTION] VAULT_NAME/ITEM_TYPE/ITEM_NAME
+	template := `Usage: paw cli add [OPTION] VAULT_NAME/ITEM_TYPE/ITEM_NAME
 
 {{ . }}
 

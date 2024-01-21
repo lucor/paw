@@ -29,7 +29,7 @@ func (cmd *ShowCmd) Description() string {
 
 // Usage displays the command usage
 func (cmd *ShowCmd) Usage() {
-	template := `Usage: paw-cli show [OPTION] VAULT_NAME/ITEM_TYPE/ITEM_NAME
+	template := `Usage: paw cli show [OPTION] VAULT_NAME/ITEM_TYPE/ITEM_NAME
 
 {{ . }}
 

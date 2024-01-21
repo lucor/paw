@@ -21,7 +21,7 @@ func (cmd *PwGenCmd) Description() string {
 
 // Usage displays the command usage
 func (cmd *PwGenCmd) Usage() {
-	template := `Usage: paw-cli pwgen [OPTION]
+	template := `Usage: paw cli pwgen [OPTION]
 
 {{ . }}
 

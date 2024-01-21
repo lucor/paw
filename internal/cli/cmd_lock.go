@@ -26,7 +26,7 @@ func (cmd *LockCmd) Description() string {
 
 // Usage displays the command usage
 func (cmd *LockCmd) Usage() {
-	template := `Usage: paw-cli lock [OPTION] VAULT
+	template := `Usage: paw cli lock [OPTION] VAULT
 
 {{ . }}
 

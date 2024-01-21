@@ -4,14 +4,14 @@ go 1.18
 
 require (
 	filippo.io/age v1.1.1
-	fyne.io/fyne/v2 v2.4.1
+	fyne.io/fyne/v2 v2.4.3
 	github.com/stretchr/testify v1.8.4
 	golang.design/x/clipboard v0.7.0
-	golang.org/x/crypto v0.14.0
-	golang.org/x/image v0.13.0
-	golang.org/x/sync v0.4.0
-	golang.org/x/term v0.13.0
-	golang.org/x/text v0.13.0
+	golang.org/x/crypto v0.18.0
+	golang.org/x/image v0.15.0
+	golang.org/x/sync v0.6.0
+	golang.org/x/term v0.16.0
+	golang.org/x/text v0.14.0
 )
 
 require (
@@ -38,7 +38,7 @@ require (
 	golang.org/x/exp v0.0.0-20200224162631-6cc2880d07d6 // indirect
 	golang.org/x/mobile v0.0.0-20230531173138-3c911d8e3eda // indirect
 	golang.org/x/net v0.17.0 // indirect
-	golang.org/x/sys v0.13.0 // indirect
+	golang.org/x/sys v0.16.0 // indirect
 	gopkg.in/check.v1 v1.0.0-20200227125254-8fa46927fb4f // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	honnef.co/go/js/dom v0.0.0-20210725211120-f030747120f2 // indirect
