@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"runtime"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
@@ -33,6 +34,10 @@ func main() {
 	args := len(os.Args)
 	if args > 1 {
 		if os.Args[1] == "cli" {
+			if runtime.GOOS == "android" || runtime.GOOS == "ios" {
+				fmt.Println("cli is unsupported on this OS")
+				os.Exit(1)
+			}
 			// make CLI app
 			cli.New(s)
 			return

@@ -1,3 +1,5 @@
+//go:build !android && !ios
+
 package cli
 
 import (
@@ -14,6 +16,13 @@ const (
 	clipboardWriteTimeout  = 1 * time.Second
 )
 
+// initClipboard initializes the clipboard.
+// It returns an error if the clipboard is not available to use.
+func initClipboard() error {
+	return clipboard.Init()
+}
+
+// writeToClipboard writes provided data to clipboard
 func writeToClipboard(ctx context.Context, data []byte) error {
 	last := clipboard.Read(clipboard.FmtText)
 	if bytes.Equal(last, data) {

@@ -6,8 +6,6 @@ import (
 	"os"
 	"time"
 
-	"golang.design/x/clipboard"
-
 	"lucor.dev/paw/internal/paw"
 )
 
@@ -59,7 +57,7 @@ func (cmd *ShowCmd) Parse(args []string) error {
 	flags.SetEnv()
 
 	if cmd.clipboard {
-		err := clipboard.Init()
+		err := initClipboard()
 		if err != nil {
 			return err
 		}
