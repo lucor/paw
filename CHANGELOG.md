@@ -1,8 +1,9 @@
 # Changelog - Paw
 
-## Unreleased
+## 0.21.1 - 24 January 2024
 
 - cli: disable CLI application on mobile OSes  
+- ui: fix background color for the delete button in the edit view
 
 ## 0.21.0 - 21 January 2024
 
