@@ -3,12 +3,10 @@ package ui
 import (
 	"context"
 	"fmt"
-	"image/color"
 	"log"
 	"time"
 
 	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/theme"
@@ -105,7 +103,8 @@ func (a *app) makeEditItemView(fyneItem FyneItem) fyne.CanvasObject {
 			}, a.win)
 			d.Show()
 		})
-		deleteBtn = container.NewStack(canvas.NewRectangle(color.NRGBA{0xd0, 0x17, 0x2d, 0xff}), button)
+		button.Importance = widget.DangerImportance
+		deleteBtn = button
 	}
 
 	buttonContainer := container.NewBorder(nil, nil, deleteBtn, saveBtn, widget.NewLabel(""))
