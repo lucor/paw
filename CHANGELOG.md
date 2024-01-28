@@ -1,6 +1,6 @@
 # Changelog - Paw
 
-## Unreleased
+## 0.21.2 - 28 January 2024
 
 - mobile: fix `undefined: clipboardWriteTimeout`
 
