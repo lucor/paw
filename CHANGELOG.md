@@ -1,5 +1,9 @@
 # Changelog - Paw
 
+## Unreleased
+
+- mobile: fix `undefined: clipboardWriteTimeout`
+
 ## 0.21.1 - 24 January 2024
 
 - cli: disable CLI application on mobile OSes  

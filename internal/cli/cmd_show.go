@@ -9,6 +9,10 @@ import (
 	"lucor.dev/paw/internal/paw"
 )
 
+const (
+	clipboardWriteTimeout = 1 * time.Second
+)
+
 // Show shows an item details
 type ShowCmd struct {
 	itemPath

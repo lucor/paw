@@ -13,7 +13,6 @@ import (
 
 const (
 	clipboardWatchInterval = 10 * time.Millisecond
-	clipboardWriteTimeout  = 1 * time.Second
 )
 
 // initClipboard initializes the clipboard.
