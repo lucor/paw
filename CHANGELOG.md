@@ -3,6 +3,7 @@
 ## 0.22.0 - Unreleased
 
 - all: update logo
+- all: move main into project root
 
 ## 0.21.2 - 28 January 2024
 
