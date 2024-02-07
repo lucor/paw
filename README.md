@@ -17,7 +17,6 @@ It is written in Go and uses [Fyne](https://github.com/fyne-io/fyne) as UI toolk
 ## Screenshot
 
 <div>
-    <img alt="Paw - lock view" src="images/lock.png" />
     <img alt="Paw - list view" src="images/list.png" />
     <img alt="Paw - details view" src="images/details.png" />
 </div>
