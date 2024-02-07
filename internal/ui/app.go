@@ -89,6 +89,7 @@ func (a *app) makeSysTray() {
 		a.win.SetCloseIntercept(a.win.Hide) // don't close the window if system tray used
 		menu := fyne.NewMenu("Vaults", a.makeVaultMenuItems()...)
 		desk.SetSystemTrayMenu(menu)
+		desk.SetSystemTrayIcon(icon.PawSystray)
 	}
 }
 
