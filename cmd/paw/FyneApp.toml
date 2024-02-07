@@ -1,8 +1,0 @@
-Website = "https://lucor.dev/paw"
-
-[Details]
-  Icon = "paw.png"
-  Name = "paw"
-  ID = "dev.lucor.paw"
-  Version = "0.20.0"
-  Build = 1
