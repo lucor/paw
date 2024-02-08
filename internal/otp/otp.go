@@ -83,7 +83,7 @@ func HOTP(h func() hash.Hash, key []byte, count uint64, digits int) (string, err
 
 	// value is the string representation of otp
 	value := strconv.Itoa(int(otp))
-	for i := 0; i < digits-len(value); i++ {
+	for digits-len(value) != 0 {
 		// otp len must be equal to digits, if shorter prepend 0
 		value = "0" + value
 	}

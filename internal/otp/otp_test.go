@@ -393,3 +393,12 @@ func TestTOTPFromBase32InvalidKey(t *testing.T) {
 	_, err := TOTPFromBase32(sha1.New, key, time.Now(), DefaultInterval, DefaultDigits)
 	require.Error(t, err)
 }
+
+func TestTOTPDigitsOutput(t *testing.T) {
+	key := "OBQXO"
+	now, err := time.Parse(time.DateTime, "2024-02-09 23:03:59")
+	require.NoError(t, err)
+	v, err := TOTPFromBase32(sha1.New, key, now, DefaultInterval, DefaultDigits)
+	require.NoError(t, err)
+	require.Equal(t, "003475", v)
+}

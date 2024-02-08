@@ -5,6 +5,7 @@
 - all: update logo
 - all: move main into project root
 - otp: ensure decoded key is padded
+- otp: fix padding issue for the 2fa code
 
 ## 0.21.2 - 28 January 2024
 
