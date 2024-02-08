@@ -3,7 +3,6 @@ package ui
 import (
 	"context"
 	"crypto/sha1"
-	"encoding/base32"
 	"fmt"
 	"strconv"
 	"time"
@@ -94,10 +93,8 @@ func (t *TOTP) Show(ctx context.Context, w fyne.Window) []fyne.CanvasObject {
 		secretLabel.SetText(v[0:m] + " " + v[m:])
 	}))
 
-	secret, _ := base32.StdEncoding.DecodeString(t.Secret)
-
 	now := time.Now()
-	v, _ := otp.TOTP(sha1.New, secret, now, t.Interval, t.Digits)
+	v, _ := otp.TOTPFromBase32(sha1.New, t.Secret, now, t.Interval, t.Digits)
 	totp.Set(v)
 
 	progressbar := widget.NewProgressBar()
@@ -119,7 +116,7 @@ func (t *TOTP) Show(ctx context.Context, w fyne.Window) []fyne.CanvasObject {
 			case <-ticker.C:
 				v := progressbar.Value
 				if v == 1 {
-					v, _ := otp.TOTP(sha1.New, secret, time.Now(), t.Interval, t.Digits)
+					v, _ := otp.TOTPFromBase32(sha1.New, t.Secret, time.Now(), t.Interval, t.Digits)
 					totp.Set(v)
 					progressbar.SetValue(progressbar.Max)
 				} else {

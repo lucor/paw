@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 // TestTOTPRFC6238 tests the HOTP implementation with values as per rfc6238
@@ -377,4 +379,17 @@ func TestHmacGeneratorRFC4226(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestTOTPFromBase32(t *testing.T) {
+	key := "OBQXO"
+	v, err := TOTPFromBase32(sha1.New, key, time.Now(), DefaultInterval, DefaultDigits)
+	require.NoError(t, err)
+	require.Len(t, v, DefaultDigits)
+}
+
+func TestTOTPFromBase32InvalidKey(t *testing.T) {
+	key := "A"
+	_, err := TOTPFromBase32(sha1.New, key, time.Now(), DefaultInterval, DefaultDigits)
+	require.Error(t, err)
 }

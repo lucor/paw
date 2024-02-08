@@ -5,11 +5,13 @@ package otp
 
 import (
 	"crypto/hmac"
+	"encoding/base32"
 	"encoding/binary"
 	"errors"
 	"hash"
 	"math"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -19,16 +21,31 @@ const (
 	t0              = 0 // t0 is the Unix time to start counting time steps (default value is 0)
 )
 
+// TOTPFromBase32 generates a TOTP (Time-Based One-Time Password) value as
+// defined into the RFC6238 from a base32 encoded secret
+func TOTPFromBase32(h func() hash.Hash, decodedKey string, t time.Time, interval int, digits int) (string, error) {
+	// padding the decodedKey if needed
+	for len(decodedKey)%8 != 0 {
+		decodedKey += "="
+	}
+
+	secret, err := base32.StdEncoding.DecodeString(strings.ToUpper(decodedKey))
+	if err != nil {
+		return "", err
+	}
+	return TOTP(h, secret, t, interval, digits)
+}
+
 // TOTP generates a TOTP (Time-Based One-Time Password) value as defined into the RFC6238
 // Note: if the hash function is nil, defaults to SHA1
 // Reference: https://datatracker.ietf.org/doc/html/rfc6238
-func TOTP(h func() hash.Hash, secret []byte, t time.Time, interval int, digits int) (string, error) {
+func TOTP(h func() hash.Hash, key []byte, t time.Time, interval int, digits int) (string, error) {
 	if interval < 1 {
 		return "", errors.New("interval value must be greater than 0. RFC suggests as default 30")
 	}
 
 	count := numTimeSteps(t, interval, t0)
-	return HOTP(h, secret, count, digits)
+	return HOTP(h, key, count, digits)
 }
 
 // numTimeSteps the number of time steps between the initial counter time T0 and the current Unix time

@@ -4,6 +4,7 @@
 
 - all: update logo
 - all: move main into project root
+- otp: ensure decoded key is padded
 
 ## 0.21.2 - 28 January 2024
 
