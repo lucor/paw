@@ -2,6 +2,7 @@
 
 ## 0.22.0 - Unreleased
 
+- all: improve health service performance creating a lock file 
 - all: update logo
 - all: move main into project root
 - otp: ensure decoded key is padded

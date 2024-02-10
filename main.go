@@ -35,7 +35,7 @@ func main() {
 	if args > 1 {
 		if os.Args[1] == "cli" {
 			if runtime.GOOS == "android" || runtime.GOOS == "ios" {
-				fmt.Println("cli is unsupported on this OS")
+				fmt.Println("CLI app is unsupported on this OS")
 				os.Exit(1)
 			}
 			// make CLI app
@@ -44,12 +44,12 @@ func main() {
 		}
 	}
 
-	if ui.HealthServiceCheck() {
-		fmt.Println("paw GUI is already running, exits")
+	if ui.HealthServiceCheck(s.LockFilePath()) {
+		fmt.Println("Paw GUI is already running")
 		os.Exit(1)
 	}
 
-	go ui.HealthService()
+	go ui.HealthService(s.LockFilePath())
 
 	if agentType.IsZero() {
 		go agent.Run(agent.NewGUI(), s.SocketAgentPath())

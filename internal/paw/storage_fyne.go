@@ -238,6 +238,11 @@ func (s *FyneStorage) SocketAgentPath() string {
 	return socketAgentPath(s)
 }
 
+// LockFilePath return the lock file path
+func (s *FyneStorage) LockFilePath() string {
+	return lockFilePath(s)
+}
+
 func (s *FyneStorage) isExist(path string) bool {
 	ok, _ := storage.Exists(storage.NewFileURI(path))
 	return ok

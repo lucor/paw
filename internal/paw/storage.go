@@ -12,6 +12,7 @@ const (
 	configFileName  = "config.json"
 	keyFileName     = "key.age"
 	vaultFileName   = "vault.age"
+	lockFileName    = "paw.lock"
 	socketFileName  = "agent.sock"
 )
 
@@ -21,6 +22,7 @@ type Storage interface {
 	VaultStorage
 	ItemStorage
 	SocketAgentPath() string
+	LockFilePath() string
 }
 type ConfigStorage interface {
 	LoadConfig() (*Config, error)
@@ -81,6 +83,10 @@ func itemPath(s Storage, vaultName string, itemID string) string {
 
 func socketAgentPath(s Storage) string {
 	return filepath.Join(s.Root(), socketFileName)
+}
+
+func lockFilePath(s Storage) string {
+	return filepath.Join(s.Root(), lockFileName)
 }
 
 func encrypt(key *Key, w io.Writer, v interface{}) error {

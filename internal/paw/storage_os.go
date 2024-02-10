@@ -256,6 +256,11 @@ func (s *OSStorage) SocketAgentPath() string {
 	return socketAgentPath(s)
 }
 
+// LockFilePath return the lock file path
+func (s *OSStorage) LockFilePath() string {
+	return lockFilePath(s)
+}
+
 func (s *OSStorage) isExist(path string) bool {
 	_, err := os.Stat(path)
 	return !os.IsNotExist(err)
