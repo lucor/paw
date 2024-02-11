@@ -1,3 +1,8 @@
+// Copyright 2021 the Paw Authors. All rights reserved.
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
 // Package haveibeenpwned implements a client for the haveibeenpwned.com API v3
 // to search if passwords have been exposed in data breaches
 package haveibeenpwned

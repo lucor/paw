@@ -1,3 +1,8 @@
+// Copyright 2021 the Paw Authors. All rights reserved.
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
 // Package provides an implementation to generate one-time password values based
 // on the TOTP (Time-Based One-Time Password) and HOTP (HMAC-Based One-Time
 // Password) algorithms as defined into the RFC4226 and RFC6238 specifications
