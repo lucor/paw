@@ -5,12 +5,15 @@ import (
 	"crypto"
 	"encoding/json"
 	"errors"
-	"net"
 	"time"
 
 	"golang.org/x/crypto/ssh"
 	sshagent "golang.org/x/crypto/ssh/agent"
 	"lucor.dev/paw/internal/paw"
+)
+
+const (
+	dialTimeout = 100 * time.Millisecond
 )
 
 type PawAgent interface {
@@ -47,7 +50,7 @@ type client struct {
 // NewClient returns a Paw agent client to manage sessions and SSH keys
 // The communication with agent is done using the SSH agent protocol.
 func NewClient(socketPath string) (PawAgent, error) {
-	a, err := net.Dial("unix", socketPath)
+	a, err := dialWithTimeout(socketPath, dialTimeout)
 	if err != nil {
 		return nil, err
 	}

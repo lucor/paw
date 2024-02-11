@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"path/filepath"
+	"runtime"
 )
 
 const (
@@ -14,6 +15,7 @@ const (
 	vaultFileName   = "vault.age"
 	lockFileName    = "paw.lock"
 	socketFileName  = "agent.sock"
+	namedPipe       = `\\.\pipe\paw`
 )
 
 type Storage interface {
@@ -82,6 +84,9 @@ func itemPath(s Storage, vaultName string, itemID string) string {
 }
 
 func socketAgentPath(s Storage) string {
+	if runtime.GOOS == "windows" {
+		return namedPipe
+	}
 	return filepath.Join(s.Root(), socketFileName)
 }
 

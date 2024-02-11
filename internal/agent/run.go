@@ -10,10 +10,10 @@ package agent
 
 import (
 	"log"
-	"net"
 	"os"
 	"os/signal"
 	"path/filepath"
+	"runtime"
 	"syscall"
 	"time"
 
@@ -35,13 +35,16 @@ func Run(a *Agent, socketPath string) {
 		}
 	}()
 
-	os.Remove(socketPath)
-	if err := os.MkdirAll(filepath.Dir(socketPath), 0777); err != nil {
-		log.Fatalln("Failed to create UNIX socket folder:", err)
+	if runtime.GOOS != "windows" {
+		os.Remove(socketPath)
+		if err := os.MkdirAll(filepath.Dir(socketPath), 0777); err != nil {
+			log.Fatalln("Failed to create UNIX socket folder:", err)
+		}
 	}
-	l, err := net.Listen("unix", socketPath)
+
+	l, err := listen(socketPath)
 	if err != nil {
-		log.Fatalln("Failed to listen on UNIX socket:", err)
+		log.Fatalln("Failed to listen on socket:", err)
 	}
 
 	for {
