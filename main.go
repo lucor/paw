@@ -17,6 +17,22 @@ import (
 )
 
 func main() {
+	var isCLI bool
+	// handle application start: CLI, GUI
+	args := len(os.Args)
+	if args > 1 && os.Args[1] == "cli" {
+		if runtime.GOOS == "android" || runtime.GOOS == "ios" {
+			fmt.Println("CLI app is unsupported on this OS")
+			os.Exit(1)
+		}
+		isCLI = true
+	}
+
+	if !isCLI && runtime.GOOS == "windows" {
+		// On Windows, to ship a single binary for GUI and CLI we need to build as
+		// "console binary" and detach the console when running as GUI
+		ui.DetachConsole()
+	}
 
 	s, err := paw.NewOSStorage()
 	if err != nil {
@@ -31,17 +47,10 @@ func main() {
 	}
 
 	// handle application start: CLI, GUI
-	args := len(os.Args)
-	if args > 1 {
-		if os.Args[1] == "cli" {
-			if runtime.GOOS == "android" || runtime.GOOS == "ios" {
-				fmt.Println("CLI app is unsupported on this OS")
-				os.Exit(1)
-			}
-			// make CLI app
-			cli.New(s)
-			return
-		}
+	if isCLI {
+		// make CLI app
+		cli.New(s)
+		return
 	}
 
 	if ui.HealthServiceCheck(s.LockFilePath()) {

@@ -5,6 +5,7 @@
 - all: improve health service performance creating a lock file 
 - all: update logo
 - all: move main into project root
+- all: detach console when running on Windows
 - otp: ensure decoded key is padded
 - otp: fix padding issue for the 2fa code
 
