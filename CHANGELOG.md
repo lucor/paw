@@ -13,6 +13,8 @@
 
 - deps add:
     - gopkg.in/natefinch/npipe.v2 v2.0.0-20160621034901-c1b8fa8bdcce
+- deps upgrade:
+    - fyne.io/fyne v2.4.4
 
 ## 0.21.2 - 28 January 2024
 
