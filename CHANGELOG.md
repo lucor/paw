@@ -1,6 +1,6 @@
 # Changelog - Paw
 
-## 0.22.0 - Unreleased
+## 0.22.0 - 13 February 2024
 
 - all: improve health service performance creating a lock file 
 - all: update logo
