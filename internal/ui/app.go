@@ -1,3 +1,8 @@
+// Copyright 2022 the Paw Authors. All rights reserved.
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
 package ui
 
 import (
@@ -89,6 +94,7 @@ func (a *app) makeSysTray() {
 		a.win.SetCloseIntercept(a.win.Hide) // don't close the window if system tray used
 		menu := fyne.NewMenu("Vaults", a.makeVaultMenuItems()...)
 		desk.SetSystemTrayMenu(menu)
+		desk.SetSystemTrayIcon(icon.PawSystray)
 	}
 }
 
@@ -118,9 +124,11 @@ func (a *app) setVaultViewByName(name string) {
 		a.main.Content = a.makeUnlockVaultView(name)
 		a.main.Refresh()
 		a.setWindowTitle()
+		a.showCurrentVaultView()
 		return
 	}
 	a.setVaultView(vault)
+	a.showCurrentVaultView()
 }
 
 func (a *app) addSSHKeyToAgent(item paw.Item) error {

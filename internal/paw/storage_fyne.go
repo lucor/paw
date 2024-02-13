@@ -1,3 +1,8 @@
+// Copyright 2022 the Paw Authors. All rights reserved.
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
 package paw
 
 import (
@@ -236,6 +241,11 @@ func (s *FyneStorage) StoreConfig(config *Config) error {
 // SocketAgentPath return the socket agent path
 func (s *FyneStorage) SocketAgentPath() string {
 	return socketAgentPath(s)
+}
+
+// LockFilePath return the lock file path
+func (s *FyneStorage) LockFilePath() string {
+	return lockFilePath(s)
 }
 
 func (s *FyneStorage) isExist(path string) bool {

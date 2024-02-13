@@ -1,3 +1,8 @@
+// Copyright 2022 the Paw Authors. All rights reserved.
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
 package ui
 
 import (
@@ -19,13 +24,15 @@ import (
 func (a *app) makeCreateVaultView() fyne.CanvasObject {
 	logo := pawLogo()
 
+	heading := headingText("Create a new vault")
+
 	name := widget.NewEntry()
 	name.SetPlaceHolder("Name")
 
 	password := widget.NewPasswordEntry()
 	password.SetPlaceHolder("Password")
 
-	btn := widget.NewButton("Create Vault", func() {
+	btn := widget.NewButton("Create", func() {
 		key, err := a.storage.CreateVaultKey(name.Text, password.Text)
 		if err != nil {
 			dialog.ShowError(err, a.win)
@@ -42,7 +49,7 @@ func (a *app) makeCreateVaultView() fyne.CanvasObject {
 		a.makeSysTray()
 	})
 
-	return container.NewCenter(container.NewVBox(logo, name, password, btn))
+	return container.NewCenter(container.NewVBox(logo, heading, name, password, btn))
 }
 
 func (a *app) makeSelectVaultView(vaults []string) fyne.CanvasObject {

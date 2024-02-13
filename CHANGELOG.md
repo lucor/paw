@@ -1,5 +1,19 @@
 # Changelog - Paw
 
+## 0.22.0 - Unreleased
+
+- all: improve health service performance creating a lock file 
+- all: update logo
+- all: move main into project root
+- all: detach console when running on Windows
+- agent: update to use named pipe on Windows
+- otp: ensure decoded key is padded
+- otp: fix padding issue for the 2fa code
+- ui: view could not refresh correctly using menu shortcuts 
+
+- deps add:
+    - gopkg.in/natefinch/npipe.v2 v2.0.0-20160621034901-c1b8fa8bdcce
+
 ## 0.21.2 - 28 January 2024
 
 - mobile: fix `undefined: clipboardWriteTimeout`

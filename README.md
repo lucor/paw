@@ -2,9 +2,9 @@
     <img alt="Paw" src="logo/paw.png" height="128" />
 </div>
 
-# Paw
+# Simple, modern and privacy-focused Open Source password manager
 
-Paw is a cross platform application to manage your passwords and identities securely.
+Paw is a password manager designed to offer a secure and user-friendly solution for managing your digital data across multiple platforms, featuring modern encryption, making it an ideal tool for both personal and professional use.
 
 It is written in Go and uses [Fyne](https://github.com/fyne-io/fyne) as UI toolkit and [age](https://github.com/FiloSottile/age) as encryption library.
 
@@ -17,7 +17,6 @@ It is written in Go and uses [Fyne](https://github.com/fyne-io/fyne) as UI toolk
 ## Screenshot
 
 <div>
-    <img alt="Paw - lock view" src="images/lock.png" />
     <img alt="Paw - list view" src="images/list.png" />
     <img alt="Paw - details view" src="images/details.png" />
 </div>
@@ -47,7 +46,7 @@ It is written in Go and uses [Fyne](https://github.com/fyne-io/fyne) as UI toolk
 
 
 ```
-go install lucor.dev/paw/cmd/paw@latest
+go install lucor.dev/paw@latest
 ```
 
 ### Development version
@@ -56,7 +55,7 @@ To try the development version or help with testing:
 
 
 ```
-go install lucor.dev/paw/cmd/paw@develop
+go install lucor.dev/paw@develop
 ```
 
 ## How it works - cryptography details

@@ -1,3 +1,8 @@
+// Copyright 2023 the Paw Authors. All rights reserved.
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
 // Copyright 2020 Google LLC
 //
 // Use of this source code is governed by a BSD-style
@@ -10,10 +15,10 @@ package agent
 
 import (
 	"log"
-	"net"
 	"os"
 	"os/signal"
 	"path/filepath"
+	"runtime"
 	"syscall"
 	"time"
 
@@ -35,13 +40,16 @@ func Run(a *Agent, socketPath string) {
 		}
 	}()
 
-	os.Remove(socketPath)
-	if err := os.MkdirAll(filepath.Dir(socketPath), 0777); err != nil {
-		log.Fatalln("Failed to create UNIX socket folder:", err)
+	if runtime.GOOS != "windows" {
+		os.Remove(socketPath)
+		if err := os.MkdirAll(filepath.Dir(socketPath), 0777); err != nil {
+			log.Fatalln("Failed to create UNIX socket folder:", err)
+		}
 	}
-	l, err := net.Listen("unix", socketPath)
+
+	l, err := listen(socketPath)
 	if err != nil {
-		log.Fatalln("Failed to listen on UNIX socket:", err)
+		log.Fatalln("Failed to listen on socket:", err)
 	}
 
 	for {

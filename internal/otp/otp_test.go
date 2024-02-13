@@ -1,3 +1,8 @@
+// Copyright 2021 the Paw Authors. All rights reserved.
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
 package otp
 
 import (
@@ -9,6 +14,8 @@ import (
 	"strconv"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 // TestTOTPRFC6238 tests the HOTP implementation with values as per rfc6238
@@ -377,4 +384,26 @@ func TestHmacGeneratorRFC4226(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestTOTPFromBase32(t *testing.T) {
+	key := "OBQXO"
+	v, err := TOTPFromBase32(sha1.New, key, time.Now(), DefaultInterval, DefaultDigits)
+	require.NoError(t, err)
+	require.Len(t, v, DefaultDigits)
+}
+
+func TestTOTPFromBase32InvalidKey(t *testing.T) {
+	key := "A"
+	_, err := TOTPFromBase32(sha1.New, key, time.Now(), DefaultInterval, DefaultDigits)
+	require.Error(t, err)
+}
+
+func TestTOTPDigitsOutput(t *testing.T) {
+	key := "OBQXO"
+	now, err := time.Parse(time.DateTime, "2024-02-09 23:03:59")
+	require.NoError(t, err)
+	v, err := TOTPFromBase32(sha1.New, key, now, DefaultInterval, DefaultDigits)
+	require.NoError(t, err)
+	require.Equal(t, "003475", v)
 }

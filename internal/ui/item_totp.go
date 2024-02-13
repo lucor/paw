@@ -1,9 +1,13 @@
+// Copyright 2021 the Paw Authors. All rights reserved.
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
 package ui
 
 import (
 	"context"
 	"crypto/sha1"
-	"encoding/base32"
 	"fmt"
 	"strconv"
 	"time"
@@ -32,10 +36,13 @@ func (t *TOTP) Edit(ctx context.Context, w fyne.Window) (fyne.CanvasObject, *paw
 		totp = paw.NewDefaultTOTP()
 	}
 
-	secretBind := binding.BindString(&totp.Secret)
-	secretEntry := widget.NewPasswordEntry()
-	secretEntry.Bind(secretBind)
-	secretEntry.Validator = nil
+	keyBind := binding.BindString(&totp.Secret)
+	keyEntry := widget.NewPasswordEntry()
+	keyEntry.Bind(keyBind)
+	keyEntry.Validator = func(string) error {
+		_, err := otp.TOTPFromBase32(totp.Hasher(), totp.Secret, time.Now(), totp.Interval, totp.Digits)
+		return err
+	}
 
 	settingsButton := widget.NewButtonWithIcon("", theme.SettingsIcon(), func() {
 		copy := totp
@@ -77,8 +84,8 @@ func (t *TOTP) Edit(ctx context.Context, w fyne.Window) (fyne.CanvasObject, *paw
 
 	form := container.New(layout.NewFormLayout())
 
-	form.Add(labelWithStyle("TOTP Secret"))
-	form.Add(container.NewBorder(nil, nil, nil, settingsButton, secretEntry))
+	form.Add(labelWithStyle("TOTP key"))
+	form.Add(container.NewBorder(nil, nil, nil, settingsButton, keyEntry))
 
 	return form, totp
 }
@@ -87,17 +94,15 @@ func (t *TOTP) Show(ctx context.Context, w fyne.Window) []fyne.CanvasObject {
 
 	totp := binding.NewString()
 
-	secretLabel := widget.NewLabel("")
+	keyLabel := widget.NewLabel("")
 	totp.AddListener(binding.NewDataListener(func() {
 		v, _ := totp.Get()
 		m := len(v) / 2
-		secretLabel.SetText(v[0:m] + " " + v[m:])
+		keyLabel.SetText(v[0:m] + " " + v[m:])
 	}))
 
-	secret, _ := base32.StdEncoding.DecodeString(t.Secret)
-
 	now := time.Now()
-	v, _ := otp.TOTP(sha1.New, secret, now, t.Interval, t.Digits)
+	v, _ := otp.TOTPFromBase32(t.Hasher(), t.Secret, now, t.Interval, t.Digits)
 	totp.Set(v)
 
 	progressbar := widget.NewProgressBar()
@@ -119,7 +124,7 @@ func (t *TOTP) Show(ctx context.Context, w fyne.Window) []fyne.CanvasObject {
 			case <-ticker.C:
 				v := progressbar.Value
 				if v == 1 {
-					v, _ := otp.TOTP(sha1.New, secret, time.Now(), t.Interval, t.Digits)
+					v, _ := otp.TOTPFromBase32(sha1.New, t.Secret, time.Now(), t.Interval, t.Digits)
 					totp.Set(v)
 					progressbar.SetValue(progressbar.Max)
 				} else {
@@ -138,5 +143,5 @@ func (t *TOTP) Show(ctx context.Context, w fyne.Window) []fyne.CanvasObject {
 		})
 	})
 
-	return []fyne.CanvasObject{labelWithStyle("TOTP"), container.NewBorder(nil, nil, secretLabel, b, progressbar)}
+	return []fyne.CanvasObject{labelWithStyle("TOTP"), container.NewBorder(nil, nil, keyLabel, b, progressbar)}
 }

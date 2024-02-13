@@ -1,20 +1,23 @@
+// Copyright 2023 the Paw Authors. All rights reserved.
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
 package ui
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"log"
 	"net"
+	"os"
 	"time"
 
 	"lucor.dev/paw/internal/paw"
 )
 
 const (
-	startPortRange = 54321
-	endPortRange   = 55000
-	timeout        = 100 * time.Millisecond
+	timeout = 100 * time.Millisecond
 )
 
 // handleConnection handles the connection returning the paw version
@@ -29,23 +32,21 @@ func handleConnection(conn net.Conn) {
 	}
 }
 
-// HealthService
-func HealthService() (net.Listener, error) {
-	var listener net.Listener
-	var err error
-	var address string
-	for i := startPortRange; i < endPortRange; i++ {
-		address = fmt.Sprintf("127.0.0.1:%d", i)
-		listener, err = net.Listen("tcp", address)
-		if err == nil {
-			defer listener.Close()
-			break
-		}
-		log.Println("health service: error listening:", err)
+// HealthService starts a health service that listens on a random port.
+// In the current implementation is used only to avoid starting multiple
+// instances of the app.
+func HealthService(lockFile string) (net.Listener, error) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		log.Println("could not start health service:", err)
+		return nil, err
 	}
+	defer listener.Close()
 
-	if listener == nil {
-		return listener, errors.New("health service: could not start")
+	err = os.WriteFile(lockFile, []byte(listener.Addr().String()), 0644)
+	if err != nil {
+		log.Println("could not write health service lock file:", err)
+		return nil, err
 	}
 
 	for {
@@ -57,30 +58,26 @@ func HealthService() (net.Listener, error) {
 	}
 }
 
-func HealthServiceCheck() bool {
-	var address string
-	for i := startPortRange; i < endPortRange; i++ {
-		address = fmt.Sprintf("127.0.0.1:%d", i)
-		conn, err := net.DialTimeout("tcp", address, timeout)
-		if err != nil {
-			continue
-		}
-
-		// Read the service version from the app and close the connection
-		conn.SetReadDeadline(time.Now().Add(timeout))
-		buffer := make([]byte, 4)
-		_, err = conn.Read(buffer)
-		conn.Close()
-		if err != nil {
-			// error reading
-			continue
-		}
-
-		// check for paw service
-		if bytes.Equal([]byte(paw.ServicePrefix), buffer) {
-			return true
-		}
+// HealthServiceCheck checks if the health service is running.
+func HealthServiceCheck(lockFile string) bool {
+	address, err := os.ReadFile(lockFile)
+	if err != nil {
+		return false
+	}
+	conn, err := net.DialTimeout("tcp", string(address), timeout)
+	if err != nil {
+		return false
 	}
 
-	return false
+	// Read the service version from the app and close the connection
+	conn.SetReadDeadline(time.Now().Add(timeout))
+	buffer := make([]byte, 4)
+	_, err = conn.Read(buffer)
+	conn.Close()
+	if err != nil {
+		return false
+	}
+
+	// check for paw service
+	return bytes.Equal([]byte(paw.ServicePrefix), buffer)
 }
