@@ -124,9 +124,11 @@ func (a *app) setVaultViewByName(name string) {
 		a.main.Content = a.makeUnlockVaultView(name)
 		a.main.Refresh()
 		a.setWindowTitle()
+		a.showCurrentVaultView()
 		return
 	}
 	a.setVaultView(vault)
+	a.showCurrentVaultView()
 }
 
 func (a *app) addSSHKeyToAgent(item paw.Item) error {

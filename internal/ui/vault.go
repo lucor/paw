@@ -24,13 +24,15 @@ import (
 func (a *app) makeCreateVaultView() fyne.CanvasObject {
 	logo := pawLogo()
 
+	heading := headingText("Create a new vault")
+
 	name := widget.NewEntry()
 	name.SetPlaceHolder("Name")
 
 	password := widget.NewPasswordEntry()
 	password.SetPlaceHolder("Password")
 
-	btn := widget.NewButton("Create Vault", func() {
+	btn := widget.NewButton("Create", func() {
 		key, err := a.storage.CreateVaultKey(name.Text, password.Text)
 		if err != nil {
 			dialog.ShowError(err, a.win)
@@ -47,7 +49,7 @@ func (a *app) makeCreateVaultView() fyne.CanvasObject {
 		a.makeSysTray()
 	})
 
-	return container.NewCenter(container.NewVBox(logo, name, password, btn))
+	return container.NewCenter(container.NewVBox(logo, heading, name, password, btn))
 }
 
 func (a *app) makeSelectVaultView(vaults []string) fyne.CanvasObject {
