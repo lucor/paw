@@ -1,11 +1,8 @@
 # Changelog - Paw
 
-## 0.22.1 - Unreleased
+## 0.22.0 - 14 February 2024
 
-- cli: disable clipboard on FreeBSD 
-
-## 0.22.0 - 13 February 2024
-
+- cli: disable clipboard on FreeBSD
 - all: improve health service performance creating a lock file 
 - all: update logo
 - all: move main into project root
