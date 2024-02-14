@@ -2,12 +2,12 @@
 
 ## 0.22.0 - 14 February 2024
 
-- cli: disable clipboard on FreeBSD
 - all: improve health service performance creating a lock file 
 - all: update logo
 - all: move main into project root
 - all: detach console when running on Windows
 - agent: update to use named pipe on Windows
+- cli: disable clipboard on FreeBSD
 - otp: ensure decoded key is padded
 - otp: fix padding issue for the 2fa code
 - ui: view could not refresh correctly using menu shortcuts 
