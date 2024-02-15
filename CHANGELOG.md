@@ -1,6 +1,6 @@
 # Changelog - Paw
 
-## 0.22.1 - Unreleased
+## 0.22.1 - 15 February 2024
 
 - ui: detail view could not show multiline label correctly
 
