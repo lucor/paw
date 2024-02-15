@@ -1,5 +1,9 @@
 # Changelog - Paw
 
+## 0.22.1 - Unreleased
+
+- ui: detail view could not show multiline label correctly
+
 ## 0.22.0 - 14 February 2024
 
 - all: improve health service performance creating a lock file 

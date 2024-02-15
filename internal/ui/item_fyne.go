@@ -136,7 +136,19 @@ func rowWithAction(label string, text string, opts rowActionOptions, w fyne.Wind
 			Wrapping:  fyne.TextWrapBreak,
 		}
 	default:
-		v = container.NewHScroll(widget.NewLabel(text))
+		labelTxt := strings.TrimRight(text, "\n")
+		l := widget.NewLabel(labelTxt)
+		s := container.NewScroll(l)
+		newLines := strings.Count(text, "\n")
+		if newLines > 0 {
+			if newLines > 10 {
+				newLines = 10
+			}
+			newSize := s.MinSize()
+			newSize.Height = theme.TextSize() * float32(newLines)
+			s.SetMinSize(newSize)
+		}
+		v = s
 	}
 
 	var o fyne.CanvasObject
