@@ -1,5 +1,14 @@
 # Changelog - Paw
 
+## 0.22.2 - 17 February 2024
+
+- sshagent: fix SignWithFlags implementation
+- ui: update website info into about view
+- ui: update SSH key filter label
+
+- deps remove:
+    - golang.org/x/text
+
 ## 0.22.1 - 15 February 2024
 
 - ui: detail view could not show multiline label correctly

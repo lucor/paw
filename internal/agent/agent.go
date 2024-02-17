@@ -122,7 +122,10 @@ func (a *Agent) Unlock(passphrase []byte) error {
 }
 
 func (a *Agent) SignWithFlags(key ssh.PublicKey, data []byte, flags sshagent.SignatureFlags) (*ssh.Signature, error) {
-	return nil, ErrOperationUnsupported
+	if v, ok := a.sshagent.(sshagent.ExtendedAgent); ok {
+		return v.SignWithFlags(key, data, flags)
+	}
+	return nil, sshagent.ErrExtensionUnsupported
 }
 
 func (a *Agent) Extension(extensionType string, contents []byte) ([]byte, error) {
