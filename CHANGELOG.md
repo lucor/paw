@@ -3,7 +3,11 @@
 ## 0.22.2 - Unreleased
 
 - sshagent: fix SignWithFlags implementation
-- ui: update website info into about view 
+- ui: update website info into about view
+- ui: update SSH key filter label
+
+- deps remove:
+    - golang.org/x/text
 
 ## 0.22.1 - 15 February 2024
 

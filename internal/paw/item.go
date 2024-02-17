@@ -25,6 +25,24 @@ const (
 	SSHKeyItemType
 )
 
+// Label returns the item type label used in the UI
+func (it ItemType) Label() string {
+	switch it {
+	case MetadataItemType:
+		return "Metadata"
+	case NoteItemType:
+		return "Note"
+	case PasswordItemType:
+		return "Password"
+	case LoginItemType:
+		return "Login"
+	case SSHKeyItemType:
+		return "SSH key"
+	}
+	return "Invalid item type"
+}
+
+// String returns the item type string representation
 func (it ItemType) String() string {
 	switch it {
 	case MetadataItemType:
@@ -41,6 +59,7 @@ func (it ItemType) String() string {
 	return "invalid"
 }
 
+// ItemTypeFromString returns the item type from a string
 func ItemTypeFromString(v string) (ItemType, error) {
 	var itemType ItemType
 	var err error
