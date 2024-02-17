@@ -55,10 +55,10 @@ func (a *app) makeMainMenu() *fyne.MainMenu {
 }
 
 func (a *app) about() {
-	u, _ := url.Parse("https://lucor.dev/paw")
+	u, _ := url.Parse("https://paw.pm")
 	l := widget.NewLabel("Paw - " + paw.Version())
 	l.Alignment = fyne.TextAlignCenter
-	link := widget.NewHyperlink("https://lucor.dev/paw", u)
+	link := widget.NewHyperlink("https://paw.pm", u)
 	link.Alignment = fyne.TextAlignCenter
 	co := container.NewCenter(
 		container.NewVBox(

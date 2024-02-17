@@ -3,6 +3,7 @@
 ## 0.22.2 - Unreleased
 
 - sshagent: fix SignWithFlags implementation
+- ui: update website info into about view 
 
 ## 0.22.1 - 15 February 2024
 
