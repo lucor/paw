@@ -1,5 +1,9 @@
 # Changelog - Paw
 
+## 0.22.2 - Unreleased
+
+- sshagent: fix SignWithFlags implementation
+
 ## 0.22.1 - 15 February 2024
 
 - ui: detail view could not show multiline label correctly
