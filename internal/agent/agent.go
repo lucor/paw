@@ -29,11 +29,21 @@ func (t Type) IsZero() bool {
 }
 
 const (
+	// BROWSER represents the agent started in BROWSER mode
+	BROWSER Type = "BROWSER"
 	// CLI represents the agent started in CLI mode
-	CLI Type = "CLI"
+	CLI = "CLI"
 	// GUI represents the agent started in GUI mode
 	GUI = "GUI"
 )
+
+func NewBrowser() *Agent {
+	return &Agent{
+		sshagent: sshagent.NewKeyring(),
+		sessions: make(map[string]session),
+		t:        BROWSER,
+	}
+}
 
 func NewCLI() *Agent {
 	return &Agent{

@@ -1,5 +1,9 @@
 # Changelog - Paw
 
+## Unreleased
+
+- agent: add browser agent
+
 ## 0.22.2 - 17 February 2024
 
 - sshagent: fix SignWithFlags implementation
