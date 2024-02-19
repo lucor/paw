@@ -21,10 +21,6 @@ import (
 	"lucor.dev/paw/internal/paw"
 )
 
-const (
-	sessionEnvName = "PAW_SESSION"
-)
-
 func New(s paw.Storage) {
 
 	// Define the command to use
@@ -311,7 +307,7 @@ func parseItemPath(path string, opts itemPathOptions) (itemPath, error) {
 // it will use a session from the PAW_SESSION env variable if set,
 // otherwise will ask for the vault's password
 func loadVaultKey(s paw.Storage, vaultName string) (*paw.Key, error) {
-	sessionID := os.Getenv(sessionEnvName)
+	sessionID := os.Getenv(paw.ENV_SESSION)
 	if sessionID != "" {
 		key, err := loadVaultKeyWithSession(s, vaultName, sessionID)
 		if err == nil {

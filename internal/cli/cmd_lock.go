@@ -79,7 +79,7 @@ func (cmd *LockCmd) Run(s paw.Storage) error {
 }
 
 func (cmd *LockCmd) removeSSHKeysFromAgent(c agent.PawAgent, s paw.Storage) error {
-	os.Setenv(sessionEnvName, "")
+	os.Setenv(paw.ENV_SESSION, "")
 	key, err := loadVaultKey(s, cmd.vaultName)
 	if err != nil {
 		return err
