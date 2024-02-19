@@ -24,6 +24,13 @@ import (
 	"lucor.dev/paw/internal/sshkey"
 )
 
+const (
+	// AppID represents the application ID
+	AppID = "dev.lucor.paw"
+	// AppTitle represents the application title
+	AppTitle = "Paw"
+)
+
 // maxWorkers represents the max number of workers to use in parallel processing
 var maxWorkers = runtime.NumCPU()
 

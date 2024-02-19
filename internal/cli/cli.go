@@ -21,7 +21,7 @@ import (
 	"lucor.dev/paw/internal/paw"
 )
 
-func New(s paw.Storage) {
+func New(s paw.Storage) (Cmd, error) {
 
 	// Define the command to use
 	commands := []Cmd{
@@ -63,17 +63,7 @@ func New(s paw.Storage) {
 	// It will display the command usage if -help is specified
 	// and will exit in case of error
 	err := cmd.Parse(os.Args[3:])
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "[✗] %s\n", err)
-		os.Exit(1)
-	}
-
-	// Finally run the command
-	err = cmd.Run(s)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "[✗] %s\n", err)
-		os.Exit(1)
-	}
+	return cmd, err
 }
 
 // Cmd wraps the methods for a paw cli command

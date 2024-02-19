@@ -44,7 +44,7 @@ func Test_Client(t *testing.T) {
 	t.Run("interface", func(t *testing.T) {
 		at, err := client.Type()
 		require.NoError(t, err)
-		require.Equal(t, agent.CLI, at)
+		require.EqualValues(t, agent.CLI, at)
 
 		sid, err := client.Unlock(t.Name(), key, 0)
 		require.NoError(t, err)

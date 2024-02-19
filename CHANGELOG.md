@@ -3,6 +3,7 @@
 ## Unreleased
 
 - agent: add browser agent
+- debug: add initial logging support
 
 ## 0.22.2 - 17 February 2024
 

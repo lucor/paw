@@ -266,6 +266,11 @@ func (s *OSStorage) LockFilePath() string {
 	return lockFilePath(s)
 }
 
+// LogFilePath return the log file path
+func (s *OSStorage) LogFilePath() string {
+	return logFilePath(s)
+}
+
 func (s *OSStorage) isExist(path string) bool {
 	_, err := os.Stat(path)
 	return !os.IsNotExist(err)
