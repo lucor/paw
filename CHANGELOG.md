@@ -4,6 +4,7 @@
 
 - all: add debug logging support
 - agent: add browser agent
+- storage: allow to set a storage root with `PAW_HOME` env var
 - storage: add mock
 
 ## 0.22.2 - 17 February 2024
