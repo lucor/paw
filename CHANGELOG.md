@@ -2,8 +2,9 @@
 
 ## Unreleased
 
+- all: add debug logging support
 - agent: add browser agent
-- debug: add initial logging support
+- storage: add mock
 
 ## 0.22.2 - 17 February 2024
 
