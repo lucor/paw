@@ -9,6 +9,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net/url"
 	"time"
 
 	"fyne.io/fyne/v2"
@@ -16,6 +17,8 @@ import (
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
+	"golang.org/x/net/publicsuffix"
+	"lucor.dev/paw/internal/paw"
 )
 
 func (a *app) makeEditItemView(fyneItem FyneItem) fyne.CanvasObject {
@@ -40,6 +43,27 @@ func (a *app) makeEditItemView(fyneItem FyneItem) fyne.CanvasObject {
 			isNew = true
 		} else {
 			metadata.Modified = time.Now()
+		}
+
+		if metadata.Type == paw.LoginItemType {
+			login := editItem.(*paw.Login)
+			if login.URL != "" {
+				u, err := url.ParseRequestURI(login.URL)
+				if err != nil {
+					dialog.ShowError(fmt.Errorf("invalid URL: %s", err), a.win)
+					return
+				}
+				tldPlusOne, err := publicsuffix.EffectiveTLDPlusOne(u.Hostname())
+				if err != nil {
+					dialog.ShowError(fmt.Errorf("invalid URL: %s", err), a.win)
+					return
+				}
+				metadata.Autofill = &paw.Autofill{
+					URL:        u,
+					MatchType:  paw.DomainMatchAutofill,
+					TLDPlusOne: tldPlusOne,
+				}
+			}
 		}
 
 		if isNew && a.vault.HasItem(editItem) {

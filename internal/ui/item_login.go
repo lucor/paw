@@ -122,7 +122,7 @@ func (login *Login) Edit(ctx context.Context, key *paw.Key, w fyne.Window) (fyne
 	form.Add(loginIcon)
 	form.Add(titleEntry)
 
-	form.Add(labelWithStyle("URL"))
+	form.Add(labelWithStyle("Website"))
 	form.Add(urlEntry)
 
 	form.Add(labelWithStyle("Username"))
@@ -143,7 +143,7 @@ func (login *Login) Edit(ctx context.Context, key *paw.Key, w fyne.Window) (fyne
 func (login *Login) Show(ctx context.Context, w fyne.Window) fyne.CanvasObject {
 	obj := titleRow(login.Icon(), login.Name)
 	if login.URL != "" {
-		obj = append(obj, rowWithAction("URL", login.URL, rowActionOptions{widgetType: "url", copy: true}, w)...)
+		obj = append(obj, rowWithAction("Website", login.URL, rowActionOptions{widgetType: "url", copy: true}, w)...)
 	}
 	if login.Username != "" {
 		obj = append(obj, rowWithAction("Username", login.Username, rowActionOptions{copy: true}, w)...)

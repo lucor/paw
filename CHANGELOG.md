@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- paw,ui: add initial support for item autofill
 - storage: allow to set a storage root with `PAW_HOME` env var
 - storage: add mock
 

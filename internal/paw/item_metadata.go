@@ -24,6 +24,8 @@ type Metadata struct {
 	Created time.Time `json:"created,omitempty"`
 	// Icon
 	Favicon *Favicon `json:"favicon,omitempty"`
+	// Autofill
+	Autofill *Autofill `json:"autofill,omitempty"`
 }
 
 func (m *Metadata) ID() string {

@@ -29,6 +29,7 @@ func NewLogin() *Login {
 			Type:     LoginItemType,
 			Created:  now,
 			Modified: now,
+			Autofill: &Autofill{},
 		},
 		Note:     &Note{},
 		Password: &Password{},
