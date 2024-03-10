@@ -66,6 +66,10 @@ func (a *app) makeEditItemView(fyneItem FyneItem) fyne.CanvasObject {
 			}
 		}
 
+		if subtitler, ok := editItem.(paw.MetadataSubtitler); ok {
+			metadata.Subtitle = subtitler.Subtitle()
+		}
+
 		if isNew && a.vault.HasItem(editItem) {
 			msg := fmt.Sprintf("An item with the name %q already exists", metadata.Name)
 			d := dialog.NewInformation("", msg, a.win)

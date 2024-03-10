@@ -12,10 +12,17 @@ import (
 	"golang.org/x/crypto/blake2b"
 )
 
+// MetadataSubtitler is the interface to implement to provide a subtitle to an item
+type MetadataSubtitler interface {
+	Subtitle() string
+}
+
 // Item represents the basic paw identity
 type Metadata struct {
-	// Title reprents the item name
+	// Name reprents the item name
 	Name string `json:"name,omitempty"`
+	// Subtitle represents the item subtitle
+	Subtitle string `json:"subtitle,omitempty"`
 	// Type represents the item type
 	Type ItemType `json:"type,omitempty"`
 	// Modified holds the modification date

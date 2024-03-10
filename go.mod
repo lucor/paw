@@ -9,6 +9,7 @@ require (
 	golang.design/x/clipboard v0.7.0
 	golang.org/x/crypto v0.18.0
 	golang.org/x/image v0.15.0
+	golang.org/x/net v0.17.0
 	golang.org/x/sync v0.6.0
 	golang.org/x/term v0.16.0
 	gopkg.in/natefinch/npipe.v2 v2.0.0-20160621034901-c1b8fa8bdcce
@@ -37,7 +38,6 @@ require (
 	github.com/yuin/goldmark v1.5.5 // indirect
 	golang.org/x/exp v0.0.0-20200224162631-6cc2880d07d6 // indirect
 	golang.org/x/mobile v0.0.0-20230531173138-3c911d8e3eda // indirect
-	golang.org/x/net v0.17.0 // indirect
 	golang.org/x/sys v0.16.0 // indirect
 	golang.org/x/text v0.14.0 // indirect
 	gopkg.in/check.v1 v1.0.0-20200227125254-8fa46927fb4f // indirect
