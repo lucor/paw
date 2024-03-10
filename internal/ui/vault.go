@@ -96,7 +96,7 @@ func (a *app) makeUnlockVaultView(vaultName string) fyne.CanvasObject {
 			return
 		}
 		a.setVaultView(vault)
-		a.addSSHKeysToAgent(vault)
+		a.addSSHKeysToAgent()
 		a.showCurrentVaultView()
 	})
 
