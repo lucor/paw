@@ -6,6 +6,7 @@
 - storage: add mock
 - paw,ui: add initial support for item autofill
 - paw,ui: add support to subtitle
+- ui: improve unlock vault view
 - ui: remove unused parameter
 
 ## 0.22.2 - 17 February 2024
