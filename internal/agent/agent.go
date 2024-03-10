@@ -30,7 +30,7 @@ func (t Type) IsZero() bool {
 
 const (
 	// CLI represents the agent started in CLI mode
-	CLI Type = "CLI"
+	CLI = "CLI"
 	// GUI represents the agent started in GUI mode
 	GUI = "GUI"
 )

@@ -11,6 +11,7 @@ import (
 
 // Declare conformity to Item interface
 var _ Item = (*Login)(nil)
+var _ MetadataSubtitler = (*Login)(nil)
 
 type Login struct {
 	*Password `json:"password,omitempty"`
@@ -22,6 +23,11 @@ type Login struct {
 	URL      string `json:"url,omitempty"`
 }
 
+// Subtitle implements MetadataSubtitler.
+func (l *Login) Subtitle() string {
+	return l.Username
+}
+
 func NewLogin() *Login {
 	now := time.Now()
 	return &Login{
@@ -29,6 +35,7 @@ func NewLogin() *Login {
 			Type:     LoginItemType,
 			Created:  now,
 			Modified: now,
+			Autofill: &Autofill{},
 		},
 		Note:     &Note{},
 		Password: &Password{},

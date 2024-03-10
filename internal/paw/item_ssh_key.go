@@ -24,6 +24,11 @@ type SSHKey struct {
 	PublicKey   string    `json:"public_key,omitempty"`
 }
 
+// Subtitle implements MetadataSubtitler.
+func (i *SSHKey) Subtitle() string {
+	return i.Comment
+}
+
 func NewSSHKey() *SSHKey {
 	now := time.Now()
 	return &SSHKey{

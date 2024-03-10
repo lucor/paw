@@ -248,6 +248,11 @@ func (s *FyneStorage) LockFilePath() string {
 	return lockFilePath(s)
 }
 
+// LogFilePath return the log file path
+func (s *FyneStorage) LogFilePath() string {
+	return logFilePath(s)
+}
+
 func (s *FyneStorage) isExist(path string) bool {
 	ok, _ := storage.Exists(storage.NewFileURI(path))
 	return ok

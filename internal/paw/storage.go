@@ -19,6 +19,7 @@ const (
 	keyFileName     = "key.age"
 	vaultFileName   = "vault.age"
 	lockFileName    = "paw.lock"
+	logFileName     = "paw.log"
 	socketFileName  = "agent.sock"
 	namedPipe       = `\\.\pipe\paw`
 )
@@ -28,6 +29,7 @@ type Storage interface {
 	ConfigStorage
 	VaultStorage
 	ItemStorage
+	LogStorage
 	SocketAgentPath() string
 	LockFilePath() string
 }
@@ -61,6 +63,10 @@ type ItemStorage interface {
 	LoadItem(vault *Vault, itemMetadata *Metadata) (Item, error)
 	// StoreItem encrypts and encrypts and stores the item into the specified vault
 	StoreItem(vault *Vault, item Item) error
+}
+
+type LogStorage interface {
+	LogFilePath() string
 }
 
 func storageRootPath(s Storage) string {
@@ -97,6 +103,10 @@ func socketAgentPath(s Storage) string {
 
 func lockFilePath(s Storage) string {
 	return filepath.Join(s.Root(), lockFileName)
+}
+
+func logFilePath(s Storage) string {
+	return filepath.Join(s.Root(), logFileName)
 }
 
 func encrypt(key *Key, w io.Writer, v interface{}) error {

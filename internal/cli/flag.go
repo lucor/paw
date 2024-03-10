@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"io"
 	"os"
+
+	"lucor.dev/paw/internal/paw"
 )
 
 var flagSet = flag.NewFlagSet("paw", flag.ContinueOnError)
@@ -40,7 +42,7 @@ func newCommonFlags(o flagOpts) (*CommonFlags, error) {
 // SetEnv sets the env variables according to the flag values
 func (f *CommonFlags) SetEnv() {
 	if f.SessionID != "" {
-		os.Setenv(sessionEnvName, f.SessionID)
+		os.Setenv(paw.ENV_SESSION, f.SessionID)
 	}
 }
 

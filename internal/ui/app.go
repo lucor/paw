@@ -24,6 +24,13 @@ import (
 	"lucor.dev/paw/internal/sshkey"
 )
 
+const (
+	// AppID represents the application ID
+	AppID = "dev.lucor.paw"
+	// AppTitle represents the application title
+	AppTitle = "Paw"
+)
+
 // maxWorkers represents the max number of workers to use in parallel processing
 var maxWorkers = runtime.NumCPU()
 
@@ -164,7 +171,7 @@ func (a *app) removeSSHKeyFromAgent(item paw.Item) error {
 	return nil
 }
 
-func (a *app) addSSHKeysToAgent(vault *paw.Vault) {
+func (a *app) addSSHKeysToAgent() {
 	a.vault.Range(func(id string, meta *paw.Metadata) bool {
 		item, err := a.storage.LoadItem(a.vault, meta)
 		if err != nil {

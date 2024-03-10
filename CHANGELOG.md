@@ -1,5 +1,14 @@
 # Changelog - Paw
 
+## 0.23.0 - 10 March 2024
+
+- storage: allow to set a storage root with `PAW_HOME` env var
+- storage: add mock
+- paw,ui: add initial support for item autofill
+- paw,ui: add support to subtitle
+- ui: improve unlock vault view
+- ui: remove unused parameter
+
 ## 0.22.2 - 17 February 2024
 
 - sshagent: fix SignWithFlags implementation

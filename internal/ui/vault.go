@@ -6,10 +6,8 @@
 package ui
 
 import (
-	"errors"
 	"fmt"
 
-	"filippo.io/age"
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
@@ -72,35 +70,7 @@ func (a *app) makeSelectVaultView(vaults []string) fyne.CanvasObject {
 }
 
 func (a *app) makeUnlockVaultView(vaultName string) fyne.CanvasObject {
-	logo := pawLogo()
-
-	msg := fmt.Sprintf("Vault %q is locked", vaultName)
-	heading := headingText(msg)
-
-	password := widget.NewPasswordEntry()
-	password.SetPlaceHolder("Password")
-
-	unlockBtn := widget.NewButtonWithIcon("Unlock", icon.LockOpenOutlinedIconThemed, func() {
-		key, err := a.storage.LoadVaultKey(vaultName, password.Text)
-		if err != nil {
-			var invalidPasswordError *age.NoIdentityMatchError
-			if errors.As(err, &invalidPasswordError) {
-				err = errors.New("the password is incorrect")
-			}
-			dialog.ShowError(err, a.win)
-			return
-		}
-		vault, err := a.storage.LoadVault(vaultName, key)
-		if err != nil {
-			dialog.ShowError(err, a.win)
-			return
-		}
-		a.setVaultView(vault)
-		a.addSSHKeysToAgent(vault)
-		a.showCurrentVaultView()
-	})
-
-	return container.NewCenter(container.NewVBox(logo, heading, password, unlockBtn))
+	return NewUnlockerVaultWidget(vaultName, a)
 }
 
 func (a *app) makeCurrentVaultView() fyne.CanvasObject {

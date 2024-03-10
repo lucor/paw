@@ -21,11 +21,7 @@ import (
 	"lucor.dev/paw/internal/paw"
 )
 
-const (
-	sessionEnvName = "PAW_SESSION"
-)
-
-func New(s paw.Storage) {
+func New(s paw.Storage) (Cmd, error) {
 
 	// Define the command to use
 	commands := []Cmd{
@@ -67,17 +63,7 @@ func New(s paw.Storage) {
 	// It will display the command usage if -help is specified
 	// and will exit in case of error
 	err := cmd.Parse(os.Args[3:])
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "[✗] %s\n", err)
-		os.Exit(1)
-	}
-
-	// Finally run the command
-	err = cmd.Run(s)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "[✗] %s\n", err)
-		os.Exit(1)
-	}
+	return cmd, err
 }
 
 // Cmd wraps the methods for a paw cli command
@@ -311,7 +297,7 @@ func parseItemPath(path string, opts itemPathOptions) (itemPath, error) {
 // it will use a session from the PAW_SESSION env variable if set,
 // otherwise will ask for the vault's password
 func loadVaultKey(s paw.Storage, vaultName string) (*paw.Key, error) {
-	sessionID := os.Getenv(sessionEnvName)
+	sessionID := os.Getenv(paw.ENV_SESSION)
 	if sessionID != "" {
 		key, err := loadVaultKeyWithSession(s, vaultName, sessionID)
 		if err == nil {

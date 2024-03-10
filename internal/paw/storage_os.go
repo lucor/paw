@@ -22,9 +22,14 @@ type OSStorage struct {
 
 // NewOSStorage returns an OS Storage implementation rooted at os.UserConfigDir()
 func NewOSStorage() (Storage, error) {
-	urd, err := os.UserHomeDir()
-	if err != nil {
-		return nil, fmt.Errorf("could not get the default root directory to use for user-specific configuration data: %w", err)
+	var urd string
+	var err error
+	urd = os.Getenv(ENV_HOME)
+	if urd == "" {
+		urd, err = os.UserHomeDir()
+		if err != nil {
+			return nil, fmt.Errorf("could not get the default root directory to use for user-specific configuration data: %w", err)
+		}
 	}
 	return NewOSStorageRooted(urd)
 }
@@ -264,6 +269,11 @@ func (s *OSStorage) SocketAgentPath() string {
 // LockFilePath return the lock file path
 func (s *OSStorage) LockFilePath() string {
 	return lockFilePath(s)
+}
+
+// LogFilePath return the log file path
+func (s *OSStorage) LogFilePath() string {
+	return logFilePath(s)
 }
 
 func (s *OSStorage) isExist(path string) bool {
