@@ -1,6 +1,6 @@
 # Changelog - Paw
 
-## Unreleased
+## 0.23.0 - 10 March 2024
 
 - storage: allow to set a storage root with `PAW_HOME` env var
 - storage: add mock
