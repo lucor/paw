@@ -2,7 +2,6 @@
 
 ## Unreleased
 
-- all: add debug logging support
 - storage: allow to set a storage root with `PAW_HOME` env var
 - storage: add mock
 

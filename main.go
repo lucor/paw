@@ -7,8 +7,6 @@ package main
 
 import (
 	"fmt"
-	"io"
-	"log"
 	"os"
 	"runtime"
 
@@ -48,10 +46,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Enable debugging log, if set
-	wc := initDebugLog(s)
-	defer wc.Close()
-
 	if fyneApp == nil {
 		// make and run the CLI app
 		cmd, err := cli.New(s)
@@ -69,8 +63,7 @@ func main() {
 
 	// check for running instance
 	if ui.HealthServiceCheck(s.LockFilePath()) {
-		msg := "Paw GUI is already running\n"
-		wc.Write([]byte(msg))
+		fmt.Fprintln(os.Stderr, "Paw GUI is already running")
 		os.Exit(1)
 	}
 	go ui.HealthService(s.LockFilePath())
@@ -108,27 +101,4 @@ func makeStorage(fyneApp fyne.App) (paw.Storage, error) {
 	}
 	// Fyne Desktop app returns the OS storage
 	return paw.NewOSStorage()
-}
-
-// initDebugLog create the debug log, if enabled
-func initDebugLog(s paw.Storage) io.WriteCloser {
-	w := os.Stderr
-	// Enable log debugging
-	if !paw.IsDebug() {
-		return w
-	}
-	// init logger
-	if fyne.CurrentDevice().IsMobile() {
-		w := os.Stdout
-		log.SetOutput(w)
-		log.SetPrefix("[paw] ")
-		return w
-	}
-	w, err := os.OpenFile(s.LogFilePath(), os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
-	if err != nil {
-		fmt.Fprintln(w, "paw: error writing log file %w", err)
-		return w
-	}
-	log.SetOutput(w)
-	return w
 }
