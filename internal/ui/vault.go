@@ -7,6 +7,7 @@ package ui
 
 import (
 	"fmt"
+	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
@@ -92,11 +93,15 @@ func (a *app) makeCurrentVaultView() fyne.CanvasObject {
 				msg,
 				func(delete bool) {
 					if delete {
-						item, _ = paw.NewItem(meta.Name, meta.Type)
-						vault.DeleteItem(item)            // remove item from vault
-						a.removeSSHKeyFromAgent(item)     // remove item from ssh agent
-						a.storage.DeleteItem(vault, item) // remove item from storage
-						a.storage.StoreVault(vault)       // ensure vault is up-to-date
+						item, err = paw.NewItem(meta.Name, meta.Type)
+						vault.DeleteItem(item)                // remove item from vault
+						a.removeSSHKeyFromAgent(item)         // remove item from ssh agent
+						_ = a.storage.DeleteItem(vault, item) // remove item from storage
+						now := time.Now().UTC()
+						vault.Modified = now
+						_ = a.storage.StoreVault(vault) // ensure vault is up-to-date
+						a.state.Modified = now
+						_ = a.storage.StoreAppState(a.state)
 						itemsWidget.Reload(nil, filter)
 					}
 				},
@@ -105,8 +110,8 @@ func (a *app) makeCurrentVaultView() fyne.CanvasObject {
 			return
 		}
 
-		fyneItem := NewFyneItem(item, a.config)
-		a.showItemView(fyneItem)
+		fyneItemWidget := NewFyneItemWidget(item, a.state.Preferences)
+		a.showItemView(fyneItemWidget)
 		itemsWidget.listEntry.UnselectAll()
 	}
 

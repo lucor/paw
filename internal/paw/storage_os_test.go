@@ -6,7 +6,6 @@
 package paw
 
 import (
-	"log"
 	"os"
 	"testing"
 
@@ -28,9 +27,6 @@ func TestStorageOSRoundTrip(t *testing.T) {
 	vaultURI := vaultPath(storage, name)
 	keyURI := keyPath(storage, name)
 
-	log.Println(vaultURI)
-	log.Println(keyURI)
-
 	// test key creation
 	key, err := storage.CreateVaultKey(name, password)
 	require.NoError(t, err)
@@ -48,7 +44,8 @@ func TestStorageOSRoundTrip(t *testing.T) {
 	note.Name = "test note"
 	note.Value = "a secret note"
 
-	vault.AddItem(note)
+	err = vault.AddItem(note)
+	require.NoError(t, err)
 	// add note vault to item
 	meta, ok := vault.ItemMetadata[note.Type][note.ID()]
 	require.True(t, ok)
@@ -73,10 +70,14 @@ func TestStorageOSRoundTrip(t *testing.T) {
 	login.Password.Value = "a secret password"
 
 	// add login item to vault
-	vault.AddItem(login)
+	err = vault.AddItem(login)
+	require.NoError(t, err)
 	require.Len(t, vault.ItemMetadata, 2) // login and note type
 
 	err = storage.StoreItem(vault, login)
+	require.NoError(t, err)
+
+	err = storage.StoreVault(vault)
 	require.NoError(t, err)
 
 	loadedVaultKey, err := storage.LoadVaultKey(name, password)
@@ -96,5 +97,4 @@ func TestStorageOSRoundTrip(t *testing.T) {
 	require.NotNil(t, itemWebsite)
 	assert.Equal(t, login.Name, itemWebsite.GetMetadata().Name)
 	assert.Equal(t, login.Password.Value, itemWebsite.(*Login).Password.Value)
-
 }

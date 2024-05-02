@@ -18,7 +18,7 @@ type Note struct {
 }
 
 func NewNote() *Note {
-	now := time.Now()
+	now := time.Now().UTC()
 	return &Note{
 		Metadata: &Metadata{
 			Type:     NoteItemType,

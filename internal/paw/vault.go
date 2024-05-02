@@ -27,12 +27,13 @@ type Vault struct {
 }
 
 func NewVault(key *Key, name string) *Vault {
+	now := time.Now().UTC()
 	return &Vault{
 		key:          key,
 		Name:         name,
 		ItemMetadata: make(map[ItemType]map[string]*Metadata),
-		Created:      time.Now(),
-		Modified:     time.Now(),
+		Created:      now,
+		Modified:     now,
 	}
 }
 
@@ -53,6 +54,7 @@ func (v *Vault) Key() *Key {
 	return v.key
 }
 
+// HasItem returns true if a item with the same ID is present into the vault
 func (v *Vault) HasItem(item Item) bool {
 	meta := item.GetMetadata()
 	if meta == nil {
@@ -77,6 +79,7 @@ func (v *Vault) AddItem(item Item) error {
 		v.ItemMetadata[meta.Type] = make(map[string]*Metadata)
 	}
 	v.ItemMetadata[meta.Type][item.ID()] = meta
+	v.Modified = time.Now().UTC()
 	return nil
 }
 
@@ -91,6 +94,7 @@ func (v *Vault) DeleteItem(item Item) {
 	}
 
 	delete(v.ItemMetadata[meta.Type], item.ID())
+	v.Modified = time.Now().UTC()
 }
 
 // Range calls f sequentially for each key and value present in the vault. If f

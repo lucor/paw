@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/storage"
@@ -138,7 +139,7 @@ func (s *FyneStorage) DeleteItem(vault *Vault, item Item) error {
 	if err != nil {
 		return fmt.Errorf("could not delete the item: %w", err)
 	}
-	return s.StoreVault(vault)
+	return nil
 }
 
 // LoadItem returns a item from the vault decrypting from the underlying storage
@@ -182,7 +183,7 @@ func (s *FyneStorage) StoreItem(vault *Vault, item Item) error {
 	if err != nil {
 		return fmt.Errorf("could not encrypt and store the item: %w", err)
 	}
-	return s.StoreVault(vault)
+	return nil
 }
 
 // Vaults returns the list of vault names from the storage
@@ -208,34 +209,35 @@ func (s *FyneStorage) Vaults() ([]string, error) {
 	return vaults, nil
 }
 
-// LoadConfig load the configuration from the underlying storage
-func (s *FyneStorage) LoadConfig() (*Config, error) {
-	configFile := configPath(s)
-	if !s.isExist(configFile) {
-		return newDefaultConfig(), nil
+// LoadAppState load the configuration from the underlying storage
+func (s *FyneStorage) LoadAppState() (*AppState, error) {
+	defaultAppState := &AppState{
+		Modified:    time.Now().UTC(),
+		Preferences: newDefaultPreferences(),
 	}
-	r, err := storage.Reader(storage.NewFileURI(configFile))
+	appStateFile := appStateFilePath(s)
+	r, err := storage.Reader(storage.NewFileURI(appStateFile))
 	if err != nil {
-		return newDefaultConfig(), fmt.Errorf("could not read URI: %w", err)
+		return defaultAppState, fmt.Errorf("could not read URI: %w", err)
 	}
 	defer r.Close()
-	config := &Config{}
-	err = json.NewDecoder(r).Decode(config)
+	appState := &AppState{}
+	err = json.NewDecoder(r).Decode(appState)
 	if err != nil {
-		return newDefaultConfig(), err
+		return defaultAppState, err
 	}
-	return config, nil
+	return appState, nil
 }
 
-// StoreConfig store the configuration into the underlying storage
-func (s *FyneStorage) StoreConfig(config *Config) error {
-	configFile := configPath(s)
-	w, err := s.createFile(configFile)
+// StoreAppState store the configuration into the underlying storage
+func (s *FyneStorage) StoreAppState(appState *AppState) error {
+	appStateFile := appStateFilePath(s)
+	w, err := s.createFile(appStateFile)
 	if err != nil {
 		return err
 	}
 	defer w.Close()
-	return json.NewEncoder(w).Encode(config)
+	return json.NewEncoder(w).Encode(appState)
 }
 
 // SocketAgentPath return the socket agent path

@@ -8,6 +8,7 @@ package cli
 import (
 	"fmt"
 	"os"
+	"time"
 
 	"golang.org/x/crypto/ssh"
 	"lucor.dev/paw/internal/paw"
@@ -71,6 +72,11 @@ func (cmd *AddCmd) Parse(args []string) error {
 
 // Run runs the command
 func (cmd *AddCmd) Run(s paw.Storage) error {
+	appState, err := s.LoadAppState()
+	if err != nil {
+		return err
+	}
+
 	key, err := loadVaultKey(s, cmd.vaultName)
 	if err != nil {
 		return err
@@ -103,18 +109,29 @@ func (cmd *AddCmd) Run(s paw.Storage) error {
 		return fmt.Errorf("unsupported item type: %q", cmd.itemType)
 	}
 
+	now := time.Now().UTC()
 	err = s.StoreItem(vault, item)
 	if err != nil {
 		return err
 	}
+
 	err = vault.AddItem(item)
 	if err != nil {
 		return err
 	}
+
+	vault.Modified = now
 	err = s.StoreVault(vault)
 	if err != nil {
 		return err
 	}
+
+	appState.Modified = now
+	err = s.StoreAppState(appState)
+	if err != nil {
+		return err
+	}
+
 	fmt.Printf("[✓] item %q added\n", cmd.itemName)
 	return nil
 }
@@ -126,7 +143,7 @@ func (cmd *AddCmd) addLoginItem(key *paw.Key, item paw.Item) error {
 	if err != nil {
 		return err
 	}
-	v.URL = url
+	v.URL.Set(url)
 
 	username, err := ask("Username")
 	if err != nil {

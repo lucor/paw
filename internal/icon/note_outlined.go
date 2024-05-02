@@ -9,10 +9,10 @@ var NoteOutlinedIconThemed = NewThemedResource(NoteOutlinedIconDarkRes, NoteOutl
 
 var NoteOutlinedIconDarkRes = &fyne.StaticResource{
 	StaticName:    "note_outlined_dark.svg",
-	StaticContent: []byte("<svg fill=\"#ffffff\" xmlns=\"http://www.w3.org/2000/svg\" height=\"24\" viewBox=\"0 0 24 24\" width=\"24\"><path d=\"M0 0h24v24H0V0z\" fill=\"none\"/><path d=\"M16 4H4c-1.1 0-2 .9-2 2v12.01c0 1.1.9 1.99 2 1.99h16c1.1 0 2-.9 2-2v-8l-6-6zM4 18.01V6h11v5h5v7.01H4z\"/></svg>"),
+	StaticContent: []byte("<!--category: Documenttags: [checkbox, brief, record, write, message]version: \"1.2\"unicode: \"eb6d\"--><svg  xmlns=\"http://www.w3.org/2000/svg\"  width=\"24\"  height=\"24\"  viewBox=\"0 0 24 24\"  fill=\"none\"  stroke=\"#ffffff\"  stroke-width=\"2\"  stroke-linecap=\"round\"  stroke-linejoin=\"round\">  <path d=\"M13 20l7 -7\" />  <path d=\"M13 20v-6a1 1 0 0 1 1 -1h6v-7a2 2 0 0 0 -2 -2h-12a2 2 0 0 0 -2 2v12a2 2 0 0 0 2 2h7\" /></svg>"),
 }
 
 var NoteOutlinedIconLightRes = &fyne.StaticResource{
 	StaticName:    "note_outlined_light.svg",
-	StaticContent: []byte("<svg xmlns=\"http://www.w3.org/2000/svg\" height=\"24\" viewBox=\"0 0 24 24\" width=\"24\"><path d=\"M0 0h24v24H0V0z\" fill=\"none\"/><path d=\"M16 4H4c-1.1 0-2 .9-2 2v12.01c0 1.1.9 1.99 2 1.99h16c1.1 0 2-.9 2-2v-8l-6-6zM4 18.01V6h11v5h5v7.01H4z\"/></svg>"),
+	StaticContent: []byte("<!--category: Documenttags: [checkbox, brief, record, write, message]version: \"1.2\"unicode: \"eb6d\"--><svg  xmlns=\"http://www.w3.org/2000/svg\"  width=\"24\"  height=\"24\"  viewBox=\"0 0 24 24\"  fill=\"none\"  stroke=\"#000000\"  stroke-width=\"2\"  stroke-linecap=\"round\"  stroke-linejoin=\"round\">  <path d=\"M13 20l7 -7\" />  <path d=\"M13 20v-6a1 1 0 0 1 1 -1h6v-7a2 2 0 0 0 -2 -2h-12a2 2 0 0 0 -2 2v12a2 2 0 0 0 2 2h7\" /></svg>"),
 }

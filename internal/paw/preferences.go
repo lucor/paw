@@ -1,31 +1,31 @@
-// Copyright 2022 the Paw Authors. All rights reserved.
+// Copyright 2024 the Paw Authors. All rights reserved.
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 package paw
 
-func newDefaultConfig() *Config {
-	return &Config{
-		Password: PasswordConfig{
-			Passphrase: PassphrasePasswordConfig{
+func newDefaultPreferences() *Preferences {
+	return &Preferences{
+		Password: PasswordPreferences{
+			Passphrase: PassphrasePasswordPreferences{
 				DefaultLength: PassphrasePasswordDefaultLength,
 				MaxLength:     PassphrasePasswordMaxLength,
 				MinLength:     PassphrasePasswordMinLength,
 			},
-			Pin: PinPasswordConfig{
+			Pin: PinPasswordPreferences{
 				DefaultLength: PinPasswordDefaultLength,
 				MaxLength:     PinPasswordMaxLength,
 				MinLength:     PinPasswordMinLength,
 			},
-			Random: RandomPasswordConfig{
+			Random: RandomPasswordPreferences{
 				DefaultLength: RandomPasswordDefaultLength,
 				DefaultFormat: RandomPasswordDefaultFormat,
 				MaxLength:     RandomPasswordMaxLength,
 				MinLength:     RandomPasswordMinLength,
 			},
 		},
-		TOTP: TOTPConfig{
+		TOTP: TOTPPreferences{
 			Digits:   TOTPDigitsDefault,
 			Hash:     TOTPHashDefault,
 			Interval: TOTPIntervalDefault,
@@ -33,36 +33,36 @@ func newDefaultConfig() *Config {
 	}
 }
 
-type Config struct {
-	TOTP     TOTPConfig     `json:"totp,omitempty"`
-	Password PasswordConfig `json:"password,omitempty"`
+type Preferences struct {
+	Password PasswordPreferences `json:"password,omitempty"`
+	TOTP     TOTPPreferences     `json:"totp,omitempty"`
 }
 
-type PasswordConfig struct {
-	Passphrase PassphrasePasswordConfig `json:"passphrase,omitempty"`
-	Pin        PinPasswordConfig        `json:"pin,omitempty"`
-	Random     RandomPasswordConfig     `json:"random,omitempty"`
+type PasswordPreferences struct {
+	Passphrase PassphrasePasswordPreferences `json:"passphrase,omitempty"`
+	Pin        PinPasswordPreferences        `json:"pin,omitempty"`
+	Random     RandomPasswordPreferences     `json:"random,omitempty"`
 }
 
-type PassphrasePasswordConfig struct {
+type PassphrasePasswordPreferences struct {
 	DefaultLength int `json:"default_length,omitempty"`
 	MaxLength     int `json:"max_length,omitempty"`
 	MinLength     int `json:"min_length,omitempty"`
 }
 
-type PinPasswordConfig struct {
+type PinPasswordPreferences struct {
 	DefaultLength int `json:"default_length,omitempty"`
 	MaxLength     int `json:"max_length,omitempty"`
 	MinLength     int `json:"min_length,omitempty"`
 }
-type RandomPasswordConfig struct {
+type RandomPasswordPreferences struct {
 	DefaultLength int    `json:"default_length,omitempty"`
 	DefaultFormat Format `json:"default_format,omitempty"`
 	MaxLength     int    `json:"max_length,omitempty"`
 	MinLength     int    `json:"min_length,omitempty"`
 }
 
-type TOTPConfig struct {
+type TOTPPreferences struct {
 	Digits   int      `json:"digits,omitempty"`
 	Hash     TOTPHash `json:"hash,omitempty"`
 	Interval int      `json:"interval,omitempty"`

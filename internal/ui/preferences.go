@@ -30,7 +30,7 @@ func (a *app) makePreferencesView() fyne.CanvasObject {
 }
 
 func (a *app) storePreferences() {
-	err := a.storage.StoreConfig(a.config)
+	err := a.storage.StoreAppState(a.state)
 	if err != nil {
 		dialog.ShowError(err, a.win)
 	}
@@ -40,17 +40,17 @@ func (a *app) makePasswordPreferencesCard() fyne.CanvasObject {
 	passphraseCard := widget.NewCard(
 		"Passphrase",
 		"",
-		a.makePreferenceLenghtWidget(&a.config.Password.Passphrase.DefaultLength, a.config.Password.Passphrase.MinLength, a.config.Password.Passphrase.MaxLength),
+		a.makePreferenceLenghtWidget(&a.state.Preferences.Password.Passphrase.DefaultLength, a.state.Preferences.Password.Passphrase.MinLength, a.state.Preferences.Password.Passphrase.MaxLength),
 	)
 	pinCard := widget.NewCard(
 		"Pin",
 		"",
-		a.makePreferenceLenghtWidget(&a.config.Password.Pin.DefaultLength, a.config.Password.Pin.MinLength, a.config.Password.Pin.MaxLength),
+		a.makePreferenceLenghtWidget(&a.state.Preferences.Password.Pin.DefaultLength, a.state.Preferences.Password.Pin.MinLength, a.state.Preferences.Password.Pin.MaxLength),
 	)
 	randomCard := widget.NewCard(
 		"Random Password",
 		"",
-		a.makePreferenceLenghtWidget(&a.config.Password.Random.DefaultLength, a.config.Password.Random.MinLength, a.config.Password.Random.MaxLength),
+		a.makePreferenceLenghtWidget(&a.state.Preferences.Password.Random.DefaultLength, a.state.Preferences.Password.Random.MinLength, a.state.Preferences.Password.Random.MaxLength),
 	)
 	return container.NewVBox(passphraseCard, pinCard, randomCard)
 }
@@ -60,30 +60,30 @@ func (a *app) makeTOTPPreferencesCard() fyne.CanvasObject {
 
 	hashOptions := []string{string(paw.SHA1), string(paw.SHA256), string(paw.SHA512)}
 	hashSelect := widget.NewSelect(hashOptions, func(selected string) {
-		a.config.TOTP.Hash = paw.TOTPHash(selected)
+		a.state.Preferences.TOTP.Hash = paw.TOTPHash(selected)
 		a.storePreferences()
 	})
-	hashSelect.Selected = string(a.config.TOTP.Hash)
+	hashSelect.Selected = string(a.state.Preferences.TOTP.Hash)
 	form.Add(labelWithStyle("Hash Algorithm"))
 	form.Add(hashSelect)
 
 	digitsOptions := []string{"5", "6", "7", "8", "9", "10"}
 	digitsSelect := widget.NewSelect(digitsOptions, func(selected string) {
-		a.config.TOTP.Digits, _ = strconv.Atoi(selected)
+		a.state.Preferences.TOTP.Digits, _ = strconv.Atoi(selected)
 		a.storePreferences()
 	})
-	digitsSelect.Selected = strconv.Itoa(a.config.TOTP.Digits)
+	digitsSelect.Selected = strconv.Itoa(a.state.Preferences.TOTP.Digits)
 	form.Add(labelWithStyle("Digits"))
 	form.Add(digitsSelect)
 
-	intervalBind := binding.BindInt(&a.config.TOTP.Interval)
+	intervalBind := binding.BindInt(&a.state.Preferences.TOTP.Interval)
 	intervalSlider := widget.NewSlider(5, 60)
 	intervalSlider.Step = 5
 	intervalSlider.OnChanged = func(f float64) {
 		intervalBind.Set(int(f))
 		a.storePreferences()
 	}
-	intervalSlider.Value = float64(a.config.TOTP.Interval)
+	intervalSlider.Value = float64(a.state.Preferences.TOTP.Interval)
 	intervalEntry := widget.NewLabelWithData(binding.IntToString(intervalBind))
 	form.Add(labelWithStyle("Interval"))
 	form.Add(container.NewBorder(nil, nil, nil, intervalEntry, intervalSlider))

@@ -8,6 +8,7 @@ package cli
 import (
 	"fmt"
 	"os"
+	"time"
 
 	"lucor.dev/paw/internal/paw"
 )
@@ -64,6 +65,11 @@ func (cmd *RemoveCmd) Parse(args []string) error {
 
 // Run runs the command
 func (cmd *RemoveCmd) Run(s paw.Storage) error {
+	appState, err := s.LoadAppState()
+	if err != nil {
+		return err
+	}
+
 	key, err := loadVaultKey(s, cmd.vaultName)
 	if err != nil {
 		return err
@@ -99,7 +105,15 @@ func (cmd *RemoveCmd) Run(s paw.Storage) error {
 
 	vault.DeleteItem(item)
 
+	now := time.Now().UTC()
+	vault.Modified = now
 	err = s.StoreVault(vault)
+	if err != nil {
+		return err
+	}
+
+	appState.Modified = now
+	err = s.StoreAppState(appState)
 	if err != nil {
 		return err
 	}

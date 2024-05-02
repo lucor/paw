@@ -65,6 +65,11 @@ func (cmd *EditCmd) Parse(args []string) error {
 
 // Run runs the command
 func (cmd *EditCmd) Run(s paw.Storage) error {
+	appState, err := s.LoadAppState()
+	if err != nil {
+		return err
+	}
+
 	key, err := loadVaultKey(s, cmd.vaultName)
 	if err != nil {
 		return err
@@ -98,20 +103,32 @@ func (cmd *EditCmd) Run(s paw.Storage) error {
 		return fmt.Errorf("unsupported item type: %q", cmd.itemType)
 	}
 
-	item.GetMetadata().Modified = time.Now()
+	now := time.Now().UTC()
+
+	item.GetMetadata().Modified = now
 
 	err = s.StoreItem(vault, item)
 	if err != nil {
 		return err
 	}
+
 	err = vault.AddItem(item)
 	if err != nil {
 		return err
 	}
+
+	vault.Modified = now
 	err = s.StoreVault(vault)
 	if err != nil {
 		return err
 	}
+
+	appState.Modified = now
+	err = s.StoreAppState(appState)
+	if err != nil {
+		return err
+	}
+
 	fmt.Printf("[✓] item %q modified\n", cmd.itemName)
 	return nil
 }
@@ -119,11 +136,11 @@ func (cmd *EditCmd) Run(s paw.Storage) error {
 func (cmd *EditCmd) editLoginItem(key *paw.Key, item paw.Item) error {
 	v := item.(*paw.Login)
 
-	url, err := askWithDefault("URL", v.URL)
+	url, err := askWithDefault("URL", v.URL.String())
 	if err != nil {
 		return err
 	}
-	v.URL = url
+	v.URL.Set(url)
 
 	username, err := askWithDefault("Username", v.Username)
 	if err != nil {

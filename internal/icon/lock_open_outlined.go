@@ -9,10 +9,10 @@ var LockOpenOutlinedIconThemed = NewThemedResource(LockOpenOutlinedIconDarkRes, 
 
 var LockOpenOutlinedIconDarkRes = &fyne.StaticResource{
 	StaticName:    "lock_open_outlined_dark.svg",
-	StaticContent: []byte("<svg fill=\"#ffffff\" xmlns=\"http://www.w3.org/2000/svg\" height=\"24\" viewBox=\"0 0 24 24\" width=\"24\"><path d=\"M0 0h24v24H0V0z\" fill=\"none\"/><path d=\"M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6h2c0-1.66 1.34-3 3-3s3 1.34 3 3v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm0 12H6V10h12v10zm-6-3c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2z\"/></svg>"),
+	StaticContent: []byte("<!--category: Systemtags: [security, password, secure, unprotected]version: \"1.0\"unicode: \"eae1\"--><svg  xmlns=\"http://www.w3.org/2000/svg\"  width=\"24\"  height=\"24\"  viewBox=\"0 0 24 24\"  fill=\"none\"  stroke=\"#ffffff\"  stroke-width=\"2\"  stroke-linecap=\"round\"  stroke-linejoin=\"round\">  <path d=\"M5 11m0 2a2 2 0 0 1 2 -2h10a2 2 0 0 1 2 2v6a2 2 0 0 1 -2 2h-10a2 2 0 0 1 -2 -2z\" />  <path d=\"M12 16m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0\" />  <path d=\"M8 11v-5a4 4 0 0 1 8 0\" /></svg>"),
 }
 
 var LockOpenOutlinedIconLightRes = &fyne.StaticResource{
 	StaticName:    "lock_open_outlined_light.svg",
-	StaticContent: []byte("<svg xmlns=\"http://www.w3.org/2000/svg\" height=\"24\" viewBox=\"0 0 24 24\" width=\"24\"><path d=\"M0 0h24v24H0V0z\" fill=\"none\"/><path d=\"M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6h2c0-1.66 1.34-3 3-3s3 1.34 3 3v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm0 12H6V10h12v10zm-6-3c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2z\"/></svg>"),
+	StaticContent: []byte("<!--category: Systemtags: [security, password, secure, unprotected]version: \"1.0\"unicode: \"eae1\"--><svg  xmlns=\"http://www.w3.org/2000/svg\"  width=\"24\"  height=\"24\"  viewBox=\"0 0 24 24\"  fill=\"none\"  stroke=\"#000000\"  stroke-width=\"2\"  stroke-linecap=\"round\"  stroke-linejoin=\"round\">  <path d=\"M5 11m0 2a2 2 0 0 1 2 -2h10a2 2 0 0 1 2 2v6a2 2 0 0 1 -2 2h-10a2 2 0 0 1 -2 -2z\" />  <path d=\"M12 16m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0\" />  <path d=\"M8 11v-5a4 4 0 0 1 8 0\" /></svg>"),
 }

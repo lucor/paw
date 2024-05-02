@@ -53,7 +53,7 @@ type pwgenDialog struct {
 	options pwgenOptions
 }
 
-func NewPasswordGenerator(key *paw.Key, ps paw.PasswordConfig) *pwgenDialog {
+func NewPasswordGenerator(key *paw.Key, ps paw.PasswordPreferences) *pwgenDialog {
 	pd := &pwgenDialog{
 		key: key,
 		options: pwgenOptions{

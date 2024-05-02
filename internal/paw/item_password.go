@@ -70,14 +70,14 @@ type Password struct {
 }
 
 func NewPassword() *Password {
-	now := time.Now()
+	now := time.Now().UTC()
 	return &Password{
 		Metadata: &Metadata{
 			Type:     PasswordItemType,
 			Created:  now,
 			Modified: now,
 		},
-		Note: &Note{},
+		Note: NewNote(),
 	}
 }
 

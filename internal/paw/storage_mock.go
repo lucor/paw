@@ -7,7 +7,7 @@ import (
 )
 
 var _ Storage = (*StorageMock)(nil)
-var _ ConfigStorage = (*ConfigStorageMock)(nil)
+var _ AppStateStorage = (*AppStateStorageMock)(nil)
 var _ ItemStorage = (*ItemStorageMock)(nil)
 var _ VaultStorage = (*VaultStorageMock)(nil)
 
@@ -16,7 +16,7 @@ var (
 )
 
 type StorageMock struct {
-	ConfigStorageMock
+	AppStateStorageMock
 	VaultStorageMock
 	ItemStorageMock
 	OnSocketAgentPath func() string
@@ -42,25 +42,25 @@ func (c *StorageMock) SocketAgentPath() string {
 	return filepath.Join(os.TempDir(), "paw_socket_agent_path_mock")
 }
 
-type ConfigStorageMock struct {
-	OnLoadConfig  func() (*Config, error)
-	OnStoreConfig func(s *Config) error
+type AppStateStorageMock struct {
+	OnLoadAppState  func() (*AppState, error)
+	OnStoreAppState func(s *AppState) error
 }
 
-// LoadConfig implements ConfigStorage.
-func (c *ConfigStorageMock) LoadConfig() (*Config, error) {
-	if c.OnLoadConfig == nil {
+// LoadAppState implements AppStateStorage.
+func (c *AppStateStorageMock) LoadAppState() (*AppState, error) {
+	if c.OnLoadAppState == nil {
 		return nil, ErrCallbackRequired
 	}
-	return c.OnLoadConfig()
+	return c.OnLoadAppState()
 }
 
-// StoreConfig implements ConfigStorage.
-func (c *ConfigStorageMock) StoreConfig(s *Config) error {
-	if c.OnStoreConfig == nil {
+// StoreAppState implements AppStateStorage.
+func (c *AppStateStorageMock) StoreAppState(s *AppState) error {
+	if c.OnStoreAppState == nil {
 		return ErrCallbackRequired
 	}
-	return c.OnStoreConfig(s)
+	return c.OnStoreAppState(s)
 }
 
 type VaultStorageMock struct {

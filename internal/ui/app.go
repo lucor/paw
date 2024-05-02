@@ -36,8 +36,8 @@ var maxWorkers = runtime.NumCPU()
 
 type app struct {
 	win     fyne.Window
-	config  *paw.Config
 	main    *container.Scroll
+	state   *paw.AppState
 	storage paw.Storage
 
 	unlockedVault map[string]*paw.Vault // this act as cache
@@ -50,30 +50,18 @@ type app struct {
 	client agent.PawAgent
 }
 
-func MakeApp(w fyne.Window) fyne.CanvasObject {
-	var s paw.Storage
-	var err error
-
-	if fyne.CurrentDevice().IsMobile() {
-		s, err = paw.NewFyneStorage(fyne.CurrentApp().Storage())
-	} else {
-		s, err = paw.NewOSStorage()
-	}
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	config, err := s.LoadConfig()
+func MakeApp(s paw.Storage, w fyne.Window) fyne.CanvasObject {
+	appState, err := s.LoadAppState()
 	if err != nil {
 		dialog.NewError(err, w)
 	}
 
 	a := &app{
-		win:           w,
-		storage:       s,
-		config:        config,
-		unlockedVault: make(map[string]*paw.Vault),
+		state:         appState,
 		filter:        make(map[string]*paw.VaultFilterOptions),
+		storage:       s,
+		unlockedVault: make(map[string]*paw.Vault),
+		win:           w,
 	}
 
 	a.win.SetMainMenu(a.makeMainMenu())
@@ -217,12 +205,12 @@ func (a *app) showAddItemView() {
 	a.win.SetContent(a.makeAddItemView())
 }
 
-func (a *app) showItemView(fyneItem FyneItem) {
-	a.win.SetContent(a.makeShowItemView(fyneItem))
+func (a *app) showItemView(fyneItemWidget FyneItemWidget) {
+	a.win.SetContent(a.makeShowItemView(fyneItemWidget))
 }
 
-func (a *app) showEditItemView(fyneItem FyneItem) {
-	a.win.SetContent(a.makeEditItemView(fyneItem))
+func (a *app) showEditItemView(fyneItemWidget FyneItemWidget) {
+	a.win.SetContent(a.makeEditItemView(fyneItemWidget))
 }
 
 func (a *app) showPreferencesView() {

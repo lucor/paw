@@ -15,7 +15,7 @@ type Imported struct {
 }
 
 func (i *Imported) UnmarshalJSON(data []byte) error {
-	if i == nil {
+	if i.Items == nil {
 		i.Items = make([]Item, 0)
 	}
 	v := map[string][]json.RawMessage{}

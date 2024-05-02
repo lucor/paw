@@ -39,7 +39,7 @@ func (m *Metadata) Icon() fyne.Resource {
 	case paw.PasswordItemType:
 		return icon.PasswordOutlinedIconThemed
 	case paw.LoginItemType:
-		return icon.PublicOutlinedIconThemed
+		return icon.WorldWWWOutlinedIconThemed
 	case paw.SSHKeyItemType:
 		return icon.KeyOutlinedIconThemed
 	}
@@ -50,8 +50,8 @@ func ShowMetadata(m *paw.Metadata) fyne.CanvasObject {
 	return container.New(
 		layout.NewFormLayout(),
 		widget.NewLabel("Modified"),
-		widget.NewLabel(m.Modified.Format(time.RFC1123)),
+		widget.NewLabel(m.Modified.Local().Format(time.RFC1123)),
 		widget.NewLabel("Created"),
-		widget.NewLabel(m.Created.Format(time.RFC1123)),
+		widget.NewLabel(m.Created.Local().Format(time.RFC1123)),
 	)
 }

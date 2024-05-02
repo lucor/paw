@@ -6,13 +6,10 @@
 package ui
 
 import (
-	"bytes"
 	"context"
-	"image/png"
-	"net/url"
-	"strings"
 
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/data/binding"
 	"fyne.io/fyne/v2/layout"
@@ -24,71 +21,104 @@ import (
 	"lucor.dev/paw/internal/paw"
 )
 
-// Declare conformity to Item interface
-var _ paw.Item = (*Login)(nil)
+// Declare conformity to FyneItemWidget interface
+var _ FyneItemWidget = (*loginItemWidget)(nil)
 
-// Declare conformity to FyneItem interface
-var _ FyneItem = (*Login)(nil)
-
-type Login struct {
-	*paw.Login
-	Config *paw.Config
-}
-
-func (login *Login) Item() paw.Item {
-	return login.Login
-}
-
-func (login *Login) Icon() fyne.Resource {
-	if login.Favicon != nil {
-		return login.Favicon
+func NewLoginWidget(item *paw.Login, preferences *paw.Preferences) FyneItemWidget {
+	return &loginItemWidget{
+		item:        item,
+		preferences: preferences,
+		urlEntry:    newURLEntryWithData(context.TODO(), item.URL),
 	}
-	return icon.PublicOutlinedIconThemed
 }
 
-func (login *Login) Edit(ctx context.Context, key *paw.Key, w fyne.Window) (fyne.CanvasObject, paw.Item) {
+// loginItemWidget handle a paw.Login as Fyne Widget
+type loginItemWidget struct {
+	item        *paw.Login
+	preferences *paw.Preferences
+	urlEntry    *urlEntry
 
-	loginIcon := widget.NewIcon(login.Icon())
+	validator []fyne.Validatable
+}
 
-	loginItem := &paw.Login{}
-	*loginItem = *login.Login
-	loginItem.Metadata = &paw.Metadata{}
-	*loginItem.Metadata = *login.Metadata
-	loginItem.Note = &paw.Note{}
-	*loginItem.Note = *login.Note
-	loginItem.Password = &paw.Password{}
-	*loginItem.Password = *login.Password
-	loginItem.TOTP = &paw.TOTP{}
-	*loginItem.TOTP = *login.TOTP
-	config := login.Config
+// OnSubmit implements FyneItem.
+func (iw *loginItemWidget) OnSubmit() (paw.Item, error) {
+	iw.urlEntry.FocusLost()
 
-	passwordBind := binding.BindString(&loginItem.Password.Value)
+	for _, v := range iw.validator {
+		if err := v.Validate(); err != nil {
+			return nil, err
+		}
+	}
 
-	titleEntry := widget.NewEntryWithData(binding.BindString(&loginItem.Name))
-	titleEntry.Validator = nil
+	if iw.item.Metadata.Autofill == nil {
+		iw.item.Metadata.Autofill = &paw.Autofill{}
+	}
+
+	iw.item.Metadata.Autofill.URL = iw.urlEntry.loginURL.URL()
+	iw.item.Metadata.Autofill.TLDPlusOne = iw.urlEntry.loginURL.TLDPlusOne()
+	iw.item.Metadata.Subtitle = iw.item.Subtitle()
+
+	return iw.Item(), nil
+}
+
+func (iw *loginItemWidget) Item() paw.Item {
+	copy := paw.NewLogin()
+	err := deepCopyItem(iw.item, copy)
+	if err != nil {
+		panic(err)
+	}
+	return copy
+}
+
+func (iw *loginItemWidget) Icon() fyne.Resource {
+	if iw.item.Favicon != nil {
+		return iw.item.Favicon
+	}
+	return icon.WorldWWWOutlinedIconThemed
+}
+
+func (iw *loginItemWidget) Edit(ctx context.Context, key *paw.Key, w fyne.Window) fyne.CanvasObject {
+
+	loginIcon := canvas.NewImageFromResource(iw.Icon())
+	loginIcon.FillMode = canvas.ImageFillContain
+	loginIcon.SetMinSize(fyne.NewSize(32, 32))
+
+	if iw.item.URL == nil {
+		iw.item.URL = paw.NewLoginURL()
+	}
+	preferences := iw.preferences
+
+	passwordBind := binding.BindString(&iw.item.Password.Value)
+
+	titleEntry := widget.NewEntryWithData(binding.BindString(&iw.item.Name))
+	titleEntry.Validator = requiredValidator("The title cannot be emtpy")
 	titleEntry.PlaceHolder = "Untitled login"
 
-	urlEntry := newURLEntryWithData(ctx, binding.BindString(&loginItem.URL))
+	urlEntry := newURLEntryWithData(ctx, iw.item.URL)
 	urlEntry.TitleEntry = titleEntry
 	urlEntry.FaviconListener = func(favicon *paw.Favicon) {
-		loginItem.Metadata.Favicon = favicon
+		iw.item.Metadata.Favicon = favicon
 		if favicon != nil {
-			loginIcon.SetResource(favicon)
+			loginIcon.Resource = favicon
+			loginIcon.Refresh()
 			return
 		}
 		// no favicon found, fallback to default
-		loginIcon.SetResource(icon.PublicOutlinedIconThemed)
+		loginIcon.Resource = icon.WorldWWWOutlinedIconThemed
+		loginIcon.Refresh()
 	}
+	iw.urlEntry = urlEntry
 
-	usernameEntry := widget.NewEntryWithData(binding.BindString(&loginItem.Username))
+	usernameEntry := widget.NewEntryWithData(binding.BindString(&iw.item.Username))
 	usernameEntry.Validator = nil
 
-	uiTOTP := &TOTP{TOTP: loginItem.TOTP}
+	uiTOTP := &TOTP{TOTP: iw.item.TOTP}
 	totpForm, totpItem := uiTOTP.Edit(ctx, w)
-	loginItem.TOTP = totpItem
+	iw.item.TOTP = totpItem
 
 	// the note field
-	noteEntry := newNoteEntryWithData(binding.BindString(&loginItem.Note.Value))
+	noteEntry := newNoteEntryWithData(binding.BindString(&iw.item.Note.Value))
 
 	// center
 	passwordEntry := widget.NewPasswordEntry()
@@ -101,8 +131,8 @@ func (login *Login) Edit(ctx context.Context, key *paw.Key, w fyne.Window) (fyne
 			Label: "Generate",
 			Icon:  icon.KeyOutlinedIconThemed,
 			Action: func() {
-				pg := NewPasswordGenerator(key, config.Password)
-				pg.ShowPasswordGenerator(passwordBind, loginItem.Password, w)
+				pg := NewPasswordGenerator(key, preferences.Password)
+				pg.ShowPasswordGenerator(passwordBind, iw.item.Password, w)
 			},
 		},
 		{
@@ -118,8 +148,10 @@ func (login *Login) Edit(ctx context.Context, key *paw.Key, w fyne.Window) (fyne
 		},
 	}
 
+	iw.validator = append(iw.validator, titleEntry)
+
 	form := container.New(layout.NewFormLayout())
-	form.Add(loginIcon)
+	form.Add(container.NewCenter(loginIcon))
 	form.Add(titleEntry)
 
 	form.Add(labelWithStyle("Website"))
@@ -137,26 +169,26 @@ func (login *Login) Edit(ctx context.Context, key *paw.Key, w fyne.Window) (fyne
 	form.Add(labelWithStyle("Note"))
 	form.Add(noteEntry)
 
-	return form, loginItem
+	return form
 }
 
-func (login *Login) Show(ctx context.Context, w fyne.Window) fyne.CanvasObject {
-	obj := titleRow(login.Icon(), login.Name)
-	if login.URL != "" {
-		obj = append(obj, rowWithAction("Website", login.URL, rowActionOptions{widgetType: "url", copy: true}, w)...)
+func (iw *loginItemWidget) Show(ctx context.Context, w fyne.Window) fyne.CanvasObject {
+	obj := titleRow(iw.Icon(), iw.item.Name)
+	if iw.item.URL != nil {
+		obj = append(obj, rowWithAction("Website", iw.item.URL.String(), rowActionOptions{widgetType: "url", copy: true}, w)...)
 	}
-	if login.Username != "" {
-		obj = append(obj, rowWithAction("Username", login.Username, rowActionOptions{copy: true}, w)...)
+	if iw.item.Username != "" {
+		obj = append(obj, rowWithAction("Username", iw.item.Username, rowActionOptions{copy: true}, w)...)
 	}
-	if login.Password.Value != "" {
-		obj = append(obj, rowWithAction("Password", login.Password.Value, rowActionOptions{widgetType: "password", copy: true}, w)...)
+	if iw.item.Password.Value != "" {
+		obj = append(obj, rowWithAction("Password", iw.item.Password.Value, rowActionOptions{widgetType: "password", copy: true}, w)...)
 	}
-	if login.TOTP != nil && login.TOTP.Secret != "" {
-		uiTOTP := &TOTP{TOTP: login.TOTP}
+	if iw.item.TOTP != nil && iw.item.TOTP.Secret != "" {
+		uiTOTP := &TOTP{TOTP: iw.item.TOTP}
 		obj = append(obj, uiTOTP.Show(ctx, w)...)
 	}
-	if login.Note != nil && login.Note.Value != "" {
-		obj = append(obj, rowWithAction("Note", login.Note.Value, rowActionOptions{copy: true}, w)...)
+	if iw.item.Note != nil && iw.item.Note.Value != "" {
+		obj = append(obj, rowWithAction("Note", iw.item.Note.Value, rowActionOptions{copy: true}, w)...)
 	}
 	return container.New(layout.NewFormLayout(), obj...)
 }
@@ -165,78 +197,69 @@ type urlEntry struct {
 	widget.Entry
 	TitleEntry      *widget.Entry
 	FaviconListener func(*paw.Favicon)
-
-	ctx  context.Context
-	host string // host keep track of the initial value before editing
+	ctx             context.Context
+	loginURL        *paw.LoginURL // keep track of the initial value before editing
+	validationError error
 }
 
-func newURLEntryWithData(ctx context.Context, bind binding.String) *urlEntry {
+func newURLEntryWithData(ctx context.Context, loginURL *paw.LoginURL) *urlEntry {
 	e := &urlEntry{
-		ctx: ctx,
+		ctx:      ctx,
+		loginURL: loginURL,
 	}
 	e.ExtendBaseWidget(e)
-	e.Bind(bind)
-	e.Validator = nil
-
-	rawurl, _ := bind.Get()
-	if rawurl == "" {
-		rawurl = "https://"
-		e.SetText(rawurl)
+	e.SetText(e.loginURL.String())
+	e.Validator = func(s string) error {
+		return e.validationError
 	}
-
-	e.host = e.hostFromRawURL(rawurl)
+	e.OnSubmitted = func(s string) {
+		e.FocusLost()
+	}
 	return e
 }
 
-func (e *urlEntry) hostFromRawURL(rawurl string) string {
-	if rawurl == "" {
-		return rawurl
-	}
-
-	u, err := url.Parse(rawurl)
-	if err != nil {
-		return rawurl
-	}
-
-	if u.Host != "" {
-		return u.Host
-	}
-	parts := strings.Split(u.Path, "/")
-	return parts[0]
+func (e *urlEntry) FocusGained() {
+	defer e.Entry.FocusGained()
+	e.validationError = nil
 }
 
 // FocusLost is a hook called by the focus handling logic after this object lost the focus.
 func (e *urlEntry) FocusLost() {
 	defer e.Entry.FocusLost()
 
-	host := e.hostFromRawURL(e.Text)
-	if e.TitleEntry.Text == "" {
-		e.TitleEntry.SetText(host)
-	}
-	if host == e.host {
+	oldHostname := e.loginURL.URL().Hostname()
+
+	err := e.loginURL.Set(e.Text)
+	if err != nil {
+		e.validationError = err
 		return
 	}
-	e.host = host
+
+	if e.Text != e.loginURL.String() {
+		// update the text to the normalized URL, if it changed
+		e.SetText(e.loginURL.String())
+	}
+
+	newHostname := e.loginURL.URL().Hostname()
+	if e.TitleEntry.Text == "" {
+		e.TitleEntry.SetText(newHostname)
+	}
+
+	if oldHostname == newHostname {
+		// Host did not change, skipping favicon download
+		return
+	}
 
 	go func() {
 		var fav *paw.Favicon
 
-		img, err := favicon.Download(e.ctx, host, favicon.Options{
-			ForceMinSize: true,
-		})
+		b, format, err := favicon.Download(e.ctx, e.loginURL.URL(), favicon.Options{})
 		if err != nil {
 			e.FaviconListener(fav)
 			return
 		}
 
-		w := &bytes.Buffer{}
-		err = png.Encode(w, img)
-		if err != nil {
-			e.FaviconListener(fav)
-			return
-		}
-
-		fav = paw.NewFavicon(host, w.Bytes())
+		fav = paw.NewFavicon(newHostname, b, format)
 		e.FaviconListener(fav)
 	}()
 }

@@ -44,18 +44,14 @@ It is written in Go and uses [Fyne](https://github.com/fyne-io/fyne) as UI toolk
 
 ### Latest version
 
-
-```
-go install lucor.dev/paw@latest
-```
+You can download the latest version as a binary from https://paw.pm/download
 
 ### Development version
 
 To try the development version or help with testing:
 
-
 ```
-go install lucor.dev/paw@develop
+go install lucor.dev/paw@latest
 ```
 
 ## How it works - cryptography details
@@ -111,18 +107,13 @@ The threat model of Paw assumes there are no attackers on your local machine.
 
 ## Contribute
 
-- Fork and clone the repository
-- Make and test your changes
-- Open a pull request against the `develop` branch
-
-## Contributors
-
-See [contributors](https://github.com/lucor/paw/graphs/contributors) page
+See https://lucor.dev/projects/#maintenance-policy
 
 ## Credits
 
  - [age](https://github.com/FiloSottile/age) for the encryption library
  - [Fyne](https://github.com/fyne-io/fyne) for the UI toolkit
+ - [Tabler icons](https://tabler.io/icons) for the icons
 
 Also thanks to these Open Source password managers that inspired Paw:
 

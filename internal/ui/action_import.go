@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"sync/atomic"
+	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
@@ -53,7 +54,7 @@ func (a *app) importFromFile() {
 		c := container.NewBorder(modalTitle, nil, nil, nil, container.NewCenter(container.NewVBox(progressbar, cancelButton)))
 		modal := widget.NewModalPopUp(c, a.win.Canvas())
 
-		rollback := func(vault *paw.Vault, items []paw.Item) {
+		rollback := func(items []paw.Item) {
 			for _, item := range items {
 				a.storage.DeleteItem(a.vault, item)
 				a.vault.DeleteItem(item)
@@ -106,7 +107,7 @@ func (a *app) importFromFile() {
 			defer modal.Hide()
 			err = g.Wait()
 			if err != nil || errors.Is(ctx.Err(), context.Canceled) {
-				rollback(a.vault, processed)
+				rollback(processed)
 				dialog.ShowError(err, a.win)
 				return
 			}
@@ -115,12 +116,16 @@ func (a *app) importFromFile() {
 				a.vault.AddItem(item)
 				a.addSSHKeyToAgent(item)
 			}
+			now := time.Now().UTC()
+			a.vault.Modified = now
 			err = a.storage.StoreVault(a.vault)
 			if err != nil {
-				rollback(a.vault, processed)
+				rollback(processed)
 				dialog.ShowError(err, a.win)
 				return
 			}
+			a.state.Modified = now
+			a.storage.StoreAppState(a.state)
 			a.refreshCurrentView()
 			a.showCurrentVaultView()
 		}()

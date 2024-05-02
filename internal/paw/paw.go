@@ -27,6 +27,8 @@ import (
 const (
 	ID            = "dev.lucor.paw"
 	ServicePrefix = "paw/"
+	// UserAgentFaviconDownloader is the UserAgent user by the favicon downloader
+	UserAgentFaviconDownloader = "Paw/1.0 (+https://paw.pm/paw-favicon-downloader)"
 )
 
 var (
@@ -109,7 +111,7 @@ func MakeKey(password string, w io.Writer) (key *Key, err error) {
 	}
 
 	data := &bytes.Buffer{}
-	fmt.Fprintf(data, "# created: %s\n", time.Now().Format(time.RFC3339))
+	fmt.Fprintf(data, "# created: %s\n", time.Now().UTC().Format(time.RFC3339))
 	fmt.Fprintf(data, "# public key: %s\n", ageIdentity.Recipient())
 	fmt.Fprintf(data, "%s\n", ageIdentity)
 

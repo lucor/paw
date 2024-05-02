@@ -155,8 +155,8 @@ func (cmd *ShowCmd) Run(s paw.Storage) error {
 		fmt.Printf("Note: %s\n", v.Value)
 	}
 
-	fmt.Printf("Modified: %s\n", item.GetMetadata().Modified.Format(time.RFC1123))
-	fmt.Printf("Created: %s\n", item.GetMetadata().Created.Format(time.RFC1123))
+	fmt.Printf("Modified: %s\n", item.GetMetadata().Modified.Local().Format(time.RFC1123))
+	fmt.Printf("Created: %s\n", item.GetMetadata().Created.Local().Format(time.RFC1123))
 
 	if pclip != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), clipboardWriteTimeout)

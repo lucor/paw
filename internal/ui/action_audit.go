@@ -28,15 +28,7 @@ import (
 // auditPasswordView returns a view to audit passwords
 func (a *app) makeAuditPasswordView() fyne.CanvasObject {
 
-	image := imageFromResource(icon.FactCheckOutlinedIconThemed)
-
-	text := widget.NewLabel("Check Vault passwords against existing data breaches")
-	text.Wrapping = fyne.TextWrapWord
-	text.Alignment = fyne.TextAlignCenter
-
-	var content *fyne.Container
-
-	auditBtn := widget.NewButtonWithIcon("Audit", icon.FactCheckOutlinedIconThemed, func() {
+	auditBtn := widget.NewButtonWithIcon("Audit", icon.ChecklistOutlinedIconThemed, func() {
 
 		ctx, cancel := context.WithCancel(context.Background())
 
@@ -110,15 +102,18 @@ func (a *app) makeAuditPasswordView() fyne.CanvasObject {
 
 			num := len(pwendItems)
 			if num == 0 {
-				image = imageFromResource(icon.CheckCircleOutlinedIconThemed)
-				text.SetText("No password found in data breaches")
-				content.Objects = []fyne.CanvasObject{container.NewVBox(image, text)}
-				content.Refresh()
+				image := imageFromResource(icon.CircleCheckOutlinedIconThemed)
+				text := widget.NewLabel("No password found in data breaches")
+				text.Wrapping = fyne.TextWrapWord
+				text.Alignment = fyne.TextAlignCenter
+				a.win.SetContent(container.NewBorder(a.makeCancelHeaderButton(), nil, nil, nil, container.NewVBox(image, text)))
 				return
 			}
 
-			image = imageFromResource(theme.WarningIcon())
-			text.SetText("Passwords of the items below have been found in a data breaches and should not be used")
+			image := imageFromResource(theme.WarningIcon())
+			text := widget.NewLabel("Passwords of the items below have been found in a data breaches and should not be used")
+			text.Wrapping = fyne.TextWrapWord
+			text.Alignment = fyne.TextAlignCenter
 			list := widget.NewList(
 				func() int {
 					return len(pwendItems)
@@ -130,27 +125,28 @@ func (a *app) makeAuditPasswordView() fyne.CanvasObject {
 					v := pwendItems[lii]
 					item := v.Item
 					metadata := item.GetMetadata()
-					fyneItem := NewFyneItem(v.Item, a.config)
+					fyneItemWidget := NewFyneItemWidget(v.Item, a.state.Preferences)
 					co.(*fyne.Container).Objects[0].(*widget.Label).SetText(fmt.Sprintf("%s (found %d times)", metadata.Name, v.Count))
-					co.(*fyne.Container).Objects[1].(*widget.Icon).SetResource(fyneItem.Icon())
+					co.(*fyne.Container).Objects[1].(*widget.Icon).SetResource(fyneItemWidget.Icon())
 					co.(*fyne.Container).Objects[2].(*widget.Button).OnTapped = func() {
-						a.showEditItemView(fyneItem)
+						a.showEditItemView(fyneItemWidget)
 					}
 				},
 			)
 			list.OnSelected = func(id widget.ListItemID) {
-				fyneItem := NewFyneItem(pwendItems[id].Item, a.config)
-				a.showItemView(fyneItem)
+				fyneItemWidget := NewFyneItemWidget(pwendItems[id].Item, a.state.Preferences)
+				a.showItemView(fyneItemWidget)
 			}
-
-			content.Objects = []fyne.CanvasObject{container.NewBorder(container.NewVBox(image, text), nil, nil, nil, list)}
-			content.Refresh()
+			c := container.NewBorder(container.NewVBox(image, text), nil, nil, nil, list)
+			a.win.SetContent(container.NewBorder(a.makeCancelHeaderButton(), nil, nil, nil, c))
 		}()
 		modal.Show()
 	})
-	auditBtn.Resize(auditBtn.MinSize())
 
-	empty := widget.NewLabel("")
-	content = container.NewVBox(image, text, container.NewGridWithColumns(3, empty, auditBtn, empty))
-	return container.NewBorder(a.makeCancelHeaderButton(), nil, nil, nil, content)
+	image := imageFromResource(icon.ChecklistOutlinedIconThemed)
+	text := widget.NewLabel("Check Vault passwords against existing data breaches")
+	text.Wrapping = fyne.TextWrapWord
+	text.Alignment = fyne.TextAlignCenter
+	c := container.NewBorder(container.NewVBox(image, text, auditBtn), nil, nil, nil, nil)
+	return container.NewBorder(a.makeCancelHeaderButton(), nil, nil, nil, c)
 }

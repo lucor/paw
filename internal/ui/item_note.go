@@ -18,54 +18,70 @@ import (
 	"lucor.dev/paw/internal/paw"
 )
 
-// Declare conformity to Item interface
-var _ paw.Item = (*Note)(nil)
-
 // Declare conformity to FyneItem interface
-var _ FyneItem = (*Note)(nil)
+var _ FyneItemWidget = (*noteItemWidget)(nil)
 
-type Note struct {
-	*paw.Note
-}
-
-func (n *Note) Item() paw.Item {
-	return n.Note
-}
-
-func (n *Note) Icon() fyne.Resource {
-	if n.Favicon != nil {
-		return n.Favicon
+func NewNoteWidget(item *paw.Note) FyneItemWidget {
+	return &noteItemWidget{
+		item: item,
 	}
+}
+
+type noteItemWidget struct {
+	item *paw.Note
+
+	validator []fyne.Validatable
+}
+
+// OnSubmit implements FyneItem.
+func (iw *noteItemWidget) OnSubmit() (paw.Item, error) {
+	for _, v := range iw.validator {
+		if err := v.Validate(); err != nil {
+			return nil, err
+		}
+	}
+	return iw.Item(), nil
+}
+
+func (iw *noteItemWidget) Item() paw.Item {
+	copy := paw.NewNote()
+	err := deepCopyItem(iw.item, copy)
+	if err != nil {
+		panic(err)
+	}
+	return copy
+}
+
+func (iw *noteItemWidget) Icon() fyne.Resource {
 	return icon.NoteOutlinedIconThemed
 }
 
-func (n *Note) Edit(ctx context.Context, key *paw.Key, w fyne.Window) (fyne.CanvasObject, paw.Item) {
-	item := &paw.Note{}
-	*item = *n.Note
-	item.Metadata = &paw.Metadata{}
-	*item.Metadata = *n.Metadata
-
-	titleEntry := widget.NewEntryWithData(binding.BindString(&item.Metadata.Name))
-	titleEntry.Validator = nil
+func (iw *noteItemWidget) Edit(ctx context.Context, key *paw.Key, w fyne.Window) fyne.CanvasObject {
+	titleEntry := widget.NewEntryWithData(binding.BindString(&iw.item.Metadata.Name))
+	titleEntry.Validator = requiredValidator("The title cannot be emtpy")
 	titleEntry.PlaceHolder = "Untitled note"
 
-	noteEntry := newNoteEntryWithData(binding.BindString(&item.Value))
+	noteEntry := newNoteEntryWithData(binding.BindString(&iw.item.Value))
+
+	titleEntry.Validate()
+
+	iw.validator = append(iw.validator, titleEntry)
 
 	form := container.New(layout.NewFormLayout())
-	form.Add(widget.NewIcon(n.Icon()))
+	form.Add(widget.NewIcon(iw.Icon()))
 	form.Add(titleEntry)
 	form.Add(labelWithStyle("Note"))
 	form.Add(noteEntry)
 
-	return form, item
+	return form
 }
 
-func (n *Note) Show(ctx context.Context, w fyne.Window) fyne.CanvasObject {
-	if n == nil {
+func (iw *noteItemWidget) Show(ctx context.Context, w fyne.Window) fyne.CanvasObject {
+	if iw == nil {
 		return container.New(layout.NewFormLayout(), widget.NewLabel(""))
 	}
-	obj := titleRow(n.Icon(), n.Name)
-	obj = append(obj, rowWithAction("Note", n.Value, rowActionOptions{copy: true}, w)...)
+	obj := titleRow(iw.Icon(), iw.item.Name)
+	obj = append(obj, rowWithAction("Note", iw.item.Value, rowActionOptions{copy: true}, w)...)
 	return container.New(layout.NewFormLayout(), obj...)
 }
 

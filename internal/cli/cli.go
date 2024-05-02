@@ -21,7 +21,7 @@ import (
 	"lucor.dev/paw/internal/paw"
 )
 
-func New(s paw.Storage) (Cmd, error) {
+func Run(args []string, s paw.Storage) {
 
 	// Define the command to use
 	commands := []Cmd{
@@ -39,7 +39,7 @@ func New(s paw.Storage) (Cmd, error) {
 	}
 
 	// display the usage if no command is specified
-	if len(os.Args) == 2 {
+	if len(args) == 2 {
 		Usage(commands)
 		os.Exit(1)
 	}
@@ -47,7 +47,7 @@ func New(s paw.Storage) (Cmd, error) {
 	// check for valid command
 	var cmd Cmd
 	for _, v := range commands {
-		if os.Args[2] == v.Name() {
+		if args[2] == v.Name() {
 			cmd = v
 			break
 		}
@@ -62,8 +62,18 @@ func New(s paw.Storage) (Cmd, error) {
 	// Parse the arguments for the command
 	// It will display the command usage if -help is specified
 	// and will exit in case of error
-	err := cmd.Parse(os.Args[3:])
-	return cmd, err
+	err := cmd.Parse(args[3:])
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "[✗] %s\n", err)
+		os.Exit(1)
+	}
+
+	// Finally run the command
+	err = cmd.Run(s)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "[✗] %s\n", err)
+		os.Exit(1)
+	}
 }
 
 // Cmd wraps the methods for a paw cli command

@@ -40,7 +40,7 @@ func (t *TOTP) Edit(ctx context.Context, w fyne.Window) (fyne.CanvasObject, *paw
 	keyEntry := widget.NewPasswordEntry()
 	keyEntry.Bind(keyBind)
 	keyEntry.Validator = func(string) error {
-		_, err := otp.TOTPFromBase32(totp.Hasher(), totp.Secret, time.Now(), totp.Interval, totp.Digits)
+		_, err := otp.TOTPFromBase32(totp.Hasher(), totp.Secret, time.Now().UTC(), totp.Interval, totp.Digits)
 		return err
 	}
 
@@ -75,7 +75,7 @@ func (t *TOTP) Edit(ctx context.Context, w fyne.Window) (fyne.CanvasObject, *paw
 		form.Add(labelWithStyle("Interval"))
 		form.Add(container.NewBorder(nil, nil, nil, intervalEntry, intervalSlider))
 
-		dialog.ShowCustomConfirm("TOTP custom settings", "OK", "Cancel", container.NewStack(form), func(b bool) {
+		dialog.ShowCustomConfirm("2FA key (TOTP) custom settings", "OK", "Cancel", container.NewStack(form), func(b bool) {
 			if b {
 				totp = copy
 			}
@@ -84,7 +84,7 @@ func (t *TOTP) Edit(ctx context.Context, w fyne.Window) (fyne.CanvasObject, *paw
 
 	form := container.New(layout.NewFormLayout())
 
-	form.Add(labelWithStyle("TOTP key"))
+	form.Add(labelWithStyle("2FA key"))
 	form.Add(container.NewBorder(nil, nil, nil, settingsButton, keyEntry))
 
 	return form, totp
@@ -101,7 +101,7 @@ func (t *TOTP) Show(ctx context.Context, w fyne.Window) []fyne.CanvasObject {
 		keyLabel.SetText(v[0:m] + " " + v[m:])
 	}))
 
-	now := time.Now()
+	now := time.Now().UTC()
 	v, _ := otp.TOTPFromBase32(t.Hasher(), t.Secret, now, t.Interval, t.Digits)
 	totp.Set(v)
 
@@ -124,7 +124,7 @@ func (t *TOTP) Show(ctx context.Context, w fyne.Window) []fyne.CanvasObject {
 			case <-ticker.C:
 				v := progressbar.Value
 				if v == 1 {
-					v, _ := otp.TOTPFromBase32(sha1.New, t.Secret, time.Now(), t.Interval, t.Digits)
+					v, _ := otp.TOTPFromBase32(sha1.New, t.Secret, time.Now().UTC(), t.Interval, t.Digits)
 					totp.Set(v)
 					progressbar.SetValue(progressbar.Max)
 				} else {
@@ -139,9 +139,9 @@ func (t *TOTP) Show(ctx context.Context, w fyne.Window) []fyne.CanvasObject {
 		w.Clipboard().SetContent(v)
 		fyne.CurrentApp().SendNotification(&fyne.Notification{
 			Title:   "paw",
-			Content: "TOTP copied",
+			Content: "2FA key copied",
 		})
 	})
 
-	return []fyne.CanvasObject{labelWithStyle("TOTP"), container.NewBorder(nil, nil, keyLabel, b, progressbar)}
+	return []fyne.CanvasObject{labelWithStyle("2FA key"), container.NewBorder(nil, nil, keyLabel, b, progressbar)}
 }

@@ -5,18 +5,26 @@
 
 package paw
 
-func NewFavicon(host string, data []byte) *Favicon {
+type FaviconFormat string
+
+func (f FaviconFormat) String() string {
+	return string(f)
+}
+
+func NewFavicon(host string, data []byte, format string) *Favicon {
 	return &Favicon{
-		Host: host,
-		Data: data,
+		Host:   host,
+		Data:   data,
+		Format: format,
 	}
 }
 
 // Favicon represents a login favicon and it is a bundled fyne.resource compiled
 // into the application
 type Favicon struct {
-	Host string `json:"host,omitempty"`
-	Data []byte `json:"data,omitempty"`
+	Host   string `json:"host,omitempty"`
+	Data   []byte `json:"data,omitempty"`
+	Format string `json:"format,omitempty"`
 }
 
 // Name returns the unique name of this resource, usually matching the host name it

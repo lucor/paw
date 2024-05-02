@@ -9,10 +9,10 @@ var UploadOutlinedIconThemed = NewThemedResource(UploadOutlinedIconDarkRes, Uplo
 
 var UploadOutlinedIconDarkRes = &fyne.StaticResource{
 	StaticName:    "upload_outlined_dark.svg",
-	StaticContent: []byte("<svg fill=\"#ffffff\" xmlns=\"http://www.w3.org/2000/svg\" height=\"24\" viewBox=\"0 0 24 24\" width=\"24\"><path d=\"M0 0h24v24H0V0z\" fill=\"none\"/><path d=\"M9 16h6v-6h4l-7-7-7 7h4v6zm3-10.17L14.17 8H13v6h-2V8H9.83L12 5.83zM5 18h14v2H5z\"/></svg>"),
+	StaticContent: []byte("<!--category: Arrowstags: [file, arrow]version: \"1.0\"unicode: \"eb47\"--><svg  xmlns=\"http://www.w3.org/2000/svg\"  width=\"24\"  height=\"24\"  viewBox=\"0 0 24 24\"  fill=\"none\"  stroke=\"#ffffff\"  stroke-width=\"2\"  stroke-linecap=\"round\"  stroke-linejoin=\"round\">  <path d=\"M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2\" />  <path d=\"M7 9l5 -5l5 5\" />  <path d=\"M12 4l0 12\" /></svg>"),
 }
 
 var UploadOutlinedIconLightRes = &fyne.StaticResource{
 	StaticName:    "upload_outlined_light.svg",
-	StaticContent: []byte("<svg xmlns=\"http://www.w3.org/2000/svg\" height=\"24\" viewBox=\"0 0 24 24\" width=\"24\"><path d=\"M0 0h24v24H0V0z\" fill=\"none\"/><path d=\"M9 16h6v-6h4l-7-7-7 7h4v6zm3-10.17L14.17 8H13v6h-2V8H9.83L12 5.83zM5 18h14v2H5z\"/></svg>"),
+	StaticContent: []byte("<!--category: Arrowstags: [file, arrow]version: \"1.0\"unicode: \"eb47\"--><svg  xmlns=\"http://www.w3.org/2000/svg\"  width=\"24\"  height=\"24\"  viewBox=\"0 0 24 24\"  fill=\"none\"  stroke=\"#000000\"  stroke-width=\"2\"  stroke-linecap=\"round\"  stroke-linejoin=\"round\">  <path d=\"M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2\" />  <path d=\"M7 9l5 -5l5 5\" />  <path d=\"M12 4l0 12\" /></svg>"),
 }

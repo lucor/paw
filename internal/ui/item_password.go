@@ -19,45 +19,57 @@ import (
 	"lucor.dev/paw/internal/paw"
 )
 
-// Declare conformity to Item interface
-var _ paw.Item = (*Password)(nil)
-
 // Declare conformity to FyneItem interface
-var _ FyneItem = (*Password)(nil)
+var _ FyneItemWidget = (*passwordItemWidget)(nil)
 
-type Password struct {
-	*paw.Password
-	Config *paw.Config
-}
+func NewPasswordWidget(item *paw.Password, preferences *paw.Preferences) FyneItemWidget {
 
-func (p *Password) Item() paw.Item {
-	return p.Password
-}
-
-func (p *Password) Icon() fyne.Resource {
-	if p.Favicon != nil {
-		return p.Favicon
+	return &passwordItemWidget{
+		item:        item,
+		preferences: preferences,
 	}
+}
+
+type passwordItemWidget struct {
+	item        *paw.Password
+	preferences *paw.Preferences
+	validator   []fyne.Validatable
+}
+
+func (iw *passwordItemWidget) Item() paw.Item {
+	copy := paw.NewPassword()
+	err := deepCopyItem(iw.item, copy)
+	if err != nil {
+		panic(err)
+	}
+	return copy
+}
+
+func (iw *passwordItemWidget) Icon() fyne.Resource {
 	return icon.PasswordOutlinedIconThemed
 }
 
-func (p *Password) Edit(ctx context.Context, key *paw.Key, w fyne.Window) (fyne.CanvasObject, paw.Item) {
-	passwordItem := &paw.Password{}
-	*passwordItem = *p.Password
-	passwordItem.Metadata = &paw.Metadata{}
-	*passwordItem.Metadata = *p.Metadata
-	passwordItem.Note = &paw.Note{}
-	*passwordItem.Note = *p.Note
+// OnSubmit implements FyneItem.
+func (iw *passwordItemWidget) OnSubmit() (paw.Item, error) {
+	for _, v := range iw.validator {
+		if err := v.Validate(); err != nil {
+			return nil, err
+		}
+	}
+	return iw.Item(), nil
+}
 
-	config := p.Config
+func (iw *passwordItemWidget) Edit(ctx context.Context, key *paw.Key, w fyne.Window) fyne.CanvasObject {
 
-	passwordBind := binding.BindString(&passwordItem.Value)
-	titleEntry := widget.NewEntryWithData(binding.BindString(&passwordItem.Name))
-	titleEntry.Validator = nil
+	preferences := iw.preferences
+
+	passwordBind := binding.BindString(&iw.item.Value)
+	titleEntry := widget.NewEntryWithData(binding.BindString(&iw.item.Name))
+	titleEntry.Validator = requiredValidator("The title cannot be emtpy")
 	titleEntry.PlaceHolder = "Untitled password"
 
 	// the note field
-	noteEntry := newNoteEntryWithData(binding.BindString(&passwordItem.Note.Value))
+	noteEntry := newNoteEntryWithData(binding.BindString(&iw.item.Note.Value))
 
 	// center
 	passwordEntry := widget.NewPasswordEntry()
@@ -70,8 +82,8 @@ func (p *Password) Edit(ctx context.Context, key *paw.Key, w fyne.Window) (fyne.
 			Label: "Generate",
 			Icon:  icon.KeyOutlinedIconThemed,
 			Action: func() {
-				pg := NewPasswordGenerator(key, config.Password)
-				pg.ShowPasswordGenerator(passwordBind, passwordItem, w)
+				pg := NewPasswordGenerator(key, preferences.Password)
+				pg.ShowPasswordGenerator(passwordBind, iw.item, w)
 			},
 		},
 		{
@@ -87,8 +99,10 @@ func (p *Password) Edit(ctx context.Context, key *paw.Key, w fyne.Window) (fyne.
 		},
 	}
 
+	iw.validator = append(iw.validator, titleEntry, passwordEntry)
+
 	form := container.New(layout.NewFormLayout())
-	form.Add(widget.NewIcon(p.Icon()))
+	form.Add(widget.NewIcon(iw.Icon()))
 	form.Add(titleEntry)
 
 	form.Add(labelWithStyle("Password"))
@@ -98,16 +112,16 @@ func (p *Password) Edit(ctx context.Context, key *paw.Key, w fyne.Window) (fyne.
 	form.Add(labelWithStyle("Note"))
 	form.Add(noteEntry)
 
-	return form, passwordItem
+	return form
 }
 
-func (p *Password) Show(ctx context.Context, w fyne.Window) fyne.CanvasObject {
-	obj := titleRow(p.Icon(), p.Name)
-	if p.Value != "" {
-		obj = append(obj, rowWithAction("Password", p.Value, rowActionOptions{widgetType: "password", copy: true}, w)...)
+func (iw *passwordItemWidget) Show(ctx context.Context, w fyne.Window) fyne.CanvasObject {
+	obj := titleRow(iw.Icon(), iw.item.Name)
+	if iw.item.Value != "" {
+		obj = append(obj, rowWithAction("Password", iw.item.Value, rowActionOptions{widgetType: "password", copy: true}, w)...)
 	}
-	if p.Note.Value != "" {
-		obj = append(obj, rowWithAction("Note", p.Note.Value, rowActionOptions{copy: true}, w)...)
+	if iw.item.Note.Value != "" {
+		obj = append(obj, rowWithAction("Note", iw.item.Note.Value, rowActionOptions{copy: true}, w)...)
 	}
 	return container.New(layout.NewFormLayout(), obj...)
 }

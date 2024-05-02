@@ -388,14 +388,14 @@ func TestHmacGeneratorRFC4226(t *testing.T) {
 
 func TestTOTPFromBase32(t *testing.T) {
 	key := "OBQXO"
-	v, err := TOTPFromBase32(sha1.New, key, time.Now(), DefaultInterval, DefaultDigits)
+	v, err := TOTPFromBase32(sha1.New, key, time.Now().UTC(), DefaultInterval, DefaultDigits)
 	require.NoError(t, err)
 	require.Len(t, v, DefaultDigits)
 }
 
 func TestTOTPFromBase32InvalidKey(t *testing.T) {
 	key := "A"
-	_, err := TOTPFromBase32(sha1.New, key, time.Now(), DefaultInterval, DefaultDigits)
+	_, err := TOTPFromBase32(sha1.New, key, time.Now().UTC(), DefaultInterval, DefaultDigits)
 	require.Error(t, err)
 }
 

@@ -7,79 +7,56 @@ package ui
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
-	"net/url"
 	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
-	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
-	"golang.org/x/net/publicsuffix"
-	"lucor.dev/paw/internal/paw"
 )
 
-func (a *app) makeEditItemView(fyneItem FyneItem) fyne.CanvasObject {
+func (a *app) makeEditItemView(fyneItemWidget FyneItemWidget) fyne.CanvasObject {
+	item := fyneItemWidget.Item()
+	itemID := item.ID()
+	isNew := item.GetMetadata().IsEmpty()
 
-	item := fyneItem.Item()
-	metadata := item.GetMetadata()
-
-	ctx := context.TODO()
-	content, editItem := fyneItem.Edit(ctx, a.vault.Key(), a.win)
-	saveBtn := widget.NewButtonWithIcon("Save", theme.DocumentSaveIcon(), func() {
-		metadata := editItem.GetMetadata()
-
-		// TODO: update to use the built-in entry validation
-		if metadata.Name == "" {
-			d := dialog.NewInformation("", "The title cannot be emtpy", a.win)
-			d.Show()
+	itemEditWidget := newItemEditWidget(context.TODO(), a.vault.Key(), fyneItemWidget, a.win)
+	itemEditWidget.OnSave = func() {
+		// call OnSubmit to update the item with the latest data
+		editItem, err := fyneItemWidget.OnSubmit()
+		if err != nil {
+			// handle validation error
+			var verr *validationError
+			if errors.As(err, &verr) {
+				dialog.ShowError(verr, a.win)
+				return
+			}
+			// if not a validation error something bad happened
+			// show the message to the user and ask to report the error
+			fErr := fmt.Errorf("something went wrong. Please report the following error: \n%s", err.Error())
+			dialog.ShowError(fErr, a.win)
 			return
 		}
+		updatedTime := time.Now().UTC()
+		updatedMetadata := editItem.GetMetadata()
 
-		var isNew bool
-		if item.GetMetadata().IsEmpty() {
-			isNew = true
-		} else {
-			metadata.Modified = time.Now()
-		}
-
-		if metadata.Type == paw.LoginItemType {
-			login := editItem.(*paw.Login)
-			if login.URL != "" {
-				u, err := url.ParseRequestURI(login.URL)
-				if err != nil {
-					dialog.ShowError(fmt.Errorf("invalid URL: %s", err), a.win)
-					return
-				}
-				tldPlusOne, err := publicsuffix.EffectiveTLDPlusOne(u.Hostname())
-				if err != nil {
-					dialog.ShowError(fmt.Errorf("invalid URL: %s", err), a.win)
-					return
-				}
-				metadata.Autofill = &paw.Autofill{
-					URL:        u,
-					MatchType:  paw.DomainMatchAutofill,
-					TLDPlusOne: tldPlusOne,
-				}
-			}
-		}
-
-		if subtitler, ok := editItem.(paw.MetadataSubtitler); ok {
-			metadata.Subtitle = subtitler.Subtitle()
-		}
-
-		if isNew && a.vault.HasItem(editItem) {
-			msg := fmt.Sprintf("An item with the name %q already exists", metadata.Name)
+		if itemID != editItem.ID() && a.vault.HasItem(editItem) {
+			msg := fmt.Sprintf("A %s item with the name %q already exists", updatedMetadata.Type.String(), updatedMetadata.Name)
 			d := dialog.NewInformation("", msg, a.win)
 			d.Show()
 			return
 		}
 
+		if !isNew {
+			updatedMetadata.Modified = updatedTime
+		}
+
 		// add item to vault and store into the storage
 		a.vault.AddItem(editItem)
-		err := a.storage.StoreItem(a.vault, editItem)
+		err = a.storage.StoreItem(a.vault, editItem)
 		if err != nil {
 			dialog.ShowError(err, a.win)
 			return
@@ -88,7 +65,7 @@ func (a *app) makeEditItemView(fyneItem FyneItem) fyne.CanvasObject {
 		// make sure key is removed from SSH agent to honour user's preference
 		_ = a.removeSSHKeyFromAgent(item)
 
-		if item.ID() != editItem.ID() {
+		if itemID != editItem.ID() {
 			if !isNew {
 				// item ID is changed, delete the old one
 				a.vault.DeleteItem(item)
@@ -104,44 +81,66 @@ func (a *app) makeEditItemView(fyneItem FyneItem) fyne.CanvasObject {
 			log.Println(err)
 		}
 
-		item = editItem
-		fyneItem := NewFyneItem(item, a.config)
-		a.refreshCurrentView()
-		a.showItemView(fyneItem)
-	})
+		a.vault.Modified = updatedTime
+		err = a.storage.StoreVault(a.vault)
+		if err != nil {
+			dialog.ShowError(err, a.win)
+			return
+		}
 
-	// elements should not be displayed on create but only on edit
-	var metadataContent fyne.CanvasObject
-	metadataContent = widget.NewLabel("")
-	var deleteBtn fyne.CanvasObject
-	if !metadata.IsEmpty() {
-		metadataContent = ShowMetadata(metadata)
-		button := widget.NewButtonWithIcon("Delete", theme.DeleteIcon(), func() {
-			msg := widget.NewLabel(fmt.Sprintf("Are you sure you want to delete %q?", item.String()))
-			d := dialog.NewCustomConfirm("", "Delete", "Cancel", msg, func(b bool) {
-				if b {
-					a.vault.DeleteItem(editItem)
-					err := a.storage.DeleteItem(a.vault, editItem)
-					if err != nil {
-						dialog.ShowError(err, a.win)
-						return
-					}
-					err = a.removeSSHKeyFromAgent(item)
-					if err != nil {
-						log.Println(err)
-					}
-					a.refreshCurrentView()
-					a.showCurrentVaultView()
-				}
-			}, a.win)
-			d.Show()
-		})
-		button.Importance = widget.DangerImportance
-		deleteBtn = button
+		a.state.Modified = updatedTime
+		err = a.storage.StoreAppState(a.state)
+		if err != nil {
+			dialog.ShowError(err, a.win)
+			return
+		}
+
+		a.refreshCurrentView()
+		fyneItemWidget := NewFyneItemWidget(editItem, a.state.Preferences)
+		a.showItemView(fyneItemWidget)
 	}
 
-	buttonContainer := container.NewBorder(nil, nil, deleteBtn, saveBtn, widget.NewLabel(""))
-	bottom := container.NewBorder(nil, buttonContainer, nil, nil, metadataContent)
+	// elements should not be displayed on create but only on edit
+	itemEditWidget.OnDelete = func() {
+		editItem := fyneItemWidget.Item()
+		msg := widget.NewLabel(fmt.Sprintf("Are you sure you want to delete %q?", item.String()))
 
-	return container.NewBorder(a.makeCancelHeaderButton(), bottom, nil, nil, content)
+		d := dialog.NewCustomConfirm("", "Delete", "Cancel", msg, func(b bool) {
+			if b {
+				a.vault.DeleteItem(editItem)
+				err := a.storage.DeleteItem(a.vault, editItem)
+				if err != nil {
+					dialog.ShowError(err, a.win)
+					return
+				}
+				err = a.removeSSHKeyFromAgent(item)
+				if err != nil {
+					log.Println(err)
+				}
+
+				now := time.Now().UTC()
+
+				a.vault.Modified = now
+				err = a.storage.StoreVault(a.vault)
+				if err != nil {
+					dialog.ShowError(err, a.win)
+					return
+				}
+
+				a.state.Modified = now
+				err = a.storage.StoreAppState(a.state)
+				if err != nil {
+					dialog.ShowError(err, a.win)
+					return
+				}
+
+				a.refreshCurrentView()
+				a.showCurrentVaultView()
+			}
+		}, a.win)
+		d.SetConfirmImportance(widget.DangerImportance)
+		d.Show()
+	}
+
+	return container.NewBorder(a.makeCancelHeaderButton(), nil, nil, nil, itemEditWidget)
 }

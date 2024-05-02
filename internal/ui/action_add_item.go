@@ -17,8 +17,8 @@ func (a *app) makeAddItemView() fyne.CanvasObject {
 	for _, item := range a.makeEmptyItems() {
 		i := item
 		metadata := i.GetMetadata()
-		fyneItem := NewFyneItem(i, a.config)
-		o := widget.NewButtonWithIcon(metadata.Type.String(), fyneItem.Icon(), func() {
+		fyneItem := NewFyneItemWidget(i, a.state.Preferences)
+		o := widget.NewButtonWithIcon(metadata.Type.Label(), fyneItem.Icon(), func() {
 			a.showEditItemView(fyneItem)
 		})
 		o.Alignment = widget.ButtonAlignLeading
@@ -35,9 +35,9 @@ func (a *app) makeEmptyItems() []paw.Item {
 	password := paw.NewPassword()
 	website := paw.NewLogin()
 	website.TOTP = &paw.TOTP{
-		Digits:   a.config.TOTP.Digits,
-		Hash:     a.config.TOTP.Hash,
-		Interval: a.config.TOTP.Interval,
+		Digits:   a.state.Preferences.TOTP.Digits,
+		Hash:     a.state.Preferences.TOTP.Hash,
+		Interval: a.state.Preferences.TOTP.Interval,
 	}
 	sshkey := paw.NewSSHKey()
 

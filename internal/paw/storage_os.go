@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 )
 
 // Declare conformity to Item interface
@@ -165,7 +166,7 @@ func (s *OSStorage) DeleteItem(vault *Vault, item Item) error {
 	if err != nil {
 		return fmt.Errorf("could not delete the item: %w", err)
 	}
-	return s.StoreVault(vault)
+	return nil
 }
 
 // LoadItem returns a item from the vault decrypting from the underlying storage
@@ -209,7 +210,7 @@ func (s *OSStorage) StoreItem(vault *Vault, item Item) error {
 	if err != nil {
 		return fmt.Errorf("could not encrypt and store the item: %w", err)
 	}
-	return s.StoreVault(vault)
+	return nil
 }
 
 // Vaults returns the list of vault names from the storage
@@ -231,34 +232,38 @@ func (s *OSStorage) Vaults() ([]string, error) {
 	return vaults, nil
 }
 
-// LoadConfig load the configuration from the underlying storage
-func (s *OSStorage) LoadConfig() (*Config, error) {
-	configFile := configPath(s)
-	r, err := os.Open(configFile)
+// LoadAppState load the configuration from the underlying storage
+func (s *OSStorage) LoadAppState() (*AppState, error) {
+	defaultAppState := &AppState{
+		Modified:    time.Now().UTC(),
+		Preferences: newDefaultPreferences(),
+	}
+	appStateFile := appStateFilePath(s)
+	r, err := os.Open(appStateFile)
 	if os.IsNotExist(err) {
-		return newDefaultConfig(), nil
+		return defaultAppState, nil
 	}
 	if err != nil {
-		return newDefaultConfig(), fmt.Errorf("could not read URI: %w", err)
+		return defaultAppState, fmt.Errorf("could not read URI: %w", err)
 	}
 	defer r.Close()
-	config := &Config{}
-	err = json.NewDecoder(r).Decode(config)
+	appState := &AppState{}
+	err = json.NewDecoder(r).Decode(appState)
 	if err != nil {
-		return newDefaultConfig(), err
+		return defaultAppState, err
 	}
-	return config, nil
+	return appState, nil
 }
 
-// StoreConfig store the configuration into the underlying storage
-func (s *OSStorage) StoreConfig(config *Config) error {
-	configFile := configPath(s)
-	w, err := s.createFile(configFile)
+// StoreAppState store the configuration into the underlying storage
+func (s *OSStorage) StoreAppState(appState *AppState) error {
+	appStateFile := appStateFilePath(s)
+	w, err := s.createFile(appStateFile)
 	if err != nil {
 		return err
 	}
 	defer w.Close()
-	return json.NewEncoder(w).Encode(config)
+	return json.NewEncoder(w).Encode(appState)
 }
 
 // SocketAgentPath return the socket agent path

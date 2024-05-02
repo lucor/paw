@@ -7,6 +7,7 @@ package ui
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/url"
 	"strings"
@@ -24,16 +25,20 @@ import (
 	pawwidget "lucor.dev/paw/internal/widget"
 )
 
-// FyneItem wraps all methods allow to handle an Item as Fyne canvas object
-type FyneItem interface {
-	// Icon returns a fyne resource associated to the imte
+// FyneItemWidget wraps all methods allow to handle a paw.Item as Fyne Widget
+type FyneItemWidget interface {
+	// Icon returns a fyne resource associated to the item
 	Icon() fyne.Resource
 	// Show returns a fyne CanvasObject used to view the item
 	Show(ctx context.Context, w fyne.Window) fyne.CanvasObject
 	// Edit returns a fyne CanvasObject used to edit the item
-	Edit(ctx context.Context, key *paw.Key, w fyne.Window) (fyne.CanvasObject, paw.Item)
-	// Item returns the paw Item
+	Edit(ctx context.Context, key *paw.Key, w fyne.Window) fyne.CanvasObject
+	// Item returns a deep copy of the embedded paw item
+	// It will panic if the copy fails
 	Item() paw.Item
+	// OnSubmit performs the necessary actions to update the item with the latest data
+	// and returns a deep copy of the embedded paw item
+	OnSubmit() (paw.Item, error)
 }
 
 // FynePasswordGenerator wraps all methods to show a Fyne dialog to generate passwords
@@ -41,31 +46,39 @@ type FynePasswordGenerator interface {
 	ShowPasswordGenerator(bind binding.String, password *paw.Password, w fyne.Window)
 }
 
-func NewFyneItem(item paw.Item, config *paw.Config) FyneItem {
-	var fyneItem FyneItem
+func NewFyneItemWidget(item paw.Item, preferences *paw.Preferences) FyneItemWidget {
 	switch item.GetMetadata().Type {
 	case paw.NoteItemType:
-		fyneItem = &Note{Note: item.(*paw.Note)}
+		return NewNoteWidget(item.(*paw.Note))
 	case paw.LoginItemType:
-		fyneItem = &Login{Login: item.(*paw.Login), Config: config}
+		return NewLoginWidget(item.(*paw.Login), preferences)
 	case paw.PasswordItemType:
-		fyneItem = &Password{Password: item.(*paw.Password), Config: config}
+		return NewPasswordWidget(item.(*paw.Password), preferences)
 	case paw.SSHKeyItemType:
-		fyneItem = &SSHKey{SSHKey: item.(*paw.SSHKey)}
+		return NewSSHWidget(item.(*paw.SSHKey), preferences)
 	}
-	return fyneItem
+	panic(fmt.Sprintf("unsupported item type %q", item.GetMetadata().Type))
 }
 
 func titleRow(icon fyne.Resource, text string) []fyne.CanvasObject {
 	t := canvas.NewText(text, theme.ForegroundColor())
 	t.TextStyle = fyne.TextStyle{Bold: true}
 	t.TextSize = theme.TextHeadingSize()
-	i := widget.NewIcon(icon)
-	i.Resize(fyne.NewSize(32, 32))
+	i := canvas.NewImageFromResource(icon)
+	i.FillMode = canvas.ImageFillContain
+	i.SetMinSize(fyne.NewSize(32, 32))
 	return []fyne.CanvasObject{
-		i,
+		container.NewCenter(i),
 		t,
 	}
+}
+
+func deepCopyItem(src, dst paw.Item) error {
+	bytes, err := json.Marshal(src)
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(bytes, dst)
 }
 
 func labelWithStyle(label string) *widget.Label {
@@ -139,13 +152,13 @@ func rowWithAction(label string, text string, opts rowActionOptions, w fyne.Wind
 		labelTxt := strings.TrimRight(text, "\n")
 		l := widget.NewLabel(labelTxt)
 		s := container.NewScroll(l)
-		newLines := strings.Count(text, "\n")
-		if newLines > 0 {
-			if newLines > 10 {
-				newLines = 10
+		rows := strings.Count(text, "\n") + 1
+		if rows > 0 {
+			if rows > 10 {
+				rows = 10
 			}
 			newSize := s.MinSize()
-			newSize.Height = theme.TextSize() * float32(newLines)
+			newSize.Height = (theme.TextSize()+theme.InnerPadding())*float32(rows) + theme.InnerPadding()*2
 			s.SetMinSize(newSize)
 		}
 		v = s
@@ -190,5 +203,28 @@ func copyAction(label string, text string, w fyne.Window) func() {
 			Title:   "paw",
 			Content: fmt.Sprintf("%s copied", label),
 		})
+	}
+}
+
+func newValidatioError(msg string) error {
+	return &validationError{
+		msg: msg,
+	}
+}
+
+type validationError struct {
+	msg string
+}
+
+func (e *validationError) Error() string {
+	return e.msg
+}
+
+func requiredValidator(msg string) fyne.StringValidator {
+	return func(text string) error {
+		if text == "" {
+			return newValidatioError(msg)
+		}
+		return nil
 	}
 }

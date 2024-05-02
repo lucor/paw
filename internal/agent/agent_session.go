@@ -60,7 +60,7 @@ func (a *Agent) processSessionRequest(contents []byte) ([]byte, error) {
 		if !ok {
 			return nil, fmt.Errorf("session invalid")
 		}
-		if session.expire != nil && session.expire.Before(time.Now()) {
+		if session.expire != nil && session.expire.Before(time.Now().UTC()) {
 			// session expired
 			delete(a.sessions, session.id)
 			return nil, fmt.Errorf("session expired")
@@ -120,7 +120,7 @@ func (a *Agent) processSessionRequest(contents []byte) ([]byte, error) {
 			vaultName: request.Vault,
 		}
 		if request.Lifetime > 0 {
-			t := time.Now().Add(request.Lifetime)
+			t := time.Now().UTC().Add(request.Lifetime)
 			s.expire = &t
 		}
 

@@ -24,47 +24,54 @@ import (
 	"lucor.dev/paw/internal/sshkey"
 )
 
-// Declare conformity to Item interface
-var _ paw.Item = (*Password)(nil)
-
 // Declare conformity to FyneItem interface
-var _ FyneItem = (*Password)(nil)
+var _ FyneItemWidget = (*sshItemWidget)(nil)
 
-type SSHKey struct {
-	*paw.Config
-	*paw.SSHKey
-}
-
-func (sh *SSHKey) Item() paw.Item {
-	return sh.SSHKey
-}
-
-func (sh *SSHKey) Icon() fyne.Resource {
-	if sh.Favicon != nil {
-		return sh.Favicon
+func NewSSHWidget(item *paw.SSHKey, preferences *paw.Preferences) FyneItemWidget {
+	return &sshItemWidget{
+		item:        item,
+		preferences: preferences,
 	}
+}
+
+type sshItemWidget struct {
+	item        *paw.SSHKey
+	preferences *paw.Preferences
+	validator   []fyne.Validatable
+}
+
+func (iw *sshItemWidget) OnSubmit() (paw.Item, error) {
+	for _, v := range iw.validator {
+		if err := v.Validate(); err != nil {
+			return nil, err
+		}
+	}
+
+	iw.item.Metadata.Subtitle = iw.item.Subtitle()
+
+	return iw.Item(), nil
+}
+func (iw *sshItemWidget) Item() paw.Item {
+	copy := paw.NewSSHKey()
+	err := deepCopyItem(iw.item, copy)
+	if err != nil {
+		panic(err)
+	}
+	return copy
+}
+
+func (iw *sshItemWidget) Icon() fyne.Resource {
 	return icon.KeyOutlinedIconThemed
 }
 
-func (sh *SSHKey) Edit(ctx context.Context, key *paw.Key, w fyne.Window) (fyne.CanvasObject, paw.Item) {
-	sshKeyItem := &paw.SSHKey{}
-	*sshKeyItem = *sh.SSHKey
-	sshKeyItem.Metadata = &paw.Metadata{}
-	*sshKeyItem.Metadata = *sh.Metadata
-	sshKeyItem.Passphrase = &paw.Password{}
-	if sh.Passphrase != nil {
-		*sshKeyItem.Passphrase = *sh.Passphrase
-	}
-	sshKeyItem.Note = &paw.Note{}
-	*sshKeyItem.Note = *sh.Note
-
-	titleEntryBind := binding.BindString(&sshKeyItem.Name)
+func (iw *sshItemWidget) Edit(ctx context.Context, key *paw.Key, w fyne.Window) fyne.CanvasObject {
+	titleEntryBind := binding.BindString(&iw.item.Name)
 	titleEntry := widget.NewEntryWithData(titleEntryBind)
-	titleEntry.Validator = nil
+	titleEntry.Validator = requiredValidator("The title cannot be emtpy")
 	titleEntry.PlaceHolder = "Untitled SSH Key"
 
-	config := sh.Config
-	passphraseBind := binding.BindString(&sshKeyItem.Passphrase.Value)
+	preferences := iw.preferences
+	passphraseBind := binding.BindString(&iw.item.Passphrase.Value)
 	passphraseEntry := widget.NewPasswordEntry()
 	passphraseEntry.Bind(passphraseBind)
 	passphraseEntry.Validator = nil
@@ -75,8 +82,8 @@ func (sh *SSHKey) Edit(ctx context.Context, key *paw.Key, w fyne.Window) (fyne.C
 			Label: "Generate",
 			Icon:  icon.KeyOutlinedIconThemed,
 			Action: func() {
-				pg := NewPasswordGenerator(key, config.Password)
-				pg.ShowPasswordGenerator(passphraseBind, sshKeyItem.Passphrase, w)
+				pg := NewPasswordGenerator(key, preferences.Password)
+				pg.ShowPasswordGenerator(passphraseBind, iw.item.Passphrase, w)
 			},
 		},
 		{
@@ -92,7 +99,7 @@ func (sh *SSHKey) Edit(ctx context.Context, key *paw.Key, w fyne.Window) (fyne.C
 		},
 	}
 
-	publicKeyEntryBind := binding.BindString(&sshKeyItem.PublicKey)
+	publicKeyEntryBind := binding.BindString(&iw.item.PublicKey)
 	publicKeyEntry := widget.NewEntryWithData(publicKeyEntryBind)
 	publicKeyEntry.Validator = nil
 	publicKeyEntry.MultiLine = true
@@ -139,11 +146,11 @@ func (sh *SSHKey) Edit(ctx context.Context, key *paw.Key, w fyne.Window) (fyne.C
 		},
 	}
 
-	fingerprintEntryBind := binding.BindString(&sshKeyItem.Fingerprint)
+	fingerprintEntryBind := binding.BindString(&iw.item.Fingerprint)
 	fingerprintEntry := widget.NewLabelWithData(fingerprintEntryBind)
 	fingerprintEntry.Wrapping = fyne.TextWrapBreak
 
-	privateKeyEntryBind := binding.BindString(&sshKeyItem.PrivateKey)
+	privateKeyEntryBind := binding.BindString(&iw.item.PrivateKey)
 	privateKeyEntry := widget.NewEntryWithData(privateKeyEntryBind)
 	privateKeyEntry.Validator = nil
 	privateKeyEntry.MultiLine = true
@@ -253,18 +260,20 @@ func (sh *SSHKey) Edit(ctx context.Context, key *paw.Key, w fyne.Window) (fyne.C
 		},
 	}
 
-	commentEntryBind := binding.BindString(&sshKeyItem.Comment)
+	commentEntryBind := binding.BindString(&iw.item.Comment)
 	commentEntry := widget.NewEntryWithData(commentEntryBind)
 	commentEntry.Validator = nil
 	commentEntry.PlaceHolder = "Public Key Comment"
 
-	addToAgentCheckBind := binding.BindBool(&sshKeyItem.AddToAgent)
+	addToAgentCheckBind := binding.BindBool(&iw.item.AddToAgent)
 	addToAgentCheck := widget.NewCheckWithData("", addToAgentCheckBind)
 
-	noteEntry := newNoteEntryWithData(binding.BindString(&sshKeyItem.Note.Value))
+	noteEntry := newNoteEntryWithData(binding.BindString(&iw.item.Note.Value))
+
+	iw.validator = append(iw.validator, titleEntry)
 
 	form := container.New(layout.NewFormLayout())
-	form.Add(widget.NewIcon(sh.Icon()))
+	form.Add(widget.NewIcon(iw.Icon()))
 	form.Add(titleEntry)
 
 	form.Add(labelWithStyle("Private Key"))
@@ -288,25 +297,25 @@ func (sh *SSHKey) Edit(ctx context.Context, key *paw.Key, w fyne.Window) (fyne.C
 	form.Add(labelWithStyle("Note"))
 	form.Add(noteEntry)
 
-	return form, sshKeyItem
+	return form
 }
 
-func (sh *SSHKey) Show(ctx context.Context, w fyne.Window) fyne.CanvasObject {
-	obj := titleRow(sh.Icon(), sh.Name)
-	obj = append(obj, rowWithAction("Private Key", sh.PrivateKey, rowActionOptions{copy: true, ellipsis: 64, export: sh.Name}, w)...)
-	if sh.Passphrase != nil && sh.Passphrase.Value != "" {
-		obj = append(obj, rowWithAction("Passphrase", sh.Passphrase.Value, rowActionOptions{widgetType: "password", copy: true}, w)...)
+func (iw *sshItemWidget) Show(ctx context.Context, w fyne.Window) fyne.CanvasObject {
+	obj := titleRow(iw.Icon(), iw.item.Name)
+	obj = append(obj, rowWithAction("Private Key", iw.item.PrivateKey, rowActionOptions{copy: true, ellipsis: 64, export: iw.item.Name}, w)...)
+	if iw.item.Passphrase != nil && iw.item.Passphrase.Value != "" {
+		obj = append(obj, rowWithAction("Passphrase", iw.item.Passphrase.Value, rowActionOptions{widgetType: "password", copy: true}, w)...)
 	}
-	if sh.Comment != "" {
-		obj = append(obj, rowWithAction("Comment", sh.Comment, rowActionOptions{copy: true}, w)...)
+	if iw.item.Comment != "" {
+		obj = append(obj, rowWithAction("Comment", iw.item.Comment, rowActionOptions{copy: true}, w)...)
 	}
-	obj = append(obj, rowWithAction("Public Key", sh.PublicKey, rowActionOptions{copy: true, ellipsis: 64, export: sh.Name + ".pub"}, w)...)
-	obj = append(obj, rowWithAction("Fingerprint", sh.Fingerprint, rowActionOptions{copy: true}, w)...)
-	if sh.Note.Value != "" {
-		obj = append(obj, rowWithAction("Note", sh.Note.Value, rowActionOptions{copy: true}, w)...)
+	obj = append(obj, rowWithAction("Public Key", iw.item.PublicKey, rowActionOptions{copy: true, ellipsis: 64, export: iw.item.Name + ".pub"}, w)...)
+	obj = append(obj, rowWithAction("Fingerprint", iw.item.Fingerprint, rowActionOptions{copy: true}, w)...)
+	if iw.item.Note.Value != "" {
+		obj = append(obj, rowWithAction("Note", iw.item.Note.Value, rowActionOptions{copy: true}, w)...)
 	}
 	v := "No"
-	if sh.AddToAgent {
+	if iw.item.AddToAgent {
 		v = "Yes"
 	}
 	obj = append(obj, rowWithAction("Add to SSH Agent", v, rowActionOptions{}, w)...)

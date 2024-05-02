@@ -1,5 +1,26 @@
 # Changelog - Paw
 
+## 0.24.0 - 02 May 2024
+
+This release focuses on enhancing the user experience by improving favicon downloads, form validations, and fixing various display issues. It also paves the way for supporting browser extensions, introducing an initial implementation of the native messaging protocol.
+
+Details:
+
+- ui: update icon to use tabler.io icon
+- ui: improve validation
+- ui: improve audit view
+- ui: improve favicon download
+- ui: improve note field display
+- all: add application state
+- all: update to store time in UTC
+- browser: initial implementation of native messaging protocol to support browser extensions
+
+- deps add:
+    - github.com/fyne-io/image v0.0.0-20220602074514-4956b0afb3d2
+
+- deps update:
+    - fyne.io/fyne v2.4.5
+
 ## 0.23.0 - 10 March 2024
 
 - storage: allow to set a storage root with `PAW_HOME` env var

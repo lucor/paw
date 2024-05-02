@@ -9,10 +9,10 @@ var LockOutlinedIconThemed = NewThemedResource(LockOutlinedIconDarkRes, LockOutl
 
 var LockOutlinedIconDarkRes = &fyne.StaticResource{
 	StaticName:    "lock_outlined_dark.svg",
-	StaticContent: []byte("<svg fill=\"#ffffff\" xmlns=\"http://www.w3.org/2000/svg\" height=\"24\" viewBox=\"0 0 24 24\" width=\"24\"><g fill=\"none\"><path d=\"M0 0h24v24H0V0z\"/><path d=\"M0 0h24v24H0V0z\" opacity=\".87\"/></g><path d=\"M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zM9 6c0-1.66 1.34-3 3-3s3 1.34 3 3v2H9V6zm9 14H6V10h12v10zm-6-3c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2z\"/></svg>"),
+	StaticContent: []byte("<!--category: Systemtags: [security, password, secure]version: \"1.0\"unicode: \"eae2\"--><svg  xmlns=\"http://www.w3.org/2000/svg\"  width=\"24\"  height=\"24\"  viewBox=\"0 0 24 24\"  fill=\"none\"  stroke=\"#ffffff\"  stroke-width=\"2\"  stroke-linecap=\"round\"  stroke-linejoin=\"round\">  <path d=\"M5 13a2 2 0 0 1 2 -2h10a2 2 0 0 1 2 2v6a2 2 0 0 1 -2 2h-10a2 2 0 0 1 -2 -2v-6z\" />  <path d=\"M11 16a1 1 0 1 0 2 0a1 1 0 0 0 -2 0\" />  <path d=\"M8 11v-4a4 4 0 1 1 8 0v4\" /></svg>"),
 }
 
 var LockOutlinedIconLightRes = &fyne.StaticResource{
 	StaticName:    "lock_outlined_light.svg",
-	StaticContent: []byte("<svg xmlns=\"http://www.w3.org/2000/svg\" height=\"24\" viewBox=\"0 0 24 24\" width=\"24\"><g fill=\"none\"><path d=\"M0 0h24v24H0V0z\"/><path d=\"M0 0h24v24H0V0z\" opacity=\".87\"/></g><path d=\"M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zM9 6c0-1.66 1.34-3 3-3s3 1.34 3 3v2H9V6zm9 14H6V10h12v10zm-6-3c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2z\"/></svg>"),
+	StaticContent: []byte("<!--category: Systemtags: [security, password, secure]version: \"1.0\"unicode: \"eae2\"--><svg  xmlns=\"http://www.w3.org/2000/svg\"  width=\"24\"  height=\"24\"  viewBox=\"0 0 24 24\"  fill=\"none\"  stroke=\"#000000\"  stroke-width=\"2\"  stroke-linecap=\"round\"  stroke-linejoin=\"round\">  <path d=\"M5 13a2 2 0 0 1 2 -2h10a2 2 0 0 1 2 2v6a2 2 0 0 1 -2 2h-10a2 2 0 0 1 -2 -2v-6z\" />  <path d=\"M11 16a1 1 0 1 0 2 0a1 1 0 0 0 -2 0\" />  <path d=\"M8 11v-4a4 4 0 1 1 8 0v4\" /></svg>"),
 }

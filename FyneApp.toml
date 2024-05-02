@@ -4,5 +4,5 @@ Website = "https://paw.pm"
   Icon = "logo/paw.png"
   Name = "paw"
   ID = "dev.lucor.paw"
-  Version = "0.22.0"
+  Version = "0.24.0"
   Build = 1

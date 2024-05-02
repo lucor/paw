@@ -14,28 +14,28 @@ import (
 )
 
 const (
-	storageRootName = "storage"
-	configFileName  = "config.json"
-	keyFileName     = "key.age"
-	vaultFileName   = "vault.age"
-	lockFileName    = "paw.lock"
-	logFileName     = "paw.log"
-	socketFileName  = "agent.sock"
-	namedPipe       = `\\.\pipe\paw`
+	storageRootName  = "storage"
+	keyFileName      = "key.age"
+	vaultFileName    = "vault.age"
+	appStateFileName = "paw.json"
+	lockFileName     = "paw.lock"
+	logFileName      = "paw.log"
+	socketFileName   = "agent.sock"
+	namedPipe        = `\\.\pipe\paw`
 )
 
 type Storage interface {
 	Root() string
-	ConfigStorage
+	AppStateStorage
 	VaultStorage
 	ItemStorage
 	LogStorage
 	SocketAgentPath() string
 	LockFilePath() string
 }
-type ConfigStorage interface {
-	LoadConfig() (*Config, error)
-	StoreConfig(s *Config) error
+type AppStateStorage interface {
+	LoadAppState() (*AppState, error)
+	StoreAppState(s *AppState) error
 }
 
 type VaultStorage interface {
@@ -73,8 +73,8 @@ func storageRootPath(s Storage) string {
 	return filepath.Join(s.Root(), storageRootName)
 }
 
-func configPath(s Storage) string {
-	return filepath.Join(storageRootPath(s), configFileName)
+func appStateFilePath(s Storage) string {
+	return filepath.Join(s.Root(), appStateFileName)
 }
 
 func vaultRootPath(s Storage, vaultName string) string {

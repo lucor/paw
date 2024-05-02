@@ -30,14 +30,14 @@ func (i *SSHKey) Subtitle() string {
 }
 
 func NewSSHKey() *SSHKey {
-	now := time.Now()
+	now := time.Now().UTC()
 	return &SSHKey{
 		Metadata: &Metadata{
 			Type:     SSHKeyItemType,
 			Created:  now,
 			Modified: now,
 		},
-		Passphrase: &Password{},
-		Note:       &Note{},
+		Passphrase: NewPassword(),
+		Note:       NewNote(),
 	}
 }

@@ -9,10 +9,10 @@ var DownloadOutlinedIconThemed = NewThemedResource(DownloadOutlinedIconDarkRes, 
 
 var DownloadOutlinedIconDarkRes = &fyne.StaticResource{
 	StaticName:    "download_outlined_dark.svg",
-	StaticContent: []byte("<svg fill=\"#ffffff\" xmlns=\"http://www.w3.org/2000/svg\" height=\"24\" viewBox=\"0 0 24 24\" width=\"24\"><path d=\"M0 0h24v24H0V0z\" fill=\"none\"/><path d=\"M19 9h-4V3H9v6H5l7 7 7-7zm-8 2V5h2v6h1.17L12 13.17 9.83 11H11zm-6 7h14v2H5z\"/></svg>"),
+	StaticContent: []byte("<!--category: Arrowstags: [save, arrow]version: \"1.0\"unicode: \"ea96\"--><svg  xmlns=\"http://www.w3.org/2000/svg\"  width=\"24\"  height=\"24\"  viewBox=\"0 0 24 24\"  fill=\"none\"  stroke=\"#ffffff\"  stroke-width=\"2\"  stroke-linecap=\"round\"  stroke-linejoin=\"round\">  <path d=\"M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2\" />  <path d=\"M7 11l5 5l5 -5\" />  <path d=\"M12 4l0 12\" /></svg>"),
 }
 
 var DownloadOutlinedIconLightRes = &fyne.StaticResource{
 	StaticName:    "download_outlined_light.svg",
-	StaticContent: []byte("<svg xmlns=\"http://www.w3.org/2000/svg\" height=\"24\" viewBox=\"0 0 24 24\" width=\"24\"><path d=\"M0 0h24v24H0V0z\" fill=\"none\"/><path d=\"M19 9h-4V3H9v6H5l7 7 7-7zm-8 2V5h2v6h1.17L12 13.17 9.83 11H11zm-6 7h14v2H5z\"/></svg>"),
+	StaticContent: []byte("<!--category: Arrowstags: [save, arrow]version: \"1.0\"unicode: \"ea96\"--><svg  xmlns=\"http://www.w3.org/2000/svg\"  width=\"24\"  height=\"24\"  viewBox=\"0 0 24 24\"  fill=\"none\"  stroke=\"#000000\"  stroke-width=\"2\"  stroke-linecap=\"round\"  stroke-linejoin=\"round\">  <path d=\"M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2\" />  <path d=\"M7 11l5 5l5 -5\" />  <path d=\"M12 4l0 12\" /></svg>"),
 }

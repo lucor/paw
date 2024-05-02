@@ -70,7 +70,7 @@ func HealthServiceCheck(lockFile string) bool {
 	}
 
 	// Read the service version from the app and close the connection
-	conn.SetReadDeadline(time.Now().Add(timeout))
+	conn.SetReadDeadline(time.Now().UTC().Add(timeout))
 	buffer := make([]byte, 4)
 	_, err = conn.Read(buffer)
 	conn.Close()
