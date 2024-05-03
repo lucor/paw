@@ -28,7 +28,7 @@ func NewLoginWidget(item *paw.Login, preferences *paw.Preferences) FyneItemWidge
 	return &loginItemWidget{
 		item:        item,
 		preferences: preferences,
-		urlEntry:    newURLEntryWithData(context.TODO(), item.URL),
+		urlEntry:    newURLEntryWithData(context.TODO(), item.URL, preferences.FaviconDownloader),
 	}
 }
 
@@ -95,7 +95,7 @@ func (iw *loginItemWidget) Edit(ctx context.Context, key *paw.Key, w fyne.Window
 	titleEntry.Validator = requiredValidator("The title cannot be emtpy")
 	titleEntry.PlaceHolder = "Untitled login"
 
-	urlEntry := newURLEntryWithData(ctx, iw.item.URL)
+	urlEntry := newURLEntryWithData(ctx, iw.item.URL, preferences.FaviconDownloader)
 	urlEntry.TitleEntry = titleEntry
 	urlEntry.FaviconListener = func(favicon *paw.Favicon) {
 		iw.item.Metadata.Favicon = favicon
@@ -199,13 +199,15 @@ type urlEntry struct {
 	FaviconListener func(*paw.Favicon)
 	ctx             context.Context
 	loginURL        *paw.LoginURL // keep track of the initial value before editing
+	preferences     paw.FaviconDownloaderPreferences
 	validationError error
 }
 
-func newURLEntryWithData(ctx context.Context, loginURL *paw.LoginURL) *urlEntry {
+func newURLEntryWithData(ctx context.Context, loginURL *paw.LoginURL, preferences paw.FaviconDownloaderPreferences) *urlEntry {
 	e := &urlEntry{
-		ctx:      ctx,
-		loginURL: loginURL,
+		ctx:         ctx,
+		loginURL:    loginURL,
+		preferences: preferences,
 	}
 	e.ExtendBaseWidget(e)
 	e.SetText(e.loginURL.String())
@@ -247,6 +249,12 @@ func (e *urlEntry) FocusLost() {
 
 	if oldHostname == newHostname {
 		// Host did not change, skipping favicon download
+		return
+	}
+
+	if e.preferences.Disabled {
+		// Favicons are disabled, skipping download
+		e.FaviconListener(nil)
 		return
 	}
 

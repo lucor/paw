@@ -9,8 +9,9 @@ Details:
 - ui: update icon to use tabler.io icon
 - ui: improve validation
 - ui: improve audit view
-- ui: improve favicon download
+- ui: improve favicon downloader
 - ui: improve note field display
+- ui,preferences: allow to disable favicon downloader 
 - all: add application state
 - all: update to store time in UTC
 - browser: initial implementation of native messaging protocol to support browser extensions

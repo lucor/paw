@@ -7,6 +7,9 @@ package paw
 
 func newDefaultPreferences() *Preferences {
 	return &Preferences{
+		FaviconDownloader: FaviconDownloaderPreferences{
+			Disabled: false,
+		},
 		Password: PasswordPreferences{
 			Passphrase: PassphrasePasswordPreferences{
 				DefaultLength: PassphrasePasswordDefaultLength,
@@ -34,8 +37,15 @@ func newDefaultPreferences() *Preferences {
 }
 
 type Preferences struct {
-	Password PasswordPreferences `json:"password,omitempty"`
-	TOTP     TOTPPreferences     `json:"totp,omitempty"`
+	FaviconDownloader FaviconDownloaderPreferences `json:"favicon_downloader,omitempty"`
+	Password          PasswordPreferences          `json:"password,omitempty"`
+	TOTP              TOTPPreferences              `json:"totp,omitempty"`
+}
+
+// FaviconDownloaderPreferences represents the preferences for the favicon downloader.
+// FaviconDownloader tool is opt-out, hence the default value is false.
+type FaviconDownloaderPreferences struct {
+	Disabled bool `json:"disabled,omitempty"` // Disabled is true if the favicon downloader is disabled.
 }
 
 type PasswordPreferences struct {

@@ -21,6 +21,7 @@ import (
 func (a *app) makePreferencesView() fyne.CanvasObject {
 	content := container.NewVScroll(
 		container.NewVBox(
+			a.makeFaviconDownloaderPreferencesCard(),
 			a.makePasswordPreferencesCard(),
 			a.makeTOTPPreferencesCard(),
 		),
@@ -34,6 +35,20 @@ func (a *app) storePreferences() {
 	if err != nil {
 		dialog.ShowError(err, a.win)
 	}
+}
+
+func (a *app) makeFaviconDownloaderPreferencesCard() fyne.CanvasObject {
+	checkbox := widget.NewCheck("Disabled", func(disabled bool) {
+		a.state.Preferences.FaviconDownloader.Disabled = disabled
+		a.storePreferences()
+	})
+	checkbox.Checked = a.state.Preferences.FaviconDownloader.Disabled
+
+	return widget.NewCard(
+		"Favicon Downloader",
+		"",
+		checkbox,
+	)
 }
 
 func (a *app) makePasswordPreferencesCard() fyne.CanvasObject {
@@ -89,7 +104,7 @@ func (a *app) makeTOTPPreferencesCard() fyne.CanvasObject {
 	form.Add(container.NewBorder(nil, nil, nil, intervalEntry, intervalSlider))
 
 	return widget.NewCard(
-		"TOTP",
+		"Two Factor Authentication (TOTP)",
 		"",
 		form,
 	)
