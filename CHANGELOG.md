@@ -1,5 +1,17 @@
 # Changelog - Paw
 
+## 0.25.0 - Unreleased
+
+- all: update Fyne to v2.5.2
+
+- deps update:
+    - fyne.io/fyne v2.5.2
+	- golang.org/x/crypto v0.23.0
+	- golang.org/x/image v0.18.0
+	- golang.org/x/net v0.25.0
+	- golang.org/x/sync v0.7.0
+	- golang.org/x/term v0.20.0
+
 ## 0.24.0 - 02 May 2024
 
 This release focuses on enhancing the user experience by improving favicon downloads, form validations, and fixing various display issues. It also paves the way for supporting browser extensions, introducing an initial implementation of the native messaging protocol.
