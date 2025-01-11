@@ -2,16 +2,18 @@
 
 ## 0.25.0 - Unreleased
 
-- all: update Fyne to v2.5.2
 - all: update Go toolchain to 1.19 
+- all: update Fyne to v2.5.3
+- all: update age to v1.2.1
 
 - deps update:
-    - fyne.io/fyne v2.5.2
-	- golang.org/x/crypto v0.23.0
-	- golang.org/x/image v0.18.0
-	- golang.org/x/net v0.25.0
-	- golang.org/x/sync v0.7.0
-	- golang.org/x/term v0.20.0
+  - fyne.io/fyne v2.5.3
+  - filippo.io/age v1.2.1
+	- golang.org/x/crypto v0.32.0
+	- golang.org/x/image v0.23.0
+	- golang.org/x/net v0.34.0
+	- golang.org/x/sync v0.10.0
+	- golang.org/x/term v0.28.0
 
 ## 0.24.0 - 02 May 2024
 
