@@ -6,6 +6,7 @@ require (
 	filippo.io/age v1.2.1
 	fyne.io/fyne/v2 v2.5.3
 	github.com/fyne-io/image v0.0.0-20220602074514-4956b0afb3d2
+	github.com/godbus/dbus/v5 v5.1.0
 	github.com/stretchr/testify v1.8.4
 	golang.design/x/clipboard v0.7.0
 	golang.org/x/crypto v0.32.0
@@ -28,7 +29,6 @@ require (
 	github.com/go-gl/glfw/v3.3/glfw v0.0.0-20240506104042-037f3cc74f2a // indirect
 	github.com/go-text/render v0.2.0 // indirect
 	github.com/go-text/typesetting v0.2.0 // indirect
-	github.com/godbus/dbus/v5 v5.1.0 // indirect
 	github.com/gopherjs/gopherjs v1.17.2 // indirect
 	github.com/jeandeaual/go-locale v0.0.0-20240223122105-ce5225dcaa49 // indirect
 	github.com/jsummers/gobmp v0.0.0-20151104160322-e2ba15ffa76e // indirect

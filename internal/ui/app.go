@@ -17,6 +17,7 @@ import (
 	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
+	"github.com/godbus/dbus/v5"
 
 	"lucor.dev/paw/internal/agent"
 	"lucor.dev/paw/internal/icon"
@@ -86,6 +87,10 @@ func (a *app) agentClient() agent.PawAgent {
 
 func (a *app) makeSysTray() {
 	if desk, ok := fyne.CurrentApp().(desktop.App); ok {
+		if err := checkStatusNotifierWatcher(); err != nil {
+			log.Println("systray not available: %w", err)
+			return
+		}
 		a.win.SetCloseIntercept(a.win.Hide) // don't close the window if system tray used
 		menu := fyne.NewMenu("Vaults", a.makeVaultMenuItems()...)
 		desk.SetSystemTrayMenu(menu)
@@ -259,4 +264,28 @@ func imageFromResource(resource fyne.Resource) *canvas.Image {
 	img.FillMode = canvas.ImageFillContain
 	img.SetMinSize(fyne.NewSize(64, 64))
 	return img
+}
+
+// checkStatusNotifierWatcher checks if the StatusNotifierWatcher is available on the supported unix system
+func checkStatusNotifierWatcher() error {
+	// systrayUnixSupportedOSes list the supported unix system by https://github.com/fyne-io/systray
+	// see: https://github.com/fyne-io/systray/blob/master/systray_unix.go#L1
+	systrayUnixSupportedOSes := map[string]bool{
+		"linux":   true,
+		"freebsd": true,
+		"openbsd": true,
+		"netbsd":  true,
+	}
+	if !systrayUnixSupportedOSes[runtime.GOOS] {
+		return nil
+	}
+	conn, err := dbus.ConnectSessionBus()
+	if err != nil {
+		return fmt.Errorf("Failed to connect to session bus: %w", err)
+	}
+	defer conn.Close()
+
+	obj := conn.Object("org.kde.StatusNotifierWatcher", "/StatusNotifierWatcher")
+	call := obj.Call("org.kde.StatusNotifierWatcher.RegisterStatusNotifierItem", 0, "/StatusNotifierItem")
+	return call.Err
 }

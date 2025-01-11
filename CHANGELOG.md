@@ -6,6 +6,7 @@
 - all: update Fyne to v2.5.3
 - all: update age to v1.2.1
 - ui: fix a possible nil pointer on loginURL when upgrading paw from previous versions
+- systray: enable only if the StatusNotifierWatcher is available on the supported unix system
 
 - deps update:
   - fyne.io/fyne v2.5.3
