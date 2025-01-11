@@ -2,22 +2,25 @@
 
 ## 0.25.0 - Unreleased
 
-- all: update Go toolchain to 1.19 
+- all: update Go toolchain to 1.19
 - all: update Fyne to v2.5.3
 - all: update age to v1.2.1
 
 - deps update:
   - fyne.io/fyne v2.5.3
   - filippo.io/age v1.2.1
-	- golang.org/x/crypto v0.32.0
-	- golang.org/x/image v0.23.0
-	- golang.org/x/net v0.34.0
-	- golang.org/x/sync v0.10.0
-	- golang.org/x/term v0.28.0
+  - golang.org/x/crypto v0.32.0
+  - golang.org/x/image v0.23.0
+  - golang.org/x/net v0.34.0
+  - golang.org/x/sync v0.10.0
+  - golang.org/x/term v0.28.0
 
 ## 0.24.0 - 02 May 2024
 
-This release focuses on enhancing the user experience by improving favicon downloads, form validations, and fixing various display issues. It also paves the way for supporting browser extensions, introducing an initial implementation of the native messaging protocol.
+This release focuses on enhancing the user experience by improving favicon downloads,
+form validations, and fixing various display issues.
+It also paves the way for supporting browser extensions,
+introducing an initial implementation of the native messaging protocol.
 
 Details:
 
@@ -26,16 +29,16 @@ Details:
 - ui: improve audit view
 - ui: improve favicon downloader
 - ui: improve note field display
-- ui,preferences: allow to disable favicon downloader 
+- ui,preferences: allow to disable favicon downloader
 - all: add application state
 - all: update to store time in UTC
 - browser: initial implementation of native messaging protocol to support browser extensions
 
 - deps add:
-    - github.com/fyne-io/image v0.0.0-20220602074514-4956b0afb3d2
+  - github.com/fyne-io/image v0.0.0-20220602074514-4956b0afb3d2
 
 - deps update:
-    - fyne.io/fyne v2.4.5
+  - fyne.io/fyne v2.4.5
 
 ## 0.23.0 - 10 March 2024
 
@@ -53,7 +56,7 @@ Details:
 - ui: update SSH key filter label
 
 - deps remove:
-    - golang.org/x/text
+  - golang.org/x/text
 
 ## 0.22.1 - 15 February 2024
 
@@ -61,7 +64,7 @@ Details:
 
 ## 0.22.0 - 14 February 2024
 
-- all: improve health service performance creating a lock file 
+- all: improve health service performance creating a lock file
 - all: update logo
 - all: move main into project root
 - all: detach console when running on Windows
@@ -69,12 +72,12 @@ Details:
 - cli: disable clipboard on FreeBSD
 - otp: ensure decoded key is padded
 - otp: fix padding issue for the 2fa code
-- ui: view could not refresh correctly using menu shortcuts 
+- ui: view could not refresh correctly using menu shortcuts
 
 - deps add:
-    - gopkg.in/natefinch/npipe.v2 v2.0.0-20160621034901-c1b8fa8bdcce
+  - gopkg.in/natefinch/npipe.v2 v2.0.0-20160621034901-c1b8fa8bdcce
 - deps upgrade:
-    - fyne.io/fyne v2.4.4
+  - fyne.io/fyne v2.4.4
 
 ## 0.21.2 - 28 January 2024
 
@@ -89,12 +92,12 @@ Details:
 
 - all: merge CLI and GUI apps to provide only a binary
 - deps upgrade:
-    - fyne.io/fyne v2.4.3
-	- golang.org/x/crypto v0.18.0
-	- golang.org/x/image v0.15.0
-	- golang.org/x/sync v0.6.0
-	- golang.org/x/term v0.16.0
-	- golang.org/x/text v0.14.0
+  - fyne.io/fyne v2.4.3
+    - golang.org/x/crypto v0.18.0
+    - golang.org/x/image v0.15.0
+    - golang.org/x/sync v0.6.0
+    - golang.org/x/term v0.16.0
+    - golang.org/x/text v0.14.0
 
 ## 0.20.1 - 15 November 2023
 
@@ -107,19 +110,19 @@ Details:
 - agent: initial implementation of the client agent to manage CLI sessions
 - cli,ui: add support for encrypted SSH keys with a passphrase for SSH item
 - storage: add SocketAgentPath method to the Storage interface
-- ui: update edit view to display a single action instead of the menu 
+- ui: update edit view to display a single action instead of the menu
 - deps upgrade:
-    - filippo.io/age v1.1.1
-    - fyne.io/fyne v2.4.1
-    - fyne.io/systray v1.10.1-0.20231105182847-18ba13a8fe2b
-    - golang.design/x/clipboard 0.7.0
-    - golang.org/x/crypto v0.14.0
-    - golang.org/x/sync v0.4.0
-    - golang.org/x/image v0.13.0
-    - golang.org/x/term v0.13.0
-    - golang.org/x/text v0.13.0
+  - filippo.io/age v1.1.1
+  - fyne.io/fyne v2.4.1
+  - fyne.io/systray v1.10.1-0.20231105182847-18ba13a8fe2b
+  - golang.design/x/clipboard 0.7.0
+  - golang.org/x/crypto v0.14.0
+  - golang.org/x/sync v0.4.0
+  - golang.org/x/image v0.13.0
+  - golang.org/x/term v0.13.0
+  - golang.org/x/text v0.13.0
 - deps remove:
-    - github.com/mikesmitty/edkey
+  - github.com/mikesmitty/edkey
 
 ## 0.19.1 - 01 October 2022
 
@@ -134,7 +137,7 @@ Details:
 - ui: allow item list to receive focus when tab is pressed (via fyne upgrade)
 
 - deps upgrade:
-    - fyne.io/fyne v2.2.4-0.20221001083711-23d1052ad20e
+  - fyne.io/fyne v2.2.4-0.20221001083711-23d1052ad20e
 
 ## 0.18.0 - 21 September 2022
 
@@ -143,48 +146,48 @@ Details:
 - import: add ssh key type
 
 - deps upgrade:
-    - fyne.io/fyne v2.2.3
-    - golang.design/x/clipboard v0.6.2
-    - golang.org/x/image v0.0.0-20220601225756-64ec528b34cd
-    - golang.org/x/text v0.3.7
+  - fyne.io/fyne v2.2.3
+  - golang.design/x/clipboard v0.6.2
+  - golang.org/x/image v0.0.0-20220601225756-64ec528b34cd
+  - golang.org/x/text v0.3.7
 
 ## 0.17.1 - 02 April 2022
 
-- gui: fix incorrect value for the public key displayed into thr ssh key view 
+- gui: fix incorrect value for the public key displayed into thr ssh key view
 
 ## 0.17.0 - 29 March 2022
 
 - all: add Ed25519 and RSA SSH keys support
 - deps add:
-    - github.com/mikesmitty/edkey v0.0.0-20170222072505-3356ea4e686a
+  - github.com/mikesmitty/edkey v0.0.0-20170222072505-3356ea4e686a
 - deps upgrade:
-    - fyne.io/fyne v2.1.4
-    - golang.org/x/crypto v0.0.0-20220321153916-2c7772ba3064
-    - golang.org/x/image v0.0.0-20220321031419-a8550c1d254a
-    - golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
-    - golang.org/x/term v0.0.0-20210927222741-03fcf44c2211
- 
+  - fyne.io/fyne v2.1.4
+  - golang.org/x/crypto v0.0.0-20220321153916-2c7772ba3064
+  - golang.org/x/image v0.0.0-20220321031419-a8550c1d254a
+  - golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
+  - golang.org/x/term v0.0.0-20210927222741-03fcf44c2211
+
 ## 0.16.1 - 08 March 2022
 
 - gui: fix item creation should show default content on cancel
 
-## 0.16.0 - 28 February 2022 
+## 0.16.0 - 28 February 2022
 
 - all: fix regression about setting item date
 - cli: add the "-c, --clip" option to copy password to clipboard
 - cli: update messages to printed correctly on stdout and stderr
 - cli:list command will show an hint message if no vaults are found
 - cli,deps: add golang.design/x/clipboard
-- gui,deps: update fyne.io/fyne to v2.1.3 
+- gui,deps: update fyne.io/fyne to v2.1.3
 
-## 0.15.0 - 26 January 2022 
+## 0.15.0 - 26 January 2022
 
 - cli: add CLI application #3
 
 ## 0.14.0 - 09 January 2022
 
 > This release updates the internal storage, so previous versions won't be compatible.
-> Starting from this release the data is encoded in json in place of gob 
+> Starting from this release the data is encoded in json in place of gob
 > and update to use a password protected age key (X25519) to decrypt and encrypt the vault data.
 > This allow to decrypt the items using the age tool and have the content directly accessible once decrypted.
 
@@ -229,7 +232,7 @@ Details:
 
 ### Added
 
-- Password audit against data breaches #1 
+- Password audit against data breaches #1
 - Add TOTP and HTOP support #5
 
 ## 0.9.0 - 11 December 2021
