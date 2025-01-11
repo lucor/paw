@@ -3,6 +3,7 @@
 ## 0.25.0 - Unreleased
 
 - all: update Fyne to v2.5.2
+- all: update Go toolchain to 1.19 
 
 - deps update:
     - fyne.io/fyne v2.5.2
