@@ -79,7 +79,6 @@ func (iw *loginItemWidget) Icon() fyne.Resource {
 }
 
 func (iw *loginItemWidget) Edit(ctx context.Context, key *paw.Key, w fyne.Window) fyne.CanvasObject {
-
 	loginIcon := canvas.NewImageFromResource(iw.Icon())
 	loginIcon.FillMode = canvas.ImageFillContain
 	loginIcon.SetMinSize(fyne.NewSize(32, 32))
@@ -210,7 +209,9 @@ func newURLEntryWithData(ctx context.Context, loginURL *paw.LoginURL, preference
 		preferences: preferences,
 	}
 	e.ExtendBaseWidget(e)
-	e.SetText(e.loginURL.String())
+	if e.loginURL != nil {
+		e.SetText(e.loginURL.String())
+	}
 	e.Validator = func(s string) error {
 		return e.validationError
 	}
