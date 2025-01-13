@@ -8,6 +8,10 @@
 - ui: fix a possible nil pointer on loginURL when upgrading paw from previous versions
 - systray: enable only if the StatusNotifierWatcher is available on the supported unix system
 
+- deps replace:
+  - golang.org/x/mobile with github.com/fyne-io/gomobile-bridge@v0.1.0
+    to fix android build by @serialt via #14
+
 - deps update:
   - fyne.io/fyne v2.5.3
   - filippo.io/age v1.2.1
