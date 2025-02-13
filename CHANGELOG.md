@@ -3,7 +3,7 @@
 ## 0.25.0 - Unreleased
 
 - all: update Go toolchain to 1.19
-- all: update Fyne to v2.5.3
+- all: update Fyne to v2.5.4
 - all: update age to v1.2.1
 - ui: fix a possible nil pointer on loginURL when upgrading paw from previous versions
 - systray: enable only if the StatusNotifierWatcher is available on the supported unix system
@@ -13,12 +13,12 @@
     to fix android build by @serialt via #14
 
 - deps update:
-  - fyne.io/fyne v2.5.3
+  - fyne.io/fyne v2.5.4
   - filippo.io/age v1.2.1
   - golang.org/x/crypto v0.32.0
-  - golang.org/x/image v0.23.0
+  - golang.org/x/image v0.24.0
   - golang.org/x/net v0.34.0
-  - golang.org/x/sync v0.10.0
+  - golang.org/x/sync v0.11.0
   - golang.org/x/term v0.28.0
 
 ## 0.24.0 - 02 May 2024
