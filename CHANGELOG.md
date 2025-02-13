@@ -1,6 +1,6 @@
 # Changelog - Paw
 
-## 0.25.0 - Unreleased
+## 0.25.0 - 13 Feb 2025
 
 - all: update Go toolchain to 1.19
 - all: update Fyne to v2.5.4
