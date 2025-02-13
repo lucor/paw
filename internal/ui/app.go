@@ -248,7 +248,7 @@ func (a *app) makeCancelHeaderButton() fyne.CanvasObject {
 
 // headingText returns a text formatted as heading
 func headingText(text string) *canvas.Text {
-	t := canvas.NewText(text, theme.ForegroundColor())
+	t := canvas.NewText(text, theme.Color(theme.ColorNameForeground))
 	t.TextStyle = fyne.TextStyle{Bold: true}
 	t.TextSize = theme.TextSubHeadingSize()
 	return t
@@ -281,7 +281,7 @@ func checkStatusNotifierWatcher() error {
 	}
 	conn, err := dbus.ConnectSessionBus()
 	if err != nil {
-		return fmt.Errorf("Failed to connect to session bus: %w", err)
+		return fmt.Errorf("failed to connect to session bus: %w", err)
 	}
 	defer conn.Close()
 

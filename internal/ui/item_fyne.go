@@ -61,7 +61,7 @@ func NewFyneItemWidget(item paw.Item, preferences *paw.Preferences) FyneItemWidg
 }
 
 func titleRow(icon fyne.Resource, text string) []fyne.CanvasObject {
-	t := canvas.NewText(text, theme.ForegroundColor())
+	t := canvas.NewText(text, theme.Color(theme.ColorNameForeground))
 	t.TextStyle = fyne.TextStyle{Bold: true}
 	t.TextSize = theme.TextHeadingSize()
 	i := canvas.NewImageFromResource(icon)
@@ -112,7 +112,6 @@ func makeActionMenu(menuItems []*fyne.MenuItem, w fyne.Window) fyne.CanvasObject
 }
 
 func rowWithAction(label string, text string, opts rowActionOptions, w fyne.Window) []fyne.CanvasObject {
-
 	actionMenu := []*fyne.MenuItem{}
 
 	if opts.copy {
