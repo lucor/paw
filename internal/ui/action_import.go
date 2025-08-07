@@ -99,16 +99,26 @@ func (a *app) importFromFile() {
 					}
 					processed = append(processed, item)
 					v := atomic.AddUint32(&counter, 1)
-					progressBind.Set(float64(v))
+					fyne.Do(func() {
+						progressBind.Set(float64(v))
+					})
 					return nil
 				})
 			}
 
-			defer modal.Hide()
+			defer func() {
+				fyne.Do(func() {
+					modal.Hide()
+				})
+			}()
 			err = g.Wait()
 			if err != nil || errors.Is(ctx.Err(), context.Canceled) {
 				rollback(processed)
-				dialog.ShowError(err, a.win)
+				if err != nil {
+					fyne.Do(func() {
+						dialog.ShowError(err, a.win)
+					})
+				}
 				return
 			}
 
@@ -121,13 +131,17 @@ func (a *app) importFromFile() {
 			err = a.storage.StoreVault(a.vault)
 			if err != nil {
 				rollback(processed)
-				dialog.ShowError(err, a.win)
+				fyne.Do(func() {
+					dialog.ShowError(err, a.win)
+				})
 				return
 			}
 			a.state.Modified = now
 			a.storage.StoreAppState(a.state)
-			a.refreshCurrentView()
-			a.showCurrentVaultView()
+			fyne.Do(func() {
+				a.refreshCurrentView()
+				a.showCurrentVaultView()
+			})
 		}()
 
 		modal.Show()

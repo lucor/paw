@@ -88,22 +88,34 @@ func (a *app) exportToFile() {
 					mu.Unlock()
 
 					v := atomic.AddUint32(&counter, 1)
-					progressBind.Set(float64(v))
+					fyne.Do(func() {
+						progressBind.Set(float64(v))
+					})
 					return nil
 				})
 				return true
 			})
 
-			defer modal.Hide()
+			defer func() {
+				fyne.Do(func() {
+					modal.Hide()
+				})
+			}()
 			err := g.Wait()
 			if err != nil || errors.Is(ctx.Err(), context.Canceled) {
-				dialog.ShowError(err, a.win)
+				if err != nil {
+					fyne.Do(func() {
+						dialog.ShowError(err, a.win)
+					})
+				}
 				return
 			}
 
 			err = json.NewEncoder(uc).Encode(data)
 			if err != nil {
-				dialog.ShowError(err, a.win)
+				fyne.Do(func() {
+					dialog.ShowError(err, a.win)
+				})
 			}
 		}()
 		modal.Show()

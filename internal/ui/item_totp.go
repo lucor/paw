@@ -125,10 +125,14 @@ func (t *TOTP) Show(ctx context.Context, w fyne.Window) []fyne.CanvasObject {
 				v := progressbar.Value
 				if v == 1 {
 					v, _ := otp.TOTPFromBase32(sha1.New, t.Secret, time.Now().UTC(), t.Interval, t.Digits)
-					totp.Set(v)
-					progressbar.SetValue(progressbar.Max)
+					fyne.DoAndWait(func() {
+						totp.Set(v)
+						progressbar.SetValue(progressbar.Max)
+					})
 				} else {
-					progressbar.SetValue(v - 1)
+					fyne.DoAndWait(func() {
+						progressbar.SetValue(v - 1)
+					})
 				}
 			}
 		}

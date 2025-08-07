@@ -264,11 +264,15 @@ func (e *urlEntry) FocusLost() {
 
 		b, format, err := favicon.Download(e.ctx, e.loginURL.URL(), favicon.Options{})
 		if err != nil {
-			e.FaviconListener(fav)
+			fyne.Do(func() {
+				e.FaviconListener(fav)
+			})
 			return
 		}
 
 		fav = paw.NewFavicon(newHostname, b, format)
-		e.FaviconListener(fav)
+		fyne.Do(func() {
+			e.FaviconListener(fav)
+		})
 	}()
 }
