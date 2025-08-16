@@ -23,7 +23,6 @@ import (
 var _ FyneItemWidget = (*passwordItemWidget)(nil)
 
 func NewPasswordWidget(item *paw.Password, preferences *paw.Preferences) FyneItemWidget {
-
 	return &passwordItemWidget{
 		item:        item,
 		preferences: preferences,
@@ -60,7 +59,6 @@ func (iw *passwordItemWidget) OnSubmit() (paw.Item, error) {
 }
 
 func (iw *passwordItemWidget) Edit(ctx context.Context, key *paw.Key, w fyne.Window) fyne.CanvasObject {
-
 	preferences := iw.preferences
 
 	passwordBind := binding.BindString(&iw.item.Value)
@@ -90,7 +88,7 @@ func (iw *passwordItemWidget) Edit(ctx context.Context, key *paw.Key, w fyne.Win
 			Label: "Copy",
 			Icon:  theme.ContentCopyIcon(),
 			Action: func() {
-				w.Clipboard().SetContent(passwordEntry.Text)
+				fyne.CurrentApp().Clipboard().SetContent(passwordEntry.Text)
 				fyne.CurrentApp().SendNotification(&fyne.Notification{
 					Title:   "paw",
 					Content: "Password copied to clipboard",

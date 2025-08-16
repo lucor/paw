@@ -3,6 +3,7 @@
 ## 0.26.0 - 16 Aug 2025
 
 - fix: wrap UI calls in fyne.Do/DoAndWait for Fyne 2.6.2 compatibility
+- fix: w.Clipboard is deprecated: use App.Clipboard() instead. (SA1019)
 - deps update:
   - fyne.io/fyne/v2 v2.6.2
   - github.com/fyne-io/image v0.1.1

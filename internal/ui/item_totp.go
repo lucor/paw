@@ -91,7 +91,6 @@ func (t *TOTP) Edit(ctx context.Context, w fyne.Window) (fyne.CanvasObject, *paw
 }
 
 func (t *TOTP) Show(ctx context.Context, w fyne.Window) []fyne.CanvasObject {
-
 	totp := binding.NewString()
 
 	keyLabel := widget.NewLabel("")
@@ -140,7 +139,7 @@ func (t *TOTP) Show(ctx context.Context, w fyne.Window) []fyne.CanvasObject {
 
 	b := widget.NewButtonWithIcon("", theme.ContentCopyIcon(), func() {
 		v, _ := totp.Get()
-		w.Clipboard().SetContent(v)
+		fyne.CurrentApp().Clipboard().SetContent(v)
 		fyne.CurrentApp().SendNotification(&fyne.Notification{
 			Title:   "paw",
 			Content: "2FA key copied",
