@@ -138,7 +138,7 @@ func (iw *loginItemWidget) Edit(ctx context.Context, key *paw.Key, w fyne.Window
 			Label: "Copy",
 			Icon:  theme.ContentCopyIcon(),
 			Action: func() {
-				w.Clipboard().SetContent(passwordEntry.Text)
+				fyne.CurrentApp().Clipboard().SetContent(passwordEntry.Text)
 				fyne.CurrentApp().SendNotification(&fyne.Notification{
 					Title:   "paw",
 					Content: "Password copied to clipboard",
@@ -264,11 +264,15 @@ func (e *urlEntry) FocusLost() {
 
 		b, format, err := favicon.Download(e.ctx, e.loginURL.URL(), favicon.Options{})
 		if err != nil {
-			e.FaviconListener(fav)
+			fyne.Do(func() {
+				e.FaviconListener(fav)
+			})
 			return
 		}
 
 		fav = paw.NewFavicon(newHostname, b, format)
-		e.FaviconListener(fav)
+		fyne.Do(func() {
+			e.FaviconListener(fav)
+		})
 	}()
 }
