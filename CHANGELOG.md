@@ -1,6 +1,6 @@
 # Changelog - Paw
 
-## 0.26.0 - Unreleased
+## 0.26.0 - 16 Aug 2025
 
 - fix: wrap UI calls in fyne.Do/DoAndWait for Fyne 2.6.2 compatibility
 - deps update:
