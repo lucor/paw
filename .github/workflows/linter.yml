@@ -3,10 +3,16 @@ name: "Linter"
 on:
   push:
     paths:
-      - '**/*.go'
+      - '**.go'
+      - 'go.mod'
+      - 'go.sum'
+      - '.github/workflows/**'  # Re-run if workflows change*.go'
   pull_request:
     paths:
-      - '**/*.go'
+      - '**.go'
+      - 'go.mod'
+      - 'go.sum'
+      - '.github/workflows/**'  # Re-run if workflows change*.go'
 
 jobs:
   lint:
