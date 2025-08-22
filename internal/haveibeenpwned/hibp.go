@@ -1,7 +1,6 @@
 // SPDX-FileCopyrightText: 2021-2025 Luca Corbo, Paw contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-
 // Package haveibeenpwned implements a client for the haveibeenpwned.com API v3
 // to search if passwords have been exposed in data breaches
 package haveibeenpwned

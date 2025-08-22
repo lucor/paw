@@ -1,7 +1,6 @@
 // SPDX-FileCopyrightText: 2023-2025 Luca Corbo, Paw contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-
 package cli
 
 import (
