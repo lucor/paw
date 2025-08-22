@@ -1,7 +1,5 @@
-// Copyright 2021 the Paw Authors. All rights reserved.
-// This Source Code Form is subject to the terms of the Mozilla Public
-// License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// SPDX-FileCopyrightText: 2021-2025 Luca Corbo, Paw contributors
+// SPDX-License-Identifier: AGPL-3.0-or-later
 
 // Package provides an implementation to generate one-time password values based
 // on the TOTP (Time-Based One-Time Password) and HOTP (HMAC-Based One-Time

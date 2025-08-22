@@ -105,6 +105,12 @@ Currently the following items are available:
 
 The threat model of Paw assumes there are no attackers on your local machine.
 
+## License
+
+This project is licensed under the GNU Affero General Public License v3.0 or later (AGPL-3.0-or-later), unless otherwise noted. See the [LICENSE](LICENSE) file for details.
+
+Some components may be licensed under different terms - see individual file headers for specific licensing information and the [THIRD_PARTY_LICENSES](THIRD_PARTY_LICENSES) file for third-party dependencies.
+
 ## Contribute
 
 See https://lucor.dev/projects/#maintenance-policy
