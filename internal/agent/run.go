@@ -11,6 +11,7 @@
 
 // Code in this file has been adapted from https://github.com/FiloSottile/yubikey-agent/blob/v0.1.6/main.go#L77
 // released under the above license
+
 package agent
 
 import (

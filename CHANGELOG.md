@@ -1,5 +1,9 @@
 # Changelog - Paw
 
+## 0.27.0 - 22 Aug 2025
+
+- all: migrate license from MPL-2.0 to AGPL-3.0-or-later
+
 ## 0.26.0 - 16 Aug 2025
 
 - fix: wrap UI calls in fyne.Do/DoAndWait for Fyne 2.6.2 compatibility
