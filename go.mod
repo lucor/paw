@@ -1,6 +1,6 @@
 module lucor.dev/paw
 
-go 1.19
+go 1.26.0
 
 require (
 	filippo.io/age v1.2.1
