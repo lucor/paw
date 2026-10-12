@@ -13,6 +13,14 @@ run = "go run ."
 description = "Format Go source files"
 run = "go fmt ./..."
 
+[tasks.lint]
+description = "Run Go static checks"
+run = ["go vet ./...", "go tool staticcheck ./..."]
+
+[tasks.vuln]
+description = "Check Go dependencies and packages for known vulnerabilities"
+run = "go tool govulncheck ./..."
+
 [tasks.test]
 description = "Run unit tests"
 run = "go test ./..."
@@ -26,5 +34,5 @@ description = "Build the Paw application"
 run = "mkdir -p dist && go build -trimpath -o dist/paw ."
 
 [tasks.check]
-description = "Run formatting, tests, and build"
-depends = ["fmt", "test", "build"]
+description = "Run formatting, analysis, tests, vulnerability check, and build"
+depends = ["fmt", "lint", "vuln", "test", "build"]
