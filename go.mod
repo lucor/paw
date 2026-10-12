@@ -3,7 +3,7 @@ module lucor.dev/paw
 go 1.26.0
 
 require (
-	filippo.io/age v1.2.1
+	filippo.io/age v1.3.2
 	fyne.io/fyne/v2 v2.8.2
 	github.com/fyne-io/image v0.1.1
 	github.com/godbus/dbus/v5 v5.2.2
@@ -22,6 +22,7 @@ require (
 replace golang.org/x/mobile => github.com/fyne-io/gomobile-bridge v0.1.0
 
 require (
+	filippo.io/hpke v0.4.0 // indirect
 	fyne.io/systray v1.12.3-0.20260810170012-af4e8e793ec4 // indirect
 	github.com/BurntSushi/toml v1.6.0 // indirect
 	github.com/FyshOS/fancyfs v0.0.1 // indirect
