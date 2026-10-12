@@ -8,6 +8,7 @@ package cli
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -26,35 +27,29 @@ func initClipboard() error {
 
 // writeToClipboard writes provided data to clipboard
 func writeToClipboard(ctx context.Context, data []byte) error {
-	last := clipboard.Read(clipboard.FmtText)
+	last, err := clipboard.Read(ctx, clipboard.FmtText)
+	if err != nil && !errors.Is(err, clipboard.ErrNoData) {
+		return fmt.Errorf("unable to read data from clipboard: %w", err)
+	}
 	if bytes.Equal(last, data) {
 		// data is the same in clipboard no need to write
 		return nil
 	}
 
-	clipboard.Write(clipboard.FmtText, data)
+	changed, err := clipboard.Write(ctx, clipboard.FmtText, data)
+	if err != nil {
+		return fmt.Errorf("unable to write data to clipboard: %w", err)
+	}
 
-	ti := time.NewTicker(clipboardWatchInterval)
+	ti := time.NewTimer(clipboardWatchInterval)
 	defer ti.Stop()
 
-	for {
-		select {
-		case <-ctx.Done():
-			return fmt.Errorf("unable to write data to clipboard: timeout reached")
-		case <-ti.C:
-			b := clipboard.Read(clipboard.FmtText)
-			if b == nil {
-				continue
-			}
-			if bytes.Equal(last, b) {
-				// clipboard data not changed
-				continue
-			}
-			if !bytes.Equal(b, data) {
-				// clipboard data changed but with unexpected content
-				return fmt.Errorf("clipboard has been overwritten by others and data is lost")
-			}
-			return nil
-		}
+	select {
+	case <-ctx.Done():
+		return fmt.Errorf("unable to write data to clipboard: timeout reached")
+	case <-changed:
+		return fmt.Errorf("clipboard has been overwritten by others and data is lost")
+	case <-ti.C:
+		return nil
 	}
 }
