@@ -1,0 +1,30 @@
+[tools]
+go = "1.27"
+
+[tasks.setup]
+description = "Download Go module dependencies"
+run = "go mod download"
+
+[tasks.run]
+description = "Run Paw from source"
+run = "go run ."
+
+[tasks.fmt]
+description = "Format Go source files"
+run = "go fmt ./..."
+
+[tasks.test]
+description = "Run unit tests"
+run = "go test ./..."
+
+[tasks.test-race]
+description = "Run unit tests with the race detector"
+run = "go test -race ./..."
+
+[tasks.build]
+description = "Build the Paw application"
+run = "mkdir -p dist && go build -trimpath -o dist/paw ."
+
+[tasks.check]
+description = "Run formatting, tests, and build"
+depends = ["fmt", "test", "build"]
