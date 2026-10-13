@@ -1,0 +1,18 @@
+version: 2
+project_name: Paw
+
+builds:
+  - skip: true
+
+changelog:
+  use: git
+  abbrev: 7
+
+checksum:
+  name_template: checksums.txt
+  extra_files:
+    - glob: /tmp/paw-release-assets/Paw_*
+
+release:
+  extra_files:
+    - glob: /tmp/paw-release-assets/Paw_*

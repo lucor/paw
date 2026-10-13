@@ -1,0 +1,107 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    name: Lint and vulnerability checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Go stable
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: stable
+          check-latest: true
+
+      - name: Install Linux graphics dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential pkg-config \
+            libgl1-mesa-dev libegl1-mesa-dev \
+            libx11-dev libxcursor-dev libxrandr-dev libxinerama-dev \
+            libxi-dev libxxf86vm-dev \
+            libwayland-dev wayland-protocols libxkbcommon-dev \
+            libasound2-dev libpulse-dev
+
+      - name: Download Go dependencies
+        run: go mod download
+
+      - name: Run go vet
+        run: go vet ./...
+
+      - name: Run Staticcheck
+        run: go tool staticcheck ./...
+
+      - name: Run govulncheck
+        run: go tool govulncheck ./...
+
+  test:
+    name: Test Go ${{ matrix.go-version }} on ${{ matrix.runner }}
+    needs: quality
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            go-version: oldstable
+          - runner: macos-latest
+            go-version: oldstable
+          - runner: windows-latest
+            go-version: oldstable
+          - runner: ubuntu-latest
+            go-version: stable
+          - runner: macos-latest
+            go-version: stable
+          - runner: windows-latest
+            go-version: stable
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: ${{ matrix.go-version }}
+          check-latest: true
+
+      - name: Install Linux graphics dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential pkg-config \
+            libgl1-mesa-dev libegl1-mesa-dev \
+            libx11-dev libxcursor-dev libxrandr-dev libxinerama-dev \
+            libxi-dev libxxf86vm-dev \
+            libwayland-dev wayland-protocols libxkbcommon-dev \
+            libasound2-dev libpulse-dev
+
+      - name: Check Windows C compiler
+        if: runner.os == 'Windows'
+        run: |
+          gcc --version
+          test "$(go env CGO_ENABLED)" = "1"
+
+      - name: Download Go dependencies
+        run: go mod download
+
+      - name: Run tests
+        run: go test -count=1 ./...

@@ -4,7 +4,6 @@
 package agent_test
 
 import (
-	"log"
 	"os"
 	"path/filepath"
 	"testing"
@@ -64,7 +63,7 @@ func Test_Client(t *testing.T) {
 	})
 
 	t.Run("lifetime session", func(t *testing.T) {
-		lifetime := 1 * time.Millisecond
+		lifetime := 1 * time.Second
 		sid, err := client.Unlock(t.Name(), key, lifetime)
 		require.NoError(t, err)
 		require.Contains(t, sid, agent.SessionIDPrefix)
@@ -80,10 +79,9 @@ func Test_Client(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, key, keySession)
 
-		time.Sleep(lifetime)
+		time.Sleep(lifetime + 10*time.Millisecond)
 
 		keySession, err = client.Key(t.Name(), sid)
-		log.Println(err)
 		require.Error(t, err)
 		require.Nil(t, keySession)
 	})
