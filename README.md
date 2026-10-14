@@ -42,17 +42,29 @@ It is written in Go and uses [Fyne](https://github.com/fyne-io/fyne) as UI toolk
 
 ## Installation
 
-### Latest version
+Download the latest stable packages from the [Releases page](https://github.com/lucor/paw/releases/latest). Packages are available for Linux (amd64 and arm64), macOS (Intel and Apple Silicon), Windows (amd64), and FreeBSD (amd64 and arm64).
 
-You can download the latest version as a binary from https://paw.pm/download
+### Linux
 
-### Development version
+Download the `.tar.xz` package for your architecture and extract it. From the extracted directory containing the `Makefile`, run `make user-install` to install Paw for your user, or `sudo make install` to install it system-wide.
 
-To try the development version or help with testing:
+### macOS
 
+Download the `.dmg` package for your Mac: `darwin_amd64` for Intel or `darwin_arm64` for Apple Silicon. Open the disk image and drag Paw to Applications. Because Paw is not notarized, remove the quarantine attribute after copying it:
+
+```sh
+xattr -r -d com.apple.quarantine /Applications/Paw.app
 ```
-go install lucor.dev/paw@latest
-```
+
+Run this command again after upgrading Paw.
+
+### Windows
+
+Download and run the `windows_amd64.exe` package.
+
+### FreeBSD
+
+Download and extract the `.tar.xz` package for your architecture. Install GNU Make (`gmake`) if needed, then from the extracted directory containing the `Makefile`, run `gmake user-install` to install Paw for your user, or `sudo gmake install` to install it system-wide.
 
 ## How it works - cryptography details
 
@@ -72,11 +84,12 @@ Random password are derived reading byte-by-byte the block of randomness from a 
 
 ### Custom password
 
-Where a generated password is not applicable a custom password can be specified. 
+Where a generated password is not applicable a custom password can be specified.
 
 ### Vault structure
 
 Vault internally is organized hierarchically like:
+
 ```
 - vault
     ├── login
@@ -96,10 +109,10 @@ Items are special templates aim to help the identity management.
 
 Currently the following items are available:
 
-- login
-- note
-- password
-- ssh_key
+* login
+* note
+* password
+* ssh_key
 
 ## Threat model
 
@@ -113,18 +126,18 @@ Some components may be licensed under different terms - see individual file head
 
 ## Contribute
 
-See https://lucor.dev/projects/#maintenance-policy
+See <https://lucor.dev/projects/#maintenance-policy>
 
 ## Credits
 
- - [age](https://github.com/FiloSottile/age) for the encryption library
- - [Fyne](https://github.com/fyne-io/fyne) for the UI toolkit
- - [Tabler icons](https://tabler.io/icons) for the icons
+* [age](https://github.com/FiloSottile/age) for the encryption library
+* [Fyne](https://github.com/fyne-io/fyne) for the UI toolkit
+* [Tabler icons](https://tabler.io/icons) for the icons
 
 Also thanks to these Open Source password managers that inspired Paw:
 
-- [gopass](https://github.com/gopasspw/gopass)
-- [lesspass](https://github.com/lesspass/lesspass)
-- [pass](https://www.passwordstore.org/)
-- [passage](https://github.com/FiloSottile/passage)
-- [passgo](https://github.com/ejcx/passgo)
+* [gopass](https://github.com/gopasspw/gopass)
+* [lesspass](https://github.com/lesspass/lesspass)
+* [pass](https://www.passwordstore.org/)
+* [passage](https://github.com/FiloSottile/passage)
+* [passgo](https://github.com/ejcx/passgo)
