@@ -1,5 +1,19 @@
 # Changelog - Paw
 
+## 0.28.1 - 21 Oct 2026
+
+- build: use Go 1.26.10 for release binaries, including security fixes for TLS certificate verification
+- dev: pin the Go toolchain to 1.27.3
+
+## 0.28.0 - 14 Oct 2026
+
+- all: update Fyne to v2.8.2 and age to v1.3.2
+- security: update Go dependencies, including a fix for a vulnerability in image processing
+- clipboard: update clipboard handling for compatibility with golang.design/x/clipboard v0.11.0
+- release: automate Linux, macOS, and Windows package builds and publishing
+- docs: add platform installation instructions
+- dev: require Go 1.26 or newer and add mise tasks, static analysis, and vulnerability checks
+
 ## 0.27.0 - 22 Aug 2025
 
 - all: migrate license from MPL-2.0 to AGPL-3.0-or-later

@@ -1,12 +1,21 @@
 Website = "https://paw.pm"
+Description = "A simple, privacy-focused password manager"
 
 [Details]
-  Icon = "logo/paw.png"
-  Name = "paw"
-  ID = "dev.lucor.paw"
-  Version = "0.28.0"
-  Build = 1
+Icon = "logo/paw.png"
+Name = "Paw"
+ID = "dev.lucor.paw"
+Version = "0.28.1"
 
 [Migrations]
-  FyneDo = true
+fyneDo = true
+
+[Source]
+Repo = "https://github.com/lucor/paw"
+
+[LinuxAndBSD]
+GenericName = "Password Manager"
+Categories = ["Utility", "Security"]
+Comment = "Manage passwords, identities, and encrypted vaults"
+Keywords = ["password", "vault", "credentials", "encryption"]
 
