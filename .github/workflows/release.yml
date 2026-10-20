@@ -70,7 +70,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: oldstable
+          go-version: 1.26.10
           check-latest: true
 
       - name: Install Linux graphics dependencies
@@ -124,7 +124,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: oldstable
+          go-version: 1.26.10
           check-latest: true
 
       - name: Check Windows C compiler
@@ -185,7 +185,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: oldstable
+          go-version: 1.26.10
           check-latest: true
 
       - name: Download Go dependencies

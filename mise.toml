@@ -1,5 +1,5 @@
 [tools]
-go = "1.27"
+go = "1.27.3"
 
 [tasks.setup]
 description = "Download Go module dependencies"
