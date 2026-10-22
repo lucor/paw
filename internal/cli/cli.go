@@ -4,250 +4,108 @@
 package cli
 
 import (
-	"bufio"
+	"context"
+	"errors"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
-	"text/template"
+	"time"
 
-	"golang.org/x/term"
+	urfave "github.com/urfave/cli/v3"
 
 	"lucor.dev/paw/internal/agent"
 	"lucor.dev/paw/internal/paw"
+	"lucor.dev/paw/internal/sshkey"
 )
 
-func Run(args []string, s paw.Storage) {
-
-	// Define the command to use
-	commands := []Cmd{
-		&AgentCmd{},
-		&AddCmd{},
-		&EditCmd{},
-		&InitCmd{},
-		&ListCmd{},
-		&LockCmd{},
-		&PwGenCmd{},
-		&RemoveCmd{},
-		&ShowCmd{},
-		&UnlockCmd{},
-		&VersionCmd{},
+// Run executes the CLI branch of the application's full argument list.
+// The caller handles error reporting and the process exit status.
+func Run(args []string, s paw.Storage) error {
+	if len(args) < 2 || args[1] != "cli" {
+		return fmt.Errorf("expected paw cli arguments")
 	}
-
-	// display the usage if no command is specified
-	if len(args) == 2 {
-		Usage(commands)
-		os.Exit(1)
+	argv := append([]string{"paw cli"}, args[2:]...)
+	err := newCommand(s).Run(context.Background(), argv)
+	if errors.Is(err, errCanceled) {
+		return nil
 	}
+	return err
+}
 
-	// check for valid command
-	var cmd Cmd
-	for _, v := range commands {
-		if args[2] == v.Name() {
-			cmd = v
-			break
-		}
+var errCanceled = errors.New("command canceled")
+
+func newCommand(storage paw.Storage) *urfave.Command {
+	base := &command{
+		storage:     storage,
+		agentClient: agent.NewClient,
+		startAgent: func(socketPath string) error {
+			a := agent.NewCLI()
+			defer a.Close()
+			agent.Run(a, socketPath)
+			return nil
+		},
+		clipboard: func(ctx context.Context, data []byte) error {
+			if err := initClipboard(); err != nil {
+				return err
+			}
+			return writeToClipboard(ctx, data)
+		},
+		readFile:   os.ReadFile,
+		getenv:     os.Getenv,
+		now:        time.Now,
+		oneTimeKey: paw.MakeOneTimeKey,
+		generateSSHKey: func() (*paw.SSHKey, error) {
+			key, err := sshkey.GenerateKey()
+			if err != nil {
+				return nil, err
+			}
+			item := paw.NewSSHKey()
+			item.PrivateKey = string(key.MarshalPrivateKey())
+			item.PublicKey = string(key.MarshalPublicKey())
+			item.Fingerprint = key.Fingerprint()
+			return item, nil
+		},
 	}
-
-	// If no valid command is specified display the usage
-	if cmd == nil {
-		Usage(commands)
-		os.Exit(1)
-	}
-
-	// Parse the arguments for the command
-	// It will display the command usage if -help is specified
-	// and will exit in case of error
-	err := cmd.Parse(args[3:])
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "[✗] %s\n", err)
-		os.Exit(1)
-	}
-
-	// Finally run the command
-	err = cmd.Run(s)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "[✗] %s\n", err)
-		os.Exit(1)
+	return &urfave.Command{
+		Name:   "paw cli",
+		Usage:  "The CLI application for Paw",
+		Action: requireSubcommand,
+		// Keep exit handling in main, including errors returned by command.
+		ExitErrHandler: func(context.Context, *urfave.Command, error) {},
+		Commands: []*urfave.Command{
+			newAgentCommand(base),
+			newAddCommand(base),
+			newEditCommand(base),
+			newInitCommand(base),
+			newListCommand(base),
+			newLockCommand(base),
+			newPwGenCommand(base),
+			newRemoveCommand(base),
+			newShowCommand(base),
+			newUnlockCommand(base),
+			newVersionCommand(),
+		},
 	}
 }
 
-// Cmd wraps the methods for a paw cli command
-type Cmd interface {
-	Name() string              // Name returns the one word command name
-	Description() string       // Description returns the command description
-	Parse(args []string) error // Parse parses the cli arguments
-	Usage()                    // Usage displays the command usage
-	Run(s paw.Storage) error   // Run runs the command
+func requireSubcommand(ctx context.Context, c *urfave.Command) error {
+	if c.Args().Present() {
+		return fmt.Errorf("unknown command %q for %s", c.Args().First(), c.FullName())
+	}
+	if err := urfave.ShowSubcommandHelp(c); err != nil {
+		return err
+	}
+	return fmt.Errorf("a command is required")
 }
 
-// Usage prints the command usage
-func Usage(commands []Cmd) {
-	template := `paw cli is the CLI application for Paw
-
-Usage: paw cli <command> [arguments]
-
-The commands are:
-
-{{ range $k, $cmd := . }}	{{ printf "%-13s %s\n" $cmd.Name $cmd.Description }}{{ end }}
-Use "paw cli <command> -help" for more information about a command.
-`
-	printTemplate(os.Stdout, template, commands)
-}
-
-func printUsage(textTemplate string, data interface{}) {
-	printTemplate(os.Stdout, textTemplate, data)
-}
-
-// PrintTemplate prints the parsed text template to the specified data object,
-// and writes the output to w.
-func printTemplate(w io.Writer, textTemplate string, data interface{}) {
-	tpl, err := template.New("tpl").Parse(textTemplate)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "[✗] could not parse the template: %s\n", err)
-		os.Exit(1)
-	}
-	err = tpl.Execute(w, data)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "[✗] could not execute the template: %s\n", err)
-		os.Exit(1)
-	}
-}
-
-func askPasswordWithConfirm() (string, error) {
-	for {
-		password, err := askPassword("Password")
-		if err != nil {
-			return "", err
+func withArgs(min, max int, action urfave.ActionFunc) urfave.ActionFunc {
+	return func(ctx context.Context, c *urfave.Command) error {
+		if n := c.Args().Len(); n < min || n > max {
+			return fmt.Errorf("invalid arguments; usage: %s %s", c.FullName(), strings.TrimSpace(c.ArgsUsage))
 		}
-		confirm, err := askPassword("Confirm password")
-		if err != nil {
-			return "", err
-		}
-		if password == confirm {
-			return password, nil
-		}
-		fmt.Println("[✗] Passwords do not match")
+		return action(ctx, c)
 	}
-}
-
-func askPassword(prompt string) (string, error) {
-	if !term.IsTerminal(int(os.Stdin.Fd())) {
-		return "", fmt.Errorf("standard input is not a terminal")
-	}
-	defer fmt.Println("")
-	fmt.Printf("%s: ", prompt)
-	password, err := term.ReadPassword(int(os.Stdin.Fd()))
-	if err != nil {
-		return "", fmt.Errorf("could not read password from standard input: %w", err)
-	}
-	return string(password), nil
-}
-
-func askWithDefault(prompt string, old string) (string, error) {
-	fmt.Printf("%s [%s]: ", prompt, old)
-	line, err := readLine()
-	if err != nil {
-		return old, err
-	}
-	if line == "" {
-		return old, err
-	}
-	return line, nil
-}
-
-func ask(prompt string) (string, error) {
-	fmt.Printf("%s: ", prompt)
-	return readLine()
-}
-
-func askPasswordMode(prompt string, options []paw.PasswordMode, defaultMode paw.PasswordMode) (paw.PasswordMode, error) {
-	var defaultIdx int
-	for i, v := range options {
-		if v == defaultMode {
-			defaultIdx = i
-			break
-		}
-	}
-	fmt.Printf("%s [%s]:\n", prompt, options[defaultIdx])
-	for i, v := range options {
-		fmt.Printf("  [%d] %s\n", i, v)
-	}
-	for {
-		fmt.Print("> ")
-		choice, err := readLine()
-		if err != nil {
-			continue
-		}
-		if choice == "" {
-			return options[defaultIdx], nil
-		}
-		idx, err := strconv.Atoi(choice)
-		if err != nil {
-			continue
-		}
-		if idx >= 0 && idx < len(options) {
-			return options[idx], nil
-		}
-	}
-}
-
-func askIntWithDefaultAndRange(prompt string, def int, min int, max int) (int, error) {
-	for {
-		fmt.Printf("%s [%d]: ", prompt, def)
-		v, err := readLine()
-		if err != nil {
-			continue
-		}
-		if v == "" {
-			return def, nil
-		}
-		i, err := strconv.Atoi(v)
-		if err != nil {
-			continue
-		}
-		if i >= min && i <= max {
-			return i, nil
-		}
-	}
-}
-
-func askYesNo(prompt string, defaultYes bool) (bool, error) {
-	def := "y/N"
-	if defaultYes {
-		def = "Y/n"
-	}
-	for {
-		fmt.Printf("%s [%s]: ", prompt, def)
-		v, err := readLine()
-		if err != nil {
-			continue
-		}
-		if v == "" {
-			return defaultYes, nil
-		}
-		switch strings.ToLower(v) {
-		case "y":
-			return true, nil
-		case "n":
-			return false, nil
-		}
-	}
-}
-
-func readLine() (string, error) {
-	var out string
-	scanner := bufio.NewScanner(bufio.NewReader(os.Stdin))
-	for scanner.Scan() {
-		out = scanner.Text()
-		break
-	}
-	if err := scanner.Err(); err != nil {
-		return out, fmt.Errorf("error reading standard input: %w", err)
-	}
-	return out, nil
 }
 
 type itemPath struct {
@@ -302,27 +160,26 @@ func parseItemPath(path string, opts itemPathOptions) (itemPath, error) {
 }
 
 // loadVaultKey returns the key to unlock the vault from the storage
-// it will use a session from the PAW_SESSION env variable if set,
+// it will use the supplied session if set,
 // otherwise will ask for the vault's password
-func loadVaultKey(s paw.Storage, vaultName string) (*paw.Key, error) {
-	sessionID := os.Getenv(paw.ENV_SESSION)
+func (base *command) loadVaultKey(vaultName, sessionID string) (*paw.Key, error) {
 	if sessionID != "" {
-		key, err := loadVaultKeyWithSession(s, vaultName, sessionID)
+		key, err := base.loadVaultKeyWithSession(vaultName, sessionID)
 		if err == nil {
 			return key, nil
 		}
-		fmt.Println("[✗] Session is invalid or expired")
+		fmt.Fprintln(base.errOut, "[✗] Session is invalid or expired")
 	}
 
-	password, err := askPassword("Enter the vault password")
+	password, err := base.prompter.askPassword("Enter the vault password")
 	if err != nil {
 		return nil, err
 	}
-	return s.LoadVaultKey(vaultName, password)
+	return base.storage.LoadVaultKey(vaultName, password)
 }
 
-func loadVaultKeyWithSession(s paw.Storage, vaultName string, sessionID string) (*paw.Key, error) {
-	client, err := agent.NewClient(s.SocketAgentPath())
+func (base *command) loadVaultKeyWithSession(vaultName string, sessionID string) (*paw.Key, error) {
+	client, err := base.agentClient(base.storage.SocketAgentPath())
 	if err != nil {
 		return nil, err
 	}

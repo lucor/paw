@@ -4,50 +4,31 @@
 package cli
 
 import (
+	"context"
 	"fmt"
+
+	urfave "github.com/urfave/cli/v3"
 
 	"lucor.dev/paw/internal/paw"
 )
 
 // PwGenCmd generates a password
-type PwGenCmd struct{}
+type PwGenCmd struct{ *command }
 
-// Name returns the one word command name
-func (cmd *PwGenCmd) Name() string {
-	return "pwgen"
-}
-
-// Description returns the command description
-func (cmd *PwGenCmd) Description() string {
-	return "Generates a password"
-}
-
-// Usage displays the command usage
-func (cmd *PwGenCmd) Usage() {
-	template := `Usage: paw cli pwgen [OPTION]
-
-{{ . }}
-
-Options:
-  -h, --help  Displays this help and exit
-`
-	printUsage(template, cmd.Description())
-}
-
-// Parse parses the arguments and set the usage for the command
-func (cmd *PwGenCmd) Parse(args []string) error {
-	flags, err := newCommonFlags(flagOpts{})
-	if err != nil {
-		return err
+func newPwGenCommand(base *command) *urfave.Command {
+	return &urfave.Command{
+		Name:      "pwgen",
+		Usage:     "Generates a password",
+		ArgsUsage: " ",
+		Action: withArgs(0, 0, func(ctx context.Context, c *urfave.Command) error {
+			base := base.forInvocation(c)
+			return (&PwGenCmd{command: base}).Run(ctx)
+		}),
 	}
-
-	flags.Parse(cmd, args)
-
-	return nil
 }
 
 // Run runs the command
-func (cmd *PwGenCmd) Run(s paw.Storage) error {
+func (cmd *PwGenCmd) Run(ctx context.Context) error {
 	modes := []paw.PasswordMode{
 		paw.RandomPassword,
 		paw.PassphrasePassword,
@@ -58,7 +39,7 @@ func (cmd *PwGenCmd) Run(s paw.Storage) error {
 		return err
 	}
 
-	fmt.Println(password.Value)
+	fmt.Fprintln(cmd.out, password.Value)
 	return nil
 }
 
@@ -67,13 +48,13 @@ func (cmd *PwGenCmd) Pwgen(key *paw.Key, modes []paw.PasswordMode, defaultMode p
 	var err error
 
 	if key == nil {
-		key, err = paw.MakeOneTimeKey()
+		key, err = cmd.oneTimeKey()
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	choice, err := askPasswordMode("Password type", modes, defaultMode)
+	choice, err := cmd.prompter.askPasswordMode("Password type", modes, defaultMode)
 	if err != nil {
 		return nil, err
 	}
@@ -94,14 +75,14 @@ func (cmd *PwGenCmd) Pwgen(key *paw.Key, modes []paw.PasswordMode, defaultMode p
 // Parse parses the arguments and set the usage for the command
 func (cmd *PwGenCmd) makeRandomPassword(key *paw.Key) (*paw.Password, error) {
 	p := paw.NewRandomPassword()
-	length, err := askIntWithDefaultAndRange("Password length", p.Length, 6, 64)
+	length, err := cmd.prompter.askIntWithDefaultAndRange("Password length", p.Length, 6, 64)
 	if err != nil {
 		return nil, err
 	}
 	p.Length = length
 	p.Format = paw.UppercaseFormat | paw.LowercaseFormat | paw.DigitsFormat
 
-	wantSymbols, err := askYesNo("Password should contains symbols?", true)
+	wantSymbols, err := cmd.prompter.askYesNo("Password should contains symbols?", true)
 	if err != nil {
 		return nil, err
 	}
@@ -118,7 +99,7 @@ func (cmd *PwGenCmd) makeRandomPassword(key *paw.Key) (*paw.Password, error) {
 
 func (cmd *PwGenCmd) makeCustomPassword() (*paw.Password, error) {
 	p := paw.NewCustomPassword()
-	v, err := askPasswordWithConfirm()
+	v, err := cmd.prompter.askPasswordWithConfirm()
 	if err != nil {
 		return nil, err
 	}
@@ -128,7 +109,7 @@ func (cmd *PwGenCmd) makeCustomPassword() (*paw.Password, error) {
 
 func (cmd *PwGenCmd) makePassphrasePassword(key *paw.Key) (*paw.Password, error) {
 	p := paw.NewPassphrasePassword()
-	length, err := askIntWithDefaultAndRange("Passphrase words", p.Length, 2, 12)
+	length, err := cmd.prompter.askIntWithDefaultAndRange("Passphrase words", p.Length, 2, 12)
 	if err != nil {
 		return nil, err
 	}
@@ -142,7 +123,7 @@ func (cmd *PwGenCmd) makePassphrasePassword(key *paw.Key) (*paw.Password, error)
 
 func (cmd *PwGenCmd) makePinPassword(key *paw.Key) (*paw.Password, error) {
 	p := paw.NewPinPassword()
-	length, err := askIntWithDefaultAndRange("Pin length", p.Length, 4, 10)
+	length, err := cmd.prompter.askIntWithDefaultAndRange("Pin length", p.Length, 4, 10)
 	if err != nil {
 		return nil, err
 	}

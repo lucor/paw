@@ -4,7 +4,10 @@
 package cli
 
 import (
+	"context"
 	"fmt"
+
+	urfave "github.com/urfave/cli/v3"
 
 	"lucor.dev/paw/internal/paw"
 	"lucor.dev/paw/internal/tree"
@@ -12,66 +15,44 @@ import (
 
 // List lists the vaults content
 type ListCmd struct {
+	*command
+	sessionID string
 	itemPath
 }
 
-// Name returns the one word command name
-func (cmd *ListCmd) Name() string {
-	return "ls"
-}
-
-// Description returns the command description
-func (cmd *ListCmd) Description() string {
-	return "List vaults and items"
-}
-
-// Usage displays the command usage
-func (cmd *ListCmd) Usage() {
-	template := `Usage: paw cli ls [OPTION] [VAULT_NAME/ITEM_TYPE/ITEM_NAME]
-
-{{ . }}
-
-Options:
-  -h, --help  Displays this help and exit
-`
-	printUsage(template, cmd.Description())
-}
-
-// Parse parses the arguments and set the usage for the command
-func (cmd *ListCmd) Parse(args []string) error {
-	flags, err := newCommonFlags(flagOpts{Session: true})
-	if err != nil {
-		return err
+func newListCommand(base *command) *urfave.Command {
+	return &urfave.Command{
+		Name:      "ls",
+		Usage:     "Lists vaults and items",
+		ArgsUsage: "[VAULT_NAME/ITEM_TYPE/ITEM_NAME]",
+		Flags:     []urfave.Flag{sessionFlag()},
+		Action: withArgs(0, 1, func(ctx context.Context, c *urfave.Command) error {
+			base := base.forInvocation(c)
+			cmd := &ListCmd{command: base, sessionID: c.String("session")}
+			if c.Args().Present() {
+				path, err := parseItemPath(c.Args().First(), itemPathOptions{wildcard: true})
+				if err != nil {
+					return err
+				}
+				cmd.itemPath = path
+			}
+			return cmd.Run(ctx)
+		}),
 	}
-
-	flags.Parse(cmd, args)
-	flags.SetEnv()
-	if len(flagSet.Args()) == 0 {
-		return nil
-	}
-
-	itemPath, err := parseItemPath(flagSet.Arg(0), itemPathOptions{wildcard: true})
-	if err != nil {
-		return err
-	}
-
-	cmd.itemPath = itemPath
-	return nil
 }
 
 // Run runs the command
-func (cmd *ListCmd) Run(s paw.Storage) error {
-	vaultNode, err := cmd.vaults(s)
+func (cmd *ListCmd) Run(ctx context.Context) error {
+	vaultNode, err := cmd.vaults()
 	if err != nil {
 		return err
 	}
 
 	if cmd.vaultName == "" {
-		tree.Print(vaultNode)
-		return nil
+		return tree.Fprint(cmd.out, vaultNode)
 	}
 
-	itemsNode, err := cmd.items(s)
+	itemsNode, err := cmd.items()
 	if err != nil {
 		return err
 	}
@@ -85,16 +66,16 @@ func (cmd *ListCmd) Run(s paw.Storage) error {
 	}
 
 	if len(n.Child) == 0 {
-		fmt.Printf("vault %q is empty\n", cmd.vaultName)
+		fmt.Fprintf(cmd.out, "vault %q is empty\n", cmd.vaultName)
 		return nil
 	}
 
-	tree.Print(n)
-	return nil
+	return tree.Fprint(cmd.out, n)
 }
 
-func (cmd *ListCmd) items(s paw.Storage) ([]tree.Node, error) {
-	key, err := loadVaultKey(s, cmd.vaultName)
+func (cmd *ListCmd) items() ([]tree.Node, error) {
+	s := cmd.storage
+	key, err := cmd.loadVaultKey(cmd.vaultName, cmd.sessionID)
 	if err != nil {
 		return nil, err
 	}
@@ -134,7 +115,8 @@ func (cmd *ListCmd) items(s paw.Storage) ([]tree.Node, error) {
 	}, nil
 }
 
-func (cmd *ListCmd) vaults(s paw.Storage) (tree.Node, error) {
+func (cmd *ListCmd) vaults() (tree.Node, error) {
+	s := cmd.storage
 
 	n := tree.Node{
 		Value: "paw",

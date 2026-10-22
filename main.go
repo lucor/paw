@@ -85,7 +85,10 @@ func main() {
 
 	if at.IsCLI() {
 		// Run the CLI app
-		cli.Run(os.Args, s)
+		if err := cli.Run(os.Args, s); err != nil {
+			fmt.Fprintf(os.Stderr, "[✗] %s\n", err)
+			os.Exit(1)
+		}
 		return
 	}
 

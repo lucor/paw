@@ -5,6 +5,7 @@ package tree
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -16,9 +17,15 @@ type Node struct {
 }
 
 func Print(node Node) {
-	fmt.Println(node.Value)
-	print(node.Child, 0, "")
+	_ = Fprint(os.Stdout, node)
+}
 
+// Fprint renders a tree to w.
+func Fprint(w io.Writer, node Node) error {
+	if _, err := fmt.Fprintln(w, node.Value); err != nil {
+		return err
+	}
+	return print(w, node.Child, "")
 }
 
 func PrintDir(dir string) {
@@ -27,7 +34,7 @@ func PrintDir(dir string) {
 	Print(node)
 }
 
-func print(nodes []Node, level int, prefix string) {
+func print(w io.Writer, nodes []Node, prefix string) error {
 	for i := 0; i < len(nodes); i++ {
 		node := nodes[i]
 		lastNode := i == len(nodes)-1
@@ -39,9 +46,14 @@ func print(nodes []Node, level int, prefix string) {
 			nodePrefix = "└──"
 		}
 
-		fmt.Printf("%s%s %s\n", prefix, nodePrefix, node.Value)
-		print(node.Child, level+1, childPrefix)
+		if _, err := fmt.Fprintf(w, "%s%s %s\n", prefix, nodePrefix, node.Value); err != nil {
+			return err
+		}
+		if err := print(w, node.Child, childPrefix); err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
 func dirEntryToNode(dir string, tn *Node) {

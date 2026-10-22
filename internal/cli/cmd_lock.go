@@ -4,8 +4,10 @@
 package cli
 
 import (
+	"context"
 	"fmt"
-	"os"
+
+	urfave "github.com/urfave/cli/v3"
 
 	"lucor.dev/paw/internal/agent"
 	"lucor.dev/paw/internal/paw"
@@ -14,51 +16,27 @@ import (
 
 // Lock locks a Paw vault removing all the associated sessions from the agent
 type LockCmd struct {
+	*command
 	vaultName string
 }
 
-// Name returns the one word command name
-func (cmd *LockCmd) Name() string {
-	return "lock"
-}
-
-// Description returns the command description
-func (cmd *LockCmd) Description() string {
-	return "Lock a vault"
-}
-
-// Usage displays the command usage
-func (cmd *LockCmd) Usage() {
-	template := `Usage: paw cli lock [OPTION] VAULT
-
-{{ . }}
-
-Options:
-  -h, --help  Displays this help and exit
-`
-	printUsage(template, cmd.Description())
-}
-
-// Parse parses the arguments and set the usage for the command
-func (cmd *LockCmd) Parse(args []string) error {
-	flags, err := newCommonFlags(flagOpts{})
-	if err != nil {
-		return err
+func newLockCommand(base *command) *urfave.Command {
+	return &urfave.Command{
+		Name:      "lock",
+		Usage:     "Locks a vault",
+		ArgsUsage: "VAULT",
+		Action: withArgs(1, 1, func(ctx context.Context, c *urfave.Command) error {
+			base := base.forInvocation(c)
+			return (&LockCmd{command: base, vaultName: c.Args().First()}).Run(ctx)
+		}),
 	}
-
-	flags.Parse(cmd, args)
-	if len(flagSet.Args()) != 1 {
-		cmd.Usage()
-		os.Exit(1)
-	}
-
-	cmd.vaultName = flagSet.Arg(0)
-	return nil
 }
 
 // Run runs the command
-func (cmd *LockCmd) Run(s paw.Storage) error {
-	c, err := agent.NewClient(s.SocketAgentPath())
+func (cmd *LockCmd) Run(ctx context.Context) error {
+	base := cmd.command
+	s := base.storage
+	c, err := base.agentClient(s.SocketAgentPath())
 	if err != nil {
 		return fmt.Errorf("agent not available: %w", err)
 	}
@@ -67,18 +45,18 @@ func (cmd *LockCmd) Run(s paw.Storage) error {
 		return err
 	}
 
-	fmt.Println("Removing SSH keys from the agent...")
-	err = cmd.removeSSHKeysFromAgent(c, s)
+	fmt.Fprintln(cmd.out, "Removing SSH keys from the agent...")
+	err = cmd.removeSSHKeysFromAgent(c)
 	if err != nil {
-		fmt.Println("could not remove SSH keys from the agent:", err)
+		fmt.Fprintln(cmd.out, "could not remove SSH keys from the agent:", err)
 	}
-	fmt.Println("[✓] vault locked")
+	fmt.Fprintln(cmd.out, "[✓] vault locked")
 	return nil
 }
 
-func (cmd *LockCmd) removeSSHKeysFromAgent(c agent.PawAgent, s paw.Storage) error {
-	os.Setenv(paw.ENV_SESSION, "")
-	key, err := loadVaultKey(s, cmd.vaultName)
+func (cmd *LockCmd) removeSSHKeysFromAgent(c agent.PawAgent) error {
+	s := cmd.storage
+	key, err := cmd.loadVaultKey(cmd.vaultName, "")
 	if err != nil {
 		return err
 	}
@@ -105,10 +83,10 @@ func (cmd *LockCmd) removeSSHKeysFromAgent(c agent.PawAgent, s paw.Storage) erro
 
 		err = c.RemoveSSHKey(k.PublicKey())
 		if err != nil {
-			fmt.Printf("Could not remove SSH key from the agent. Error: %q - Public key: %s", err, k.MarshalPublicKey())
+			fmt.Fprintf(cmd.out, "Could not remove SSH key from the agent. Error: %q - Public key: %s", err, k.MarshalPublicKey())
 			return true
 		}
-		fmt.Printf("Removed key: %s", k.MarshalPublicKey())
+		fmt.Fprintf(cmd.out, "Removed key: %s", k.MarshalPublicKey())
 		return true
 	})
 	return nil

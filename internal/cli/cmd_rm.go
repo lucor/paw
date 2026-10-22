@@ -4,71 +4,48 @@
 package cli
 
 import (
+	"context"
 	"fmt"
-	"os"
-	"time"
+
+	urfave "github.com/urfave/cli/v3"
 
 	"lucor.dev/paw/internal/paw"
 )
 
 // RemoveCmd removes an item from the vault
 type RemoveCmd struct {
+	*command
+	sessionID string
 	itemPath
 }
 
-// Name returns the one word command name
-func (cmd *RemoveCmd) Name() string {
-	return "rm"
-}
-
-// Description returns the command description
-func (cmd *RemoveCmd) Description() string {
-	return "Removes an item from the vault"
-}
-
-// Usage displays the command usage
-func (cmd *RemoveCmd) Usage() {
-	template := `Usage: paw cli rm [OPTION] VAULT_NAME/ITEM_TYPE/ITEM_NAME
-
-{{ . }}
-
-Options:
-  -h, --help                  Displays this help and exit
-      --session=SESSION_ID    Sets a session ID to use instead of the env var
-`
-	printUsage(template, cmd.Description())
-}
-
-// Parse parses the arguments and set the usage for the command
-func (cmd *RemoveCmd) Parse(args []string) error {
-	flags, err := newCommonFlags(flagOpts{Session: true})
-	if err != nil {
-		return err
+func newRemoveCommand(base *command) *urfave.Command {
+	return &urfave.Command{
+		Name:      "rm",
+		Usage:     "Removes an item from the vault",
+		ArgsUsage: "VAULT_NAME/ITEM_TYPE/ITEM_NAME",
+		Flags:     []urfave.Flag{sessionFlag()},
+		Action: withArgs(1, 1, func(ctx context.Context, c *urfave.Command) error {
+			base := base.forInvocation(c)
+			path, err := parseItemPath(c.Args().First(), itemPathOptions{fullPath: true})
+			if err != nil {
+				return err
+			}
+			return (&RemoveCmd{command: base, itemPath: path, sessionID: c.String("session")}).Run(ctx)
+		}),
 	}
-
-	flags.Parse(cmd, args)
-	if len(flagSet.Args()) != 1 {
-		cmd.Usage()
-		os.Exit(1)
-	}
-	flags.SetEnv()
-
-	itemPath, err := parseItemPath(flagSet.Arg(0), itemPathOptions{fullPath: true})
-	if err != nil {
-		return err
-	}
-	cmd.itemPath = itemPath
-	return nil
 }
 
 // Run runs the command
-func (cmd *RemoveCmd) Run(s paw.Storage) error {
+func (cmd *RemoveCmd) Run(ctx context.Context) error {
+	base := cmd.command
+	s := base.storage
 	appState, err := s.LoadAppState()
 	if err != nil {
 		return err
 	}
 
-	key, err := loadVaultKey(s, cmd.vaultName)
+	key, err := cmd.loadVaultKey(cmd.vaultName, cmd.sessionID)
 	if err != nil {
 		return err
 	}
@@ -88,12 +65,12 @@ func (cmd *RemoveCmd) Run(s paw.Storage) error {
 	}
 
 	msg := fmt.Sprintf("Are you sure you want to delete %q?", cmd.itemPath)
-	confirm, err := askYesNo(msg, false)
+	confirm, err := cmd.prompter.askYesNo(msg, false)
 	if err != nil {
 		return err
 	}
 	if !confirm {
-		os.Exit(0)
+		return nil
 	}
 
 	err = s.DeleteItem(vault, item)
@@ -103,7 +80,7 @@ func (cmd *RemoveCmd) Run(s paw.Storage) error {
 
 	vault.DeleteItem(item)
 
-	now := time.Now().UTC()
+	now := base.now().UTC()
 	vault.Modified = now
 	err = s.StoreVault(vault)
 	if err != nil {
@@ -116,6 +93,6 @@ func (cmd *RemoveCmd) Run(s paw.Storage) error {
 		return err
 	}
 
-	fmt.Printf("[✓] item %q removed\n", cmd.itemName)
+	fmt.Fprintf(cmd.out, "[✓] item %q removed\n", cmd.itemName)
 	return nil
 }

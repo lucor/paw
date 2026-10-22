@@ -4,9 +4,11 @@
 package cli
 
 import (
+	"context"
 	"fmt"
-	"os"
 	"time"
+
+	urfave "github.com/urfave/cli/v3"
 
 	"lucor.dev/paw/internal/agent"
 	"lucor.dev/paw/internal/paw"
@@ -15,61 +17,34 @@ import (
 
 // UnlockCmd unlock a vault and starts a session returning its ID
 type UnlockCmd struct {
+	*command
 	vaultName string
 	life      time.Duration
 }
 
-// Name returns the one word command name
-func (cmd *UnlockCmd) Name() string {
-	return "unlock"
-}
-
-// Description returns the command description
-func (cmd *UnlockCmd) Description() string {
-	return "Unlock a vault returning a session ID"
-}
-
-// Usage displays the command usage
-func (cmd *UnlockCmd) Usage() {
-	template := `Usage: paw cli session [OPTION] COMMAND VAULT
-
-{{ . }}
-
-Options:
-  -t, --lifetime=DURATION   Sets the maximum lifetime for the session. Default to never expire
-  -h, --help            Displays this help and exit
-`
-	printUsage(template, cmd.Description())
-}
-
-// Parse parses the arguments and set the usage for the command
-func (cmd *UnlockCmd) Parse(args []string) error {
-	flags, err := newCommonFlags(flagOpts{})
-	if err != nil {
-		return err
+func newUnlockCommand(base *command) *urfave.Command {
+	return &urfave.Command{
+		Name:      "unlock",
+		Usage:     "Unlocks a vault and returns a session ID",
+		ArgsUsage: "VAULT",
+		Flags:     []urfave.Flag{&urfave.DurationFlag{Name: "lifetime", Aliases: []string{"t"}, Usage: "Maximum session lifetime (zero means no expiry)"}},
+		Action: withArgs(1, 1, func(ctx context.Context, c *urfave.Command) error {
+			base := base.forInvocation(c)
+			return (&UnlockCmd{command: base, vaultName: c.Args().First(), life: c.Duration("lifetime")}).Run(ctx)
+		}),
 	}
-
-	flagSet.DurationVar(&cmd.life, "t", 0, "")
-	flagSet.DurationVar(&cmd.life, "lifetime", 0, "")
-
-	flags.Parse(cmd, args)
-	if len(flagSet.Args()) != 1 {
-		cmd.Usage()
-		os.Exit(1)
-	}
-
-	cmd.vaultName = flagSet.Arg(0)
-	return nil
 }
 
 // Run runs the command
-func (cmd *UnlockCmd) Run(s paw.Storage) error {
-	c, err := agent.NewClient(s.SocketAgentPath())
+func (cmd *UnlockCmd) Run(ctx context.Context) error {
+	base := cmd.command
+	s := base.storage
+	c, err := base.agentClient(s.SocketAgentPath())
 	if err != nil {
 		return fmt.Errorf("agent not available: %w", err)
 	}
 
-	key, err := loadVaultKey(s, cmd.vaultName)
+	key, err := cmd.loadVaultKey(cmd.vaultName, base.getenv(paw.ENV_SESSION))
 	if err != nil {
 		return err
 	}
@@ -79,17 +54,18 @@ func (cmd *UnlockCmd) Run(s paw.Storage) error {
 		return err
 	}
 
-	fmt.Println("adding SSH keys to the agent...")
-	err = cmd.addSSHKeysToAgent(c, s, key)
+	fmt.Fprintln(cmd.out, "adding SSH keys to the agent...")
+	err = cmd.addSSHKeysToAgent(c, key)
 	if err != nil {
-		fmt.Println("could not add SSH keys to the agent:", err)
+		fmt.Fprintln(cmd.out, "could not add SSH keys to the agent:", err)
 	}
-	fmt.Println("Session ID: ", sessionID)
-	fmt.Println("[✓] vault unlocked")
+	fmt.Fprintln(cmd.out, "Session ID: ", sessionID)
+	fmt.Fprintln(cmd.out, "[✓] vault unlocked")
 	return nil
 }
 
-func (cmd *UnlockCmd) addSSHKeysToAgent(c agent.PawAgent, s paw.Storage, key *paw.Key) error {
+func (cmd *UnlockCmd) addSSHKeysToAgent(c agent.PawAgent, key *paw.Key) error {
+	s := cmd.storage
 	vault, err := s.LoadVault(cmd.vaultName, key)
 	if err != nil {
 		return err
@@ -113,10 +89,10 @@ func (cmd *UnlockCmd) addSSHKeysToAgent(c agent.PawAgent, s paw.Storage, key *pa
 
 		err = c.AddSSHKey(k.PrivateKey(), v.Comment)
 		if err != nil {
-			fmt.Printf("could not add SSH key to agent. Error: %q - Public key: %s", err, k.MarshalPublicKey())
+			fmt.Fprintf(cmd.out, "could not add SSH key to agent. Error: %q - Public key: %s", err, k.MarshalPublicKey())
 			return true
 		}
-		fmt.Printf("added: %s", k.MarshalPublicKey())
+		fmt.Fprintf(cmd.out, "added: %s", k.MarshalPublicKey())
 		return true
 	})
 	return nil

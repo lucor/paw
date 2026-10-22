@@ -4,71 +4,48 @@
 package cli
 
 import (
+	"context"
 	"fmt"
-	"os"
-	"time"
+
+	urfave "github.com/urfave/cli/v3"
 
 	"lucor.dev/paw/internal/paw"
 )
 
 // Edit edits an item into the vault
 type EditCmd struct {
+	*command
+	sessionID string
 	itemPath
 }
 
-// Name returns the one word command name
-func (cmd *EditCmd) Name() string {
-	return "edit"
-}
-
-// Description returns the command description
-func (cmd *EditCmd) Description() string {
-	return "Edits an item into the vault"
-}
-
-// Usage displays the command usage
-func (cmd *EditCmd) Usage() {
-	template := `Usage: paw cli [OPTION] edit VAULT_NAME/ITEM_TYPE/ITEM_NAME
-
-{{ . }}
-
-Options:
-  -h, --help                  Displays this help and exit
-      --session=SESSION_ID    Sets a session ID to use instead of the env var
-`
-	printUsage(template, cmd.Description())
-}
-
-// Parse parses the arguments and set the usage for the command
-func (cmd *EditCmd) Parse(args []string) error {
-	flags, err := newCommonFlags(flagOpts{Session: true})
-	if err != nil {
-		return err
+func newEditCommand(base *command) *urfave.Command {
+	return &urfave.Command{
+		Name:      "edit",
+		Usage:     "Edits an item in the vault",
+		ArgsUsage: "VAULT_NAME/ITEM_TYPE/ITEM_NAME",
+		Flags:     []urfave.Flag{sessionFlag()},
+		Action: withArgs(1, 1, func(ctx context.Context, c *urfave.Command) error {
+			base := base.forInvocation(c)
+			path, err := parseItemPath(c.Args().First(), itemPathOptions{fullPath: true})
+			if err != nil {
+				return err
+			}
+			return (&EditCmd{command: base, itemPath: path, sessionID: c.String("session")}).Run(ctx)
+		}),
 	}
-
-	flags.Parse(cmd, args)
-	if len(flagSet.Args()) != 1 {
-		cmd.Usage()
-		os.Exit(1)
-	}
-	flags.SetEnv()
-
-	itemPath, err := parseItemPath(flagSet.Arg(0), itemPathOptions{fullPath: true})
-	if err != nil {
-		return err
-	}
-	cmd.itemPath = itemPath
-	return nil
 }
 
 // Run runs the command
-func (cmd *EditCmd) Run(s paw.Storage) error {
+func (cmd *EditCmd) Run(ctx context.Context) error {
+	base := cmd.command
+	s := base.storage
 	appState, err := s.LoadAppState()
 	if err != nil {
 		return err
 	}
 
-	key, err := loadVaultKey(s, cmd.vaultName)
+	key, err := cmd.loadVaultKey(cmd.vaultName, cmd.sessionID)
 	if err != nil {
 		return err
 	}
@@ -90,18 +67,22 @@ func (cmd *EditCmd) Run(s paw.Storage) error {
 
 	switch cmd.itemType {
 	case paw.LoginItemType:
-		cmd.editLoginItem(vault.Key(), item)
+		err = cmd.editLoginItem(vault.Key(), item)
 	case paw.NoteItemType:
-		cmd.editNoteItem(item)
+		err = cmd.editNoteItem(item)
 	case paw.PasswordItemType:
-		cmd.editPasswordItem(vault.Key(), item)
+		err = cmd.editPasswordItem(vault.Key(), item)
 	case paw.SSHKeyItemType:
-		cmd.editSSHKeyItem(item)
+		err = cmd.editSSHKeyItem(item)
 	default:
 		return fmt.Errorf("unsupported item type: %q", cmd.itemType)
 	}
 
-	now := time.Now().UTC()
+	if err != nil {
+		return err
+	}
+
+	now := base.now().UTC()
 
 	item.GetMetadata().Modified = now
 
@@ -127,26 +108,26 @@ func (cmd *EditCmd) Run(s paw.Storage) error {
 		return err
 	}
 
-	fmt.Printf("[✓] item %q modified\n", cmd.itemName)
+	fmt.Fprintf(cmd.out, "[✓] item %q modified\n", cmd.itemName)
 	return nil
 }
 
 func (cmd *EditCmd) editLoginItem(key *paw.Key, item paw.Item) error {
 	v := item.(*paw.Login)
 
-	url, err := askWithDefault("URL", v.URL.String())
+	url, err := cmd.prompter.askWithDefault("URL", v.URL.String())
 	if err != nil {
 		return err
 	}
 	v.URL.Set(url)
 
-	username, err := askWithDefault("Username", v.Username)
+	username, err := cmd.prompter.askWithDefault("Username", v.Username)
 	if err != nil {
 		return err
 	}
 	v.Username = username
 
-	pwgenCmd := &PwGenCmd{}
+	pwgenCmd := &PwGenCmd{command: cmd.command}
 	modes := []paw.PasswordMode{
 		paw.CustomPassword,
 		paw.RandomPassword,
@@ -162,7 +143,7 @@ func (cmd *EditCmd) editLoginItem(key *paw.Key, item paw.Item) error {
 	v.Password.Format = password.Format
 	v.Password.Length = password.Length
 
-	note, err := askWithDefault("Note", v.Note.Value)
+	note, err := cmd.prompter.askWithDefault("Note", v.Note.Value)
 	if err != nil {
 		return err
 	}
@@ -175,7 +156,7 @@ func (cmd *EditCmd) editLoginItem(key *paw.Key, item paw.Item) error {
 func (cmd *EditCmd) editNoteItem(item paw.Item) error {
 	v := item.(*paw.Note)
 
-	note, err := askWithDefault("Note", v.Value)
+	note, err := cmd.prompter.askWithDefault("Note", v.Value)
 	if err != nil {
 		return err
 	}
@@ -188,7 +169,7 @@ func (cmd *EditCmd) editNoteItem(item paw.Item) error {
 func (cmd *EditCmd) editPasswordItem(key *paw.Key, item paw.Item) error {
 	v := item.(*paw.Password)
 
-	pwgenCmd := &PwGenCmd{}
+	pwgenCmd := &PwGenCmd{command: cmd.command}
 	modes := []paw.PasswordMode{
 		paw.CustomPassword,
 		paw.RandomPassword,
@@ -204,7 +185,7 @@ func (cmd *EditCmd) editPasswordItem(key *paw.Key, item paw.Item) error {
 	v.Format = password.Format
 	v.Length = password.Length
 
-	note, err := askWithDefault("Note", v.Note.Value)
+	note, err := cmd.prompter.askWithDefault("Note", v.Note.Value)
 	if err != nil {
 		return err
 	}
@@ -217,13 +198,13 @@ func (cmd *EditCmd) editPasswordItem(key *paw.Key, item paw.Item) error {
 func (cmd *EditCmd) editSSHKeyItem(item paw.Item) error {
 	v := item.(*paw.SSHKey)
 
-	addToAgent, err := askYesNo("Add to agent", v.AddToAgent)
+	addToAgent, err := cmd.prompter.askYesNo("Add to agent", v.AddToAgent)
 	if err != nil {
 		return err
 	}
 	v.AddToAgent = addToAgent
 
-	note, err := askWithDefault("Note", v.Note.Value)
+	note, err := cmd.prompter.askWithDefault("Note", v.Note.Value)
 	if err != nil {
 		return err
 	}
