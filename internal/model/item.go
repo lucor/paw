@@ -6,7 +6,7 @@ import (
 
 	"go.lucor.dev/cxf"
 
-	"lucor.dev/paw/internal/paw"
+	"go.lucor.dev/paw/internal/paw"
 )
 
 const itemExtensionName = "paw.pm/item"

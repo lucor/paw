@@ -15,8 +15,8 @@ import (
 	"fyne.io/fyne/v2/test"
 	"github.com/stretchr/testify/require"
 
-	"lucor.dev/paw/internal/model"
-	"lucor.dev/paw/internal/paw"
+	"go.lucor.dev/paw/internal/model"
+	"go.lucor.dev/paw/internal/paw"
 )
 
 type failingWriter struct {

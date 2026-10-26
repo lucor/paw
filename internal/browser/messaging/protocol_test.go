@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"lucor.dev/paw/internal/storage"
+	"go.lucor.dev/paw/internal/storage"
 )
 
 func Test_PawMux(t *testing.T) {

@@ -11,9 +11,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.lucor.dev/cxf"
 
-	"lucor.dev/paw/internal/migration"
-	"lucor.dev/paw/internal/model"
-	"lucor.dev/paw/internal/paw"
+	"go.lucor.dev/paw/internal/migration"
+	"go.lucor.dev/paw/internal/model"
+	"go.lucor.dev/paw/internal/paw"
 )
 
 // TestMigratePasswordPreservesData checks password fields and outer dates survive conversion.

@@ -15,9 +15,9 @@ import (
 	"go.lucor.dev/cxf"
 	"golang.org/x/crypto/ssh"
 
-	"lucor.dev/paw/internal/model"
-	"lucor.dev/paw/internal/paw"
-	"lucor.dev/paw/internal/sshkey"
+	"go.lucor.dev/paw/internal/model"
+	"go.lucor.dev/paw/internal/paw"
+	"go.lucor.dev/paw/internal/sshkey"
 )
 
 // Add adds an item to the vault.

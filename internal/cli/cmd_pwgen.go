@@ -9,7 +9,7 @@ import (
 
 	urfave "github.com/urfave/cli/v3"
 
-	"lucor.dev/paw/internal/paw"
+	"go.lucor.dev/paw/internal/paw"
 )
 
 // PwGenCmd generates a password

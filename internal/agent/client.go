@@ -10,9 +10,9 @@ import (
 	"errors"
 	"time"
 
+	"go.lucor.dev/paw/internal/paw"
 	"golang.org/x/crypto/ssh"
 	sshagent "golang.org/x/crypto/ssh/agent"
-	"lucor.dev/paw/internal/paw"
 )
 
 const (

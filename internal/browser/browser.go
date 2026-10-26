@@ -8,8 +8,8 @@ import (
 	"os"
 	"strings"
 
-	"lucor.dev/paw/internal/browser/messaging"
-	"lucor.dev/paw/internal/storage"
+	"go.lucor.dev/paw/internal/browser/messaging"
+	"go.lucor.dev/paw/internal/storage"
 )
 
 func MessageFromExtension(args []string) bool {

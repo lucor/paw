@@ -11,8 +11,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.lucor.dev/cxf"
 
-	"lucor.dev/paw/internal/model"
-	"lucor.dev/paw/internal/paw"
+	"go.lucor.dev/paw/internal/model"
+	"go.lucor.dev/paw/internal/paw"
 )
 
 // TestMigrateLoginPreservesLoginData checks the fields mapped from a legacy login.

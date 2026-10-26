@@ -11,12 +11,12 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
 
-	"lucor.dev/paw/internal/agent"
-	"lucor.dev/paw/internal/browser"
-	"lucor.dev/paw/internal/cli"
-	"lucor.dev/paw/internal/icon"
-	"lucor.dev/paw/internal/storage"
-	"lucor.dev/paw/internal/ui"
+	"go.lucor.dev/paw/internal/agent"
+	"go.lucor.dev/paw/internal/browser"
+	"go.lucor.dev/paw/internal/cli"
+	"go.lucor.dev/paw/internal/icon"
+	"go.lucor.dev/paw/internal/storage"
+	"go.lucor.dev/paw/internal/ui"
 )
 
 // appType detects the application type from the command line arguments and the runtime

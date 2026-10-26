@@ -11,9 +11,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.lucor.dev/cxf"
 
-	"lucor.dev/paw/internal/migration"
-	"lucor.dev/paw/internal/model"
-	"lucor.dev/paw/internal/paw"
+	"go.lucor.dev/paw/internal/migration"
+	"go.lucor.dev/paw/internal/model"
+	"go.lucor.dev/paw/internal/paw"
 )
 
 // TestMigrateNote checks note content is preserved and dates become Unix seconds.

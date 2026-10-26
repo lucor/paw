@@ -8,7 +8,7 @@ import (
 
 	fynestorage "fyne.io/fyne/v2/storage"
 
-	"lucor.dev/paw/internal/paw"
+	"go.lucor.dev/paw/internal/paw"
 )
 
 // loadLegacyVault reads a vault using the legacy Paw format.

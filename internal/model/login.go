@@ -11,7 +11,7 @@ import (
 
 	"go.lucor.dev/cxf"
 
-	"lucor.dev/paw/internal/paw"
+	"go.lucor.dev/paw/internal/paw"
 )
 
 // NewLogin creates a Paw login item with a new ID and current dates.

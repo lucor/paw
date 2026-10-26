@@ -20,11 +20,11 @@ import (
 	"go.lucor.dev/cxf"
 	"golang.org/x/crypto/ssh"
 
-	"lucor.dev/paw/internal/agent"
-	"lucor.dev/paw/internal/model"
-	"lucor.dev/paw/internal/paw"
-	"lucor.dev/paw/internal/sshkey"
-	"lucor.dev/paw/internal/storage"
+	"go.lucor.dev/paw/internal/agent"
+	"go.lucor.dev/paw/internal/model"
+	"go.lucor.dev/paw/internal/paw"
+	"go.lucor.dev/paw/internal/sshkey"
+	"go.lucor.dev/paw/internal/storage"
 )
 
 type fakeAgent struct {

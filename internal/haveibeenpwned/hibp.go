@@ -17,7 +17,7 @@ import (
 	"strconv"
 	"time"
 
-	"lucor.dev/paw/internal/model"
+	"go.lucor.dev/paw/internal/model"
 )
 
 const apiURL = "https://api.pwnedpasswords.com/range/%s"

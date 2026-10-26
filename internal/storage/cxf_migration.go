@@ -10,9 +10,9 @@ import (
 	"strings"
 	"time"
 
-	"lucor.dev/paw/internal/migration"
-	"lucor.dev/paw/internal/model"
-	"lucor.dev/paw/internal/paw"
+	"go.lucor.dev/paw/internal/migration"
+	"go.lucor.dev/paw/internal/model"
+	"go.lucor.dev/paw/internal/paw"
 )
 
 type legacyItemRef struct {

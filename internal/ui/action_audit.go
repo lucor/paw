@@ -19,11 +19,11 @@ import (
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 	"go.lucor.dev/cxf"
+	"go.lucor.dev/paw/internal/haveibeenpwned"
+	"go.lucor.dev/paw/internal/icon"
+	"go.lucor.dev/paw/internal/paw"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
-	"lucor.dev/paw/internal/haveibeenpwned"
-	"lucor.dev/paw/internal/icon"
-	"lucor.dev/paw/internal/paw"
 )
 
 // auditPasswordView returns a view to audit passwords

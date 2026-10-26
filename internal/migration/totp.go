@@ -8,7 +8,7 @@ import (
 
 	"go.lucor.dev/cxf"
 
-	"lucor.dev/paw/internal/paw"
+	"go.lucor.dev/paw/internal/paw"
 )
 
 // MigrateTOTP converts a configured legacy TOTP to its CXF credential.

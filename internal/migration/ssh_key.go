@@ -17,9 +17,9 @@ import (
 
 	"go.lucor.dev/cxf"
 
-	"lucor.dev/paw/internal/model"
-	"lucor.dev/paw/internal/paw"
-	"lucor.dev/paw/internal/sshkey"
+	"go.lucor.dev/paw/internal/model"
+	"go.lucor.dev/paw/internal/paw"
+	"go.lucor.dev/paw/internal/sshkey"
 )
 
 // MigrateSSHKey converts a legacy SSH key to a CXF-backed Paw item.

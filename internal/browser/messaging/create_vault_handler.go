@@ -7,8 +7,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"lucor.dev/paw/internal/agent"
-	"lucor.dev/paw/internal/storage"
+	"go.lucor.dev/paw/internal/agent"
+	"go.lucor.dev/paw/internal/storage"
 )
 
 // Declare conformity to Handler interface

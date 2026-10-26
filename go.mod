@@ -1,4 +1,4 @@
-module lucor.dev/paw
+module go.lucor.dev/paw
 
 go 1.26.0
 

@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"lucor.dev/paw/internal/age"
+	"go.lucor.dev/paw/internal/age"
 )
 
 // Declare conformity to Item interface

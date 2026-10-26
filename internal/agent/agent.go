@@ -12,9 +12,9 @@ import (
 	"sync"
 	"time"
 
+	"go.lucor.dev/paw/internal/paw"
 	"golang.org/x/crypto/ssh"
 	sshagent "golang.org/x/crypto/ssh/agent"
-	"lucor.dev/paw/internal/paw"
 )
 
 var ErrOperationUnsupported = errors.New("operation unsupported")

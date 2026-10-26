@@ -9,7 +9,7 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/dialog"
-	"lucor.dev/paw/internal/model"
+	"go.lucor.dev/paw/internal/model"
 )
 
 // exportToFile saves all full vault items as CXF JSON.

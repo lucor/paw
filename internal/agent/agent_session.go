@@ -9,8 +9,8 @@ import (
 	"fmt"
 	"time"
 
-	"lucor.dev/paw/internal/age/bech32"
-	"lucor.dev/paw/internal/paw"
+	"go.lucor.dev/paw/internal/age/bech32"
+	"go.lucor.dev/paw/internal/paw"
 )
 
 const (

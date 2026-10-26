@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"lucor.dev/paw/internal/storage"
+	"go.lucor.dev/paw/internal/storage"
 )
 
 func TestListVaultHandler_Serve(t *testing.T) {

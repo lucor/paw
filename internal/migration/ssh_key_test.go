@@ -19,8 +19,8 @@ import (
 	"go.lucor.dev/cxf"
 	"golang.org/x/crypto/ssh"
 
-	"lucor.dev/paw/internal/model"
-	"lucor.dev/paw/internal/paw"
+	"go.lucor.dev/paw/internal/model"
+	"go.lucor.dev/paw/internal/paw"
 )
 
 // TestMigrateSSHKeyConvertsRSAAndEd25519 checks key material and metadata survive conversion.

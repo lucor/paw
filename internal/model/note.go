@@ -8,7 +8,7 @@ import (
 
 	"go.lucor.dev/cxf"
 
-	"lucor.dev/paw/internal/paw"
+	"go.lucor.dev/paw/internal/paw"
 )
 
 // NewNote creates a Paw note item with a new ID and current dates.

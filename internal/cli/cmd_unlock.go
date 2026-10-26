@@ -11,9 +11,9 @@ import (
 	urfave "github.com/urfave/cli/v3"
 	"golang.org/x/crypto/ssh"
 
-	"lucor.dev/paw/internal/agent"
-	"lucor.dev/paw/internal/model"
-	"lucor.dev/paw/internal/paw"
+	"go.lucor.dev/paw/internal/agent"
+	"go.lucor.dev/paw/internal/model"
+	"go.lucor.dev/paw/internal/paw"
 )
 
 // UnlockCmd unlock a vault and starts a session returning its ID

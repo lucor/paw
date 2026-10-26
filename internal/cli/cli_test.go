@@ -18,9 +18,9 @@ import (
 	"github.com/stretchr/testify/require"
 	urfave "github.com/urfave/cli/v3"
 
-	"lucor.dev/paw/internal/paw"
-	"lucor.dev/paw/internal/sshkey"
-	"lucor.dev/paw/internal/storage"
+	"go.lucor.dev/paw/internal/paw"
+	"go.lucor.dev/paw/internal/sshkey"
+	"go.lucor.dev/paw/internal/storage"
 )
 
 func execute(t *testing.T, args []string, s storage.Storage) (string, error) {

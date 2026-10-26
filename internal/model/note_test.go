@@ -9,8 +9,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.lucor.dev/cxf"
 
-	"lucor.dev/paw/internal/model"
-	"lucor.dev/paw/internal/paw"
+	"go.lucor.dev/paw/internal/model"
+	"go.lucor.dev/paw/internal/paw"
 )
 
 // TestNewNote checks new notes use valid CXF types and independent identities.

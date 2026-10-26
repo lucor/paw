@@ -24,9 +24,9 @@ import (
 	"go.lucor.dev/cxf"
 	"golang.org/x/crypto/ssh"
 
-	"lucor.dev/paw/internal/migration"
-	"lucor.dev/paw/internal/model"
-	"lucor.dev/paw/internal/paw"
+	"go.lucor.dev/paw/internal/migration"
+	"go.lucor.dev/paw/internal/model"
+	"go.lucor.dev/paw/internal/paw"
 )
 
 // TestLoadVaultMigratesLegacyVaultAndPreservesKeyFile checks both backends migrate a complete legacy vault.

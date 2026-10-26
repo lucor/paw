@@ -15,10 +15,10 @@ import (
 	"fyne.io/fyne/v2/widget"
 	"go.lucor.dev/cxf"
 
-	"lucor.dev/paw/internal/icon"
-	"lucor.dev/paw/internal/model"
-	"lucor.dev/paw/internal/paw"
-	"lucor.dev/paw/internal/sshkey"
+	"go.lucor.dev/paw/internal/icon"
+	"go.lucor.dev/paw/internal/model"
+	"go.lucor.dev/paw/internal/paw"
+	"go.lucor.dev/paw/internal/sshkey"
 )
 
 // makeAddItemView displays the supported item categories for creation.

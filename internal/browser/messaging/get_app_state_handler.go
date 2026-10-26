@@ -8,8 +8,8 @@ import (
 	"fmt"
 	"time"
 
-	"lucor.dev/paw/internal/paw"
-	"lucor.dev/paw/internal/storage"
+	"go.lucor.dev/paw/internal/paw"
+	"go.lucor.dev/paw/internal/storage"
 )
 
 // Declare conformity to Handler interface

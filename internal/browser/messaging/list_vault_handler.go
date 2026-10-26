@@ -3,7 +3,7 @@
 
 package messaging
 
-import "lucor.dev/paw/internal/storage"
+import "go.lucor.dev/paw/internal/storage"
 
 // Declare conformity to Handler interface
 var _ Handler = (*ListVaultHandler)(nil)

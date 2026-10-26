@@ -12,7 +12,7 @@ import (
 
 	"golang.org/x/term"
 
-	"lucor.dev/paw/internal/paw"
+	"go.lucor.dev/paw/internal/paw"
 )
 
 type prompter struct {

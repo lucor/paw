@@ -15,9 +15,9 @@ import (
 	"fyne.io/fyne/v2/widget"
 	"github.com/stretchr/testify/require"
 
-	"lucor.dev/paw/internal/model"
-	"lucor.dev/paw/internal/paw"
-	"lucor.dev/paw/internal/storage"
+	"go.lucor.dev/paw/internal/model"
+	"go.lucor.dev/paw/internal/paw"
+	"go.lucor.dev/paw/internal/storage"
 )
 
 // TestSelectVaultKeepsIDAndDisplayName checks selection uses the ID and shows the name.

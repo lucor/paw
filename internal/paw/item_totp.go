@@ -9,7 +9,7 @@ import (
 	"crypto/sha512"
 	"hash"
 
-	"lucor.dev/paw/internal/otp"
+	"go.lucor.dev/paw/internal/otp"
 )
 
 type TOTPHash string

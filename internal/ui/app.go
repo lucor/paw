@@ -21,12 +21,12 @@ import (
 	"github.com/godbus/dbus/v5"
 	"go.lucor.dev/cxf"
 
+	"go.lucor.dev/paw/internal/agent"
+	"go.lucor.dev/paw/internal/icon"
+	"go.lucor.dev/paw/internal/model"
+	"go.lucor.dev/paw/internal/paw"
+	"go.lucor.dev/paw/internal/storage"
 	"golang.org/x/crypto/ssh"
-	"lucor.dev/paw/internal/agent"
-	"lucor.dev/paw/internal/icon"
-	"lucor.dev/paw/internal/model"
-	"lucor.dev/paw/internal/paw"
-	"lucor.dev/paw/internal/storage"
 )
 
 const (

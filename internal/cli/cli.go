@@ -14,10 +14,10 @@ import (
 
 	urfave "github.com/urfave/cli/v3"
 
-	"lucor.dev/paw/internal/agent"
-	"lucor.dev/paw/internal/paw"
-	"lucor.dev/paw/internal/sshkey"
-	"lucor.dev/paw/internal/storage"
+	"go.lucor.dev/paw/internal/agent"
+	"go.lucor.dev/paw/internal/paw"
+	"go.lucor.dev/paw/internal/sshkey"
+	"go.lucor.dev/paw/internal/storage"
 )
 
 // Run executes the CLI branch of the application's full argument list.

@@ -11,10 +11,10 @@ import (
 
 	urfave "github.com/urfave/cli/v3"
 
-	"lucor.dev/paw/internal/agent"
-	"lucor.dev/paw/internal/model"
-	"lucor.dev/paw/internal/paw"
-	"lucor.dev/paw/internal/storage"
+	"go.lucor.dev/paw/internal/agent"
+	"go.lucor.dev/paw/internal/model"
+	"go.lucor.dev/paw/internal/paw"
+	"go.lucor.dev/paw/internal/storage"
 )
 
 // command provides the shared runtime used by CLI command implementations.

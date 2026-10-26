@@ -10,8 +10,8 @@ import (
 
 	"go.lucor.dev/cxf"
 
-	"lucor.dev/paw/internal/model"
-	"lucor.dev/paw/internal/paw"
+	"go.lucor.dev/paw/internal/model"
+	"go.lucor.dev/paw/internal/paw"
 )
 
 // MigratePassword converts a legacy password to a CXF-backed Paw item.

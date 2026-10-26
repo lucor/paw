@@ -14,8 +14,8 @@ import (
 	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
-	"lucor.dev/paw/internal/paw"
-	"lucor.dev/paw/internal/storage"
+	"go.lucor.dev/paw/internal/paw"
+	"go.lucor.dev/paw/internal/storage"
 )
 
 func (a *app) makeMainMenu() *fyne.MainMenu {

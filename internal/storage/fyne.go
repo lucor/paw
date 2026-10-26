@@ -16,8 +16,8 @@ import (
 	"fyne.io/fyne/v2"
 	fynestorage "fyne.io/fyne/v2/storage"
 
-	"lucor.dev/paw/internal/model"
-	"lucor.dev/paw/internal/paw"
+	"go.lucor.dev/paw/internal/model"
+	"go.lucor.dev/paw/internal/paw"
 )
 
 var _ Storage = (*FyneStorage)(nil)

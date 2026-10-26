@@ -11,8 +11,8 @@ import (
 	urfave "github.com/urfave/cli/v3"
 	"go.lucor.dev/cxf"
 
-	"lucor.dev/paw/internal/model"
-	"lucor.dev/paw/internal/paw"
+	"go.lucor.dev/paw/internal/model"
+	"go.lucor.dev/paw/internal/paw"
 )
 
 // Edit edits an item in the vault.

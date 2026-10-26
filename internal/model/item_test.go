@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.lucor.dev/cxf"
 
-	"lucor.dev/paw/internal/paw"
+	"go.lucor.dev/paw/internal/paw"
 )
 
 // TestItemJSONPreservesOpaqueData checks edits retain unknown CXF and Paw data.

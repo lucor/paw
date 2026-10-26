@@ -13,7 +13,7 @@ import (
 	"fyne.io/fyne/v2/test"
 	"github.com/stretchr/testify/require"
 
-	"lucor.dev/paw/internal/paw"
+	"go.lucor.dev/paw/internal/paw"
 )
 
 // TestLegacyReadersAuthenticateWholeFile checks valid JSON cannot hide a damaged age tail.

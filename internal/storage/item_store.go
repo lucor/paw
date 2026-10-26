@@ -9,7 +9,7 @@ import (
 
 	"go.lucor.dev/cxf"
 
-	"lucor.dev/paw/internal/model"
+	"go.lucor.dev/paw/internal/model"
 )
 
 // prepareItemVault returns a separate vault with the item's derived summary.

@@ -10,9 +10,9 @@ import (
 	"fyne.io/fyne/v2/widget"
 	"github.com/stretchr/testify/require"
 
-	"lucor.dev/paw/internal/icon"
-	"lucor.dev/paw/internal/model"
-	"lucor.dev/paw/internal/paw"
+	"go.lucor.dev/paw/internal/icon"
+	"go.lucor.dev/paw/internal/model"
+	"go.lucor.dev/paw/internal/paw"
 )
 
 // TestAddPasswordItemOpensGenerator checks a new password item has generator preferences.

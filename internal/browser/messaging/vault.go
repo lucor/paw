@@ -3,7 +3,7 @@
 
 package messaging
 
-import "lucor.dev/paw/internal/storage"
+import "go.lucor.dev/paw/internal/storage"
 
 // resolveVault finds a vault from a display name or filesystem ID.
 func resolveVault(s storage.Storage, value string) (storage.VaultInfo, error) {

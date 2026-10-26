@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.lucor.dev/cxf"
 
-	"lucor.dev/paw/internal/paw"
+	"go.lucor.dev/paw/internal/paw"
 )
 
 const testVaultJSON = `{"version":{"major":1,"minor":0},"exporterRpId":"paw.pm","exporterDisplayName":"Paw","timestamp":1705228800,"accounts":[{"id":"AAAAAAAAAAAAAAAAAAAAAA","username":"","email":"","collections":[],"items":[{"id":"AQEBAQEBAQEBAQEBAQEBAQ","title":"A note","credentials":[]}],"extensions":[{"name":"paw.pm/vault","schemaVersion":1,"vaultName":"Personal","creationAt":0},{"name":"example.com/future","schemaVersion":"opaque","counter":9007199254740993}]}]}`

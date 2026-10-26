@@ -9,8 +9,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"lucor.dev/paw/internal/agent"
-	"lucor.dev/paw/internal/storage"
+	"go.lucor.dev/paw/internal/agent"
+	"go.lucor.dev/paw/internal/storage"
 )
 
 func Test_Client(t *testing.T) {

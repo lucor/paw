@@ -8,8 +8,8 @@ import (
 	"fmt"
 	"io"
 
-	"lucor.dev/paw/internal/model"
-	"lucor.dev/paw/internal/paw"
+	"go.lucor.dev/paw/internal/model"
+	"go.lucor.dev/paw/internal/paw"
 )
 
 // decryptVault decrypts and decodes a complete CXF vault.

@@ -9,11 +9,11 @@ import (
 	"net/url"
 	"time"
 
+	"go.lucor.dev/paw/internal/agent"
+	"go.lucor.dev/paw/internal/model"
+	"go.lucor.dev/paw/internal/paw"
+	"go.lucor.dev/paw/internal/storage"
 	"golang.org/x/net/publicsuffix"
-	"lucor.dev/paw/internal/agent"
-	"lucor.dev/paw/internal/model"
-	"lucor.dev/paw/internal/paw"
-	"lucor.dev/paw/internal/storage"
 )
 
 // Declare conformity to Handler interface

@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"unicode/utf8"
 
-	"lucor.dev/paw/internal/model"
-	"lucor.dev/paw/internal/paw"
+	"go.lucor.dev/paw/internal/model"
+	"go.lucor.dev/paw/internal/paw"
 )
 
 const itemExtensionName = "paw.pm/item"

@@ -9,10 +9,10 @@ import (
 
 	"go.lucor.dev/cxf"
 
-	"lucor.dev/paw/internal/agent"
-	"lucor.dev/paw/internal/model"
-	"lucor.dev/paw/internal/paw"
-	"lucor.dev/paw/internal/storage"
+	"go.lucor.dev/paw/internal/agent"
+	"go.lucor.dev/paw/internal/model"
+	"go.lucor.dev/paw/internal/paw"
+	"go.lucor.dev/paw/internal/storage"
 )
 
 // Declare conformity to Handler interface

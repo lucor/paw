@@ -28,7 +28,7 @@ import (
 
 	"github.com/fyne-io/image/ico"
 
-	"lucor.dev/paw/internal/paw"
+	"go.lucor.dev/paw/internal/paw"
 )
 
 const (

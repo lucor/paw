@@ -4,8 +4,8 @@
 package storage
 
 import (
-	"lucor.dev/paw/internal/model"
-	"lucor.dev/paw/internal/paw"
+	"go.lucor.dev/paw/internal/model"
+	"go.lucor.dev/paw/internal/paw"
 )
 
 // Storage provides access to Paw's application state, vaults, and items.

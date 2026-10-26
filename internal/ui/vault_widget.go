@@ -13,8 +13,8 @@ import (
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/widget"
-	"lucor.dev/paw/internal/icon"
-	"lucor.dev/paw/internal/storage"
+	"go.lucor.dev/paw/internal/icon"
+	"go.lucor.dev/paw/internal/storage"
 )
 
 // unlockerVaultWidget is a widget that allows the user to unlock a vault

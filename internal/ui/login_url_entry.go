@@ -9,8 +9,8 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/widget"
 
-	"lucor.dev/paw/internal/favicon"
-	"lucor.dev/paw/internal/paw"
+	"go.lucor.dev/paw/internal/favicon"
+	"go.lucor.dev/paw/internal/paw"
 )
 
 type loginURLEntry struct {

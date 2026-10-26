@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"lucor.dev/paw/internal/paw"
+	"go.lucor.dev/paw/internal/paw"
 )
 
 // MigrationPhase identifies the migration step that failed for an item.

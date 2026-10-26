@@ -15,7 +15,7 @@ import (
 	"runtime"
 	"strings"
 
-	"lucor.dev/paw/internal/paw"
+	"go.lucor.dev/paw/internal/paw"
 )
 
 const (

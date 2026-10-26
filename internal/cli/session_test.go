@@ -13,13 +13,13 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"go.lucor.dev/paw/internal/model"
 	sshagent "golang.org/x/crypto/ssh/agent"
-	"lucor.dev/paw/internal/model"
 
-	"lucor.dev/paw/internal/agent"
-	"lucor.dev/paw/internal/paw"
-	"lucor.dev/paw/internal/sshkey"
-	"lucor.dev/paw/internal/storage"
+	"go.lucor.dev/paw/internal/agent"
+	"go.lucor.dev/paw/internal/paw"
+	"go.lucor.dev/paw/internal/sshkey"
+	"go.lucor.dev/paw/internal/storage"
 )
 
 type sessionStorage struct {

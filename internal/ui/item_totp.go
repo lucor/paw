@@ -18,8 +18,8 @@ import (
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
-	"lucor.dev/paw/internal/otp"
-	"lucor.dev/paw/internal/paw"
+	"go.lucor.dev/paw/internal/otp"
+	"go.lucor.dev/paw/internal/paw"
 )
 
 type TOTP struct {

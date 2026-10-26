@@ -6,7 +6,7 @@ package cli
 import (
 	urfave "github.com/urfave/cli/v3"
 
-	"lucor.dev/paw/internal/paw"
+	"go.lucor.dev/paw/internal/paw"
 )
 
 func sessionFlag() urfave.Flag {

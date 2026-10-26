@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"os"
 
-	"lucor.dev/paw/internal/paw"
+	"go.lucor.dev/paw/internal/paw"
 )
 
 // loadLegacyVault reads a vault using the legacy Paw format.

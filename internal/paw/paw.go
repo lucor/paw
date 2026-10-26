@@ -18,8 +18,8 @@ import (
 	"filippo.io/age/armor"
 	"golang.org/x/crypto/hkdf"
 
-	agepaw "lucor.dev/paw/internal/age"
-	"lucor.dev/paw/internal/age/bech32"
+	agepaw "go.lucor.dev/paw/internal/age"
+	"go.lucor.dev/paw/internal/age/bech32"
 )
 
 const (

@@ -10,7 +10,7 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/dialog"
-	"lucor.dev/paw/internal/model"
+	"go.lucor.dev/paw/internal/model"
 )
 
 // importFromFile reads CXF items and adds them to the current vault.

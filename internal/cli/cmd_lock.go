@@ -10,8 +10,8 @@ import (
 	urfave "github.com/urfave/cli/v3"
 	"golang.org/x/crypto/ssh"
 
-	"lucor.dev/paw/internal/agent"
-	"lucor.dev/paw/internal/paw"
+	"go.lucor.dev/paw/internal/agent"
+	"go.lucor.dev/paw/internal/paw"
 )
 
 // Lock locks a Paw vault removing all the associated sessions from the agent

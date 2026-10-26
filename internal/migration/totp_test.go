@@ -16,9 +16,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.lucor.dev/cxf"
 
-	"lucor.dev/paw/internal/migration"
-	"lucor.dev/paw/internal/otp"
-	"lucor.dev/paw/internal/paw"
+	"go.lucor.dev/paw/internal/migration"
+	"go.lucor.dev/paw/internal/otp"
+	"go.lucor.dev/paw/internal/paw"
 )
 
 // TestMigrateTOTPMapsAlgorithms checks each legacy hash keeps its OTP output.
