@@ -222,17 +222,13 @@ type faviconData struct {
 	mime string
 }
 
+// MakeRawURL resolves the favicon link against the page URL.
 func (f *faviconData) MakeRawURL(u *url.URL) string {
-	href := f.href
-	if strings.HasPrefix(href, "//") {
-		// protocol-relative url
-		return fmt.Sprintf("%s:%s", u.Scheme, href)
+	reference, err := url.Parse(f.href)
+	if err != nil {
+		return f.href
 	}
-	if strings.HasPrefix(href, "/") {
-		// relative url
-		return fmt.Sprintf("%s://%s%s", u.Scheme, u.Host, href)
-	}
-	return href
+	return u.ResolveReference(reference).String()
 }
 
 // getFaviconData checks if the given token is a <link> element with rel

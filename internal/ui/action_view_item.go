@@ -10,6 +10,7 @@ import (
 	"fyne.io/fyne/v2/container"
 )
 
+// makeShowItemView displays an item's full credentials and metadata.
 func (a *app) makeShowItemView(fyneItemWidget FyneItemWidget) fyne.CanvasObject {
 	itemViewWidget := newItemViewWidget(context.TODO(), fyneItemWidget, a.win)
 	itemViewWidget.OnSubmit = func() {

@@ -5,10 +5,12 @@ package cli
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
 	urfave "github.com/urfave/cli/v3"
+	"go.lucor.dev/cxf"
 
 	"lucor.dev/paw/internal/paw"
 )
@@ -55,17 +57,16 @@ func (cmd *ShowCmd) Run(ctx context.Context) error {
 		return err
 	}
 
-	vault, err := s.LoadVault(cmd.vaultName, key)
+	vault, err := base.loadVault(key)
 	if err != nil {
 		return err
 	}
 
-	item, err := paw.NewItem(cmd.itemName, cmd.itemType)
+	summary, err := findVaultItem(vault, cmd.itemName, cmd.itemType)
 	if err != nil {
 		return err
 	}
-
-	item, err = s.LoadItem(vault, item.GetMetadata())
+	item, err := s.LoadItem(vault, summary.ID)
 	if err != nil {
 		return err
 	}
@@ -74,57 +75,89 @@ func (cmd *ShowCmd) Run(ctx context.Context) error {
 	var pclipMsg string
 	switch cmd.itemType {
 	case paw.LoginItemType:
-		v := item.(*paw.Login)
-		fmt.Fprintf(cmd.out, "URL: %s\n", v.URL)
-		fmt.Fprintf(cmd.out, "Username: %s\n", v.Username)
+		if item.Scope != nil && len(item.Scope.URLs) > 0 {
+			fmt.Fprintf(cmd.out, "URL: %s\n", item.Scope.URLs[0])
+		}
+		credential, _, err := basicAuth(item)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintf(cmd.out, "Username: %s\n", usernameValue(credential))
 		if !cmd.clipboard {
-			fmt.Fprintf(cmd.out, "Password: %s\n", v.Password.Value)
+			fmt.Fprintf(cmd.out, "Password: %s\n", passwordValue(credential))
 		} else {
-			pclip = []byte(v.Password.Value)
+			pclip = []byte(passwordValue(credential))
 			pclipMsg = "[✓] password copied to clipboard"
 		}
-		if v.Note != nil {
-			fmt.Fprintf(cmd.out, "Note: %s\n", v.Note.Value)
+		if note, _, err := noteCredential(item); err == nil && note.Content.Value != "" {
+			fmt.Fprintf(cmd.out, "Note: %s\n", note.Content.Value)
+		}
+		for _, raw := range item.Credentials {
+			typeName, err := cxf.CredentialTypeOf(raw)
+			if err != nil {
+				return err
+			}
+			if typeName == cxf.CredentialTypeTOTP {
+				fmt.Fprintln(cmd.out, "TOTP: configured")
+				break
+			}
 		}
 	case paw.PasswordItemType:
-		v := item.(*paw.Password)
+		credential, _, err := basicAuth(item)
+		if err != nil {
+			return err
+		}
 		if !cmd.clipboard {
-			fmt.Fprintf(cmd.out, "Password: %s\n", v.Value)
+			fmt.Fprintf(cmd.out, "Password: %s\n", passwordValue(credential))
 		} else {
-			pclip = []byte(v.Value)
+			pclip = []byte(passwordValue(credential))
 			pclipMsg = "[✓] password copied to clipboard"
 		}
-		if v.Note != nil {
-			fmt.Fprintf(cmd.out, "Note: %s\n", v.Note.Value)
-		}
 	case paw.SSHKeyItemType:
-		v := item.(*paw.SSHKey)
+		var credential cxf.SSHKey
+		for _, raw := range item.Credentials {
+			typeName, err := cxf.CredentialTypeOf(raw)
+			if err != nil {
+				return err
+			}
+			if typeName == cxf.CredentialTypeSSHKey {
+				if err := json.Unmarshal(raw, &credential); err != nil {
+					return err
+				}
+				break
+			}
+		}
+		privateKey, publicKey, fingerprint, err := sshKeyFromCXF(credential)
+		if err != nil {
+			return err
+		}
 		if !cmd.clipboard {
-			fmt.Fprintf(cmd.out, "Private key: %s\n", v.PrivateKey)
+			fmt.Fprintf(cmd.out, "Private key: %s\n", privateKey)
+			fmt.Fprintf(cmd.out, "Public key: %s", publicKey)
 		} else {
-			pclip = []byte(v.PrivateKey)
+			pclip = []byte(privateKey)
 			pclipMsg = "[✓] private key copied to clipboard"
 		}
-		if v.Passphrase != nil {
-			fmt.Fprintf(cmd.out, "Passphrase: %s\n", v.Passphrase.Value)
-		}
-		fmt.Fprintf(cmd.out, "Public key: %s\n", v.PublicKey)
-		fmt.Fprintf(cmd.out, "Fingerprint: %s\n", v.Fingerprint)
+		fmt.Fprintf(cmd.out, "Fingerprint: %s\n", fingerprint)
 		addToAgent := "No"
-		if v.AddToAgent {
+		if item.Metadata.AddToAgent {
 			addToAgent = "Yes"
 		}
 		fmt.Fprintf(cmd.out, "Add to agent: %s\n", addToAgent)
-		if v.Note != nil {
-			fmt.Fprintf(cmd.out, "Note: %s\n", v.Note.Value)
-		}
 	case paw.NoteItemType:
-		v := item.(*paw.Note)
-		fmt.Fprintf(cmd.out, "Note: %s\n", v.Value)
+		note, _, err := noteCredential(item)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintf(cmd.out, "Note: %s\n", note.Content.Value)
 	}
 
-	fmt.Fprintf(cmd.out, "Modified: %s\n", item.GetMetadata().Modified.Local().Format(time.RFC1123))
-	fmt.Fprintf(cmd.out, "Created: %s\n", item.GetMetadata().Created.Local().Format(time.RFC1123))
+	if item.ModifiedAt != nil {
+		fmt.Fprintf(cmd.out, "Modified: %s\n", time.Unix(int64(*item.ModifiedAt), 0).Local().Format(time.RFC1123))
+	}
+	if item.CreationAt != nil {
+		fmt.Fprintf(cmd.out, "Created: %s\n", time.Unix(int64(*item.CreationAt), 0).Local().Format(time.RFC1123))
+	}
 
 	if pclip != nil {
 		ctx, cancel := context.WithTimeout(ctx, clipboardWriteTimeout)

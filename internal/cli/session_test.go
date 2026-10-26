@@ -14,14 +14,16 @@ import (
 
 	"github.com/stretchr/testify/require"
 	sshagent "golang.org/x/crypto/ssh/agent"
+	"lucor.dev/paw/internal/model"
 
 	"lucor.dev/paw/internal/agent"
 	"lucor.dev/paw/internal/paw"
 	"lucor.dev/paw/internal/sshkey"
+	"lucor.dev/paw/internal/storage"
 )
 
 type sessionStorage struct {
-	paw.StorageMock
+	storage.StorageMock
 	socketPath string
 }
 
@@ -66,26 +68,29 @@ func TestCommandsWithAgentSession(t *testing.T) {
 	require.NoError(t, err)
 	session, err := client.Unlock("personal", key, 0)
 	require.NoError(t, err)
-	vault := paw.NewVault(key, "personal")
-	item := paw.NewNote()
-	item.Name = "example"
-	item.Value = "example note"
-	require.NoError(t, vault.AddItem(item))
+	vault, err := model.NewVault(key, "personal")
+	require.NoError(t, err)
+	item, err := model.NewNote("example", "example note")
+	require.NoError(t, err)
+	summary, err := item.Summary()
+	require.NoError(t, err)
+	vault.Accounts[0].Items = append(vault.Accounts[0].Items, *summary)
 	loaded := 0
-	s.OnLoadVault = func(name string, actualKey *paw.Key) (*paw.Vault, error) {
+	s.OnLoadVault = func(name string, actualKey *paw.Key) (*model.Vault, error) {
 		require.Equal(t, "personal", name)
 		require.Equal(t, key, actualKey)
 		loaded++
 		return vault, nil
 	}
-	s.OnLoadItem = func(actualVault *paw.Vault, metadata *paw.Metadata) (paw.Item, error) {
+	s.OnLoadItem = func(actualVault *model.Vault, id string) (*model.Item, error) {
 		require.Same(t, vault, actualVault)
-		require.Equal(t, item.Name, metadata.Name)
-		require.Equal(t, paw.NoteItemType, metadata.Type)
+		require.Equal(t, item.ID, id)
 		return item, nil
 	}
 	s.OnLoadAppState = func() (*paw.AppState, error) { return &paw.AppState{}, nil }
-	s.OnVaults = func() ([]string, error) { return []string{"personal"}, nil }
+	s.OnVaults = func() ([]storage.VaultInfo, error) {
+		return []storage.VaultInfo{{ID: "personal", Name: "personal"}}, nil
+	}
 
 	t.Setenv(paw.ENV_SESSION, session)
 	require.NoError(t, Run([]string{"paw", "cli", "show", "personal/note/example"}, s))
@@ -116,6 +121,6 @@ func TestCommandsWithAgentSession(t *testing.T) {
 	t.Run("cancel removal", func(t *testing.T) {
 		_, _, err := executeWithInput(t, []string{"rm", "personal/note/example"}, newCommand(s), "n\n")
 		require.NoError(t, err)
-		require.True(t, vault.HasItem(item))
+		require.Len(t, vault.Accounts[0].Items, 1)
 	})
 }

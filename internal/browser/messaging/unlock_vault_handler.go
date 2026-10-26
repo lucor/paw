@@ -8,14 +8,14 @@ import (
 	"fmt"
 
 	"lucor.dev/paw/internal/agent"
-	"lucor.dev/paw/internal/paw"
+	"lucor.dev/paw/internal/storage"
 )
 
 // Declare conformity to Handler interface
 var _ Handler = (*UnlockVaultHandler)(nil)
 
 type UnlockVaultHandler struct {
-	Storage paw.Storage
+	Storage storage.Storage
 }
 
 // Action implements browser.Handler.
@@ -47,19 +47,24 @@ func (h *UnlockVaultHandler) Serve(res *Response, req *Request) {
 		return
 	}
 	s := h.Storage
+	info, err := resolveVault(s, v.Vault)
+	if err != nil {
+		res.Error = err
+		return
+	}
 	c, err := agent.NewClient(s.SocketAgentPath())
 	if err != nil {
 		res.Error = fmt.Errorf("paw agent not available: %w", err)
 		return
 	}
 
-	key, err := s.LoadVaultKey(v.Vault, v.Secret)
+	key, err := s.LoadVaultKey(info.ID, v.Secret)
 	if err != nil {
 		res.Error = fmt.Errorf("unable to load vault key: %w", err)
 		return
 	}
 
-	sessionID, err := c.Unlock(v.Vault, key, sessionLifetime)
+	sessionID, err := c.Unlock(info.ID, key, sessionLifetime)
 	if err != nil {
 		res.Error = fmt.Errorf("unable to unlock session: %w", err)
 		return

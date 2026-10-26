@@ -1,149 +1,58 @@
-// SPDX-FileCopyrightText: 2022-2025 Luca Corbo, Paw contributors
+// SPDX-FileCopyrightText: 2022-2026 Luca Corbo, Paw contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 package ui
 
 import (
-	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"sync/atomic"
 	"time"
 
 	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/data/binding"
 	"fyne.io/fyne/v2/dialog"
-	"fyne.io/fyne/v2/widget"
-	"golang.org/x/sync/errgroup"
-	"golang.org/x/sync/semaphore"
-	"lucor.dev/paw/internal/paw"
+	"lucor.dev/paw/internal/model"
 )
 
+// importFromFile reads CXF items and adds them to the current vault.
 func (a *app) importFromFile() {
-	d := dialog.NewFileOpen(func(uc fyne.URIReadCloser, e error) {
-		if e != nil {
-			dialog.NewError(e, a.win).Show()
+	dialog.NewFileOpen(func(reader fyne.URIReadCloser, err error) {
+		if err != nil {
+			dialog.ShowError(err, a.win)
 			return
 		}
-		ctx, cancel := context.WithCancel(context.Background())
-
-		data := paw.Imported{}
-		var counter uint32
-
-		modalTitle := widget.NewLabel("Importing items...")
-
-		progressBind := binding.NewFloat()
-		progressbar := widget.NewProgressBarWithData(progressBind)
-		progressbar.TextFormatter = func() string {
-			v, _ := progressBind.Get()
-			return fmt.Sprintf("%.0f of %d", v, len(data.Items))
+		if reader == nil {
+			return
 		}
-
-		var cancelButton *widget.Button
-		cancelButton = widget.NewButton("Cancel", func() {
-			modalTitle.SetText("Cancelling import, please wait...")
-			progressbar.Hide()
-			cancelButton.Disable()
-			cancel()
-		})
-
-		c := container.NewBorder(modalTitle, nil, nil, nil, container.NewCenter(container.NewVBox(progressbar, cancelButton)))
-		modal := widget.NewModalPopUp(c, a.win.Canvas())
-
-		rollback := func(items []paw.Item) {
-			for _, item := range items {
-				a.storage.DeleteItem(a.vault, item)
-				a.vault.DeleteItem(item)
-				a.removeSSHKeyFromAgent(item)
-			}
+		defer reader.Close()
+		var items []*model.Item
+		if err := json.NewDecoder(reader).Decode(&items); err != nil {
+			dialog.ShowError(err, a.win)
+			return
 		}
-
-		go func() {
-			if uc == nil {
-				// file open dialog has been cancelled
-				modal.Hide()
-				return
+		stored := make([]string, 0, len(items))
+		for _, item := range items {
+			if item == nil {
+				err = fmt.Errorf("import contains an empty item")
+				break
 			}
-			defer uc.Close()
-			// Decode the JSON input file
-			err := json.NewDecoder(uc).Decode(&data)
-			if err != nil {
-				modal.Hide()
-				dialog.ShowError(err, a.win)
-				return
+			if err = a.storage.StoreItem(a.vault, item); err != nil {
+				break
 			}
-
-			sem := semaphore.NewWeighted(int64(maxWorkers))
-			g := &errgroup.Group{}
-
-			processed := []paw.Item{}
-			// TODO: handle if an item with same name and type already exists
-			for _, item := range data.Items {
-				item := item
-
-				err = sem.Acquire(ctx, 1)
-				if err != nil {
-					cancel()
-					break
-				}
-
-				g.Go(func() error {
-					defer sem.Release(1)
-					err := a.storage.StoreItem(a.vault, item)
-					if err != nil {
-						return err
-					}
-					processed = append(processed, item)
-					v := atomic.AddUint32(&counter, 1)
-					fyne.Do(func() {
-						progressBind.Set(float64(v))
-					})
-					return nil
-				})
+			stored = append(stored, item.ID)
+		}
+		if err != nil {
+			for _, id := range stored {
+				_ = a.storage.DeleteItem(a.vault, id)
 			}
-
-			defer func() {
-				fyne.Do(func() {
-					modal.Hide()
-				})
-			}()
-			err = g.Wait()
-			if err != nil || errors.Is(ctx.Err(), context.Canceled) {
-				rollback(processed)
-				if err != nil {
-					fyne.Do(func() {
-						dialog.ShowError(err, a.win)
-					})
-				}
-				return
-			}
-
-			for _, item := range processed {
-				a.vault.AddItem(item)
-				a.addSSHKeyToAgent(item)
-			}
-			now := time.Now().UTC()
-			a.vault.Modified = now
-			err = a.storage.StoreVault(a.vault)
-			if err != nil {
-				rollback(processed)
-				fyne.Do(func() {
-					dialog.ShowError(err, a.win)
-				})
-				return
-			}
-			a.state.Modified = now
-			a.storage.StoreAppState(a.state)
-			fyne.Do(func() {
-				a.refreshCurrentView()
-				a.showCurrentVaultView()
-			})
-		}()
-
-		modal.Show()
-
-	}, a.win)
-	d.Show()
+			dialog.ShowError(err, a.win)
+			return
+		}
+		a.state.Modified = time.Now().UTC()
+		if err := a.storage.StoreAppState(a.state); err != nil {
+			dialog.ShowError(err, a.win)
+			return
+		}
+		a.refreshCurrentView()
+		a.showCurrentVaultView()
+	}, a.win).Show()
 }

@@ -8,8 +8,6 @@ import (
 	"fmt"
 
 	urfave "github.com/urfave/cli/v3"
-
-	"lucor.dev/paw/internal/paw"
 )
 
 // RemoveCmd removes an item from the vault
@@ -50,18 +48,14 @@ func (cmd *RemoveCmd) Run(ctx context.Context) error {
 		return err
 	}
 
-	vault, err := s.LoadVault(cmd.vaultName, key)
+	vault, err := base.loadVault(key)
 	if err != nil {
 		return err
 	}
 
-	item, err := paw.NewItem(cmd.itemName, cmd.itemType)
+	summary, err := findVaultItem(vault, cmd.itemName, cmd.itemType)
 	if err != nil {
 		return err
-	}
-
-	if ok := vault.HasItem(item); !ok {
-		return fmt.Errorf("item does not exists")
 	}
 
 	msg := fmt.Sprintf("Are you sure you want to delete %q?", cmd.itemPath)
@@ -73,20 +67,12 @@ func (cmd *RemoveCmd) Run(ctx context.Context) error {
 		return nil
 	}
 
-	err = s.DeleteItem(vault, item)
+	err = s.DeleteItem(vault, summary.ID)
 	if err != nil {
 		return err
 	}
-
-	vault.DeleteItem(item)
 
 	now := base.now().UTC()
-	vault.Modified = now
-	err = s.StoreVault(vault)
-	if err != nil {
-		return err
-	}
-
 	appState.Modified = now
 	err = s.StoreAppState(appState)
 	if err != nil {

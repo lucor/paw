@@ -14,19 +14,20 @@ import (
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/widget"
 	"lucor.dev/paw/internal/icon"
+	"lucor.dev/paw/internal/storage"
 )
 
 // unlockerVaultWidget is a widget that allows the user to unlock a vault
 type unlockerVaultWidget struct {
 	widget.BaseWidget
 	app       *app
-	vaultName string
+	vaultInfo storage.VaultInfo
 	icon      *canvas.Image
 	button    *widget.Button
 	password  *widget.Entry
 }
 
-// unlock unlocks the vault
+// unlock reads the password and opens the selected vault.
 func (uw *unlockerVaultWidget) unlock() {
 	password := uw.password.Text
 	if password == "" {
@@ -35,44 +36,56 @@ func (uw *unlockerVaultWidget) unlock() {
 	}
 
 	act := NewActivity()
-	d := dialog.NewCustomWithoutButtons("unlocking vault...", act, uw.app.win)
+	uw.button.Disable()
+	uw.password.Disable()
+	message := "Unlocking vault..."
+	if uw.vaultInfo.NeedsMigration {
+		message = "Migrating vault..."
+	}
+	d := dialog.NewCustomWithoutButtons(message, act, uw.app.win)
 	act.Start()
 	d.Show()
 
-	stopAct := func() {
-		act.Stop()
-		d.Hide()
-	}
-
-	key, err := uw.app.storage.LoadVaultKey(uw.vaultName, password)
-	if err != nil {
-		var invalidPasswordError *age.NoIdentityMatchError
-		if errors.As(err, &invalidPasswordError) {
-			err = errors.New("the password is incorrect")
+	go func() {
+		key, err := uw.app.storage.LoadVaultKey(uw.vaultInfo.ID, password)
+		if err != nil {
+			var invalidPasswordError *age.NoIdentityMatchError
+			if errors.As(err, &invalidPasswordError) {
+				err = errors.New("the password is incorrect")
+			}
+			fyne.Do(func() {
+				act.Stop()
+				d.Hide()
+				uw.button.Enable()
+				uw.password.Enable()
+				dialog.ShowError(err, uw.app.win)
+			})
+			return
 		}
-		stopAct()
-		dialog.ShowError(err, uw.app.win)
-		return
-	}
-	vault, err := uw.app.storage.LoadVault(uw.vaultName, key)
-	if err != nil {
-		stopAct()
-		dialog.ShowError(err, uw.app.win)
-		return
-	}
-	uw.app.setVaultView(vault)
-	uw.app.addSSHKeysToAgent()
-	stopAct()
-	uw.app.showCurrentVaultView()
+		vault, err := uw.app.storage.LoadVault(uw.vaultInfo.ID, key)
+		fyne.Do(func() {
+			act.Stop()
+			d.Hide()
+			if err != nil {
+				uw.button.Enable()
+				uw.password.Enable()
+				dialog.ShowError(err, uw.app.win)
+				return
+			}
+			uw.app.setVaultView(vault, vault.Accounts[0].ID)
+			uw.app.showCurrentVaultView()
+			uw.app.addSSHKeysToAgent()
+		})
+	}()
 }
 
-// NewUnlockerVaultWidget creates a new unlockerVaultWidget
-func NewUnlockerVaultWidget(vaultName string, a *app) *unlockerVaultWidget {
+// NewUnlockerVaultWidget creates the password form for a locked vault.
+func NewUnlockerVaultWidget(info storage.VaultInfo, a *app) *unlockerVaultWidget {
 
 	uw := &unlockerVaultWidget{
 		app:       a,
 		icon:      pawLogo(),
-		vaultName: vaultName,
+		vaultInfo: info,
 	}
 	uw.ExtendBaseWidget(uw)
 	uw.button = widget.NewButtonWithIcon("Unlock", icon.LockOpenOutlinedIconThemed, uw.unlock)
@@ -85,9 +98,9 @@ func NewUnlockerVaultWidget(vaultName string, a *app) *unlockerVaultWidget {
 	return uw
 }
 
-// CreateRenderer creates a new renderer for the unlockerVaultWidget
+// CreateRenderer builds the vault unlock form.
 func (uw *unlockerVaultWidget) CreateRenderer() fyne.WidgetRenderer {
-	msg := fmt.Sprintf("Vault %q is locked", uw.vaultName)
+	msg := fmt.Sprintf("Vault %q is locked", uw.vaultInfo.Name)
 	heading := headingText(msg)
 
 	c := container.NewCenter(container.NewVBox(uw.icon, heading, uw.password, uw.button))

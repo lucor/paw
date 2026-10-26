@@ -38,7 +38,6 @@ const (
 	RandomPassword     PasswordMode = 1
 	PassphrasePassword PasswordMode = 2
 	PinPassword        PasswordMode = 3
-	StatelessPassword  PasswordMode = 4
 )
 
 func (pm PasswordMode) String() string {
@@ -47,8 +46,6 @@ func (pm PasswordMode) String() string {
 		return "Custom"
 	case RandomPassword:
 		return "Random"
-	case StatelessPassword:
-		return "Stateless"
 	case PinPassword:
 		return "Pin"
 	case PassphrasePassword:
@@ -110,10 +107,8 @@ func NewCustomPassword() *Password {
 
 // Implemets Seeder interface
 
+// Salt returns nil so each generated password uses fresh randomness.
 func (p *Password) Salt() []byte {
-	if p.Mode == StatelessPassword {
-		return []byte(p.ID())
-	}
 	return nil
 }
 
@@ -133,7 +128,13 @@ func (p *Password) Len() int {
 	return p.Length
 }
 
+// Pwgen generates a password using a supported mode.
 func (p *Password) Pwgen(key *Key) (string, error) {
+	switch p.Mode {
+	case CustomPassword, RandomPassword, PassphrasePassword, PinPassword:
+	default:
+		return "", fmt.Errorf("unsupported password mode %d", p.Mode)
+	}
 	if p.Mode == PassphrasePassword {
 		var words []string
 		for i := 0; i < p.Length; i++ {

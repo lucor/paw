@@ -9,6 +9,7 @@ require (
 	github.com/godbus/dbus/v5 v5.2.2
 	github.com/stretchr/testify v1.12.1
 	github.com/urfave/cli/v3 v3.14.0
+	go.lucor.dev/cxf v0.0.0-20261025171600-daa288fd4137
 	golang.design/x/clipboard v0.11.0
 	golang.org/x/crypto v0.58.0
 	golang.org/x/image v0.47.0

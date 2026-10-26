@@ -7,15 +7,19 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"go.lucor.dev/cxf"
+
 	"lucor.dev/paw/internal/agent"
+	"lucor.dev/paw/internal/model"
 	"lucor.dev/paw/internal/paw"
+	"lucor.dev/paw/internal/storage"
 )
 
 // Declare conformity to Handler interface
 var _ Handler = (*GetLoginItemHandler)(nil)
 
 type GetLoginItemHandler struct {
-	Storage paw.Storage
+	Storage storage.Storage
 }
 
 // Action implements browser.Handler.
@@ -56,36 +60,76 @@ func (h *GetLoginItemHandler) Serve(res *Response, req *Request) {
 	}
 
 	s := h.Storage
+	info, err := resolveVault(s, v.Vault)
+	if err != nil {
+		res.Error = err
+		return
+	}
 	c, err := agent.NewClient(s.SocketAgentPath())
 	if err != nil {
 		res.Error = fmt.Errorf("paw agent not available: %w", err)
 		return
 	}
-	key, err := c.Key(v.Vault, v.SessionID)
+	key, err := c.Key(info.ID, v.SessionID)
 	if err != nil {
 		res.Error = fmt.Errorf("unable to get key from agent: %w", err)
 		return
 	}
 
-	vault, err := s.LoadVault(v.Vault, key)
+	vault, err := s.LoadVault(info.ID, key)
 	if err != nil {
 		res.Error = fmt.Errorf("unable to load vault data: %w", err)
 		return
 	}
 
-	item, err := paw.NewItem(v.Name, paw.ItemType(v.Type))
-	if err != nil {
-		res.Error = fmt.Errorf("unable to make item from data: %w", err)
+	var summary *cxf.Item
+	for index := range vault.Accounts[0].Items {
+		candidate := &vault.Accounts[0].Items[index]
+		itemType, err := model.ItemTypeOf(candidate)
+		if err != nil {
+			res.Error = err
+			return
+		}
+		if candidate.Title == v.Name && itemType == paw.LoginItemType {
+			if summary != nil {
+				res.Error = fmt.Errorf("login item %q is ambiguous", v.Name)
+				return
+			}
+			summary = candidate
+		}
+	}
+	if summary == nil {
+		res.Error = fmt.Errorf("login item %q does not exist", v.Name)
 		return
 	}
-
-	item, err = s.LoadItem(vault, item.GetMetadata())
+	item, err := s.LoadItem(vault, summary.ID)
 	if err != nil {
 		res.Error = fmt.Errorf("unable to load item from vault: %w", err)
 		return
 	}
-
-	login := item.(*paw.Login)
-
-	res.Payload = &GetLoginItemHandlerResponsePayload{Username: login.Username, Password: login.Password.Value}
+	for _, raw := range item.Credentials {
+		typeName, err := cxf.CredentialTypeOf(raw)
+		if err != nil {
+			res.Error = err
+			return
+		}
+		if typeName != cxf.CredentialTypeBasicAuth {
+			continue
+		}
+		var login cxf.BasicAuth
+		if err := json.Unmarshal(raw, &login); err != nil {
+			res.Error = err
+			return
+		}
+		response := GetLoginItemHandlerResponsePayload{}
+		if login.Username != nil {
+			response.Username = login.Username.Value
+		}
+		if login.Password != nil {
+			response.Password = login.Password.Value
+		}
+		res.Payload = &response
+		return
+	}
+	res.Error = fmt.Errorf("login item %q has no basic-auth credential", v.Name)
 }

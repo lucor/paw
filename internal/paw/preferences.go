@@ -3,7 +3,8 @@
 
 package paw
 
-func newDefaultPreferences() *Preferences {
+// NewDefaultPreferences returns the default application preferences.
+func NewDefaultPreferences() *Preferences {
 	return &Preferences{
 		FaviconDownloader: FaviconDownloaderPreferences{
 			Disabled: false,

@@ -9,10 +9,11 @@ import (
 	"time"
 
 	urfave "github.com/urfave/cli/v3"
+	"golang.org/x/crypto/ssh"
 
 	"lucor.dev/paw/internal/agent"
+	"lucor.dev/paw/internal/model"
 	"lucor.dev/paw/internal/paw"
-	"lucor.dev/paw/internal/sshkey"
 )
 
 // UnlockCmd unlock a vault and starts a session returning its ID
@@ -49,13 +50,16 @@ func (cmd *UnlockCmd) Run(ctx context.Context) error {
 		return err
 	}
 
-	sessionID, err := c.Unlock(cmd.vaultName, key, cmd.life)
+	vault, err := base.loadVault(key)
 	if err != nil {
 		return err
 	}
-
+	sessionID, err := c.Unlock(vault.Accounts[0].ID, key, cmd.life)
+	if err != nil {
+		return err
+	}
 	fmt.Fprintln(cmd.out, "adding SSH keys to the agent...")
-	err = cmd.addSSHKeysToAgent(c, key)
+	err = cmd.addSSHKeysToAgent(c, vault)
 	if err != nil {
 		fmt.Fprintln(cmd.out, "could not add SSH keys to the agent:", err)
 	}
@@ -64,36 +68,33 @@ func (cmd *UnlockCmd) Run(ctx context.Context) error {
 	return nil
 }
 
-func (cmd *UnlockCmd) addSSHKeysToAgent(c agent.PawAgent, key *paw.Key) error {
-	s := cmd.storage
-	vault, err := s.LoadVault(cmd.vaultName, key)
+// addSSHKeysToAgent loads configured SSH items and adds their keys to the agent.
+func (cmd *UnlockCmd) addSSHKeysToAgent(c agent.PawAgent, vault *model.Vault) error {
+	summaries, err := vault.FilterItems("", paw.SSHKeyItemType)
 	if err != nil {
 		return err
 	}
-	vault.Range(func(id string, meta *paw.Metadata) bool {
-		item, err := s.LoadItem(vault, meta)
+	for _, summary := range summaries {
+		item, err := cmd.storage.LoadItem(vault, summary.ID)
 		if err != nil {
-			return false
+			return err
 		}
-		if item.GetMetadata().Type != paw.SSHKeyItemType {
-			return true
+		if !item.Metadata.AddToAgent {
+			continue
 		}
-		v := item.(*paw.SSHKey)
-		if !v.AddToAgent {
-			return true
-		}
-		k, err := sshkey.ParseKey([]byte(v.PrivateKey))
+		credential, err := sshCredential(item)
 		if err != nil {
-			return true
+			return err
 		}
-
-		err = c.AddSSHKey(k.PrivateKey(), v.Comment)
+		privateKey, publicKey, err := sshAgentKey(credential)
 		if err != nil {
-			fmt.Fprintf(cmd.out, "could not add SSH key to agent. Error: %q - Public key: %s", err, k.MarshalPublicKey())
-			return true
+			return err
 		}
-		fmt.Fprintf(cmd.out, "added: %s", k.MarshalPublicKey())
-		return true
-	})
+		if err := c.AddSSHKey(privateKey, credential.KeyComment); err != nil {
+			fmt.Fprintf(cmd.out, "could not add SSH key to agent. Error: %q - Public key: %s", err, ssh.MarshalAuthorizedKey(publicKey))
+			continue
+		}
+		fmt.Fprintf(cmd.out, "added: %s", ssh.MarshalAuthorizedKey(publicKey))
+	}
 	return nil
 }

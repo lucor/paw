@@ -15,6 +15,7 @@ import (
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 	"lucor.dev/paw/internal/paw"
+	"lucor.dev/paw/internal/storage"
 )
 
 func (a *app) makeMainMenu() *fyne.MainMenu {
@@ -78,7 +79,8 @@ func (a *app) makeVaultMenu() fyne.CanvasObject {
 		fyne.NewMenuItem("Export To File", a.exportToFile),
 		fyne.NewMenuItemSeparator(),
 		fyne.NewMenuItem("Lock Vault", func() {
-			a.main.Content = a.makeUnlockVaultView(a.vault.Name)
+			name, _ := a.vault.Name()
+			a.main.Content = a.makeUnlockVaultView(storage.VaultInfo{ID: a.vaultID, Name: name})
 			a.lockVault()
 			a.main.Refresh()
 		}),
@@ -108,21 +110,21 @@ func (a *app) makeVaultMenuItems() []*fyne.MenuItem {
 	}
 
 	mi := make([]*fyne.MenuItem, len(vaults))
-	for i, vaultName := range vaults {
+	for i, vault := range vaults {
 		i := i
-		vaultName := vaultName
-		mi[i] = fyne.NewMenuItem(vaultName, func() {})
+		info := vault
+		mi[i] = fyne.NewMenuItem(info.Name, func() {})
 		_, isDesktop := fyne.CurrentApp().(desktop.App)
 		if isDesktop && i < 9 {
 			shortcut := &desktop.CustomShortcut{KeyName: fyne.KeyName(fmt.Sprint(i + 1)), Modifier: fyne.KeyModifierControl}
 			a.win.Canvas().AddShortcut(shortcut, func(shortcut fyne.Shortcut) {
-				a.setVaultViewByName(vaultName)
+				a.setVaultViewByInfo(info)
 			})
 			mi[i].Shortcut = shortcut
 		}
 		mi[i].Action = func() {
 			defer a.win.Show()
-			a.setVaultViewByName(vaultName)
+			a.setVaultViewByInfo(info)
 		}
 	}
 	return mi

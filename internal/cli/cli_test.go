@@ -20,9 +20,10 @@ import (
 
 	"lucor.dev/paw/internal/paw"
 	"lucor.dev/paw/internal/sshkey"
+	"lucor.dev/paw/internal/storage"
 )
 
-func execute(t *testing.T, args []string, s paw.Storage) (string, error) {
+func execute(t *testing.T, args []string, s storage.Storage) (string, error) {
 	t.Helper()
 	out, _, err := executeWithInput(t, args, newCommand(s), "")
 	return out, err
@@ -194,7 +195,7 @@ func TestSessionFlag(t *testing.T) {
 func TestRunRepeatedly(t *testing.T) {
 	t.Setenv(paw.ENV_SESSION, "environment-session")
 	failure := errors.New("storage unavailable")
-	s := &paw.StorageMock{VaultStorageMock: paw.VaultStorageMock{OnVaults: func() ([]string, error) {
+	s := &storage.StorageMock{VaultStorageMock: storage.VaultStorageMock{OnVaults: func() ([]storage.VaultInfo, error) {
 		return nil, failure
 	}}}
 	require.ErrorIs(t, Run([]string{"paw", "cli", "ls", "--session=override"}, s), failure)
@@ -215,9 +216,9 @@ func TestVersion(t *testing.T) {
 
 func TestListVaults(t *testing.T) {
 	calls := 0
-	s := &paw.StorageMock{VaultStorageMock: paw.VaultStorageMock{OnVaults: func() ([]string, error) {
+	s := &storage.StorageMock{VaultStorageMock: storage.VaultStorageMock{OnVaults: func() ([]storage.VaultInfo, error) {
 		calls++
-		return []string{"personal", "work"}, nil
+		return []storage.VaultInfo{{ID: "personal", Name: "personal"}, {ID: "work", Name: "work"}}, nil
 	}}}
 	_, err := execute(t, []string{"ls"}, s)
 	require.NoError(t, err)
@@ -229,7 +230,7 @@ func TestSSHKeyImportFailureAndCancellation(t *testing.T) {
 	base.out = io.Discard
 	base.prompter = newPrompter(strings.NewReader("n\n"), io.Discard)
 	cmd := &AddCmd{command: base, importPath: filepath.Join(t.TempDir(), "missing-key")}
-	err := cmd.addSSHKeyItem(paw.NewSSHKey())
+	_, err := cmd.newSSHKey()
 	require.Error(t, err)
 	require.True(t, os.IsNotExist(err))
 
@@ -237,5 +238,6 @@ func TestSSHKeyImportFailureAndCancellation(t *testing.T) {
 	require.NoError(t, err)
 	cmd.importPath = filepath.Join(t.TempDir(), "key")
 	require.NoError(t, os.WriteFile(cmd.importPath, key.MarshalPrivateKey(), 0600))
-	require.ErrorIs(t, cmd.addSSHKeyItem(paw.NewSSHKey()), errCanceled)
+	_, err = cmd.newSSHKey()
+	require.ErrorIs(t, err, errCanceled)
 }

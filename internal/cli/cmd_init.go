@@ -37,12 +37,7 @@ func (cmd *InitCmd) Run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	key, err := s.CreateVaultKey(cmd.vaultName, password)
-	if err != nil {
-		return err
-	}
-
-	_, err = s.CreateVault(cmd.vaultName, key)
+	_, err = s.CreateVault(cmd.vaultName, password)
 	if err != nil {
 		return err
 	}

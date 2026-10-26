@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"lucor.dev/paw/internal/paw"
+	"lucor.dev/paw/internal/storage"
 )
 
 func TestListVaultHandler_Serve(t *testing.T) {
@@ -21,9 +21,9 @@ func TestListVaultHandler_Serve(t *testing.T) {
 	})
 
 	t.Run("valid request", func(t *testing.T) {
-		vaults := []string{"vault1", "vault2"}
-		s := &paw.StorageMock{}
-		s.OnVaults = func() ([]string, error) {
+		vaults := []storage.VaultInfo{{ID: "vault1", Name: "Vault One"}, {ID: "vault2", Name: "Vault Two"}}
+		s := &storage.StorageMock{}
+		s.OnVaults = func() ([]storage.VaultInfo, error) {
 			return vaults, nil
 		}
 		req := &Request{Action: ListVaultAction}
@@ -35,6 +35,6 @@ func TestListVaultHandler_Serve(t *testing.T) {
 
 		payload, ok := res.Payload.(*ListVaultHandlerResponsePayload)
 		assert.True(t, ok)
-		assert.Equal(t, vaults, payload.Vaults)
+		assert.Equal(t, []string{"Vault One", "Vault Two"}, payload.Vaults)
 	})
 }

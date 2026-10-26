@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2022-2025 Luca Corbo, Paw contributors
+// SPDX-FileCopyrightText: 2022-2026 Luca Corbo, Paw contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 package cli
@@ -6,13 +6,16 @@ package cli
 import (
 	"context"
 	"fmt"
+	"time"
 
 	urfave "github.com/urfave/cli/v3"
+	"go.lucor.dev/cxf"
 
+	"lucor.dev/paw/internal/model"
 	"lucor.dev/paw/internal/paw"
 )
 
-// Edit edits an item into the vault
+// Edit edits an item in the vault.
 type EditCmd struct {
 	*command
 	sessionID string
@@ -21,10 +24,8 @@ type EditCmd struct {
 
 func newEditCommand(base *command) *urfave.Command {
 	return &urfave.Command{
-		Name:      "edit",
-		Usage:     "Edits an item in the vault",
-		ArgsUsage: "VAULT_NAME/ITEM_TYPE/ITEM_NAME",
-		Flags:     []urfave.Flag{sessionFlag()},
+		Name: "edit", Usage: "Edits an item in the vault", ArgsUsage: "VAULT_NAME/ITEM_TYPE/ITEM_NAME",
+		Flags: []urfave.Flag{sessionFlag()},
 		Action: withArgs(1, 1, func(ctx context.Context, c *urfave.Command) error {
 			base := base.forInvocation(c)
 			path, err := parseItemPath(c.Args().First(), itemPathOptions{fullPath: true})
@@ -36,180 +37,152 @@ func newEditCommand(base *command) *urfave.Command {
 	}
 }
 
-// Run runs the command
+// Run loads, updates, and stores a CXF item.
 func (cmd *EditCmd) Run(ctx context.Context) error {
-	base := cmd.command
-	s := base.storage
+	s := cmd.storage
 	appState, err := s.LoadAppState()
 	if err != nil {
 		return err
 	}
-
 	key, err := cmd.loadVaultKey(cmd.vaultName, cmd.sessionID)
 	if err != nil {
 		return err
 	}
-
-	vault, err := s.LoadVault(cmd.vaultName, key)
+	vault, err := cmd.loadVault(key)
 	if err != nil {
 		return err
 	}
-
-	item, err := paw.NewItem(cmd.itemName, cmd.itemType)
+	summary, err := findVaultItem(vault, cmd.itemName, cmd.itemType)
 	if err != nil {
 		return err
 	}
-
-	item, err = s.LoadItem(vault, item.GetMetadata())
+	item, err := s.LoadItem(vault, summary.ID)
 	if err != nil {
 		return err
 	}
-
 	switch cmd.itemType {
 	case paw.LoginItemType:
-		err = cmd.editLoginItem(vault.Key(), item)
-	case paw.NoteItemType:
-		err = cmd.editNoteItem(item)
+		err = cmd.editLogin(item, key)
 	case paw.PasswordItemType:
-		err = cmd.editPasswordItem(vault.Key(), item)
+		err = cmd.editPassword(item, key)
+	case paw.NoteItemType:
+		err = cmd.editNote(item)
 	case paw.SSHKeyItemType:
-		err = cmd.editSSHKeyItem(item)
+		err = cmd.editSSHKey(item)
 	default:
 		return fmt.Errorf("unsupported item type: %q", cmd.itemType)
 	}
-
 	if err != nil {
 		return err
 	}
-
-	now := base.now().UTC()
-
-	item.GetMetadata().Modified = now
-
-	err = s.StoreItem(vault, item)
-	if err != nil {
+	now := uint64(cmd.now().UTC().Unix())
+	item.ModifiedAt = &now
+	if err := s.StoreItem(vault, item); err != nil {
 		return err
 	}
-
-	err = vault.AddItem(item)
-	if err != nil {
+	appState.Modified = time.Unix(int64(now), 0).UTC()
+	if err := s.StoreAppState(appState); err != nil {
 		return err
 	}
-
-	vault.Modified = now
-	err = s.StoreVault(vault)
-	if err != nil {
-		return err
-	}
-
-	appState.Modified = now
-	err = s.StoreAppState(appState)
-	if err != nil {
-		return err
-	}
-
 	fmt.Fprintf(cmd.out, "[✓] item %q modified\n", cmd.itemName)
 	return nil
 }
 
-func (cmd *EditCmd) editLoginItem(key *paw.Key, item paw.Item) error {
-	v := item.(*paw.Login)
-
-	url, err := cmd.prompter.askWithDefault("URL", v.URL.String())
+// editLogin prompts for the fields stored in a CXF Login item.
+func (cmd *EditCmd) editLogin(item *model.Item, key *paw.Key) error {
+	if item.Scope == nil {
+		item.Scope = &cxf.CredentialScope{URLs: []string{}, AndroidApps: []cxf.AndroidAppID{}}
+	}
+	url := ""
+	if len(item.Scope.URLs) > 0 {
+		url = item.Scope.URLs[0]
+	}
+	url, err := cmd.prompter.askWithDefault("URL", url)
 	if err != nil {
 		return err
 	}
-	v.URL.Set(url)
-
-	username, err := cmd.prompter.askWithDefault("Username", v.Username)
+	item.Scope.URLs = []string{url}
+	credential, index, err := basicAuth(item)
 	if err != nil {
 		return err
 	}
-	v.Username = username
-
-	pwgenCmd := &PwGenCmd{command: cmd.command}
-	modes := []paw.PasswordMode{
-		paw.CustomPassword,
-		paw.RandomPassword,
-		paw.PassphrasePassword,
-		paw.PinPassword,
-	}
-	password, err := pwgenCmd.Pwgen(key, modes, v.Mode)
+	username := usernameValue(credential)
+	username, err = cmd.prompter.askWithDefault("Username", username)
 	if err != nil {
 		return err
 	}
-	v.Password.Value = password.Value
-	v.Password.Mode = password.Mode
-	v.Password.Format = password.Format
-	v.Password.Length = password.Length
-
-	note, err := cmd.prompter.askWithDefault("Note", v.Note.Value)
+	password, err := cmd.generatePassword(key, passwordSettings(credential.Password).Mode)
 	if err != nil {
 		return err
 	}
-	v.Note.Value = note
-
-	item = v
+	credential.Username = &cxf.EditableField{FieldType: cxf.FieldTypeString, Value: username}
+	credential.Password, err = makePasswordField(password.Value, model.PasswordSettings{Mode: password.Mode, Length: password.Length, Format: password.Format})
+	if err != nil {
+		return err
+	}
+	if err := setBasicAuth(item, index, credential); err != nil {
+		return err
+	}
+	note, noteIndex, err := noteCredential(item)
+	if err != nil {
+		return err
+	}
+	value := ""
+	if note.Content.Value != "" {
+		value = note.Content.Value
+	}
+	value, err = cmd.prompter.askWithDefault("Note", value)
+	if err != nil {
+		return err
+	}
+	if value != "" || noteIndex >= 0 {
+		return setNoteCredential(item, noteIndex, value)
+	}
 	return nil
 }
 
-func (cmd *EditCmd) editNoteItem(item paw.Item) error {
-	v := item.(*paw.Note)
-
-	note, err := cmd.prompter.askWithDefault("Note", v.Value)
+// editPassword prompts for a replacement password.
+func (cmd *EditCmd) editPassword(item *model.Item, key *paw.Key) error {
+	credential, index, err := basicAuth(item)
 	if err != nil {
 		return err
 	}
-	v.Value = note
+	password, err := cmd.generatePassword(key, passwordSettings(credential.Password).Mode)
+	if err != nil {
+		return err
+	}
+	credential.Password, err = makePasswordField(password.Value, model.PasswordSettings{Mode: password.Mode, Length: password.Length, Format: password.Format})
+	if err != nil {
+		return err
+	}
+	return setBasicAuth(item, index, credential)
+}
 
-	item = v
+// editNote prompts for replacement note content.
+func (cmd *EditCmd) editNote(item *model.Item) error {
+	note, index, err := noteCredential(item)
+	if err != nil {
+		return err
+	}
+	value := note.Content.Value
+	value, err = cmd.prompter.askWithDefault("Note", value)
+	if err != nil {
+		return err
+	}
+	return setNoteCredential(item, index, value)
+}
+
+// editSSHKey updates whether the SSH key should be added to the agent.
+func (cmd *EditCmd) editSSHKey(item *model.Item) error {
+	addToAgent, err := cmd.prompter.askYesNo("Add to agent", item.Metadata.AddToAgent)
+	if err != nil {
+		return err
+	}
+	item.Metadata.AddToAgent = addToAgent
 	return nil
 }
 
-func (cmd *EditCmd) editPasswordItem(key *paw.Key, item paw.Item) error {
-	v := item.(*paw.Password)
-
-	pwgenCmd := &PwGenCmd{command: cmd.command}
-	modes := []paw.PasswordMode{
-		paw.CustomPassword,
-		paw.RandomPassword,
-		paw.PassphrasePassword,
-		paw.PinPassword,
-	}
-	password, err := pwgenCmd.Pwgen(key, modes, v.Mode)
-	if err != nil {
-		return err
-	}
-	v.Value = password.Value
-	v.Mode = password.Mode
-	v.Format = password.Format
-	v.Length = password.Length
-
-	note, err := cmd.prompter.askWithDefault("Note", v.Note.Value)
-	if err != nil {
-		return err
-	}
-
-	v.Note.Value = note
-	item = v
-	return nil
-}
-
-func (cmd *EditCmd) editSSHKeyItem(item paw.Item) error {
-	v := item.(*paw.SSHKey)
-
-	addToAgent, err := cmd.prompter.askYesNo("Add to agent", v.AddToAgent)
-	if err != nil {
-		return err
-	}
-	v.AddToAgent = addToAgent
-
-	note, err := cmd.prompter.askWithDefault("Note", v.Note.Value)
-	if err != nil {
-		return err
-	}
-
-	v.Note.Value = note
-	item = v
-	return nil
+// generatePassword prompts for a password using the supported generators.
+func (cmd *EditCmd) generatePassword(key *paw.Key, defaultMode paw.PasswordMode) (*paw.Password, error) {
+	return (&PwGenCmd{command: cmd.command}).Pwgen(key, []paw.PasswordMode{paw.CustomPassword, paw.RandomPassword, paw.PassphrasePassword, paw.PinPassword}, defaultMode)
 }

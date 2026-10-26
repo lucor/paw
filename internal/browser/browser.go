@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"lucor.dev/paw/internal/browser/messaging"
-	"lucor.dev/paw/internal/paw"
+	"lucor.dev/paw/internal/storage"
 )
 
 func MessageFromExtension(args []string) bool {
@@ -24,7 +24,7 @@ func MessageFromExtension(args []string) bool {
 	return false
 }
 
-func HandleNativeMessage(s paw.Storage) {
+func HandleNativeMessage(s storage.Storage) {
 	m := messaging.NewPawMux(
 		&messaging.CreateVaultHandler{Storage: s},
 		&messaging.ListVaultHandler{Storage: s},

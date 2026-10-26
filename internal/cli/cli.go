@@ -17,11 +17,12 @@ import (
 	"lucor.dev/paw/internal/agent"
 	"lucor.dev/paw/internal/paw"
 	"lucor.dev/paw/internal/sshkey"
+	"lucor.dev/paw/internal/storage"
 )
 
 // Run executes the CLI branch of the application's full argument list.
 // The caller handles error reporting and the process exit status.
-func Run(args []string, s paw.Storage) error {
+func Run(args []string, s storage.Storage) error {
 	if len(args) < 2 || args[1] != "cli" {
 		return fmt.Errorf("expected paw cli arguments")
 	}
@@ -35,7 +36,7 @@ func Run(args []string, s paw.Storage) error {
 
 var errCanceled = errors.New("command canceled")
 
-func newCommand(storage paw.Storage) *urfave.Command {
+func newCommand(storage storage.Storage) *urfave.Command {
 	base := &command{
 		storage:     storage,
 		agentClient: agent.NewClient,
@@ -163,8 +164,14 @@ func parseItemPath(path string, opts itemPathOptions) (itemPath, error) {
 // it will use the supplied session if set,
 // otherwise will ask for the vault's password
 func (base *command) loadVaultKey(vaultName, sessionID string) (*paw.Key, error) {
+	info, err := base.resolveVaultInfo(vaultName)
+	if err != nil {
+		return nil, err
+	}
+	base.vaultID = info.ID
+	base.vaultNeedsMigration = info.NeedsMigration
 	if sessionID != "" {
-		key, err := base.loadVaultKeyWithSession(vaultName, sessionID)
+		key, err := base.loadVaultKeyWithSession(info.ID, sessionID)
 		if err == nil {
 			return key, nil
 		}
@@ -175,7 +182,16 @@ func (base *command) loadVaultKey(vaultName, sessionID string) (*paw.Key, error)
 	if err != nil {
 		return nil, err
 	}
-	return base.storage.LoadVaultKey(vaultName, password)
+	return base.storage.LoadVaultKey(info.ID, password)
+}
+
+// resolveVaultInfo finds a vault by its display name or filesystem ID.
+func (base *command) resolveVaultInfo(value string) (storage.VaultInfo, error) {
+	vaults, err := base.storage.Vaults()
+	if err != nil {
+		return storage.VaultInfo{}, err
+	}
+	return storage.FindVaultInfo(vaults, value)
 }
 
 func (base *command) loadVaultKeyWithSession(vaultName string, sessionID string) (*paw.Key, error) {

@@ -8,14 +8,14 @@ import (
 	"fmt"
 
 	"lucor.dev/paw/internal/agent"
-	"lucor.dev/paw/internal/paw"
+	"lucor.dev/paw/internal/storage"
 )
 
 // Declare conformity to Handler interface
 var _ Handler = (*CreateVaultHandler)(nil)
 
 type CreateVaultHandler struct {
-	Storage paw.Storage
+	Storage storage.Storage
 }
 
 // Action implements browser.Handler.
@@ -53,19 +53,13 @@ func (h *CreateVaultHandler) Serve(res *Response, req *Request) {
 		return
 	}
 
-	key, err := s.CreateVaultKey(v.Vault, v.Secret)
+	vault, err := s.CreateVault(v.Vault, v.Secret)
 	if err != nil {
 		res.Error = err
 		return
 	}
 
-	_, err = s.CreateVault(v.Vault, key)
-	if err != nil {
-		res.Error = err
-		return
-	}
-
-	sessionID, err := c.Unlock(v.Vault, key, sessionLifetime)
+	sessionID, err := c.Unlock(vault.Accounts[0].ID, vault.Key(), sessionLifetime)
 	if err != nil {
 		res.Error = fmt.Errorf("unable to unlock session: %w", err)
 		return

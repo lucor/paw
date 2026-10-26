@@ -15,7 +15,7 @@ import (
 	"lucor.dev/paw/internal/browser"
 	"lucor.dev/paw/internal/cli"
 	"lucor.dev/paw/internal/icon"
-	"lucor.dev/paw/internal/paw"
+	"lucor.dev/paw/internal/storage"
 	"lucor.dev/paw/internal/ui"
 )
 
@@ -122,11 +122,11 @@ func main() {
 }
 
 // makeStorage create the storage
-func makeStorage(at *appType, fyneApp fyne.App) (paw.Storage, error) {
+func makeStorage(at *appType, fyneApp fyne.App) (storage.Storage, error) {
 	if at.IsMobile() {
 		// Mobile app returns the Fyne storage
-		return paw.NewFyneStorage(fyneApp.Storage())
+		return storage.NewFyneStorage(fyneApp.Storage())
 	}
 	// Otherwise returns the OS storage
-	return paw.NewOSStorage()
+	return storage.NewOSStorage()
 }

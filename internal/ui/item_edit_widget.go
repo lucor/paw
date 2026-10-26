@@ -29,6 +29,7 @@ type itemEditWidget struct {
 	OnSave   func()
 }
 
+// newItemEditWidget creates the save and delete controls for an item editor.
 func newItemEditWidget(ctx context.Context, key *paw.Key, itemWidget FyneItemWidget, win fyne.Window) *itemEditWidget {
 	saveBtn := &widget.Button{
 		Text: "Save",
@@ -58,10 +59,10 @@ func newItemEditWidget(ctx context.Context, key *paw.Key, itemWidget FyneItemWid
 	return iew
 }
 
+// CreateRenderer builds the item form with its save and delete buttons.
 func (iew *itemEditWidget) CreateRenderer() fyne.WidgetRenderer {
-	metadata := iew.itemWidget.Item().GetMetadata()
 	itemContent := iew.itemWidget.Edit(iew.ctx, iew.key, iew.win)
-	if metadata.IsEmpty() {
+	if iew.itemWidget.IsNew() {
 		iew.deleteBtn.Hide()
 	}
 	bottom := container.NewBorder(nil, nil, iew.deleteBtn, iew.saveBtn, widget.NewLabel(""))

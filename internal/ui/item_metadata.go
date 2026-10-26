@@ -12,26 +12,24 @@ import (
 	"fyne.io/fyne/v2/widget"
 
 	"lucor.dev/paw/internal/icon"
+	"lucor.dev/paw/internal/model"
 	"lucor.dev/paw/internal/paw"
 )
 
 // Declare conformity to Item interface
-var _ paw.Item = (*Metadata)(nil)
+var _ = (*Metadata)(nil)
 
 // Item represents the basic paw identity
 type Metadata struct {
-	*paw.Metadata
+	Item *model.Item
 }
 
-func (m *Metadata) Item() paw.Item {
-	return m.Metadata
-}
-
+// Icon returns the icon for the item's Paw category.
 func (m *Metadata) Icon() fyne.Resource {
-	if m.Favicon != nil {
-		return m.Favicon
+	if m.Item.Metadata.Type == paw.LoginItemType && m.Item.Metadata.Favicon != nil {
+		return m.Item.Metadata.Favicon
 	}
-	switch m.Type {
+	switch m.Item.Metadata.Type {
 	case paw.NoteItemType:
 		return icon.NoteOutlinedIconThemed
 	case paw.PasswordItemType:
@@ -44,12 +42,20 @@ func (m *Metadata) Icon() fyne.Resource {
 	return icon.PawIcon
 }
 
-func ShowMetadata(m *paw.Metadata) fyne.CanvasObject {
+// ShowMetadata displays the item timestamps.
+func ShowMetadata(m *model.Item) fyne.CanvasObject {
+	created, modified := "", ""
+	if m.CreationAt != nil {
+		created = time.Unix(int64(*m.CreationAt), 0).Local().Format(time.RFC1123)
+	}
+	if m.ModifiedAt != nil {
+		modified = time.Unix(int64(*m.ModifiedAt), 0).Local().Format(time.RFC1123)
+	}
 	return container.New(
 		layout.NewFormLayout(),
 		widget.NewLabel("Modified"),
-		widget.NewLabel(m.Modified.Local().Format(time.RFC1123)),
+		widget.NewLabel(modified),
 		widget.NewLabel("Created"),
-		widget.NewLabel(m.Created.Local().Format(time.RFC1123)),
+		widget.NewLabel(created),
 	)
 }

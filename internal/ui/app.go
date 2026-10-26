@@ -4,6 +4,9 @@
 package ui
 
 import (
+	"crypto/x509"
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"log"
 	"runtime"
@@ -16,11 +19,14 @@ import (
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 	"github.com/godbus/dbus/v5"
+	"go.lucor.dev/cxf"
 
+	"golang.org/x/crypto/ssh"
 	"lucor.dev/paw/internal/agent"
 	"lucor.dev/paw/internal/icon"
+	"lucor.dev/paw/internal/model"
 	"lucor.dev/paw/internal/paw"
-	"lucor.dev/paw/internal/sshkey"
+	"lucor.dev/paw/internal/storage"
 )
 
 const (
@@ -37,11 +43,12 @@ type app struct {
 	win     fyne.Window
 	main    *container.Scroll
 	state   *paw.AppState
-	storage paw.Storage
+	storage storage.Storage
 
-	unlockedVault map[string]*paw.Vault // this act as cache
+	unlockedVault map[string]*model.Vault
 
-	vault *paw.Vault
+	vault   *model.Vault
+	vaultID string
 
 	filter map[string]*paw.VaultFilterOptions
 
@@ -49,7 +56,8 @@ type app struct {
 	client agent.PawAgent
 }
 
-func MakeApp(s paw.Storage, w fyne.Window) fyne.CanvasObject {
+// MakeApp builds Paw's main Fyne interface with the supplied storage and window.
+func MakeApp(s storage.Storage, w fyne.Window) fyne.CanvasObject {
 	appState, err := s.LoadAppState()
 	if err != nil {
 		dialog.NewError(err, w)
@@ -59,7 +67,7 @@ func MakeApp(s paw.Storage, w fyne.Window) fyne.CanvasObject {
 		state:         appState,
 		filter:        make(map[string]*paw.VaultFilterOptions),
 		storage:       s,
-		unlockedVault: make(map[string]*paw.Vault),
+		unlockedVault: make(map[string]*model.Vault),
 		win:           w,
 	}
 
@@ -71,6 +79,7 @@ func MakeApp(s paw.Storage, w fyne.Window) fyne.CanvasObject {
 	return a.main
 }
 
+// agentClient returns the configured agent client when it is available.
 func (a *app) agentClient() agent.PawAgent {
 	if a.client != nil {
 		return a.client
@@ -83,6 +92,7 @@ func (a *app) agentClient() agent.PawAgent {
 	return c
 }
 
+// makeSysTray configures the system tray when the desktop supports it.
 func (a *app) makeSysTray() {
 	if desk, ok := fyne.CurrentApp().(desktop.App); ok {
 		if err := checkStatusNotifierWatcher(); err != nil {
@@ -96,6 +106,7 @@ func (a *app) makeSysTray() {
 	}
 }
 
+// makeApp selects the initial vault screen.
 func (a *app) makeApp() *container.Scroll {
 	vaults, err := a.storage.Vaults()
 	if err != nil {
@@ -115,121 +126,178 @@ func (a *app) makeApp() *container.Scroll {
 	return container.NewVScroll(o)
 }
 
-func (a *app) setVaultViewByName(name string) {
-	vault, ok := a.unlockedVault[name]
+// setVaultViewByInfo selects the unlocked vault or displays its unlock screen.
+func (a *app) setVaultViewByInfo(info storage.VaultInfo) {
+	vault, ok := a.unlockedVault[info.ID]
 	if !ok {
 		a.vault = nil
-		a.main.Content = a.makeUnlockVaultView(name)
+		a.main.Content = a.makeUnlockVaultView(info)
 		a.main.Refresh()
 		a.setWindowTitle()
 		a.showCurrentVaultView()
 		return
 	}
-	a.setVaultView(vault)
+	a.setVaultView(vault, info.ID)
 	a.showCurrentVaultView()
 }
 
-func (a *app) addSSHKeyToAgent(item paw.Item) error {
-	if item.GetMetadata().Type != paw.SSHKeyItemType {
+// addSSHKeyToAgent adds a configured SSH item to the agent.
+func (a *app) addSSHKeyToAgent(item *model.Item) error {
+	if item.Metadata.Type != paw.SSHKeyItemType || !item.Metadata.AddToAgent {
 		return nil
 	}
-	v := item.(*paw.SSHKey)
-	if !v.AddToAgent {
-		return nil
-	}
-	k, err := sshkey.ParseKey([]byte(v.PrivateKey))
+	credential, err := uiSSHCredential(item)
 	if err != nil {
-		return fmt.Errorf("unable to parse SSH raw key: %w", err)
+		return err
+	}
+	der, err := base64.RawURLEncoding.DecodeString(credential.PrivateKey)
+	if err != nil {
+		return fmt.Errorf("unable to decode SSH private key")
+	}
+	key, err := x509.ParsePKCS8PrivateKey(der)
+	if err != nil {
+		return fmt.Errorf("unable to parse SSH private key")
 	}
 	if c := a.agentClient(); c != nil {
-		return c.AddSSHKey(k.PrivateKey(), v.Comment)
+		return c.AddSSHKey(key, credential.KeyComment)
 	}
 	return nil
 }
 
-func (a *app) removeSSHKeyFromAgent(item paw.Item) error {
-	if item.GetMetadata().Type != paw.SSHKeyItemType {
+// removeSSHKeyFromAgent removes an SSH item's public key from the agent.
+func (a *app) removeSSHKeyFromAgent(item *model.Item) error {
+	if item.Metadata.Type != paw.SSHKeyItemType {
 		return nil
 	}
-	v := item.(*paw.SSHKey)
-	k, err := sshkey.ParseKey([]byte(v.PrivateKey))
+	credential, err := uiSSHCredential(item)
 	if err != nil {
-		return fmt.Errorf("unable to parse SSH raw key: %w", err)
+		return err
+	}
+	der, err := base64.RawURLEncoding.DecodeString(credential.PrivateKey)
+	if err != nil {
+		return fmt.Errorf("unable to decode SSH private key")
+	}
+	key, err := x509.ParsePKCS8PrivateKey(der)
+	if err != nil {
+		return fmt.Errorf("unable to parse SSH private key")
+	}
+	signer, err := ssh.NewSignerFromKey(key)
+	if err != nil {
+		return fmt.Errorf("unsupported SSH private key")
 	}
 	if c := a.agentClient(); c != nil {
-		return c.RemoveSSHKey(k.PublicKey())
+		return c.RemoveSSHKey(signer.PublicKey())
 	}
 	return nil
 }
 
-func (a *app) addSSHKeysToAgent() {
-	a.vault.Range(func(id string, meta *paw.Metadata) bool {
-		item, err := a.storage.LoadItem(a.vault, meta)
+// uiSSHCredential reads the SSH key credential from an item.
+func uiSSHCredential(item *model.Item) (cxf.SSHKey, error) {
+	for _, raw := range item.Credentials {
+		typeName, err := cxf.CredentialTypeOf(raw)
 		if err != nil {
-			return false
+			return cxf.SSHKey{}, err
+		}
+		if typeName == cxf.CredentialTypeSSHKey {
+			var credential cxf.SSHKey
+			if err := json.Unmarshal(raw, &credential); err != nil {
+				return cxf.SSHKey{}, err
+			}
+			return credential, nil
+		}
+	}
+	return cxf.SSHKey{}, fmt.Errorf("SSH key credential is missing")
+}
+
+// addSSHKeysToAgent adds configured SSH items from the current vault.
+func (a *app) addSSHKeysToAgent() {
+	summaries, err := a.vault.FilterItems("", paw.SSHKeyItemType)
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	for _, summary := range summaries {
+		item, err := a.storage.LoadItem(a.vault, summary.ID)
+		if err != nil {
+			log.Println(err)
+			continue
 		}
 		err = a.addSSHKeyToAgent(item)
 		if err != nil {
 			log.Println("unable to add SSH Key to agent:", err)
 		}
-		return true
-	})
+	}
 }
 
-func (a *app) setVaultView(vault *paw.Vault) {
+// setVaultView selects the vault and remembers it as unlocked.
+func (a *app) setVaultView(vault *model.Vault, vaultID string) {
 	a.vault = vault
-	a.unlockedVault[vault.Name] = vault
+	a.vaultID = vaultID
+	a.unlockedVault[vaultID] = vault
 	a.main.Content = a.makeCurrentVaultView()
 	a.main.Refresh()
 	a.setWindowTitle()
 }
 
+// showAuditPasswordView opens the password audit screen.
 func (a *app) showAuditPasswordView() {
 	a.win.SetContent(a.makeAuditPasswordView())
 }
 
+// showCreateVaultView opens the vault creation screen.
 func (a *app) showCreateVaultView() {
 	a.win.SetContent(a.makeCreateVaultView())
 }
 
+// showCurrentVaultView displays the selected vault or its unlock screen.
 func (a *app) showCurrentVaultView() {
 	a.win.SetContent(a.main)
 }
 
+// setWindowTitle updates the title to match the current vault state.
 func (a *app) setWindowTitle() {
 	title := "Paw"
 	if a.vault != nil {
-		title = a.vault.Name + " - " + title
+		name, _ := a.vault.Name()
+		title = name + " - " + title
 	}
 	a.win.SetTitle(title)
 }
 
+// showAddItemView opens the item category selection screen.
 func (a *app) showAddItemView() {
 	a.win.SetContent(a.makeAddItemView())
 }
 
+// showItemView displays the selected item's details.
 func (a *app) showItemView(fyneItemWidget FyneItemWidget) {
 	a.win.SetContent(a.makeShowItemView(fyneItemWidget))
 }
 
+// showEditItemView opens the selected item's editor.
 func (a *app) showEditItemView(fyneItemWidget FyneItemWidget) {
 	a.win.SetContent(a.makeEditItemView(fyneItemWidget))
 }
 
+// showPreferencesView opens the preferences screen.
 func (a *app) showPreferencesView() {
 	a.win.SetContent(a.makePreferencesView())
 }
 
+// lockVault removes the current vault from the unlocked views.
 func (a *app) lockVault() {
-	delete(a.unlockedVault, a.vault.Name)
+	delete(a.unlockedVault, a.vaultID)
 	a.vault = nil
+	a.vaultID = ""
 }
 
+// refreshCurrentView redraws the current vault screen.
 func (a *app) refreshCurrentView() {
 	a.main.Content = a.makeCurrentVaultView()
 	a.main.Refresh()
 }
 
+// makeCancelHeaderButton creates the back button used by subviews.
 func (a *app) makeCancelHeaderButton() fyne.CanvasObject {
 	var left, right fyne.CanvasObject
 	if fyne.CurrentDevice().IsMobile() {
@@ -257,6 +325,7 @@ func pawLogo() *canvas.Image {
 	return imageFromResource(icon.PawIcon)
 }
 
+// imageFromResource creates a canvas image from a Fyne resource.
 func imageFromResource(resource fyne.Resource) *canvas.Image {
 	img := canvas.NewImageFromResource(resource)
 	img.FillMode = canvas.ImageFillContain

@@ -3,15 +3,13 @@
 
 package messaging
 
-import (
-	"lucor.dev/paw/internal/paw"
-)
+import "lucor.dev/paw/internal/storage"
 
 // Declare conformity to Handler interface
 var _ Handler = (*ListVaultHandler)(nil)
 
 type ListVaultHandler struct {
-	Storage paw.Storage
+	Storage storage.Storage
 }
 
 // Action implements browser.Handler.
@@ -31,10 +29,14 @@ func (h *ListVaultHandler) Serve(res *Response, req *Request) {
 	}
 	res.Action = h.Action()
 
-	vaults, err := h.Storage.Vaults()
+	infos, err := h.Storage.Vaults()
 	if err != nil {
 		res.Error = err
 		return
+	}
+	vaults := make([]string, 0, len(infos))
+	for _, info := range infos {
+		vaults = append(vaults, info.Name)
 	}
 	res.Payload = &ListVaultHandlerResponsePayload{Vaults: vaults}
 }

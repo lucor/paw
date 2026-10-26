@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"lucor.dev/paw/internal/paw"
+	"lucor.dev/paw/internal/storage"
 )
 
 func Test_PawMux(t *testing.T) {
@@ -27,9 +27,9 @@ func Test_PawMux(t *testing.T) {
 
 	t.Run("registered action", func(t *testing.T) {
 		req := &Request{Action: ListVaultAction}
-		s := &paw.StorageMock{}
-		s.OnVaults = func() ([]string, error) {
-			return []string{}, nil
+		s := &storage.StorageMock{}
+		s.OnVaults = func() ([]storage.VaultInfo, error) {
+			return []storage.VaultInfo{}, nil
 		}
 		mux := NewPawMux(&ListVaultHandler{Storage: s})
 		in := &bytes.Buffer{}
@@ -40,9 +40,9 @@ func Test_PawMux(t *testing.T) {
 	})
 
 	t.Run("list vaults", func(t *testing.T) {
-		vaults := []string{"vault1", "vault2"}
-		s := &paw.StorageMock{}
-		s.OnVaults = func() ([]string, error) {
+		vaults := []storage.VaultInfo{{ID: "vault1", Name: "Vault One"}, {ID: "vault2", Name: "Vault Two"}}
+		s := &storage.StorageMock{}
+		s.OnVaults = func() ([]storage.VaultInfo, error) {
 			return vaults, nil
 		}
 
@@ -60,6 +60,6 @@ func Test_PawMux(t *testing.T) {
 		v := &ListVaultHandlerResponsePayload{}
 		err = json.Unmarshal(res.Payload, v)
 		assert.Nil(t, err)
-		assert.Equal(t, vaults, v.Vaults)
+		assert.Equal(t, []string{"Vault One", "Vault Two"}, v.Vaults)
 	})
 }

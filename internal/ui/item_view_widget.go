@@ -24,6 +24,7 @@ type itemViewWidget struct {
 	OnSubmit func()
 }
 
+// newItemViewWidget creates a view for one item's details.
 func newItemViewWidget(ctx context.Context, itemWidget FyneItemWidget, win fyne.Window) *itemViewWidget {
 	editBtn := &widget.Button{
 		Text: "Edit",
@@ -43,10 +44,11 @@ func newItemViewWidget(ctx context.Context, itemWidget FyneItemWidget, win fyne.
 	return ivw
 }
 
+// CreateRenderer builds the item details view with action buttons.
 func (ivw *itemViewWidget) CreateRenderer() fyne.WidgetRenderer {
-	metadata := ivw.itemWidget.Item().GetMetadata()
+	item := ivw.itemWidget.Item()
 	itemContent := ivw.itemWidget.Show(ivw.ctx, ivw.win)
-	metaContent := ShowMetadata(metadata)
+	metaContent := ShowMetadata(item)
 	bottom := container.NewVBox(metaContent, ivw.editBtn)
 	c := container.NewBorder(nil, bottom, nil, nil, itemContent)
 	return widget.NewSimpleRenderer(c)

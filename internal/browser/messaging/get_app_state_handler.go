@@ -9,13 +9,14 @@ import (
 	"time"
 
 	"lucor.dev/paw/internal/paw"
+	"lucor.dev/paw/internal/storage"
 )
 
 // Declare conformity to Handler interface
 var _ Handler = (*GetAppStateHandler)(nil)
 
 type GetAppStateHandler struct {
-	Storage paw.Storage
+	Storage storage.Storage
 }
 
 // Action implements browser.Handler.

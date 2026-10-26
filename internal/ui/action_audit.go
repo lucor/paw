@@ -5,6 +5,7 @@ package ui
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sort"
@@ -17,6 +18,7 @@ import (
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
+	"go.lucor.dev/cxf"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
 	"lucor.dev/paw/internal/haveibeenpwned"
@@ -38,9 +40,14 @@ func (a *app) makeAuditPasswordView() fyne.CanvasObject {
 	return container.NewBorder(a.makeCancelHeaderButton(), nil, nil, nil, c)
 }
 
+// startPasswordAudit collects password items and starts the audit.
 func (a *app) startPasswordAudit() {
+	itemMetadata, err := a.vault.FilterItems("", paw.PasswordItemType|paw.LoginItemType)
+	if err != nil {
+		dialog.ShowError(err, a.win)
+		return
+	}
 	ctx, cancel := context.WithCancel(context.Background())
-	itemMetadata := a.vault.FilterItemMetadata(&paw.VaultFilterOptions{ItemType: paw.PasswordItemType | paw.LoginItemType})
 
 	// Create UI components on main thread
 	modalTitle := widget.NewLabel("Auditing items...")
@@ -67,7 +74,8 @@ func (a *app) startPasswordAudit() {
 	go a.performPasswordAudit(ctx, itemMetadata, progressBind, modal)
 }
 
-func (a *app) performPasswordAudit(ctx context.Context, itemMetadata []*paw.Metadata, progressBind binding.Float, modal *widget.PopUp) {
+// performPasswordAudit checks each password item and updates progress.
+func (a *app) performPasswordAudit(ctx context.Context, itemMetadata []cxf.Item, progressBind binding.Float, modal *widget.PopUp) {
 	defer func() {
 		fyne.Do(func() {
 			modal.Hide()
@@ -81,8 +89,8 @@ func (a *app) performPasswordAudit(ctx context.Context, itemMetadata []*paw.Meta
 	sem := semaphore.NewWeighted(int64(maxWorkers))
 	g := &errgroup.Group{}
 
-	for _, meta := range itemMetadata {
-		meta := meta
+	for _, summary := range itemMetadata {
+		summary := summary
 
 		err := sem.Acquire(ctx, 1)
 		if err != nil {
@@ -92,12 +100,20 @@ func (a *app) performPasswordAudit(ctx context.Context, itemMetadata []*paw.Meta
 		g.Go(func() error {
 			defer sem.Release(1)
 
-			item, err := a.storage.LoadItem(a.vault, meta)
+			item, err := a.storage.LoadItem(a.vault, summary.ID)
 			if err != nil {
 				return err
 			}
 
-			isPwend, count, err := haveibeenpwned.Search(ctx, item)
+			password := ""
+			for _, raw := range item.Credentials {
+				var credential cxf.BasicAuth
+				if json.Unmarshal(raw, &credential) == nil && credential.Password != nil {
+					password = credential.Password.Value
+					break
+				}
+			}
+			isPwend, count, err := haveibeenpwned.Search(ctx, password)
 			if err != nil {
 				return err
 			}
@@ -136,6 +152,7 @@ func (a *app) performPasswordAudit(ctx context.Context, itemMetadata []*paw.Meta
 	})
 }
 
+// showAuditResults displays the passwords found in breach data.
 func (a *app) showAuditResults(pwendItems []haveibeenpwned.Pwned) {
 	if len(pwendItems) == 0 {
 		image := imageFromResource(icon.CircleCheckOutlinedIconThemed)
@@ -166,7 +183,7 @@ func (a *app) showAuditResults(pwendItems []haveibeenpwned.Pwned) {
 				return
 			}
 			v := pwendItems[lii]
-			metadata := v.Item.GetMetadata()
+			metadata := v.Item
 			fyneItemWidget := NewFyneItemWidget(v.Item, a.state.Preferences)
 
 			border := co.(*fyne.Container)
@@ -174,7 +191,7 @@ func (a *app) showAuditResults(pwendItems []haveibeenpwned.Pwned) {
 			button := border.Objects[1].(*widget.Button)
 			icon := border.Objects[2].(*widget.Icon)
 
-			label.SetText(fmt.Sprintf("%s (found %d times)", metadata.Name, v.Count))
+			label.SetText(fmt.Sprintf("%s (found %d times)", metadata.Title, v.Count))
 			icon.SetResource(fyneItemWidget.Icon())
 			button.OnTapped = func() {
 				a.showEditItemView(fyneItemWidget)

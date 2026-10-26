@@ -9,6 +9,7 @@ import (
 
 	urfave "github.com/urfave/cli/v3"
 
+	"lucor.dev/paw/internal/model"
 	"lucor.dev/paw/internal/paw"
 	"lucor.dev/paw/internal/tree"
 )
@@ -74,36 +75,40 @@ func (cmd *ListCmd) Run(ctx context.Context) error {
 }
 
 func (cmd *ListCmd) items() ([]tree.Node, error) {
-	s := cmd.storage
 	key, err := cmd.loadVaultKey(cmd.vaultName, cmd.sessionID)
 	if err != nil {
 		return nil, err
 	}
 
-	vault, err := s.LoadVault(cmd.vaultName, key)
+	vault, err := cmd.loadVault(key)
 	if err != nil {
 		return nil, err
 	}
 
-	meta := vault.FilterItemMetadata(&paw.VaultFilterOptions{
-		Name:     cmd.itemName,
-		ItemType: cmd.itemType,
-	})
+	items, err := vault.FilterItems(cmd.itemName, cmd.itemType)
+	if err != nil {
+		return nil, err
+	}
 
 	loginNode := tree.Node{Value: paw.LoginItemType.String()}
 	noteNode := tree.Node{Value: paw.NoteItemType.String()}
 	passwordNode := tree.Node{Value: paw.PasswordItemType.String()}
 	sshkeyNode := tree.Node{Value: paw.SSHKeyItemType.String()}
-	for _, v := range meta {
-		switch v.Type {
+	for index := range items {
+		v := &items[index]
+		itemType, err := model.ItemTypeOf(v)
+		if err != nil {
+			return nil, err
+		}
+		switch itemType {
 		case paw.LoginItemType:
-			loginNode.Child = append(loginNode.Child, tree.Node{Value: v.Name})
+			loginNode.Child = append(loginNode.Child, tree.Node{Value: v.Title})
 		case paw.NoteItemType:
-			noteNode.Child = append(noteNode.Child, tree.Node{Value: v.Name})
+			noteNode.Child = append(noteNode.Child, tree.Node{Value: v.Title})
 		case paw.PasswordItemType:
-			passwordNode.Child = append(passwordNode.Child, tree.Node{Value: v.Name})
+			passwordNode.Child = append(passwordNode.Child, tree.Node{Value: v.Title})
 		case paw.SSHKeyItemType:
-			sshkeyNode.Child = append(sshkeyNode.Child, tree.Node{Value: v.Name})
+			sshkeyNode.Child = append(sshkeyNode.Child, tree.Node{Value: v.Title})
 		}
 	}
 
@@ -129,10 +134,10 @@ func (cmd *ListCmd) vaults() (tree.Node, error) {
 		return n, fmt.Errorf("no vaults found. To create one: paw cli init VAULT")
 	}
 	for _, v := range vaults {
-		if cmd.vaultName != "" && cmd.vaultName != v {
+		if cmd.vaultName != "" && cmd.vaultName != v.Name && cmd.vaultName != v.ID {
 			continue
 		}
-		n.Child = append(n.Child, tree.Node{Value: v})
+		n.Child = append(n.Child, tree.Node{Value: v.Name})
 	}
 	if len(n.Child) == 0 {
 		return n, fmt.Errorf("vault %q does not exists", cmd.vaultName)
