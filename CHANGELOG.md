@@ -1,5 +1,13 @@
 # Changelog - Paw
 
+## 0.29.0 - 27 Oct 2026
+
+- storage: migrate existing vaults to CXF automatically when they are unlocked, and keep the original vault as a backup
+- storage: report item migration errors and leave the active vault unchanged if migration fails
+- cli: migrate to urfave/cli v3
+- ui: show migration progress and fix SSH key forms and login favicon downloads
+- build: use `go.lucor.dev/paw` as the Go module path and depend on the published CXF module
+
 ## 0.28.1 - 21 Oct 2026
 
 - build: use Go 1.26.10 for release binaries, including security fixes for TLS certificate verification

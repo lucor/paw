@@ -5,7 +5,7 @@ Description = "A simple, privacy-focused password manager"
 Icon = "logo/paw.png"
 Name = "Paw"
 ID = "dev.lucor.paw"
-Version = "0.28.1"
+Version = "0.29.0"
 
 [Migrations]
 fyneDo = true
