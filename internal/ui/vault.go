@@ -8,64 +8,63 @@ import (
 	"time"
 
 	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
-	"fyne.io/fyne/v2/theme"
-	"fyne.io/fyne/v2/widget"
 	"go.lucor.dev/cxf"
-	"go.lucor.dev/paw/internal/icon"
 	"go.lucor.dev/paw/internal/model"
 	"go.lucor.dev/paw/internal/paw"
 	"go.lucor.dev/paw/internal/storage"
+	"go.lucor.dev/paw/internal/ui/v2"
+	"go.lucor.dev/paw/internal/ui/v2/assets/icons"
 )
 
-// makeCreateVaultView displays the form for creating a vault.
-func (a *app) makeCreateVaultView() fyne.CanvasObject {
-	logo := pawLogo()
+// showCreateVaultView opens the vault creation screen.
+func (a *app) showCreateVaultView() {
+	a.win.SetContent(v2.NewCreateVault(a.showCurrentVaultView, a.createVault))
+}
 
-	heading := headingText("Create a new vault")
+// showAddVaultView opens the available ways to add a vault.
+func (a *app) showAddVaultView() {
+	v2.ShowAddVault(a.win, a.showCurrentVaultView, a.createVault)
+}
 
-	name := widget.NewEntry()
-	name.SetPlaceHolder("Name")
+// createVault stores a vault and makes it the active vault.
+func (a *app) createVault(name, password string) error {
+	vault, err := a.storage.CreateVault(name, password)
+	if err != nil {
+		return err
+	}
+	a.setVaultView(vault, vault.Accounts[0].ID)
+	a.showCurrentVaultView()
+	a.win.SetMainMenu(a.makeMainMenu())
+	a.makeSysTray()
+	return nil
+}
 
-	password := widget.NewPasswordEntry()
-	password.SetPlaceHolder("Password")
-
-	btn := widget.NewButton("Create", func() {
-		vault, err := a.storage.CreateVault(name.Text, password.Text)
-		if err != nil {
-			dialog.ShowError(err, a.win)
-			return
-		}
-		a.setVaultView(vault, vault.Accounts[0].ID)
-		a.showCurrentVaultView()
-		a.win.SetMainMenu(a.makeMainMenu())
-		a.makeSysTray()
-	})
-
-	return container.NewCenter(container.NewVBox(logo, heading, name, password, btn))
+// addItem creates an item of the selected type and opens its editor.
+func (a *app) addItem(itemType paw.ItemType) {
+	item, err := newItemTemplate(itemType)
+	if err != nil {
+		dialog.ShowError(err, a.win)
+		return
+	}
+	a.showEditItemView(newModelItemWidget(item, a.state.Preferences, true))
 }
 
 // makeSelectVaultView displays the available vaults.
 func (a *app) makeSelectVaultView(vaults []storage.VaultInfo) fyne.CanvasObject {
-	heading := headingText("Select a Vault")
-	heading.Alignment = fyne.TextAlignCenter
-
-	c := container.NewVBox(pawLogo(), heading)
-
+	choices := make([]v2.VaultChoice, 0, len(vaults))
 	for _, vault := range vaults {
 		info := vault
-		resource := icon.LockOpenOutlinedIconThemed
-		if _, ok := a.unlockedVault[info.ID]; !ok {
-			resource = icon.LockOutlinedIconThemed
-		}
-		btn := widget.NewButtonWithIcon(info.Name, resource, func() {
-			a.setVaultViewByInfo(info)
-		})
-		btn.Alignment = widget.ButtonAlignLeading
-		c.Add(btn)
+		_, unlocked := a.unlockedVault[info.ID]
+		choices = append(choices, v2.VaultChoice{Name: info.Name, Unlocked: unlocked, Open: func() {
+			a.setVaultViewByInfo(info, func() {
+				a.main.Content = a.makeSelectVaultView(vaults)
+				a.main.Refresh()
+				a.showCurrentVaultView()
+			})
+		}})
 	}
-	return container.NewCenter(c)
+	return v2.NewSelectVault(choices, a.showAddVaultView)
 }
 
 // makeUnlockVaultView displays the password form for a locked vault.
@@ -82,8 +81,7 @@ func (a *app) makeCurrentVaultView() fyne.CanvasObject {
 		a.filter[a.vaultID] = filter
 	}
 
-	itemsWidget := newItemsWidget(vault, filter)
-	itemsWidget.OnSelected = func(summary *cxf.Item) {
+	openItem := func(summary *cxf.Item) {
 		item, err := a.storage.LoadItem(vault, summary.ID)
 		if err != nil {
 			msg := fmt.Sprintf("error loading %q.\nDo you want delete from the vault?", summary.Title)
@@ -100,7 +98,8 @@ func (a *app) makeCurrentVaultView() fyne.CanvasObject {
 						now := time.Now().UTC()
 						a.state.Modified = now
 						_ = a.storage.StoreAppState(a.state)
-						itemsWidget.Reload(nil, filter)
+						a.main.Content = a.makeCurrentVaultView()
+						a.main.Refresh()
 					}
 				},
 				a.win,
@@ -110,59 +109,52 @@ func (a *app) makeCurrentVaultView() fyne.CanvasObject {
 
 		fyneItemWidget := NewFyneItemWidget(item, a.state.Preferences)
 		a.showItemView(fyneItemWidget)
-		itemsWidget.listEntry.UnselectAll()
 	}
-
-	// search entries
-	search := widget.NewEntry()
-	search.SetPlaceHolder("Search")
-	search.SetText(filter.Name)
-	search.OnChanged = func(s string) {
-		filter.Name = s
-		itemsWidget.Reload(nil, filter)
+	categoryIDs := map[paw.ItemType]string{0: "all", paw.LoginItemType: "login", paw.PasswordItemType: "password", paw.NoteItemType: "note", paw.SSHKeyItemType: "ssh"}
+	var rows []v2.EntryRow
+	for _, account := range vault.Accounts {
+		for _, item := range account.Items {
+			summary := item
+			kind, _ := model.ItemTypeOf(&summary)
+			subtitle := ""
+			if summary.Subtitle != nil {
+				subtitle = *summary.Subtitle
+			}
+			rows = append(rows, v2.EntryRow{Title: summary.Title, Subtitle: subtitle, Category: categoryIDs[kind], Icon: summaryIcon(&summary), Open: func() { openItem(&summary) }})
+		}
 	}
-
-	// filter entries
-	itemTypeMap := map[string]paw.ItemType{}
-	options := []string{fmt.Sprintf("All items (%d)", len(vault.Accounts[0].Items))}
-	for _, t := range a.makeEmptyItems() {
-		count := 0
-		for _, summary := range vault.Accounts[0].Items {
-			itemType, _ := model.ItemTypeOf(&summary)
-			if itemType == t {
-				count++
+	vaults, err := a.storage.Vaults()
+	if err != nil {
+		fyne.LogError("Unable to list vaults", err)
+	}
+	choices := make([]v2.VaultChoice, 0, len(vaults))
+	currentID := a.vaultID
+	for _, info := range vaults {
+		_, unlocked := a.unlockedVault[info.ID]
+		choices = append(choices, v2.VaultChoice{Name: info.Name, Unlocked: unlocked, Active: info.ID == currentID, Open: func() {
+			a.setVaultViewByInfo(info, func() { a.setVaultViewByInfo(storage.VaultInfo{ID: currentID}, nil) })
+		}})
+	}
+	name, _ := vault.Name()
+	categories := []v2.EntryCategory{{ID: "all", Label: "All items", Icon: icons.Vault}, {ID: "login", Label: "Logins", Icon: icons.Login}, {ID: "password", Label: "Passwords", Icon: icons.Password}, {ID: "note", Label: "Notes", Icon: icons.Note}, {ID: "ssh", Label: "SSH keys", Icon: icons.SSH}}
+	return v2.NewEntryList(v2.EntryListOptions{VaultName: name, Vaults: choices, VaultActions: a.makeVaultActions(), Entries: rows, Categories: categories, Search: filter.Name, Category: categoryIDs[filter.ItemType], AddEntry: func(kind v2.EntryKind) {
+		switch kind {
+		case v2.EntryNote:
+			a.addItem(paw.NoteItemType)
+		case v2.EntryPassword:
+			a.addItem(paw.PasswordItemType)
+		case v2.EntryLogin:
+			a.addItem(paw.LoginItemType)
+		case v2.EntrySSH:
+			a.addItem(paw.SSHKeyItemType)
+		}
+	}, AddVault: a.showAddVaultView, OnFilterChanged: func(search, category string) {
+		filter.Name = search
+		for kind, id := range categoryIDs {
+			if id == category {
+				filter.ItemType = kind
+				break
 			}
 		}
-		name := fmt.Sprintf("%s (%d)", t.Label(), count)
-		options = append(options, name)
-		itemTypeMap[name] = t
-	}
-
-	list := widget.NewSelect(options, func(s string) {
-		var v paw.ItemType
-		if s == options[0] {
-			v = paw.ItemType(0) // No item type will be selected
-		} else {
-			v = itemTypeMap[s]
-		}
-
-		filter.ItemType = v
-		itemsWidget.Reload(nil, filter)
-	})
-
-	list.SetSelectedIndex(0)
-
-	header := container.NewBorder(nil, nil, nil, a.makeVaultMenu(), list)
-
-	button := widget.NewButtonWithIcon("Add item", theme.ContentAddIcon(), func() {
-		a.showAddItemView()
-	})
-
-	// layout so we can focus the search box using shift+tab
-	return container.NewBorder(search, nil, nil, nil, container.NewBorder(header, button, nil, nil, itemsWidget))
-}
-
-// makeEmptyItems returns the item categories supported by the editor.
-func (a *app) makeEmptyItems() []paw.ItemType {
-	return []paw.ItemType{paw.NoteItemType, paw.PasswordItemType, paw.LoginItemType, paw.SSHKeyItemType}
+	}})
 }

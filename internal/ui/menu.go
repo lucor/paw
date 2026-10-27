@@ -12,10 +12,10 @@ import (
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/driver/desktop"
-	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 	"go.lucor.dev/paw/internal/paw"
 	"go.lucor.dev/paw/internal/storage"
+	"go.lucor.dev/paw/internal/ui/v2"
 )
 
 func (a *app) makeMainMenu() *fyne.MainMenu {
@@ -70,37 +70,13 @@ func (a *app) about() {
 	d.Show()
 }
 
-func (a *app) makeVaultMenu() fyne.CanvasObject {
-	d := fyne.CurrentApp().Driver()
-
-	menuItems := []*fyne.MenuItem{
-		fyne.NewMenuItem("Password Audit", a.showAuditPasswordView),
-		fyne.NewMenuItem("Import From File", a.importFromFile),
-		fyne.NewMenuItem("Export To File", a.exportToFile),
-		fyne.NewMenuItemSeparator(),
-		fyne.NewMenuItem("Lock Vault", func() {
-			name, _ := a.vault.Name()
-			a.main.Content = a.makeUnlockVaultView(storage.VaultInfo{ID: a.vaultID, Name: name})
-			a.lockVault()
-			a.main.Refresh()
-		}),
-	}
-
-	popUpMenu := widget.NewPopUpMenu(fyne.NewMenu("", menuItems...), a.win.Canvas())
-
-	var button *widget.Button
-	button = widget.NewButtonWithIcon("", theme.MoreVerticalIcon(), func() {
-		buttonPos := d.AbsolutePositionForObject(button)
-		buttonSize := button.Size()
-		popUpMin := popUpMenu.MinSize()
-
-		var popUpPos fyne.Position
-		popUpPos.X = buttonPos.X + buttonSize.Width - popUpMin.Width
-		popUpPos.Y = buttonPos.Y + buttonSize.Height
-		popUpMenu.ShowAtPosition(popUpPos)
+func (a *app) makeVaultActions() []*fyne.MenuItem {
+	return v2.NewVaultActions(a.showAuditPasswordView, a.importFromFile, a.exportToFile, func() {
+		name, _ := a.vault.Name()
+		a.main.Content = a.makeUnlockVaultView(storage.VaultInfo{ID: a.vaultID, Name: name})
+		a.lockVault()
+		a.main.Refresh()
 	})
-
-	return button
 }
 
 func (a *app) makeVaultMenuItems() []*fyne.MenuItem {
@@ -118,13 +94,13 @@ func (a *app) makeVaultMenuItems() []*fyne.MenuItem {
 		if isDesktop && i < 9 {
 			shortcut := &desktop.CustomShortcut{KeyName: fyne.KeyName(fmt.Sprint(i + 1)), Modifier: fyne.KeyModifierControl}
 			a.win.Canvas().AddShortcut(shortcut, func(shortcut fyne.Shortcut) {
-				a.setVaultViewByInfo(info)
+				a.setVaultViewByInfo(info, nil)
 			})
 			mi[i].Shortcut = shortcut
 		}
 		mi[i].Action = func() {
 			defer a.win.Show()
-			a.setVaultViewByInfo(info)
+			a.setVaultViewByInfo(info, nil)
 		}
 	}
 	return mi

@@ -31,18 +31,7 @@ func TestAddPasswordItemOpensGenerator(t *testing.T) {
 		state: &paw.AppState{Preferences: paw.NewDefaultPreferences()},
 		vault: vault,
 	}
-	window.SetContent(application.makeAddItemView())
-
-	var addPassword *widget.Button
-	for _, object := range test.LaidOutObjects(window.Canvas().Content()) {
-		button, ok := object.(*widget.Button)
-		if ok && button.Text == paw.PasswordItemType.Label() {
-			addPassword = button
-			break
-		}
-	}
-	require.NotNil(t, addPassword)
-	addPassword.OnTapped()
+	application.addItem(paw.PasswordItemType)
 
 	var generatePassword *widget.Button
 	for _, object := range test.LaidOutObjects(window.Canvas().Content()) {
@@ -72,18 +61,7 @@ func TestAddSSHItemShowsCreationActions(t *testing.T) {
 		state: &paw.AppState{Preferences: paw.NewDefaultPreferences()},
 		vault: vault,
 	}
-	window.SetContent(application.makeAddItemView())
-
-	var addSSHKey *widget.Button
-	for _, object := range test.LaidOutObjects(window.Canvas().Content()) {
-		button, ok := object.(*widget.Button)
-		if ok && button.Text == paw.SSHKeyItemType.Label() {
-			addSSHKey = button
-			break
-		}
-	}
-	require.NotNil(t, addSSHKey)
-	addSSHKey.OnTapped()
+	application.addItem(paw.SSHKeyItemType)
 
 	labels := make(map[string]bool)
 	for _, object := range test.LaidOutObjects(window.Canvas().Content()) {

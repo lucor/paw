@@ -5,16 +5,13 @@ package ui
 
 import (
 	"errors"
-	"fmt"
 
 	"filippo.io/age"
 	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/canvas"
-	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/widget"
-	"go.lucor.dev/paw/internal/icon"
 	"go.lucor.dev/paw/internal/storage"
+	"go.lucor.dev/paw/internal/ui/v2"
 )
 
 // unlockerVaultWidget is a widget that allows the user to unlock a vault
@@ -22,13 +19,16 @@ type unlockerVaultWidget struct {
 	widget.BaseWidget
 	app       *app
 	vaultInfo storage.VaultInfo
-	icon      *canvas.Image
+	back      func()
 	button    *widget.Button
 	password  *widget.Entry
 }
 
 // unlock reads the password and opens the selected vault.
 func (uw *unlockerVaultWidget) unlock() {
+	if uw.password.Disabled() {
+		return
+	}
 	password := uw.password.Text
 	if password == "" {
 		dialog.ShowError(errors.New("the password is required"), uw.app.win)
@@ -84,15 +84,30 @@ func NewUnlockerVaultWidget(info storage.VaultInfo, a *app) *unlockerVaultWidget
 
 	uw := &unlockerVaultWidget{
 		app:       a,
-		icon:      pawLogo(),
 		vaultInfo: info,
 	}
 	uw.ExtendBaseWidget(uw)
-	uw.button = widget.NewButtonWithIcon("Unlock", icon.LockOpenOutlinedIconThemed, uw.unlock)
+	uw.button = widget.NewButton("Unlock", uw.unlock)
+	uw.button.Importance = widget.HighImportance
+	uw.button.Disable()
 	password := widget.NewPasswordEntry()
-	password.SetPlaceHolder("Password")
+	password.Validator = func(value string) error {
+		if value == "" {
+			return errors.New("master password is required")
+		}
+		return nil
+	}
+	password.OnChanged = func(value string) {
+		if value == "" || password.Disabled() {
+			uw.button.Disable()
+		} else {
+			uw.button.Enable()
+		}
+	}
 	password.OnSubmitted = func(s string) {
-		uw.unlock()
+		if !uw.button.Disabled() {
+			uw.unlock()
+		}
 	}
 	uw.password = password
 	return uw
@@ -100,9 +115,5 @@ func NewUnlockerVaultWidget(info storage.VaultInfo, a *app) *unlockerVaultWidget
 
 // CreateRenderer builds the vault unlock form.
 func (uw *unlockerVaultWidget) CreateRenderer() fyne.WidgetRenderer {
-	msg := fmt.Sprintf("Vault %q is locked", uw.vaultInfo.Name)
-	heading := headingText(msg)
-
-	c := container.NewCenter(container.NewVBox(uw.icon, heading, uw.password, uw.button))
-	return widget.NewSimpleRenderer(c)
+	return widget.NewSimpleRenderer(v2.NewUnlockVault(uw.vaultInfo.Name, uw.password, uw.button, uw.back, uw.app.showAddVaultView))
 }

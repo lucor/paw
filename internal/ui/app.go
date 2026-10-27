@@ -26,6 +26,8 @@ import (
 	"go.lucor.dev/paw/internal/model"
 	"go.lucor.dev/paw/internal/paw"
 	"go.lucor.dev/paw/internal/storage"
+	"go.lucor.dev/paw/internal/ui/v2"
+	"go.lucor.dev/paw/internal/ui/v2/assets/icons"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -117,7 +119,16 @@ func (a *app) makeApp() *container.Scroll {
 
 	switch len(vaults) {
 	case 0:
-		o = a.makeCreateVaultView()
+		showSection := func(title string, resource fyne.Resource) {
+			a.win.SetContent(v2.NewPlaceholder(title, resource, func() {
+				a.win.SetContent(a.main)
+			}))
+		}
+		o = v2.NewWelcome(pawLogo(), v2.WelcomeActions{
+			CreateVault: a.showCreateVaultView,
+			Restore:     func() { showSection("Restore from backup", icons.RestoreVault) },
+			Sync:        func() { showSection("Connect via Sync", icons.Sync) },
+		})
 	case 1:
 		o = a.makeUnlockVaultView(vaults[0])
 	default:
@@ -127,11 +138,13 @@ func (a *app) makeApp() *container.Scroll {
 }
 
 // setVaultViewByInfo selects the unlocked vault or displays its unlock screen.
-func (a *app) setVaultViewByInfo(info storage.VaultInfo) {
+func (a *app) setVaultViewByInfo(info storage.VaultInfo, back func()) {
 	vault, ok := a.unlockedVault[info.ID]
 	if !ok {
 		a.vault = nil
-		a.main.Content = a.makeUnlockVaultView(info)
+		unlocker := NewUnlockerVaultWidget(info, a)
+		unlocker.back = back
+		a.main.Content = unlocker
 		a.main.Refresh()
 		a.setWindowTitle()
 		a.showCurrentVaultView()
@@ -244,11 +257,6 @@ func (a *app) showAuditPasswordView() {
 	a.win.SetContent(a.makeAuditPasswordView())
 }
 
-// showCreateVaultView opens the vault creation screen.
-func (a *app) showCreateVaultView() {
-	a.win.SetContent(a.makeCreateVaultView())
-}
-
 // showCurrentVaultView displays the selected vault or its unlock screen.
 func (a *app) showCurrentVaultView() {
 	a.win.SetContent(a.main)
@@ -262,11 +270,6 @@ func (a *app) setWindowTitle() {
 		title = name + " - " + title
 	}
 	a.win.SetTitle(title)
-}
-
-// showAddItemView opens the item category selection screen.
-func (a *app) showAddItemView() {
-	a.win.SetContent(a.makeAddItemView())
 }
 
 // showItemView displays the selected item's details.
@@ -310,14 +313,6 @@ func (a *app) makeCancelHeaderButton() fyne.CanvasObject {
 		})
 	}
 	return container.NewBorder(nil, nil, left, right, widget.NewLabel(""))
-}
-
-// headingText returns a text formatted as heading
-func headingText(text string) *canvas.Text {
-	t := canvas.NewText(text, theme.Color(theme.ColorNameForeground))
-	t.TextStyle = fyne.TextStyle{Bold: true}
-	t.TextSize = theme.TextSubHeadingSize()
-	return t
 }
 
 // logo returns the Paw logo as a canvas image with the specified dimensions
