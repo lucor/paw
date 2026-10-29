@@ -63,6 +63,28 @@ func TestWelcomeActionUsesWholeRow(t *testing.T) {
 	}
 }
 
+func TestAddVaultKeepsRestoreAction(t *testing.T) {
+	app := test.NewApp()
+	t.Cleanup(app.Quit)
+	window := app.NewWindow("Add vault")
+	t.Cleanup(window.Close)
+	called := false
+	view := NewAddVault(func() {}, func() {}, func() { called = true }, func() {})
+	window.SetContent(view)
+	window.Resize(fyne.NewSize(440, 300))
+	window.Show()
+
+	var restoreRow *ActionRow
+	for _, object := range test.LaidOutObjects(view) {
+		if row, ok := object.(*ActionRow); ok && row.title.Text == "Restore from backup" {
+			restoreRow = row
+		}
+	}
+	require.NotNil(t, restoreRow)
+	test.Tap(restoreRow.button)
+	require.True(t, called)
+}
+
 // TestWelcomeRowSpacing checks the gaps between the welcome actions.
 func TestWelcomeRowSpacing(t *testing.T) {
 	app := test.NewApp()

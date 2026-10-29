@@ -124,11 +124,11 @@ func (a *app) makeApp() *container.Scroll {
 		}
 		o = v2.NewWelcome(pawLogo(), v2.WelcomeActions{
 			CreateVault: a.showCreateVaultView,
-			Restore:     func() { showSection("Restore from backup", icons.RestoreVault) },
+			Restore:     a.showRestoreVaultView,
 			Sync:        func() { showSection("Connect via Sync", icons.Sync) },
 		})
 	case 1:
-		o = a.makeUnlockVaultView(vaults[0])
+		o = a.makeUnlockVaultView(vaults[0], nil)
 	default:
 		o = a.makeSelectVaultView(vaults)
 	}
@@ -141,9 +141,7 @@ func (a *app) setVaultViewByInfo(info storage.VaultInfo, back func()) {
 	vault, ok := a.unlockedVault[info.ID]
 	if !ok {
 		a.vault = nil
-		unlocker := NewUnlockerVaultWidget(info, a)
-		unlocker.back = back
-		a.main.Content = unlocker
+		a.main.Content = a.makeUnlockVaultView(info, back)
 		a.main.Refresh()
 		a.setWindowTitle()
 		a.showCurrentVaultView()

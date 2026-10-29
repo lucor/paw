@@ -55,7 +55,7 @@ func TestVaultHeaderMenus(t *testing.T) {
 	options := entryListFixture()
 	options.VaultName = "A vault with a long display name"
 	called := ""
-	options.VaultActions = NewVaultActions(func() { called = "audit" }, func() { called = "import" }, func() { called = "export" }, func() { called = "lock" })
+	options.VaultActions = NewVaultActions(func() { called = "audit" }, func() { called = "export" }, func() { called = "lock" })
 	view := NewEntryList(options)
 	window := test.NewTempWindow(t, view)
 	window.Resize(fyne.NewSize(320, 540))
@@ -75,9 +75,9 @@ func TestVaultHeaderMenus(t *testing.T) {
 	require.Equal(t, []string{"Personal — Unlocked", "Work — Locked", "Add vault"}, labels)
 	// Tapping outside dismisses the selector before opening another menu.
 	test.TapCanvas(window.Canvas(), fyne.NewPos(300, 500))
-	for index, name := range []string{"Password audit", "Import from file", "Export to file", "Lock vault"} {
+	for index, name := range []string{"Password audit", "Export credentials", "Lock vault"} {
 		test.Tap(buttons["Vault actions"])
-		require.Equal(t, []string{"Password audit", "Import from file", "Export to file", "Lock vault"}, menuLabels(t, window))
+		require.Equal(t, []string{"Password audit", "Export credentials", "Lock vault"}, menuLabels(t, window))
 		menu := window.Canvas().Overlays().Top()
 		for _, object := range test.LaidOutObjects(menu) {
 			control, ok := object.(fyne.Widget)
@@ -90,7 +90,7 @@ func TestVaultHeaderMenus(t *testing.T) {
 				}
 			}
 		}
-		require.Equal(t, []string{"audit", "import", "export", "lock"}[index], called)
+		require.Equal(t, []string{"audit", "export", "lock"}[index], called)
 		require.Nil(t, window.Canvas().Overlays().Top())
 	}
 	for _, item := range options.VaultActions {

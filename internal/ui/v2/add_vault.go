@@ -27,14 +27,14 @@ func NewAddVault(back, create, restore, sync func()) fyne.CanvasObject {
 }
 
 // ShowAddVault opens the choice page and keeps Back navigation within the flow.
-func ShowAddVault(window fyne.Window, back func(), create func(string, string) error) {
-	showChoices := func() { ShowAddVault(window, back, create) }
+func ShowAddVault(window fyne.Window, back func(), create func(string, string) error, restore func()) {
+	showChoices := func() { ShowAddVault(window, back, create, restore) }
 	placeholder := func(title string, resource fyne.Resource) {
 		window.SetContent(NewPlaceholder(title, resource, showChoices))
 	}
 	window.SetContent(NewAddVault(back,
 		func() { window.SetContent(NewCreateVault(showChoices, create)) },
-		func() { placeholder("Restore from backup", icons.RestoreVault) },
+		restore,
 		func() { placeholder("Connect via Sync", icons.Sync) },
 	))
 }

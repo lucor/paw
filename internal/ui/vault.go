@@ -24,7 +24,17 @@ func (a *app) showCreateVaultView() {
 
 // showAddVaultView opens the available ways to add a vault.
 func (a *app) showAddVaultView() {
-	v2.ShowAddVault(a.win, a.showCurrentVaultView, a.createVault)
+	v2.ShowAddVault(a.win, a.showCurrentVaultView, a.createVault, a.showRestoreVaultView)
+}
+
+// showRestoreVaultView restores a Paw backup as a new unlocked vault.
+func (a *app) showRestoreVaultView() {
+	v2.ShowRestoreBackup(a.win, a.storage, func(vault *model.Vault) {
+		a.setVaultView(vault, vault.Accounts[0].ID)
+		a.showCurrentVaultView()
+		a.win.SetMainMenu(a.makeMainMenu())
+		a.makeSysTray()
+	})
 }
 
 // createVault stores a vault and makes it the active vault.
@@ -68,8 +78,12 @@ func (a *app) makeSelectVaultView(vaults []storage.VaultInfo) fyne.CanvasObject 
 }
 
 // makeUnlockVaultView displays the password form for a locked vault.
-func (a *app) makeUnlockVaultView(info storage.VaultInfo) fyne.CanvasObject {
-	return NewUnlockerVaultWidget(info, a)
+func (a *app) makeUnlockVaultView(info storage.VaultInfo, back func()) fyne.CanvasObject {
+	return v2.NewUnlockVault(info, a.storage, func(vault *model.Vault) {
+		a.setVaultView(vault, info.ID)
+		a.showCurrentVaultView()
+		a.addSSHKeysToAgent()
+	}, back, a.showAddVaultView)
 }
 
 // makeCurrentVaultView displays the current vault and its item summaries.

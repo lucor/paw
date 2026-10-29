@@ -71,9 +71,9 @@ func (a *app) about() {
 }
 
 func (a *app) makeVaultActions() []*fyne.MenuItem {
-	return v2.NewVaultActions(a.showAuditPasswordView, a.importFromFile, a.exportToFile, func() {
+	return v2.NewVaultActions(a.showAuditPasswordView, a.exportToFile, func() {
 		name, _ := a.vault.Name()
-		a.main.Content = a.makeUnlockVaultView(storage.VaultInfo{ID: a.vaultID, Name: name})
+		a.main.Content = a.makeUnlockVaultView(storage.VaultInfo{ID: a.vaultID, Name: name}, nil)
 		a.lockVault()
 		a.main.Refresh()
 	})

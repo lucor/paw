@@ -96,7 +96,7 @@ func TestAuditIsDiscardedOnLockAndVaultSwitch(t *testing.T) {
 			view := a.audit.View
 			window.SetContent(view)
 			if action == "lock" {
-				a.makeVaultActions()[4].Action()
+				a.makeVaultActions()[3].Action()
 			} else {
 				a.setVaultViewByInfo(storage.VaultInfo{ID: "work", Name: "Work"}, nil)
 			}
@@ -165,9 +165,9 @@ func TestSelectVaultKeepsIDAndDisplayName(t *testing.T) {
 		}
 	}
 
-	unlocker, ok := a.main.Content.(*unlockerVaultWidget)
+	unlocker, ok := a.main.Content.(*v2.UnlockVault)
 	require.True(t, ok)
-	require.Equal(t, info, unlocker.vaultInfo)
+	require.Contains(t, unlockViewText(t, unlocker), "Unlock Personal")
 }
 
 // TestUnlockShowsMigrationFailure checks a safe item report is shown after storage migration fails.
@@ -200,54 +200,66 @@ func TestUnlockShowsMigrationFailure(t *testing.T) {
 	store.OnLoadVault = func(vaultID string, loadedKey *paw.Key) (*model.Vault, error) {
 		return nil, report
 	}
-	a := &app{
-		main:          container.NewVScroll(nil),
-		win:           window,
-		storage:       store,
-		unlockedVault: make(map[string]*model.Vault),
-	}
-	unlocker := NewUnlockerVaultWidget(storage.VaultInfo{ID: "legacy-vault-id", Name: "Personal", NeedsMigration: true}, a)
-	unlocker.password.SetText("vault password")
+	info := storage.VaultInfo{ID: "legacy-vault-id", Name: "Personal", NeedsMigration: true}
+	opened := false
+	unlocker := v2.NewUnlockVault(info, store, func(*model.Vault) { opened = true }, nil, nil)
+	window.SetContent(unlocker)
+	password, button := unlockControls(t, unlocker)
+	password.SetText("vault password")
 
-	test.Tap(unlocker.button)
+	test.Tap(button)
 	select {
 	case <-keyLoading:
 	case <-time.After(time.Second):
 		t.Fatal("vault loading did not start")
 	}
 
-	progressMessage := dialogText(window.Canvas().Overlays().Top())
-	require.Contains(t, progressMessage, "Migrating vault...")
+	require.Nil(t, window.Canvas().Overlays().Top())
+	require.Contains(t, unlockViewText(t, unlocker), "Migrating vault…")
 	close(continueLoading)
 
 	var message string
 	require.Eventually(t, func() bool {
-		message = dialogText(window.Canvas().Overlays().Top())
-		return strings.Contains(message, "Migration failed: 1/1 items")
+		message = unlockViewText(t, unlocker)
+		return strings.Contains(message, "migration failed: 1/1 items")
 	}, time.Second, 10*time.Millisecond)
-	require.Contains(t, message, "Migration failed: 1/1 items")
+	require.Contains(t, message, "migration failed: 1/1 items")
 	require.Contains(t, message, "Unsupported password")
 	require.Contains(t, message, "unsupported mode 4")
 	require.NotContains(t, message, secret)
-	require.Nil(t, a.vault)
+	require.False(t, opened)
 }
 
-// dialogText returns visible text from a Fyne dialog overlay.
-func dialogText(overlay fyne.CanvasObject) string {
+func unlockViewText(t *testing.T, view fyne.CanvasObject) string {
+	t.Helper()
 	var text []string
-	for _, object := range test.LaidOutObjects(overlay) {
-		switch value := object.(type) {
-		case *widget.Label:
-			text = append(text, value.Text)
-		case *widget.RichText:
-			for _, segment := range value.Segments {
-				if segment, ok := segment.(*widget.TextSegment); ok {
-					text = append(text, segment.Text)
-				}
-			}
+	for _, object := range test.LaidOutObjects(view) {
+		if label, ok := object.(*widget.Label); ok && label.Text != "" {
+			text = append(text, label.Text)
 		}
 	}
 	return strings.Join(text, "\n")
+}
+
+func unlockControls(t *testing.T, view fyne.CanvasObject) (*widget.Entry, *widget.Button) {
+	t.Helper()
+	var password *widget.Entry
+	var button *widget.Button
+	for _, object := range test.LaidOutObjects(view) {
+		switch control := object.(type) {
+		case *widget.Entry:
+			if control.Password {
+				password = control
+			}
+		case *widget.Button:
+			if control.Text == "Unlock" {
+				button = control
+			}
+		}
+	}
+	require.NotNil(t, password)
+	require.NotNil(t, button)
+	return password, button
 }
 
 // TestSingleVaultUnlockControls checks required input and password visibility controls.
@@ -265,17 +277,18 @@ func TestSingleVaultUnlockControls(t *testing.T) {
 	window.SetContent(a.main)
 	window.Resize(fyne.NewSize(440, 650))
 	window.Show()
-	unlocker := a.main.Content.(*unlockerVaultWidget)
-	require.Nil(t, unlocker.back)
-	require.Empty(t, unlocker.password.PlaceHolder)
-	require.True(t, unlocker.password.Password)
-	require.NotNil(t, unlocker.password.ActionItem)
-	require.True(t, unlocker.button.Disabled())
-	unlocker.password.SetText("password")
-	require.False(t, unlocker.button.Disabled())
-	unlocker.password.SetText("")
-	require.True(t, unlocker.button.Disabled())
-	require.Greater(t, unlocker.button.Size().Width, float32(350))
+	unlocker, ok := a.main.Content.(*v2.UnlockVault)
+	require.True(t, ok)
+	password, button := unlockControls(t, unlocker)
+	require.Empty(t, password.PlaceHolder)
+	require.True(t, password.Password)
+	require.NotNil(t, password.ActionItem)
+	require.True(t, button.Disabled())
+	password.SetText("password")
+	require.False(t, button.Disabled())
+	password.SetText("")
+	require.True(t, button.Disabled())
+	require.Greater(t, button.Size().Width, float32(350))
 	foundHeading := false
 	for _, object := range test.LaidOutObjects(unlocker) {
 		if label, ok := object.(*widget.Label); ok {
@@ -394,10 +407,9 @@ func TestSelectedVaultUnlockReturnsToList(t *testing.T) {
 			break
 		}
 	}
-	unlocker, ok := a.main.Content.(*unlockerVaultWidget)
+	unlocker, ok := a.main.Content.(*v2.UnlockVault)
 	require.True(t, ok)
-	require.Equal(t, "personal", unlocker.vaultInfo.ID)
-	require.NotNil(t, unlocker.back)
+	require.Contains(t, unlockViewText(t, unlocker), "Unlock Personal")
 	var back *widget.Button
 	for _, object := range test.LaidOutObjects(unlocker) {
 		if button, ok := object.(*widget.Button); ok && button.Icon == icons.Back && button.Visible() {
