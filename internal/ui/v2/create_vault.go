@@ -25,7 +25,8 @@ func NewCreateVault(back func(), create func(name, password string) error) fyne.
 		}
 		return nil
 	}
-	password := widget.NewPasswordEntry()
+	passwordField := NewPasswordField()
+	password := passwordField.Entry
 	password.Validator = func(value string) error {
 		if value == "" {
 			return errors.New("master password is required")
@@ -51,7 +52,7 @@ func NewCreateVault(back func(), create func(name, password string) error) fyne.
 
 	form := widget.NewForm(
 		widget.NewFormItem("Vault name", name),
-		widget.NewFormItem("Master password", password),
+		widget.NewFormItem("Master password", passwordField),
 		widget.NewFormItem("Confirm password", confirm),
 	)
 	form.Orientation = widget.Vertical
@@ -75,7 +76,15 @@ func NewCreateVault(back func(), create func(name, password string) error) fyne.
 		createButton.Enable()
 	}
 	name.OnChanged = func(string) { updateSubmit() }
-	password.OnChanged = func(string) { updateSubmit() }
+	passwordWasEmpty := true
+	passwordField.OnChanged = func(value string) {
+		empty := value == ""
+		if empty != passwordWasEmpty {
+			form.Refresh()
+			passwordWasEmpty = empty
+		}
+		updateSubmit()
+	}
 	confirm.OnChanged = func(string) { updateSubmit() }
 
 	backButton := widget.NewButtonWithIcon("", icons.Back, back)

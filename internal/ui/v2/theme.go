@@ -4,10 +4,22 @@
 package v2
 
 import (
+	"image/color"
+
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 )
+
+// passwordStrengthColor returns the fixed color for a score in the active theme.
+func passwordStrengthColor(score int, variant fyne.ThemeVariant) color.Color {
+	light := [...]color.NRGBA{{R: 198, G: 40, B: 40, A: 255}, {R: 217, G: 95, B: 2, A: 255}, {R: 184, G: 134, B: 0, A: 255}, {R: 56, G: 142, B: 60, A: 255}, {R: 27, G: 94, B: 32, A: 255}}
+	dark := [...]color.NRGBA{{R: 239, G: 83, B: 80, A: 255}, {R: 255, G: 167, B: 38, A: 255}, {R: 255, G: 213, B: 79, A: 255}, {R: 129, G: 199, B: 132, A: 255}, {R: 76, G: 175, B: 80, A: 255}}
+	if variant != theme.VariantLight {
+		return dark[score]
+	}
+	return light[score]
+}
 
 // textStyle defines one typography role using native Fyne theme values.
 type textStyle struct {
