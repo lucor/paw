@@ -5,7 +5,7 @@ oxipng = "10.2.1"
 
 [tasks.generate-icons]
 description = "Generate Lucide PNG icons for the interface"
-run = "bash internal/ui/v2/assets/icons/generate-icons.sh"
+run = "bash internal/ui/assets/icons/generate-icons.sh"
 
 [tasks.setup]
 description = "Download Go module dependencies"
@@ -30,6 +30,24 @@ run = "go tool govulncheck ./..."
 [tasks.test]
 description = "Run unit tests"
 run = "go test ./..."
+
+[tasks.screenshots]
+description = "Capture, optimize, and package the UI screenshot gallery"
+run = """
+set -eu
+repo_dir="$PWD"
+tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/paw-screenshots.XXXXXX")"
+archive_tmp="${TMPDIR:-/tmp}/paw-screenshots-archive-$$.zip"
+trap 'rm -rf "$tmp_dir" "$archive_tmp"' EXIT
+mkdir -p "$tmp_dir/gallery"
+PAW_UI_SNAPSHOT_DIR="$tmp_dir/gallery" go test ./internal/ui -run '^TestUIE2EScreenshotGallery$' -count=1
+oxipng --opt 2 --strip safe --nb --nc --quiet --recursive "$tmp_dir/gallery"
+cd "$tmp_dir"
+zip -q -X -r "$archive_tmp" gallery
+mv "$archive_tmp" "$repo_dir/screenshots.zip"
+zip -T "$repo_dir/screenshots.zip"
+printf 'Created %s/screenshots.zip\n' "$repo_dir"
+"""
 
 [tasks.test-race]
 description = "Run unit tests with the race detector"

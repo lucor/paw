@@ -4,7 +4,9 @@
 package ui
 
 import (
+	"context"
 	"fmt"
+	"log"
 	"time"
 
 	"fyne.io/fyne/v2"
@@ -13,23 +15,25 @@ import (
 	"go.lucor.dev/paw/internal/model"
 	"go.lucor.dev/paw/internal/paw"
 	"go.lucor.dev/paw/internal/storage"
-	"go.lucor.dev/paw/internal/ui/v2"
-	"go.lucor.dev/paw/internal/ui/v2/assets/icons"
+	"go.lucor.dev/paw/internal/ui/assets/icons"
 )
 
 // showCreateVaultView opens the vault creation screen.
 func (a *app) showCreateVaultView() {
-	a.win.SetContent(v2.NewCreateVault(a.showCurrentVaultView, a.createVault))
+	a.closeItemDetail()
+	a.win.SetContent(NewCreateVault(a.showCurrentVaultView, a.createVault))
 }
 
 // showAddVaultView opens the available ways to add a vault.
 func (a *app) showAddVaultView() {
-	v2.ShowAddVault(a.win, a.showCurrentVaultView, a.createVault, a.showRestoreVaultView)
+	a.closeItemDetail()
+	ShowAddVault(a.win, a.showCurrentVaultView, a.createVault, a.showRestoreVaultView)
 }
 
 // showRestoreVaultView restores a Paw backup as a new unlocked vault.
 func (a *app) showRestoreVaultView() {
-	v2.ShowRestoreBackup(a.win, a.storage, func(vault *model.Vault) {
+	a.closeItemDetail()
+	ShowRestoreBackup(a.win, a.storage, func(vault *model.Vault) {
 		a.setVaultView(vault, vault.Accounts[0].ID)
 		a.showCurrentVaultView()
 		a.win.SetMainMenu(a.makeMainMenu())
@@ -57,16 +61,16 @@ func (a *app) addItem(itemType paw.ItemType) {
 		dialog.ShowError(err, a.win)
 		return
 	}
-	a.showEditItemView(newModelItemWidget(item, a.state.Preferences, true))
+	a.showEditItemView(item, true)
 }
 
 // makeSelectVaultView displays the available vaults.
 func (a *app) makeSelectVaultView(vaults []storage.VaultInfo) fyne.CanvasObject {
-	choices := make([]v2.VaultChoice, 0, len(vaults))
+	choices := make([]VaultChoice, 0, len(vaults))
 	for _, vault := range vaults {
 		info := vault
 		_, unlocked := a.unlockedVault[info.ID]
-		choices = append(choices, v2.VaultChoice{Name: info.Name, Unlocked: unlocked, Open: func() {
+		choices = append(choices, VaultChoice{Name: info.Name, Unlocked: unlocked, Open: func() {
 			a.setVaultViewByInfo(info, func() {
 				a.main.Content = a.makeSelectVaultView(vaults)
 				a.main.Refresh()
@@ -74,12 +78,12 @@ func (a *app) makeSelectVaultView(vaults []storage.VaultInfo) fyne.CanvasObject 
 			})
 		}})
 	}
-	return v2.NewSelectVault(choices, a.showAddVaultView)
+	return NewSelectVault(choices, a.showAddVaultView)
 }
 
 // makeUnlockVaultView displays the password form for a locked vault.
 func (a *app) makeUnlockVaultView(info storage.VaultInfo, back func()) fyne.CanvasObject {
-	return v2.NewUnlockVault(info, a.storage, func(vault *model.Vault) {
+	return NewUnlockVault(info, a.storage, func(vault *model.Vault) {
 		a.setVaultView(vault, info.ID)
 		a.showCurrentVaultView()
 		a.addSSHKeysToAgent()
@@ -88,6 +92,7 @@ func (a *app) makeUnlockVaultView(info storage.VaultInfo, back func()) fyne.Canv
 
 // makeCurrentVaultView displays the current vault and its item summaries.
 func (a *app) makeCurrentVaultView() fyne.CanvasObject {
+	a.closeCodesView()
 	vault := a.vault
 	filter, ok := a.filter[a.vaultID]
 	if !ok {
@@ -121,11 +126,11 @@ func (a *app) makeCurrentVaultView() fyne.CanvasObject {
 			return
 		}
 
-		fyneItemWidget := NewFyneItemWidget(item, a.state.Preferences)
-		a.showItemView(fyneItemWidget)
+		a.showItemView(item)
 	}
 	categoryIDs := map[paw.ItemType]string{0: "all", paw.LoginItemType: "login", paw.PasswordItemType: "password", paw.NoteItemType: "note", paw.SSHKeyItemType: "ssh"}
-	var rows []v2.EntryRow
+	var rows []EntryRow
+	var codeEntries []codesEntry
 	for _, account := range vault.Accounts {
 		for _, item := range account.Items {
 			summary := item
@@ -134,32 +139,52 @@ func (a *app) makeCurrentVaultView() fyne.CanvasObject {
 			if summary.Subtitle != nil {
 				subtitle = *summary.Subtitle
 			}
-			rows = append(rows, v2.EntryRow{Title: summary.Title, Subtitle: subtitle, Category: categoryIDs[kind], Icon: summaryIcon(&summary), Open: func() { openItem(&summary) }})
+			rows = append(rows, EntryRow{Title: summary.Title, Subtitle: subtitle, Category: categoryIDs[kind], Icon: summaryIcon(&summary), Open: func() { openItem(&summary) }})
+			if kind != paw.LoginItemType {
+				continue
+			}
+			loaded, err := a.storage.LoadItem(vault, summary.ID)
+			if err != nil {
+				log.Printf("unable to load login TOTP for %q: %v", summary.Title, err)
+				continue
+			}
+			credentials, err := decodeEntryDetailCredentials(loaded.Credentials)
+			if err != nil || credentials.totp == nil {
+				continue
+			}
+			username := credentials.totp.Username
+			if username == "" {
+				username = subtitle
+			}
+			codeEntries = append(codeEntries, codesEntry{Title: summary.Title, Username: username, ItemID: summary.ID, Icon: summaryIcon(&summary), Credential: *credentials.totp})
 		}
 	}
+	codesContext, codesCancel := context.WithCancel(context.Background())
+	a.codesCancel = codesCancel
+	a.codesView = newCodesView(codesContext, codeEntries, a)
 	vaults, err := a.storage.Vaults()
 	if err != nil {
 		fyne.LogError("Unable to list vaults", err)
 	}
-	choices := make([]v2.VaultChoice, 0, len(vaults))
+	choices := make([]VaultChoice, 0, len(vaults))
 	currentID := a.vaultID
 	for _, info := range vaults {
 		_, unlocked := a.unlockedVault[info.ID]
-		choices = append(choices, v2.VaultChoice{Name: info.Name, Unlocked: unlocked, Active: info.ID == currentID, Open: func() {
+		choices = append(choices, VaultChoice{Name: info.Name, Unlocked: unlocked, Active: info.ID == currentID, Open: func() {
 			a.setVaultViewByInfo(info, func() { a.setVaultViewByInfo(storage.VaultInfo{ID: currentID}, nil) })
 		}})
 	}
 	name, _ := vault.Name()
-	categories := []v2.EntryCategory{{ID: "all", Label: "All items", Icon: icons.Vault}, {ID: "login", Label: "Logins", Icon: icons.Login}, {ID: "password", Label: "Passwords", Icon: icons.Password}, {ID: "note", Label: "Notes", Icon: icons.Note}, {ID: "ssh", Label: "SSH keys", Icon: icons.SSH}}
-	return v2.NewEntryList(v2.EntryListOptions{VaultName: name, Vaults: choices, VaultActions: a.makeVaultActions(), Entries: rows, Categories: categories, Search: filter.Name, Category: categoryIDs[filter.ItemType], AddEntry: func(kind v2.EntryKind) {
+	categories := []EntryCategory{{ID: "all", Label: "All items", Icon: icons.Vault}, {ID: "login", Label: "Logins", Icon: icons.Login}, {ID: "password", Label: "Passwords", Icon: icons.Password}, {ID: "note", Label: "Notes", Icon: icons.Note}, {ID: "ssh", Label: "SSH keys", Icon: icons.SSH}}
+	return NewEntryList(EntryListOptions{VaultName: name, Vaults: choices, VaultActions: a.makeVaultActions(), Entries: rows, Categories: categories, Search: filter.Name, Category: categoryIDs[filter.ItemType], Codes: a.codesView.View, AddEntry: func(kind EntryKind) {
 		switch kind {
-		case v2.EntryNote:
+		case EntryNote:
 			a.addItem(paw.NoteItemType)
-		case v2.EntryPassword:
+		case EntryPassword:
 			a.addItem(paw.PasswordItemType)
-		case v2.EntryLogin:
+		case EntryLogin:
 			a.addItem(paw.LoginItemType)
-		case v2.EntrySSH:
+		case EntrySSH:
 			a.addItem(paw.SSHKeyItemType)
 		}
 	}, AddVault: a.showAddVaultView, OnFilterChanged: func(search, category string) {

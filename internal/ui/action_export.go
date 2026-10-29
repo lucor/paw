@@ -3,7 +3,5 @@
 
 package ui
 
-import "go.lucor.dev/paw/internal/ui/v2"
-
 // exportToFile opens the active vault's export dialog.
-func (a *app) exportToFile() { v2.ShowExportCredentials(a.win, a.storage, a.vault) }
+func (a *app) exportToFile() { ShowExportCredentials(a.win, a.storage, a.vault) }

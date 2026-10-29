@@ -6,11 +6,11 @@ package ui
 import (
 	"testing"
 
+	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/test"
 	"fyne.io/fyne/v2/widget"
 	"github.com/stretchr/testify/require"
 
-	"go.lucor.dev/paw/internal/icon"
 	"go.lucor.dev/paw/internal/model"
 	"go.lucor.dev/paw/internal/paw"
 )
@@ -33,20 +33,20 @@ func TestAddPasswordItemOpensGenerator(t *testing.T) {
 	}
 	application.addItem(paw.PasswordItemType)
 
-	var generatePassword *widget.Button
+	var generatePassword fyne.Tappable
 	for _, object := range test.LaidOutObjects(window.Canvas().Content()) {
-		button, ok := object.(*widget.Button)
-		if ok && button.Icon == icon.KeyOutlinedIconThemed {
-			generatePassword = button
+		button, ok := object.(interface{ AccessibilityLabel() string })
+		if ok && button.AccessibilityLabel() == "Generate password" {
+			generatePassword, _ = object.(fyne.Tappable)
 			break
 		}
 	}
 	require.NotNil(t, generatePassword)
-	require.NotPanics(t, func() { generatePassword.OnTapped() })
+	test.Tap(generatePassword)
 	require.NotNil(t, window.Canvas().Overlays().Top())
 }
 
-// TestAddSSHItemShowsCreationActions checks a new SSH item offers regenerate and import actions.
+// TestAddSSHItemShowsCreationActions checks a new SSH item offers generate and import actions.
 func TestAddSSHItemShowsCreationActions(t *testing.T) {
 	appDriver := test.NewApp()
 	t.Cleanup(appDriver.Quit)
@@ -69,6 +69,6 @@ func TestAddSSHItemShowsCreationActions(t *testing.T) {
 			labels[button.Text] = true
 		}
 	}
-	require.True(t, labels["Regenerate key"])
-	require.True(t, labels["Import key"])
+	require.True(t, labels["Generate"])
+	require.True(t, labels["Import"])
 }

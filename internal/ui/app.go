@@ -4,6 +4,7 @@
 package ui
 
 import (
+	"context"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
@@ -16,8 +17,6 @@ import (
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/driver/desktop"
-	"fyne.io/fyne/v2/theme"
-	"fyne.io/fyne/v2/widget"
 	"github.com/godbus/dbus/v5"
 	"go.lucor.dev/cxf"
 
@@ -26,8 +25,7 @@ import (
 	"go.lucor.dev/paw/internal/model"
 	"go.lucor.dev/paw/internal/paw"
 	"go.lucor.dev/paw/internal/storage"
-	"go.lucor.dev/paw/internal/ui/v2"
-	"go.lucor.dev/paw/internal/ui/v2/assets/icons"
+	"go.lucor.dev/paw/internal/ui/assets/icons"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -49,8 +47,12 @@ type app struct {
 	vault   *model.Vault
 	vaultID string
 
-	filter map[string]*paw.VaultFilterOptions
-	audit  *v2.PasswordAudit
+	filter       map[string]*paw.VaultFilterOptions
+	audit        *PasswordAudit
+	detailCancel context.CancelFunc
+	codesCancel  context.CancelFunc
+	codesView    *codesView
+	sshEditor    *SSHKeyEditor
 
 	// Paw agent client
 	client agent.PawAgent
@@ -118,11 +120,11 @@ func (a *app) makeApp() *container.Scroll {
 	switch len(vaults) {
 	case 0:
 		showSection := func(title string, resource fyne.Resource) {
-			a.win.SetContent(v2.NewPlaceholder(title, resource, func() {
+			a.win.SetContent(NewPlaceholder(title, resource, func() {
 				a.win.SetContent(a.main)
 			}))
 		}
-		o = v2.NewWelcome(pawLogo(), v2.WelcomeActions{
+		o = NewWelcome(pawLogo(), WelcomeActions{
 			CreateVault: a.showCreateVaultView,
 			Restore:     a.showRestoreVaultView,
 			Sync:        func() { showSection("Connect via Sync", icons.Sync) },
@@ -137,7 +139,9 @@ func (a *app) makeApp() *container.Scroll {
 
 // setVaultViewByInfo selects the unlocked vault or displays its unlock screen.
 func (a *app) setVaultViewByInfo(info storage.VaultInfo, back func()) {
+	a.closeItemDetail()
 	a.closePasswordAudit()
+	a.closeCodesView()
 	vault, ok := a.unlockedVault[info.ID]
 	if !ok {
 		a.vault = nil
@@ -241,6 +245,7 @@ func (a *app) addSSHKeysToAgent() {
 
 // setVaultView selects the vault and remembers it as unlocked.
 func (a *app) setVaultView(vault *model.Vault, vaultID string) {
+	a.closeItemDetail()
 	a.closePasswordAudit()
 	a.vault = vault
 	a.vaultID = vaultID
@@ -252,6 +257,7 @@ func (a *app) setVaultView(vault *model.Vault, vaultID string) {
 
 // showAuditPasswordView opens the password audit screen.
 func (a *app) showAuditPasswordView() {
+	a.closeItemDetail()
 	if a.vault == nil {
 		return
 	}
@@ -261,6 +267,7 @@ func (a *app) showAuditPasswordView() {
 
 // showCurrentVaultView displays the selected vault or its unlock screen.
 func (a *app) showCurrentVaultView() {
+	a.closeItemDetail()
 	a.closePasswordAudit()
 	a.win.SetContent(a.main)
 }
@@ -276,27 +283,59 @@ func (a *app) setWindowTitle() {
 }
 
 // showItemView displays the selected item's details.
-func (a *app) showItemView(fyneItemWidget FyneItemWidget) {
-	a.win.SetContent(a.makeShowItemView(fyneItemWidget))
+func (a *app) showItemView(item *model.Item) {
+	a.closeItemDetail()
+	a.win.SetContent(a.makeShowItemView(item))
 }
 
 // showEditItemView opens the selected item's editor.
-func (a *app) showEditItemView(fyneItemWidget FyneItemWidget) {
-	a.win.SetContent(a.makeEditItemView(fyneItemWidget))
+func (a *app) showEditItemView(item *model.Item, isNew bool) {
+	a.closeItemDetail()
+	a.win.SetContent(a.makeEditItemView(item, isNew))
+	if isNew {
+		a.win.Canvas().FocusNext()
+	}
 }
 
 // showPreferencesView opens the preferences screen.
 func (a *app) showPreferencesView() {
+	a.closeItemDetail()
 	a.win.SetContent(a.makePreferencesView())
 }
 
 // lockVault removes the current vault from the unlocked views.
 func (a *app) lockVault() {
+	a.closeItemDetail()
 	a.closePasswordAudit()
+	a.closeCodesView()
 	delete(a.unlockedVault, a.vaultID)
 	a.vault = nil
 	a.vaultID = ""
 	a.win.SetContent(a.main)
+}
+
+// closeCodesView stops countdowns and clears transient TOTP values.
+func (a *app) closeCodesView() {
+	if a.codesCancel != nil {
+		a.codesCancel()
+		a.codesCancel = nil
+	}
+	if a.codesView != nil {
+		a.codesView.Clear()
+		a.codesView = nil
+	}
+}
+
+// closeItemDetail stops updates when leaving an entry or locking its vault.
+func (a *app) closeItemDetail() {
+	if a.sshEditor != nil {
+		a.sshEditor.ClearSensitive()
+		a.sshEditor = nil
+	}
+	if a.detailCancel != nil {
+		a.detailCancel()
+		a.detailCancel = nil
+	}
 }
 
 // closePasswordAudit discards the active vault's transient audit session.
@@ -311,24 +350,6 @@ func (a *app) closePasswordAudit() {
 func (a *app) refreshCurrentView() {
 	a.main.Content = a.makeCurrentVaultView()
 	a.main.Refresh()
-}
-
-// makeCancelHeaderButton creates the back button used by subviews.
-func (a *app) makeCancelHeaderButton() fyne.CanvasObject {
-	if a.audit != nil {
-		return a.audit.BackHeader()
-	}
-	var left, right fyne.CanvasObject
-	if fyne.CurrentDevice().IsMobile() {
-		right = widget.NewButtonWithIcon("", theme.CancelIcon(), func() {
-			a.showCurrentVaultView()
-		})
-	} else {
-		left = widget.NewButtonWithIcon("", theme.NavigateBackIcon(), func() {
-			a.showCurrentVaultView()
-		})
-	}
-	return container.NewBorder(nil, nil, left, right, widget.NewLabel(""))
 }
 
 // logo returns the Paw logo as a canvas image with the specified dimensions

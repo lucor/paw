@@ -6,6 +6,7 @@ package ui
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"os"
@@ -66,16 +67,16 @@ func HealthServiceCheck(lockFile string) bool {
 	if err != nil {
 		return false
 	}
+	return healthServiceCheckConn(conn)
+}
 
-	// Read the service version from the app and close the connection
-	conn.SetReadDeadline(time.Now().UTC().Add(timeout))
-	buffer := make([]byte, 4)
-	_, err = conn.Read(buffer)
-	conn.Close()
+func healthServiceCheckConn(conn net.Conn) bool {
+	defer conn.Close()
+	_ = conn.SetReadDeadline(time.Now().UTC().Add(timeout))
+	buffer := make([]byte, len(paw.ServicePrefix))
+	_, err := io.ReadFull(conn, buffer)
 	if err != nil {
 		return false
 	}
-
-	// check for paw service
 	return bytes.Equal([]byte(paw.ServicePrefix), buffer)
 }

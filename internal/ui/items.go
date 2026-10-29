@@ -9,7 +9,7 @@ import (
 	"go.lucor.dev/cxf"
 	"go.lucor.dev/paw/internal/model"
 	"go.lucor.dev/paw/internal/paw"
-	"go.lucor.dev/paw/internal/ui/v2/assets/icons"
+	"go.lucor.dev/paw/internal/ui/assets/icons"
 )
 
 // summaryIcon uses a stored login favicon or the entry type's Lucide icon.
@@ -24,7 +24,7 @@ func summaryIcon(item *cxf.Item) fyne.Resource {
 				Name    string       `json:"name"`
 				Favicon *paw.Favicon `json:"favicon"`
 			}
-			if json.Unmarshal(raw, &extension) == nil && extension.Name == "paw.pm/item" && extension.Favicon != nil {
+			if json.Unmarshal(raw, &extension) == nil && extension.Name == "paw.pm/item" && extension.Favicon != nil && len(extension.Favicon.Data) > 0 {
 				return extension.Favicon
 			}
 		}

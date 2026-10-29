@@ -1,4 +1,6 @@
 .DS_Store
-/internal/ui/v2/testdata/failed/
+/internal/ui/testdata/failed/
 /dist
 /fyne-cross
+/screenshots.zip
+/gallery

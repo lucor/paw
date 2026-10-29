@@ -15,7 +15,6 @@ import (
 	"fyne.io/fyne/v2/widget"
 	"go.lucor.dev/paw/internal/paw"
 	"go.lucor.dev/paw/internal/storage"
-	"go.lucor.dev/paw/internal/ui/v2"
 )
 
 func (a *app) makeMainMenu() *fyne.MainMenu {
@@ -71,7 +70,7 @@ func (a *app) about() {
 }
 
 func (a *app) makeVaultActions() []*fyne.MenuItem {
-	return v2.NewVaultActions(a.showAuditPasswordView, a.exportToFile, func() {
+	return NewVaultActions(a.showAuditPasswordView, a.exportToFile, func() {
 		name, _ := a.vault.Name()
 		a.main.Content = a.makeUnlockVaultView(storage.VaultInfo{ID: a.vaultID, Name: name}, nil)
 		a.lockVault()

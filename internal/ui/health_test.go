@@ -4,28 +4,30 @@
 package ui
 
 import (
+	"net"
 	"os"
+	"path/filepath"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 )
 
-func TestHealthService(t *testing.T) {
+func TestHealthServiceCheckWithoutAddress(t *testing.T) {
+	lockFile := filepath.Join(t.TempDir(), "paw.lock")
+	require.False(t, HealthServiceCheck(lockFile))
+	require.NoError(t, os.WriteFile(lockFile, nil, 0o600))
+	require.False(t, HealthServiceCheck(lockFile))
+}
 
-	lockFile, err := os.CreateTemp("", "paw.lock")
-	require.NoError(t, err)
-	lockFile.Close()
+func TestHealthServiceCheckConn(t *testing.T) {
+	client, server := net.Pipe()
+	go handleConnection(server)
+	require.True(t, healthServiceCheckConn(client))
 
-	t.Run("service not available", func(t *testing.T) {
-		status := HealthServiceCheck(lockFile.Name())
-		require.False(t, status)
-	})
-
-	t.Run("service available", func(t *testing.T) {
-		go HealthService(lockFile.Name())
-		time.Sleep(5 * time.Millisecond)
-		status := HealthServiceCheck(lockFile.Name())
-		require.True(t, status)
-	})
+	client, server = net.Pipe()
+	go func() {
+		defer server.Close()
+		_, _ = server.Write([]byte("other\n"))
+	}()
+	require.False(t, healthServiceCheckConn(client))
 }

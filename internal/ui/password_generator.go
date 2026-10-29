@@ -13,8 +13,8 @@ import (
 	"fyne.io/fyne/v2/data/binding"
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/layout"
-	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
+	"go.lucor.dev/paw/internal/ui/assets/icons"
 
 	"go.lucor.dev/paw/internal/paw"
 )
@@ -83,10 +83,9 @@ func (pd *pwgenDialog) ShowPasswordGenerator(bind binding.String, password *paw.
 	passwordBind := binding.NewString()
 	passwordEntry := widget.NewEntryWithData(passwordBind)
 	passwordEntry.Validator = nil
-	refreshButton := widget.NewButtonWithIcon("", theme.ViewRefreshIcon(), func() {
+	refreshButton := widget.NewButtonWithIcon("", icons.Generate, func() {
 		secret, err := pwgen(pd.key, password)
 		if err != nil {
-			// TODO show dialog
 			log.Println(err)
 			return
 		}
@@ -119,9 +118,9 @@ func (pd *pwgenDialog) ShowPasswordGenerator(bind binding.String, password *paw.
 	}
 
 	form := container.New(layout.NewFormLayout())
-	form.Add(labelWithStyle("Password"))
+	form.Add(newText("Password", captionStyle))
 	form.Add(container.NewBorder(nil, nil, nil, refreshButton, passwordEntry))
-	form.Add(labelWithStyle("Type"))
+	form.Add(newText("Type", captionStyle))
 	form.Add(typeList)
 	c := container.NewBorder(form, nil, nil, nil, content)
 
@@ -155,7 +154,6 @@ func passphraseOptions(key *paw.Key, passwordBind binding.String, password *paw.
 		}
 		l, err := strconv.Atoi(s)
 		if err != nil {
-			// TODO show dialog
 			log.Println(err)
 			return
 		}
@@ -166,7 +164,6 @@ func passphraseOptions(key *paw.Key, passwordBind binding.String, password *paw.
 		lengthBind.Set(l)
 		secret, err := pwgen(key, password)
 		if err != nil {
-			// TODO show dialog
 			log.Println(err)
 			return
 		}
@@ -178,7 +175,6 @@ func passphraseOptions(key *paw.Key, passwordBind binding.String, password *paw.
 		lengthBind.Set(int(f))
 		secret, err := pwgen(key, password)
 		if err != nil {
-			// TODO show dialog
 			log.Println(err)
 			return
 		}
@@ -188,13 +184,12 @@ func passphraseOptions(key *paw.Key, passwordBind binding.String, password *paw.
 
 	secret, err := pwgen(key, password)
 	if err != nil {
-		// TODO show dialog
 		log.Println(err)
 	}
 	passwordBind.Set(secret)
 
 	form := container.New(layout.NewFormLayout())
-	form.Add(labelWithStyle("Length"))
+	form.Add(newText("Length", captionStyle))
 	form.Add(container.NewBorder(nil, nil, nil, lengthEntry, lengthSlider))
 
 	return form
@@ -226,7 +221,6 @@ func pinOptions(key *paw.Key, passwordBind binding.String, password *paw.Passwor
 		}
 		l, err := strconv.Atoi(s)
 		if err != nil {
-			// TODO show dialog
 			log.Println(err)
 			return
 		}
@@ -237,7 +231,6 @@ func pinOptions(key *paw.Key, passwordBind binding.String, password *paw.Passwor
 		lengthBind.Set(l)
 		secret, err := pwgen(key, password)
 		if err != nil {
-			// TODO show dialog
 			log.Println(err)
 			return
 		}
@@ -249,7 +242,6 @@ func pinOptions(key *paw.Key, passwordBind binding.String, password *paw.Passwor
 		lengthBind.Set(int(f))
 		secret, err := pwgen(key, password)
 		if err != nil {
-			// TODO show dialog
 			log.Println(err)
 			return
 		}
@@ -259,13 +251,12 @@ func pinOptions(key *paw.Key, passwordBind binding.String, password *paw.Passwor
 
 	secret, err := pwgen(key, password)
 	if err != nil {
-		// TODO show dialog
 		log.Println(err)
 	}
 	passwordBind.Set(secret)
 
 	form := container.New(layout.NewFormLayout())
-	form.Add(labelWithStyle("Length"))
+	form.Add(newText("Length", captionStyle))
 	form.Add(container.NewBorder(nil, nil, nil, lengthEntry, lengthSlider))
 
 	return form
@@ -296,7 +287,6 @@ func randomPasswordOptions(key *paw.Key, passwordBind binding.String, password *
 		}
 		l, err := strconv.Atoi(s)
 		if err != nil {
-			// TODO show dialog
 			log.Println(err)
 			return
 		}
@@ -307,7 +297,6 @@ func randomPasswordOptions(key *paw.Key, passwordBind binding.String, password *
 		lengthBind.Set(l)
 		secret, err := pwgen(key, password)
 		if err != nil {
-			// TODO show dialog
 			log.Println(err)
 			return
 		}
@@ -319,7 +308,6 @@ func randomPasswordOptions(key *paw.Key, passwordBind binding.String, password *
 		lengthBind.Set(int(f))
 		secret, err := pwgen(key, password)
 		if err != nil {
-			// TODO show dialog
 			log.Println(err)
 			return
 		}
@@ -335,7 +323,6 @@ func randomPasswordOptions(key *paw.Key, passwordBind binding.String, password *
 		}
 		secret, err := pwgen(key, password)
 		if err != nil {
-			// TODO show dialog
 			log.Println(err)
 			return
 		}
@@ -355,7 +342,6 @@ func randomPasswordOptions(key *paw.Key, passwordBind binding.String, password *
 		}
 		secret, err := pwgen(key, password)
 		if err != nil {
-			// TODO show dialog
 			log.Println(err)
 			return
 		}
@@ -375,7 +361,6 @@ func randomPasswordOptions(key *paw.Key, passwordBind binding.String, password *
 		}
 		secret, err := pwgen(key, password)
 		if err != nil {
-			// TODO show dialog
 			log.Println(err)
 			return
 		}
@@ -395,7 +380,6 @@ func randomPasswordOptions(key *paw.Key, passwordBind binding.String, password *
 		}
 		secret, err := pwgen(key, password)
 		if err != nil {
-			// TODO show dialog
 			log.Println(err)
 			return
 		}
@@ -409,13 +393,12 @@ func randomPasswordOptions(key *paw.Key, passwordBind binding.String, password *
 
 	secret, err := pwgen(key, password)
 	if err != nil {
-		// TODO show dialog
 		log.Println(err)
 	}
 	passwordBind.Set(secret)
 
 	form := container.New(layout.NewFormLayout())
-	form.Add(labelWithStyle("Length"))
+	form.Add(newText("Length", captionStyle))
 	form.Add(container.NewBorder(nil, nil, nil, lengthEntry, lengthSlider))
 	form.Add(widget.NewLabel(""))
 	form.Add(container.NewGridWithColumns(4, lowercaseButton, uppercaseButton, digitsButton, symbolsButton))
