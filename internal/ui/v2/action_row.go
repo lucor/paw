@@ -18,11 +18,12 @@ import (
 // ActionRow is a full-width outlined action with a leading icon and two text lines.
 type ActionRow struct {
 	widget.BaseWidget
-	button  *widget.Button
-	leading *widget.Icon
-	title   *widget.Label
-	detail  *widget.Label
-	content *fyne.Container
+	button   *widget.Button
+	leading  *widget.Icon
+	title    *widget.Label
+	detail   *widget.Label
+	content  *fyne.Container
+	trailing *fyne.Container
 }
 
 // NewActionRow creates a reusable, clickable row for navigation and list items.
@@ -34,9 +35,10 @@ func NewActionRow(title, detail string, resource fyne.Resource, tapped func()) *
 	row.detail = newText(detail, rowDescriptionStyle)
 	text := container.NewThemeOverride(container.New(layout.NewCustomPaddedVBoxLayout(0), row.title, row.detail), compactTextTheme{Theme: theme.Current()})
 	icon := container.NewPadded(container.NewGridWrap(fyne.NewSquareSize(32), row.leading))
+	row.trailing = container.NewCenter(container.NewGridWrap(fyne.NewSquareSize(theme.Size(theme.SizeNameInlineIcon)), widget.NewIcon(icons.Next)))
 	row.content = container.NewBorder(nil, nil,
 		container.NewCenter(icon),
-		container.NewCenter(container.NewGridWrap(fyne.NewSquareSize(theme.Size(theme.SizeNameInlineIcon)), widget.NewIcon(icons.Next))),
+		row.trailing,
 		text,
 	)
 	row.ExtendBaseWidget(row)
@@ -54,6 +56,17 @@ func (r *ActionRow) SetContent(title, detail string, resource fyne.Resource) {
 // SetTapped changes the action when a list recycles this row for another item.
 func (r *ActionRow) SetTapped(tapped func()) {
 	r.button.OnTapped = tapped
+}
+
+// SetInteractive controls navigation and interaction while preserving the row's styling.
+func (r *ActionRow) SetInteractive(interactive bool) {
+	if !interactive {
+		r.button.Hide()
+		r.trailing.Hide()
+	} else {
+		r.button.Show()
+		r.trailing.Show()
+	}
 }
 
 // CreateRenderer keeps the outline above the button's native hover background.

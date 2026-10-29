@@ -4,8 +4,11 @@
 package ui
 
 import (
+	"context"
+	"crypto/sha1"
 	"errors"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -20,8 +23,90 @@ import (
 	"go.lucor.dev/paw/internal/model"
 	"go.lucor.dev/paw/internal/paw"
 	"go.lucor.dev/paw/internal/storage"
+	"go.lucor.dev/paw/internal/ui/v2"
 	"go.lucor.dev/paw/internal/ui/v2/assets/icons"
 )
+
+func TestAuditReadsPasswordsFromCXFItems(t *testing.T) {
+	test.NewTempApp(t)
+	key, err := paw.MakeOneTimeKey()
+	require.NoError(t, err)
+	vault, err := model.NewVault(key, "Personal")
+	require.NoError(t, err)
+	settings := model.PasswordSettings{Mode: paw.CustomPassword}
+	login, err := model.NewLogin("Website", "dev@example.com", "password", settings)
+	require.NoError(t, err)
+	password, err := model.NewPassword("WiFi", "password", settings)
+	require.NoError(t, err)
+	note, err := model.NewNote("Note", "password")
+	require.NoError(t, err)
+	items := map[string]*model.Item{}
+	for _, item := range []*model.Item{login, password, note} {
+		summary, err := item.Summary()
+		require.NoError(t, err)
+		require.Empty(t, summary.Credentials, "vault summaries do not contain passwords")
+		vault.Accounts[0].Items = append(vault.Accounts[0].Items, *summary)
+		items[item.ID] = item
+	}
+	var loaded []string
+	store := &storage.StorageMock{}
+	store.OnLoadItem = func(got *model.Vault, id string) (*model.Item, error) {
+		require.Same(t, vault, got)
+		loaded = append(loaded, id)
+		return items[id], nil
+	}
+	checker := &auditBreachClient{}
+	result := v2.NewPasswordAuditor(vault, store, checker).Run(context.Background(), nil)
+	require.ElementsMatch(t, []string{login.ID, password.ID}, loaded)
+	hash := sha1.Sum([]byte("password"))
+	require.Equal(t, [][sha1.Size]byte{hash, hash}, checker.values)
+	require.Equal(t, 2, result.Passwords)
+	require.Equal(t, 2, result.ExposedChecked)
+	require.Len(t, result.Findings, 2)
+	for _, finding := range result.Findings {
+		require.True(t, finding.Exposed)
+		require.Equal(t, 0, finding.Score)
+		require.Equal(t, 2, finding.ReuseCount)
+	}
+}
+
+type auditBreachClient struct {
+	mu     sync.Mutex
+	values [][sha1.Size]byte
+}
+
+func (c *auditBreachClient) SearchHash(_ context.Context, value [sha1.Size]byte) (bool, int, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.values = append(c.values, value)
+	return true, 1, nil
+}
+
+func TestAuditIsDiscardedOnLockAndVaultSwitch(t *testing.T) {
+	for _, action := range []string{"lock", "switch"} {
+		t.Run(action, func(t *testing.T) {
+			test.NewTempApp(t)
+			window := test.NewTempWindow(t, nil)
+			key, err := paw.MakeOneTimeKey()
+			require.NoError(t, err)
+			vault, err := model.NewVault(key, "Personal")
+			require.NoError(t, err)
+			a := &app{win: window, main: container.NewVScroll(widget.NewLabel("Vault")), vault: vault, vaultID: "personal", unlockedVault: map[string]*model.Vault{"personal": vault}}
+			a.audit = v2.NewPasswordAudit("Personal", nil, window.SetContent, func(string) {}, func() {})
+			view := a.audit.View
+			window.SetContent(view)
+			if action == "lock" {
+				a.makeVaultActions()[4].Action()
+			} else {
+				a.setVaultViewByInfo(storage.VaultInfo{ID: "work", Name: "Work"}, nil)
+			}
+			require.Nil(t, a.audit)
+			require.Empty(t, view.Objects)
+			require.Same(t, a.main, window.Content())
+			require.Nil(t, a.vault)
+		})
+	}
+}
 
 // TestVaultEntryListWiring checks summary selection loads the requested item.
 func TestVaultEntryListWiring(t *testing.T) {

@@ -6,6 +6,7 @@ package haveibeenpwned
 import (
 	"bytes"
 	"context"
+	"crypto/sha1"
 	"io"
 	"net/http"
 	"testing"
@@ -28,13 +29,31 @@ const responseBody = `1CB7055517A54D1B0F1847EB84904E69438:2
 2028CB7ABE16047F9FFB0699E25655236E0:1
 20597F5AC10A2F67701B4AD1D3A09F72250:3`
 
-type mockClient struct{}
+type mockClient struct {
+	request *http.Request
+}
 
 func (c *mockClient) Do(req *http.Request) (*http.Response, error) {
+	c.request = req
 	return &http.Response{
 		StatusCode: http.StatusOK,
 		Body:       io.NopCloser(bytes.NewReader([]byte(responseBody))),
 	}, nil
+}
+
+func TestHashLookupSendsOnlyPrefix(t *testing.T) {
+	client := &mockClient{}
+	hash := sha1.Sum([]byte("password"))
+	exposed, count, err := hibp(context.Background(), client, hash)
+	if err != nil || !exposed || count != 3861493 {
+		t.Fatalf("got exposed=%v count=%d err=%v", exposed, count, err)
+	}
+	if got := client.request.URL.String(); got != "https://api.pwnedpasswords.com/range/5BAA6" {
+		t.Fatalf("unexpected lookup URL: %s", got)
+	}
+	if client.request.Body != nil || client.request.Header.Get("Add-Padding") != "true" {
+		t.Fatal("expected a bodyless, padded range request")
+	}
 }
 
 func Test_pwned(t *testing.T) {
@@ -63,7 +82,7 @@ func Test_pwned(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, got1, err := hibp(context.Background(), &mockClient{}, tt.password)
+			got, got1, err := hibp(context.Background(), &mockClient{}, sha1.Sum([]byte(tt.password)))
 			if (err != nil) != tt.wantErr {
 				t.Errorf("pwned() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -75,5 +94,35 @@ func Test_pwned(t *testing.T) {
 				t.Errorf("pwned() got1 = %v, want %v", got1, tt.wantCount)
 			}
 		})
+	}
+}
+
+type responseClient struct {
+	status int
+	body   string
+}
+
+func (c responseClient) Do(*http.Request) (*http.Response, error) {
+	return &http.Response{StatusCode: c.status, Body: io.NopCloser(bytes.NewBufferString(c.body))}, nil
+}
+
+func TestLookupFailureIsNotASuccessfulCheck(t *testing.T) {
+	for _, client := range []responseClient{
+		{http.StatusServiceUnavailable, "service unavailable"},
+		{http.StatusTooManyRequests, "rate limited"},
+		{http.StatusOK, ""},
+		{http.StatusOK, "invalid response"},
+	} {
+		if _, _, err := hibp(context.Background(), client, sha1.Sum([]byte("password"))); err == nil {
+			t.Fatalf("expected error for status %d, body %q", client.status, client.body)
+		}
+	}
+}
+
+func TestPaddingMatchIsNotExposed(t *testing.T) {
+	client := responseClient{http.StatusOK, "1E4C9B93F3F0682250B6CF8331B7EE68FD8:0"}
+	exposed, count, err := hibp(context.Background(), client, sha1.Sum([]byte("password")))
+	if err != nil || exposed || count != 0 {
+		t.Fatalf("got exposed=%v count=%d err=%v", exposed, count, err)
 	}
 }

@@ -54,6 +54,9 @@ func (a *app) makeEditItemView(itemWidget FyneItemWidget) fyne.CanvasObject {
 			dialog.ShowError(err, a.win)
 			return
 		}
+		if a.audit != nil {
+			a.audit.MarkStale()
+		}
 		if err := a.addSSHKeyToAgent(item); err != nil {
 			log.Println(err)
 		}

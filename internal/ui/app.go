@@ -38,9 +38,6 @@ const (
 	AppTitle = "Paw"
 )
 
-// maxWorkers represents the max number of workers to use in parallel processing
-var maxWorkers = runtime.NumCPU()
-
 type app struct {
 	win     fyne.Window
 	main    *container.Scroll
@@ -53,6 +50,7 @@ type app struct {
 	vaultID string
 
 	filter map[string]*paw.VaultFilterOptions
+	audit  *v2.PasswordAudit
 
 	// Paw agent client
 	client agent.PawAgent
@@ -139,6 +137,7 @@ func (a *app) makeApp() *container.Scroll {
 
 // setVaultViewByInfo selects the unlocked vault or displays its unlock screen.
 func (a *app) setVaultViewByInfo(info storage.VaultInfo, back func()) {
+	a.closePasswordAudit()
 	vault, ok := a.unlockedVault[info.ID]
 	if !ok {
 		a.vault = nil
@@ -244,6 +243,7 @@ func (a *app) addSSHKeysToAgent() {
 
 // setVaultView selects the vault and remembers it as unlocked.
 func (a *app) setVaultView(vault *model.Vault, vaultID string) {
+	a.closePasswordAudit()
 	a.vault = vault
 	a.vaultID = vaultID
 	a.unlockedVault[vaultID] = vault
@@ -254,11 +254,16 @@ func (a *app) setVaultView(vault *model.Vault, vaultID string) {
 
 // showAuditPasswordView opens the password audit screen.
 func (a *app) showAuditPasswordView() {
+	if a.vault == nil {
+		return
+	}
+	a.closePasswordAudit()
 	a.win.SetContent(a.makeAuditPasswordView())
 }
 
 // showCurrentVaultView displays the selected vault or its unlock screen.
 func (a *app) showCurrentVaultView() {
+	a.closePasswordAudit()
 	a.win.SetContent(a.main)
 }
 
@@ -289,9 +294,19 @@ func (a *app) showPreferencesView() {
 
 // lockVault removes the current vault from the unlocked views.
 func (a *app) lockVault() {
+	a.closePasswordAudit()
 	delete(a.unlockedVault, a.vaultID)
 	a.vault = nil
 	a.vaultID = ""
+	a.win.SetContent(a.main)
+}
+
+// closePasswordAudit discards the active vault's transient audit session.
+func (a *app) closePasswordAudit() {
+	if a.audit != nil {
+		a.audit.Close()
+		a.audit = nil
+	}
 }
 
 // refreshCurrentView redraws the current vault screen.
@@ -302,6 +317,9 @@ func (a *app) refreshCurrentView() {
 
 // makeCancelHeaderButton creates the back button used by subviews.
 func (a *app) makeCancelHeaderButton() fyne.CanvasObject {
+	if a.audit != nil {
+		return a.audit.BackHeader()
+	}
 	var left, right fyne.CanvasObject
 	if fyne.CurrentDevice().IsMobile() {
 		right = widget.NewButtonWithIcon("", theme.CancelIcon(), func() {
