@@ -7,8 +7,8 @@ import "time"
 
 // AppState represents the application state
 type AppState struct {
-	// Modified is the last time the state was modified, example: preferences changed or vaults modified
+	// Modified is the last time the state was modified, for example when settings changed or vaults were modified.
 	Modified time.Time `json:"modified,omitempty"`
-	// Preferences contains the application preferences
-	Preferences *Preferences `json:"preferences,omitempty"`
+	// Settings contains the application settings.
+	Settings *Settings `json:"settings,omitempty"`
 }

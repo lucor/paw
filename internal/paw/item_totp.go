@@ -24,6 +24,8 @@ const (
 	TOTPHashDefault     = SHA1
 	TOTPDigitsDefault   = otp.DefaultDigits
 	TOTPIntervalDefault = otp.DefaultInterval
+	TOTPDigitsMinimum   = 5
+	TOTPDigitsMaximum   = 10
 )
 
 type TOTP struct {
@@ -45,6 +47,7 @@ func (t *TOTP) Hasher() func() hash.Hash {
 	}
 }
 
+// NewDefaultTOTP returns the standard SHA1, 6-digit, 30-second TOTP settings.
 func NewDefaultTOTP() *TOTP {
 	return &TOTP{
 		Digits:   TOTPDigitsDefault,

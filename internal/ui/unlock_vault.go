@@ -26,11 +26,11 @@ type UnlockVault struct {
 	button     *widget.Button
 	activity   *widget.Activity
 	message    *widget.Label
-	content    *fyne.Container
+	content    fyne.CanvasObject
 }
 
 // NewUnlockVault creates a vault unlock view with navigation to Add vault.
-func NewUnlockVault(info storage.VaultInfo, store storage.VaultStorage, onUnlocked func(*model.Vault), back, addVault func()) *UnlockVault {
+func NewUnlockVault(info storage.VaultInfo, store storage.VaultStorage, onUnlocked func(*model.Vault), back, addVault, chooseAnother func()) *UnlockVault {
 	u := &UnlockVault{info: info, store: store, onUnlocked: onUnlocked}
 	u.password = widget.NewPasswordEntry()
 	u.password.Validator = func(value string) error {
@@ -58,7 +58,7 @@ func NewUnlockVault(info storage.VaultInfo, store storage.VaultStorage, onUnlock
 	}
 	u.message = newText("", bodyStyle)
 	u.message.Hide()
-	u.content = unlockVaultContent(info, u.password, u.button, u.activity, u.message, back, addVault)
+	u.content = unlockVaultContent(info, u.password, u.button, u.activity, u.message, back, addVault, chooseAnother)
 	u.ExtendBaseWidget(u)
 	return u
 }
@@ -125,7 +125,7 @@ func (u *UnlockVault) CreateRenderer() fyne.WidgetRenderer {
 	return widget.NewSimpleRenderer(u.content)
 }
 
-func unlockVaultContent(info storage.VaultInfo, password *widget.Entry, unlock *widget.Button, activity *widget.Activity, message *widget.Label, back, addVault func()) *fyne.Container {
+func unlockVaultContent(info storage.VaultInfo, password *widget.Entry, unlock *widget.Button, activity *widget.Activity, message *widget.Label, back, addVault, chooseAnother func()) fyne.CanvasObject {
 	heading := newText("Unlock "+info.Name, headingStyle)
 	heading.Alignment = fyne.TextAlignCenter
 	var navigation fyne.CanvasObject
@@ -135,18 +135,26 @@ func unlockVaultContent(info storage.VaultInfo, password *widget.Entry, unlock *
 		navigation = button
 	}
 	more := newVaultOptions(addVault)
-	header := container.NewBorder(nil, nil, navigation, more)
+	header := newPageHeader(navigation, nil, more)
 	badge := newVaultIcon(info.Appearance, vaultIconLarge)
-	fields := container.NewVBox(
+	var chooseAnotherAction fyne.CanvasObject
+	if chooseAnother != nil {
+		button := widget.NewButton("Choose another vault", chooseAnother)
+		button.Importance = widget.LowImportance
+		chooseAnotherAction = container.NewCenter(button)
+	}
+	fields := []fyne.CanvasObject{
 		container.New(layout.NewCustomPaddedLayout(24, 24, 0, 0), container.NewCenter(badge)),
 		heading,
-		password,
+		container.NewVBox(newText("Master password", captionStyle), password),
 		container.NewStack(unlock),
-		container.NewHBox(activity, message),
-	)
-	content := container.NewVBox(layout.NewSpacer(), fields, layout.NewSpacer())
-	page := container.NewBorder(header, nil, nil, nil, container.NewVScroll(content))
-	return container.New(layout.NewCustomPaddedLayout(24, 24, 24, 24), page)
+	}
+	if chooseAnotherAction != nil {
+		fields = append(fields, chooseAnotherAction)
+	}
+	fields = append(fields, container.NewHBox(activity, message))
+	content := container.NewVBox(fields...)
+	return newSecondaryPage(header, nil, container.NewVScroll(content))
 }
 
 // newVaultOptions provides the shared menu for opening the Add vault page.

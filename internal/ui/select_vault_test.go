@@ -27,8 +27,26 @@ func TestVaultAppearanceIsShownInVaultHeaderAndUnlock(t *testing.T) {
 	require.True(t, hasVaultAppearance(window.Content(), appearance))
 
 	info := storage.VaultInfo{ID: "vault-id", Name: "Work", Appearance: appearance}
-	window.SetContent(NewUnlockVault(info, &storage.StorageMock{}, nil, func() {}, func() {}))
+	window.SetContent(NewUnlockVault(info, &storage.StorageMock{}, nil, func() {}, func() {}, nil))
 	require.True(t, hasVaultAppearance(window.Content(), appearance))
+}
+
+func TestVaultSelectorListUsesFullBoundsForKeyboardHighlight(t *testing.T) {
+	test.NewTempApp(t)
+	view := NewSelectVault([]VaultChoice{{Name: "Personal", Open: func() {}}}, func() {})
+	window := test.NewTempWindow(t, view)
+	window.Resize(fyne.NewSize(440, 650))
+
+	var list *widget.List
+	for _, object := range test.LaidOutObjects(view) {
+		if candidate, ok := object.(*widget.List); ok {
+			list = candidate
+			break
+		}
+	}
+	require.NotNil(t, list)
+	_, ok := list.CreateItem().(*ActionRow)
+	require.True(t, ok, "the outlined action row should fill the list item focus bounds")
 }
 
 func TestVaultAppearanceCanSelectNoColor(t *testing.T) {
@@ -111,12 +129,12 @@ func TestSecondaryViewsShareHeaderPosition(t *testing.T) {
 		title string
 		view  fyne.CanvasObject
 	}{
-		{title: "Add vault", view: NewAddVault(func() {}, func() {}, func() {}, func() {})},
+		{title: "Add vault", view: NewAddVault(func() {}, func() {}, func() {})},
 		{title: "Create new vault", view: NewCreateVault(func() {}, func(string, string, storage.VaultAppearance) error { return nil })},
 		{title: "Vault appearance", view: newVaultAppearanceView("Personal", storage.DefaultVaultAppearance(), nil, func() {})},
 		{title: "Restore from backup", view: auditPage("Restore from backup", func() {}, container.NewVScroll(container.NewVBox()))},
 		{title: "Password Audit", view: auditPage("Password Audit", func() {}, container.NewVScroll(container.NewVBox()))},
-		{title: "Settings", view: NewPreferencesView(nil, &storage.StorageMock{}, window).View},
+		{title: "Settings", view: NewSettingsView(nil, &storage.StorageMock{}, window).View},
 	}
 	var expectedBack, expectedTitle fyne.Position
 	for index, page := range views {

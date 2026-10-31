@@ -16,8 +16,8 @@ import (
 
 func TestItemEditorsRequireTitleBeforeSave(t *testing.T) {
 	test.NewTempApp(t)
-	preferences := paw.NewDefaultPreferences()
-	preferences.FaviconDownloader.Disabled = true
+	settings := paw.NewDefaultSettings()
+	settings.FaviconDownloader.Disabled = true
 	passwordSettings := model.PasswordSettings{Mode: paw.CustomPassword}
 	login, err := model.NewLogin("Existing login", "name@example.com", "secret", passwordSettings)
 	require.NoError(t, err)
@@ -35,7 +35,7 @@ func TestItemEditorsRequireTitleBeforeSave(t *testing.T) {
 		new    func(*model.Item, bool) (*EditorTitleState, error)
 	}{
 		{name: "login", typeID: paw.LoginItemType, item: login, new: func(item *model.Item, isNew bool) (*EditorTitleState, error) {
-			e, err := NewLoginEditor(context.Background(), item, preferences.FaviconDownloader, preferences.TOTP, isNew)
+			e, err := NewLoginEditor(context.Background(), item, settings.FaviconDownloader, isNew)
 			if err != nil {
 				return nil, err
 			}

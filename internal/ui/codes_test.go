@@ -49,7 +49,7 @@ func TestCodesViewCountCopyNavigationAndClear(t *testing.T) {
 			for _, object := range test.LaidOutObjects(view.View) {
 				switch object := object.(type) {
 				case *iconButton:
-					if object.AccessibilityLabel() == "Copy TOTP" {
+					if object.AccessibilityLabel() == "Copy verification code" {
 						copyButton = object
 					}
 				case *widget.ProgressBar:
@@ -151,7 +151,7 @@ func TestCodesViewNarrowLayout(t *testing.T) {
 				case *widget.ProgressBar:
 					progress = object
 				case *iconButton:
-					if object.AccessibilityLabel() == "Copy TOTP" {
+					if object.AccessibilityLabel() == "Copy verification code" {
 						copyButton = object
 					}
 				}

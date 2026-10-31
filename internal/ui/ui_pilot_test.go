@@ -17,6 +17,7 @@ import (
 	"go.lucor.dev/paw/internal/model"
 	"go.lucor.dev/paw/internal/paw"
 	"go.lucor.dev/paw/internal/storage"
+	"go.lucor.dev/paw/internal/ui/assets/icons"
 )
 
 func TestUIPilotCreateVaultFlow(t *testing.T) {
@@ -61,7 +62,7 @@ func runUIPilotCreateVaultFlow(t *testing.T, outputDir string, variant fyne.Them
 	a := &app{
 		win:           window,
 		storage:       store,
-		state:         &paw.AppState{Preferences: paw.NewDefaultPreferences()},
+		state:         &paw.AppState{Settings: paw.NewDefaultSettings()},
 		filter:        make(map[string]*paw.VaultFilterOptions),
 		unlockedVault: make(map[string]*model.Vault),
 	}
@@ -69,18 +70,16 @@ func runUIPilotCreateVaultFlow(t *testing.T, outputDir string, variant fyne.Them
 	window.SetContent(a.main)
 	window.Resize(fyne.NewSize(440, 650))
 	window.Show()
-	captureUIPilotScreen(t, window, outputDir, "welcome-"+variantName(variant)+".png")
-
-	var createVault *ActionRow
 	for _, object := range test.LaidOutObjects(window.Content()) {
-		row, ok := object.(*ActionRow)
-		if ok && row.title.Text == "Create new vault" {
-			createVault = row
-			break
+		if button, ok := object.(*widget.Button); ok {
+			require.NotEqual(t, icons.Back, button.Icon, "first-run Add vault has no Back button")
 		}
 	}
-	require.NotNil(t, createVault)
-	test.Tap(createVault.button)
+	require.NotContains(t, unlockViewText(t, window.Content()), "Connect via Sync")
+	captureUIPilotScreen(t, window, outputDir, "first-run-add-vault-"+variantName(variant)+".png")
+
+	createVault := findNavigationRowButton(t, window.Content(), "Create new vault")
+	test.Tap(createVault)
 	captureUIPilotScreen(t, window, outputDir, "create-vault-"+variantName(variant)+".png")
 
 	var entries []*widget.Entry
@@ -104,6 +103,8 @@ func runUIPilotCreateVaultFlow(t *testing.T, outputDir string, variant fyne.Them
 	captureUIPilotScreen(t, window, outputDir, "create-vault-filled-"+variantName(variant)+".png")
 	test.Tap(submit)
 	require.NotNil(t, createdVault)
+	require.Same(t, createdVault, a.vault, "successful creation opens the new vault")
+	require.NotContains(t, unlockViewText(t, a.main.Content), "Add vault")
 	captureUIPilotScreen(t, window, outputDir, "vault-list-"+variantName(variant)+".png")
 }
 

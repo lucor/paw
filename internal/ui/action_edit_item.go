@@ -68,9 +68,9 @@ func (a *app) makeSSHKeyEditView(original *model.Item, isNew bool) fyne.CanvasOb
 		}
 		save()
 	}
-	preferences := paw.NewDefaultPreferences()
-	if a.state != nil && a.state.Preferences != nil {
-		preferences = a.state.Preferences
+	settings := paw.NewDefaultSettings()
+	if a.state != nil && a.state.Settings != nil {
+		settings = a.state.Settings
 	}
 	editor.GeneratePassphraseButton.OnTapped = func() {
 		password := binding.NewString()
@@ -79,19 +79,19 @@ func (a *app) makeSSHKeyEditView(original *model.Item, isNew bool) fyne.CanvasOb
 			editor.Passphrase.SetText(value)
 			editor.PasswordSpec.Value = value
 		}))
-		NewPasswordGenerator(a.vault.Key(), preferences.Password).ShowPasswordGenerator(password, editor.PasswordSpec, a.win)
+		NewPasswordGenerator(a.vault.Key(), settings.Password).ShowPasswordGenerator(password, editor.PasswordSpec, a.win)
 	}
 	return editor.View
 }
 
 func (a *app) makeLoginEditView(original *model.Item, isNew bool) fyne.CanvasObject {
-	preferences := paw.NewDefaultPreferences()
-	if a.state != nil && a.state.Preferences != nil {
-		preferences = a.state.Preferences
+	settings := paw.NewDefaultSettings()
+	if a.state != nil && a.state.Settings != nil {
+		settings = a.state.Settings
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	a.detailCancel = cancel
-	editor, err := NewLoginEditor(ctx, original, preferences.FaviconDownloader, preferences.TOTP, isNew)
+	editor, err := NewLoginEditor(ctx, original, settings.FaviconDownloader, isNew)
 	if err != nil {
 		cancel()
 		a.detailCancel = nil
@@ -116,13 +116,16 @@ func (a *app) makeLoginEditView(original *model.Item, isNew bool) fyne.CanvasObj
 		}
 		a.saveEditedItem(original, item, isNew)
 	}
+	editor.TOTPSettings.OnTapped = func() {
+		showTOTPSettingsDialog(editor, a.win)
+	}
 	editor.GenerateButton.OnTapped = func() {
 		password := binding.NewString()
 		password.AddListener(binding.NewDataListener(func() {
 			value, _ := password.Get()
 			editor.Password.Entry.SetText(value)
 		}))
-		NewPasswordGenerator(a.vault.Key(), preferences.Password).ShowPasswordGenerator(password, editor.PasswordSpec, a.win)
+		NewPasswordGenerator(a.vault.Key(), settings.Password).ShowPasswordGenerator(password, editor.PasswordSpec, a.win)
 	}
 	return editor.View
 }
@@ -152,16 +155,16 @@ func (a *app) makePasswordEditView(original *model.Item, isNew bool) fyne.Canvas
 		a.saveEditedItem(original, item, isNew)
 	}
 	editor.GenerateButton.OnTapped = func() {
-		preferences := paw.NewDefaultPreferences()
-		if a.state != nil && a.state.Preferences != nil {
-			preferences = a.state.Preferences
+		settings := paw.NewDefaultSettings()
+		if a.state != nil && a.state.Settings != nil {
+			settings = a.state.Settings
 		}
 		password := binding.NewString()
 		password.AddListener(binding.NewDataListener(func() {
 			value, _ := password.Get()
 			editor.Password.Entry.SetText(value)
 		}))
-		NewPasswordGenerator(a.vault.Key(), preferences.Password).ShowPasswordGenerator(password, editor.PasswordSpec, a.win)
+		NewPasswordGenerator(a.vault.Key(), settings.Password).ShowPasswordGenerator(password, editor.PasswordSpec, a.win)
 	}
 	return editor.View
 }

@@ -15,7 +15,7 @@ import (
 )
 
 func entryListFixture() EntryListOptions {
-	return EntryListOptions{VaultName: "Personal", VaultActions: NewVaultActions(func() {}, func() {}, func() {}, func() {}), AddEntry: func(EntryKind) {}, AddVault: func() {}, Categories: []EntryCategory{
+	return EntryListOptions{VaultName: "Personal", Codes: widget.NewLabel("Codes test view"), Settings: widget.NewLabel("Settings test view"), VaultActions: NewVaultActions(func() {}, func() {}, func() {}, func() {}), AddEntry: func(EntryKind) {}, AddVault: func() {}, Categories: []EntryCategory{
 		{ID: "all", Label: "All items", Icon: icons.Vault}, {ID: "login", Label: "Logins", Icon: icons.Login},
 		{ID: "password", Label: "Passwords", Icon: icons.Password}, {ID: "note", Label: "Notes", Icon: icons.Note}, {ID: "ssh", Label: "SSH keys", Icon: icons.SSH},
 	}, Vaults: []VaultChoice{
@@ -116,19 +116,14 @@ func TestEntryListSearchAndNavigation(t *testing.T) {
 	require.Equal(t, 1, list.Length(), "search includes the subtitle")
 	require.NotNil(t, navigation)
 	navigation.Select(1)
-	var back *widget.Button
 	foundCodes := false
 	for _, object := range test.LaidOutObjects(tabs) {
-		if label, ok := object.(*widget.Label); ok && label.Text == "Codes" {
+		if label, ok := object.(*widget.Label); ok && label.Text == "Codes test view" {
 			foundCodes = true
-		}
-		if button, ok := object.(*widget.Button); ok && button.Text == "Back" {
-			back = button
 		}
 	}
 	require.True(t, foundCodes)
-	require.NotNil(t, back)
-	test.Tap(back)
+	navigation.Select(0)
 	require.Equal(t, 0, navigation.Selected)
 	require.Equal(t, "deploy", search.Text)
 }

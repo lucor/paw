@@ -33,7 +33,7 @@ type LoginEditor struct {
 	Password       *PasswordField
 	Website        *LoginURLEntry
 	TOTPSecret     *widget.Entry
-	TOTPReveal     *iconButton
+	TOTPSettings   *iconButton
 	Notes          *widget.Entry
 	PasswordSpec   *paw.Password
 
@@ -56,7 +56,7 @@ type LoginEditor struct {
 }
 
 // NewLoginEditor builds the create or edit screen for a Login item.
-func NewLoginEditor(ctx context.Context, item *model.Item, preferences paw.FaviconDownloaderPreferences, totpPreferences paw.TOTPPreferences, isNew bool) (*LoginEditor, error) {
+func NewLoginEditor(ctx context.Context, item *model.Item, faviconSettings paw.FaviconDownloaderSettings, isNew bool) (*LoginEditor, error) {
 	if err := item.Validate(); err != nil {
 		return nil, err
 	}
@@ -70,6 +70,7 @@ func NewLoginEditor(ctx context.Context, item *model.Item, preferences paw.Favic
 	if decoded.basicAuth == nil {
 		return nil, fmt.Errorf("login credential is missing")
 	}
+	defaultTOTP := paw.NewDefaultTOTP()
 
 	editor := &LoginEditor{
 		item:           item,
@@ -80,13 +81,13 @@ func NewLoginEditor(ctx context.Context, item *model.Item, preferences paw.Favic
 		totp:           decoded.totp,
 		totpIndex:      decoded.totpIndex,
 		totpSettings: cxf.TOTP{
-			Type: cxf.CredentialTypeTOTP, Algorithm: strings.ToLower(string(totpPreferences.Hash)),
-			Period: uint16(totpPreferences.Interval), Digits: uint16(totpPreferences.Digits),
+			Type: cxf.CredentialTypeTOTP, Algorithm: strings.ToLower(string(defaultTOTP.Hash)),
+			Period: uint16(defaultTOTP.Interval), Digits: uint16(defaultTOTP.Digits),
 		},
 		Title:        widget.NewEntry(),
 		Username:     widget.NewEntry(),
 		Password:     NewPasswordField(),
-		Website:      NewLoginURLEntry(ctx, "", preferences),
+		Website:      NewLoginURLEntry(ctx, "", faviconSettings),
 		TOTPSecret:   widget.NewPasswordEntry(),
 		Notes:        widget.NewMultiLineEntry(),
 		favicon:      newIconPreview(icons.Globe),
@@ -116,6 +117,9 @@ func NewLoginEditor(ctx context.Context, item *model.Item, preferences paw.Favic
 	editor.Password.Entry.SetText(password)
 	if decoded.totp != nil {
 		editor.TOTPSecret.SetText(decoded.totp.Secret)
+		if !isNew {
+			editor.totpSettings = *decoded.totp
+		}
 	}
 	editor.Website.SetText(website)
 	editor.Notes.SetText(notes)
@@ -140,6 +144,7 @@ func NewLoginEditor(ctx context.Context, item *model.Item, preferences paw.Favic
 	editor.initial = loginEditorValues{
 		title: editor.Title.Text, username: username, password: password, website: website, notes: notes,
 		totp:         editor.TOTPSecret.Text,
+		totpSettings: editor.totpSettings,
 		passwordMode: editor.PasswordSpec.Mode, passwordLength: editor.PasswordSpec.Length, passwordFormat: editor.PasswordSpec.Format,
 	}
 	editor.Title.OnChanged = func(value string) {
@@ -153,34 +158,22 @@ func NewLoginEditor(ctx context.Context, item *model.Item, preferences paw.Favic
 			editor.websiteError.Hide()
 		}
 	}
-	editor.TOTPReveal = newIconButton("Show TOTP secret", icons.Show, func() {
-		editor.TOTPSecret.Password = !editor.TOTPSecret.Password
-		if editor.TOTPSecret.Password {
-			editor.TOTPReveal.SetIcon(icons.Show)
-			editor.TOTPReveal.label = "Show TOTP secret"
-		} else {
-			editor.TOTPReveal.SetIcon(icons.Hide)
-			editor.TOTPReveal.label = "Hide TOTP secret"
-		}
-		editor.TOTPReveal.Refresh()
-		editor.TOTPSecret.Refresh()
+	editor.TOTPSettings = newIconButton("Authenticator settings", icons.Settings2, nil)
+	editor.TOTPSecret.SetOnValidationChanged(func(err error) {
+		editor.setTOTPError(err)
 	})
-	editor.TOTPSecret.OnChanged = func(value string) {
-		if editor.totpError.Visible() && (strings.TrimSpace(value) == "" || editor.validTOTPSecret(value)) {
-			setFieldError(editor.totpError, nil)
-		}
-	}
+	editor.TOTPSecret.Validator = editor.validateTOTPSecret
 	editor.GenerateButton = newIconButton("Generate password", icons.Generate, nil)
 	editor.Password.SetTrailingAction(editor.GenerateButton)
 
 	titleRow := container.NewBorder(nil, nil, newEntryIconPreview(editor.favicon), nil, editor.Title)
-	totpRow := container.NewBorder(nil, nil, nil, editor.TOTPReveal, editor.TOTPSecret)
+	totpRow := container.NewBorder(nil, nil, nil, editor.TOTPSettings, editor.TOTPSecret)
 	editor.form = widget.NewForm(
 		widget.NewFormItem("Title", container.NewVBox(titleRow, editor.titleError)),
 		widget.NewFormItem("Username", editor.Username),
 		widget.NewFormItem("Password", editor.Password),
 		widget.NewFormItem("Website", container.NewVBox(editor.Website, editor.websiteError)),
-		widget.NewFormItem("TOTP secret", container.NewVBox(totpRow, editor.totpError)),
+		widget.NewFormItem("Authenticator key", container.NewVBox(totpRow, editor.totpError)),
 		widget.NewFormItem("Notes", editor.Notes),
 	)
 	editor.form.Orientation = widget.Vertical
@@ -270,6 +263,7 @@ func (e *LoginEditor) IsDirty() bool {
 		e.Password.Entry.Text != e.initial.password ||
 		e.Website.Text != e.initial.website ||
 		e.TOTPSecret.Text != e.initial.totp ||
+		e.totpSettings != e.initial.totpSettings ||
 		e.Notes.Text != e.initial.notes ||
 		e.PasswordSpec.Mode != e.initial.passwordMode ||
 		e.PasswordSpec.Length != e.initial.passwordLength ||
@@ -290,7 +284,7 @@ func (e *LoginEditor) validateFields() error {
 	totpErr := e.validateTOTPSecret(e.TOTPSecret.Text)
 	setFieldError(e.titleError, titleErr)
 	setFieldError(e.websiteError, websiteErr)
-	setFieldError(e.totpError, totpErr)
+	e.setTOTPError(totpErr)
 	if titleErr != nil {
 		return titleErr
 	}
@@ -300,8 +294,11 @@ func (e *LoginEditor) validateFields() error {
 	return totpErr
 }
 
-func (e *LoginEditor) validTOTPSecret(secret string) bool {
-	return e.validateTOTPSecret(secret) == nil
+func (e *LoginEditor) setTOTPError(err error) {
+	setFieldError(e.totpError, err)
+	if e.form != nil {
+		e.form.Refresh()
+	}
 }
 
 func (e *LoginEditor) validateTOTPSecret(secret string) error {
@@ -311,25 +308,17 @@ func (e *LoginEditor) validateTOTPSecret(secret string) error {
 	}
 	credential := e.totpCredential(secret)
 	if err := credential.Validate(); err != nil {
-		return errors.New("enter a valid Base32 secret")
+		return errors.New("enter a valid secret")
 	}
 	return nil
 }
 
 func normalizeTOTPSecret(secret string) string {
-	return strings.ToUpper(strings.Map(func(value rune) rune {
-		if value == ' ' || value == '\t' || value == '-' {
-			return -1
-		}
-		return value
-	}, strings.TrimSpace(secret)))
+	return strings.ToUpper(strings.NewReplacer(" ", "", "\t", "", "\n", "", "\r", "", "-", "").Replace(secret))
 }
 
 func (e *LoginEditor) totpCredential(secret string) cxf.TOTP {
 	credential := e.totpSettings
-	if e.totp != nil {
-		credential = *e.totp
-	}
 	credential.Secret = secret
 	return credential
 }
@@ -343,12 +332,12 @@ func (e *LoginEditor) putTOTP(item *model.Item) error {
 		item.Credentials = append(item.Credentials[:e.totpIndex], item.Credentials[e.totpIndex+1:]...)
 		return nil
 	}
-	if e.totp != nil && e.TOTPSecret.Text == e.initial.totp {
+	if e.totp != nil && e.TOTPSecret.Text == e.initial.totp && e.totpSettings == e.initial.totpSettings {
 		return nil
 	}
 	credential := e.totpCredential(secret)
 	if err := credential.Validate(); err != nil {
-		return errors.New("enter a valid Base32 secret")
+		return errors.New("enter a valid secret")
 	}
 	encoded, err := json.Marshal(credential)
 	if err != nil {
@@ -385,6 +374,7 @@ func updateTitleSaveButton(button *widget.Button, title string) {
 
 type loginEditorValues struct {
 	title, username, password, website, totp, notes string
+	totpSettings                                    cxf.TOTP
 	passwordMode                                    paw.PasswordMode
 	passwordLength                                  int
 	passwordFormat                                  paw.Format

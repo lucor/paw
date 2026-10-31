@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"fyne.io/fyne/v2"
@@ -91,8 +92,13 @@ func decodeEntryDetailCredentials(raws []json.RawMessage) (entryDetailCredential
 
 // NewEntryDetail displays the CXF credentials of a supported entry.
 func NewEntryDetail(ctx context.Context, item *model.Item, window fyne.Window, back, edit, deleteEntry func()) (fyne.CanvasObject, error) {
+	view, _, err := newEntryDetailWithClear(ctx, item, window, back, edit, deleteEntry)
+	return view, err
+}
+
+func newEntryDetailWithClear(ctx context.Context, item *model.Item, window fyne.Window, back, edit, deleteEntry func()) (fyne.CanvasObject, func(), error) {
 	if err := item.Validate(); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	var resource fyne.Resource
 	switch item.Metadata.Type {
@@ -108,21 +114,21 @@ func NewEntryDetail(ctx context.Context, item *model.Item, window fyne.Window, b
 	case paw.SSHKeyItemType:
 		resource = icons.SSH
 	default:
-		return nil, fmt.Errorf("unsupported entry category")
+		return nil, nil, fmt.Errorf("unsupported entry category")
 	}
 	decoded, err := decodeEntryDetailCredentials(item.Credentials)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	var bodyObjects []fyne.CanvasObject
 	var clearSensitive []*detailSecret
 	if item.Metadata.Type == paw.SSHKeyItemType {
 		if decoded.sshKey == nil {
-			return nil, fmt.Errorf("SSH key credential is missing")
+			return nil, nil, fmt.Errorf("SSH key credential is missing")
 		}
 		sshDetails, secrets, err := detailSSHKey(window, item.Title, *decoded.sshKey, decoded.basicAuth)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		bodyObjects = append(bodyObjects, sshDetails...)
 		clearSensitive = append(clearSensitive, secrets...)
@@ -161,6 +167,10 @@ func NewEntryDetail(ctx context.Context, item *model.Item, window fyne.Window, b
 			appendDetailSection(&bodyObjects, newDetailMultilineField("Notes", noteValue, copyNotes))
 		}
 	}
+	var clearOnce sync.Once
+	clear := func() {
+		clearOnce.Do(func() { clearDetailSecrets(clearSensitive) })
+	}
 	more := newIconButton("Entry actions", icons.More, nil)
 	more.Importance = widget.LowImportance
 	editItem := fyne.NewMenuItem("Edit entry", edit)
@@ -170,9 +180,9 @@ func NewEntryDetail(ctx context.Context, item *model.Item, window fyne.Window, b
 	more.OnTapped = func() {
 		widget.ShowPopUpMenuAtRelativePosition(fyne.NewMenu("", editItem, fyne.NewMenuItemSeparator(), deleteItem), window.Canvas(), fyne.NewPos(0, more.Size().Height), more)
 	}
-	editItem.Action = func() { clearDetailSecrets(clearSensitive); edit() }
-	deleteItem.Action = func() { clearDetailSecrets(clearSensitive); deleteEntry() }
-	backButton := newIconButton("Back", icons.Back, func() { clearDetailSecrets(clearSensitive); back() })
+	editItem.Action = func() { clear(); edit() }
+	deleteItem.Action = func() { clear(); deleteEntry() }
+	backButton := newIconButton("Back", icons.Back, func() { clear(); back() })
 	backButton.Importance = widget.LowImportance
 	title := newText(item.Title, titleStyle)
 	title.Truncation = fyne.TextTruncateEllipsis
@@ -199,10 +209,10 @@ func NewEntryDetail(ctx context.Context, item *model.Item, window fyne.Window, b
 	if done := ctx.Done(); done != nil {
 		go func() {
 			<-done
-			fyne.DoAndWait(func() { clearDetailSecrets(clearSensitive) })
+			fyne.DoAndWait(clear)
 		}()
 	}
-	return page, nil
+	return page, clear, nil
 }
 
 func detailSSHKey(window fyne.Window, title string, credential cxf.SSHKey, passphrase *cxf.BasicAuth) ([]fyne.CanvasObject, []*detailSecret, error) {

@@ -48,9 +48,9 @@ func newTOTPDisplay(credential cxf.TOTP) (*TOTPDisplay, bool) {
 	if !display.Update() {
 		return nil, false
 	}
-	display.copy = newIconButton("Copy TOTP", icons.Copy, func() {
+	display.copy = newIconButton("Copy verification code", icons.Copy, func() {
 		if display.Update() {
-			detailCopy("TOTP", display.Value())
+			detailCopy("Verification code", display.Value())
 		}
 	})
 	return display, true

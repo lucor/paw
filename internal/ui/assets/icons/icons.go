@@ -38,6 +38,16 @@ var (
 	Delete = resource("danger/trash.png")
 	// External opens a website.
 	External = themed("external-link")
+	// Info identifies application information.
+	Info = themed("info")
+	// Scale identifies the software license.
+	Scale = themed("scale")
+	// ScrollText identifies third-party license notices.
+	ScrollText = themed("scroll-text")
+	// Code identifies the source code.
+	Code = themed("code")
+	// Bug identifies issue reporting.
+	Bug = themed("bug")
 	// Audit opens the password audit.
 	Audit = themed("shield-check")
 	// Import identifies file import.
@@ -56,6 +66,8 @@ var (
 	PlusCircle = themed("circle-plus")
 	// Sync is the theme-aware cloud icon.
 	Sync = themed("cloud")
+	// Timer identifies the background auto-lock setting.
+	Timer = themed("timer")
 	// Back is the theme-aware back navigation arrow.
 	Back = themed("arrow-left")
 	// Next is the theme-aware forward navigation icon.
@@ -119,14 +131,30 @@ var (
 	More = themed("ellipsis-vertical")
 	// Plus adds an entry to the current vault.
 	Plus = themed("plus")
+	// Minus decreases a numeric setting.
+	Minus = themed("minus")
+	// Play identifies startup behavior.
+	Play = themed("play")
+	// Image identifies favicon settings.
+	Image = themed("image")
+	// Hash identifies TOTP algorithms.
+	Hash = themed("hash")
+	// Binary identifies TOTP digits.
+	Binary = themed("binary")
+	// SunMoon identifies theme settings.
+	SunMoon = themed("sun-moon")
+	// WholeWord identifies passphrase word count.
+	WholeWord = themed("whole-word")
 	// Search identifies the entry search field.
 	Search = themed("search")
 	// Down identifies the vault selection menu.
 	Down = themed("chevron-down")
 	// Codes identifies TOTP codes.
 	Codes = themed("timer")
-	// Settings opens application preferences.
+	// Settings opens application settings.
 	Settings = themed("settings")
+	// Settings2 opens custom TOTP settings.
+	Settings2 = themed("settings-2")
 	// Note identifies text notes.
 	Note = themed("file-text")
 	// Login is the fallback icon for login entries.

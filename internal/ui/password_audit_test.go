@@ -199,8 +199,11 @@ func TestPasswordAuditCancelsRunningAudit(t *testing.T) {
 	}
 	test.Tap(a.cancelButton)
 	require.Eventually(t, func() bool {
-		fyne.DoAndWait(func() {})
-		return !a.running && containsText(auditTexts(a.View), "Audit cancelled. Results include completed checks only.")
+		var cancelled bool
+		fyne.DoAndWait(func() {
+			cancelled = !a.running && containsText(auditTexts(a.View), "Audit cancelled. Results include completed checks only.")
+		})
+		return cancelled
 	}, time.Second, 10*time.Millisecond)
 	require.True(t, a.result.Cancelled)
 	require.True(t, a.result.LocalComplete)

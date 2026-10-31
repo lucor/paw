@@ -344,7 +344,7 @@ func TestEntryDetailTOTPCopyUsesCXFParameters(t *testing.T) {
 	require.NotContains(t, auditTexts(view), credential.Secret)
 	var copyCode *iconButton
 	for _, object := range test.LaidOutObjects(view) {
-		if button, ok := object.(*iconButton); ok && button.AccessibilityLabel() == "Copy TOTP" {
+		if button, ok := object.(*iconButton); ok && button.AccessibilityLabel() == "Copy verification code" {
 			copyCode = button
 		}
 	}
@@ -383,7 +383,7 @@ func TestEntryDetailTOTPCodeAndProgressShareRow(t *testing.T) {
 				case *widget.ProgressBar:
 					progress = object
 				case *iconButton:
-					if object.AccessibilityLabel() == "Copy TOTP" {
+					if object.AccessibilityLabel() == "Copy verification code" {
 						copyCode = object
 					}
 				}
@@ -508,30 +508,47 @@ func TestEntryDetailSecretsClearWhenVaultLocks(t *testing.T) {
 			test.NewTempApp(t)
 			window := test.NewTempWindow(t, nil)
 			item := detailItemFixture(t, kind)
-			ctx, cancel := context.WithCancel(context.Background())
-			view, err := NewEntryDetail(ctx, item, window, func() {}, func() {}, func() {})
-			require.NoError(t, err)
-			window.SetContent(view)
-			buttons := map[string]*iconButton{}
-			for _, object := range test.LaidOutObjects(view) {
-				if button, ok := object.(*iconButton); ok {
-					buttons[button.AccessibilityLabel()] = button
-				}
+			if kind == "ssh" {
+				require.NotEmpty(t, mustDecodeSSHKey(t, item).PrivateKey)
 			}
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
 			reveal := "Show Password"
 			secret := "synthetic-secret"
 			if kind == "ssh" {
 				reveal = "Show private key"
 				secret = "BEGIN OPENSSH PRIVATE KEY"
-				require.NotEmpty(t, mustDecodeSSHKey(t, item).PrivateKey)
 			}
-			test.Tap(buttons[reveal])
-			require.Contains(t, strings.Join(auditTexts(view), "\n"), secret)
-			main := container.NewVScroll(widget.NewLabel("Vault locked"))
-			application := &app{win: window, main: main, detailCancel: cancel}
-			application.lockVault()
-			require.Same(t, main, window.Content())
-			require.NotContains(t, strings.Join(auditTexts(view), "\n"), secret)
+			var view fyne.CanvasObject
+			var main *container.Scroll
+			var current fyne.CanvasObject
+			var visibleBeforeLock, visibleAfterLock string
+			var createErr error
+			fyne.DoAndWait(func() {
+				var clear func()
+				view, clear, createErr = newEntryDetailWithClear(ctx, item, window, func() {}, func() {}, func() {})
+				if createErr != nil {
+					return
+				}
+				window.SetContent(view)
+				buttons := map[string]*iconButton{}
+				for _, object := range test.LaidOutObjects(view) {
+					if button, ok := object.(*iconButton); ok {
+						buttons[button.AccessibilityLabel()] = button
+					}
+				}
+				test.Tap(buttons[reveal])
+				visibleBeforeLock = strings.Join(auditTexts(view), "\n")
+				main = container.NewVScroll(widget.NewLabel("Vault locked"))
+				application := &app{win: window, main: main, detailCancel: cancel, detailClear: clear}
+				application.lockVault()
+				current = window.Content()
+				visibleAfterLock = strings.Join(auditTexts(view), "\n")
+			})
+			require.NoError(t, createErr)
+			require.Contains(t, visibleBeforeLock, secret)
+			require.Same(t, main, current)
+			require.NotContains(t, visibleAfterLock, secret)
 		})
 	}
 }

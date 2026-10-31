@@ -54,7 +54,7 @@ func TestUnlockVaultViewReportsPasswordErrorAndOpensVault(t *testing.T) {
 	opened := make(chan *model.Vault, 1)
 	view := NewUnlockVault(storage.VaultInfo{ID: "personal", Name: "Personal"}, store, func(openedVault *model.Vault) {
 		opened <- openedVault
-	}, nil, func() {})
+	}, nil, func() {}, nil)
 	window.SetContent(view)
 	window.Resize(fyne.NewSize(440, 650))
 	window.Show()
@@ -62,6 +62,7 @@ func TestUnlockVaultViewReportsPasswordErrorAndOpensVault(t *testing.T) {
 	var password *widget.Entry
 	var unlock *widget.Button
 	foundHeading := false
+	foundPasswordLabel := false
 	for _, object := range test.LaidOutObjects(view) {
 		switch control := object.(type) {
 		case *widget.Entry:
@@ -73,7 +74,9 @@ func TestUnlockVaultViewReportsPasswordErrorAndOpensVault(t *testing.T) {
 				unlock = control
 			}
 		case *widget.Label:
-			require.NotEqual(t, "Master password", control.Text)
+			if control.Text == "Master password" {
+				foundPasswordLabel = true
+			}
 			if control.Text == "Unlock Personal" {
 				foundHeading = true
 				require.Equal(t, fyne.TextAlignCenter, control.Alignment)
@@ -82,6 +85,7 @@ func TestUnlockVaultViewReportsPasswordErrorAndOpensVault(t *testing.T) {
 	}
 	require.NotNil(t, password)
 	require.True(t, foundHeading)
+	require.True(t, foundPasswordLabel)
 	require.Empty(t, password.PlaceHolder)
 	require.NotNil(t, password.ActionItem)
 	require.NotNil(t, unlock)
@@ -98,7 +102,11 @@ func TestUnlockVaultViewReportsPasswordErrorAndOpensVault(t *testing.T) {
 	require.True(t, view.activity.Visible(), "show the activity indicator while unlocking")
 	close(releaseWrongPassword)
 	require.Eventually(t, func() bool {
-		return strings.Contains(unlockViewText(t, view), "the password is incorrect")
+		var text string
+		fyne.DoAndWait(func() {
+			text = unlockViewText(t, view)
+		})
+		return strings.Contains(text, "the password is incorrect")
 	}, time.Second, 10*time.Millisecond)
 	require.False(t, view.activity.Visible(), "hide the activity indicator after an error")
 	require.Nil(t, window.Canvas().Overlays().Top(), "unlock feedback stays in the view")
@@ -111,6 +119,28 @@ func TestUnlockVaultViewReportsPasswordErrorAndOpensVault(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("vault was not opened")
 	}
+}
+
+func TestUnlockVaultContentStaysAboveViewportCenter(t *testing.T) {
+	test.NewTempApp(t)
+	window := test.NewTempWindow(t, nil)
+	window.Resize(fyne.NewSize(440, 800))
+	view := NewUnlockVault(storage.VaultInfo{ID: "personal", Name: "Personal"}, &storage.StorageMock{}, nil, func() {}, nil, nil)
+	window.SetContent(view)
+	window.Show()
+
+	var unlock *widget.Button
+	for _, object := range test.LaidOutObjects(view) {
+		if button, ok := object.(*widget.Button); ok && button.Text == "Unlock" {
+			unlock = button
+			break
+		}
+	}
+	require.NotNil(t, unlock)
+
+	position := fyne.CurrentApp().Driver().AbsolutePositionForObject(unlock)
+	require.Less(t, position.Y+unlock.Size().Height/2, window.Canvas().Size().Height/2,
+		"the unlock form should stay in the upper portion of a tall window")
 }
 
 func unlockViewText(t *testing.T, view fyne.CanvasObject) string {

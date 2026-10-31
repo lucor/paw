@@ -27,8 +27,9 @@ func (a *app) makeShowItemViewWithBack(item *model.Item, back func()) fyne.Canva
 			back = func() { a.closeItemDetail(); a.audit.DetailBack() }
 		}
 	}
-	view, err := NewEntryDetail(ctx, item, a.win, back, func() { a.showEditItemView(item, false) }, func() { a.deleteItem(item) })
+	view, clear, err := newEntryDetailWithClear(ctx, item, a.win, back, func() { a.showEditItemView(item, false) }, func() { a.deleteItem(item) })
 	if err == nil {
+		a.detailClear = clear
 		return view
 	}
 	a.closeItemDetail()

@@ -144,9 +144,9 @@ func TestStorageInteroperability(t *testing.T) {
 			require.NoError(t, err)
 			require.Contains(t, vaults, VaultInfo{ID: id, Name: tt.name, Appearance: DefaultVaultAppearance()})
 
-			state := &paw.AppState{Modified: time.Now().UTC(), Preferences: paw.NewDefaultPreferences()}
-			state.Preferences.FaviconDownloader.Disabled = true
-			state.Preferences.Password.Random.DefaultLength = 24
+			state := &paw.AppState{Modified: time.Now().UTC(), Settings: paw.NewDefaultSettings()}
+			state.Settings.FaviconDownloader.Disabled = true
+			state.Settings.Password.Random.DefaultLength = 24
 			require.NoError(t, tt.writer.StoreAppState(state))
 			loadedState, err := tt.reader.LoadAppState()
 			require.NoError(t, err)
@@ -549,7 +549,7 @@ func TestVaultsRejectsMalformedMetadata(t *testing.T) {
 	}
 }
 
-// TestDefaultAppState checks preferences are available before the first settings save.
+// TestDefaultAppState checks settings are available before the first settings save.
 func TestDefaultAppState(t *testing.T) {
 	app := test.NewApp()
 	t.Cleanup(app.Quit)
@@ -560,18 +560,15 @@ func TestDefaultAppState(t *testing.T) {
 	})
 	require.NoError(t, err)
 	for _, backend := range []Storage{osStorage, fyneStorage} {
-		// Fyne also reports the missing settings file; both return default preferences.
+		// Fyne also reports the missing settings file; both return default settings.
 		state, _ := backend.LoadAppState()
 		require.NotNil(t, state)
-		require.NotNil(t, state.Preferences)
+		require.NotNil(t, state.Settings)
 		require.False(t, state.Modified.IsZero())
-		require.False(t, state.Preferences.FaviconDownloader.Disabled)
-		require.Equal(t, paw.RandomPasswordDefaultLength, state.Preferences.Password.Random.DefaultLength)
-		require.Equal(t, paw.RandomPasswordDefaultFormat, state.Preferences.Password.Random.DefaultFormat)
-		require.Equal(t, paw.PassphrasePasswordDefaultLength, state.Preferences.Password.Passphrase.DefaultLength)
-		require.Equal(t, paw.PinPasswordDefaultLength, state.Preferences.Password.Pin.DefaultLength)
-		require.Equal(t, paw.TOTPDigitsDefault, state.Preferences.TOTP.Digits)
-		require.Equal(t, paw.TOTPHashDefault, state.Preferences.TOTP.Hash)
-		require.Equal(t, paw.TOTPIntervalDefault, state.Preferences.TOTP.Interval)
+		require.False(t, state.Settings.FaviconDownloader.Disabled)
+		require.Equal(t, paw.RandomPasswordDefaultLength, state.Settings.Password.Random.DefaultLength)
+		require.Equal(t, paw.RandomPasswordDefaultFormat, state.Settings.Password.Random.DefaultFormat)
+		require.Equal(t, paw.PassphrasePasswordDefaultLength, state.Settings.Password.Passphrase.DefaultLength)
+		require.Equal(t, paw.PinPasswordDefaultLength, state.Settings.Password.Pin.DefaultLength)
 	}
 }

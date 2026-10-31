@@ -14,8 +14,8 @@ import (
 
 func TestLoginURLEntryFetchesOnFocusLossAndRejectsStaleFavicon(t *testing.T) {
 	test.NewTempApp(t)
-	preferences := paw.FaviconDownloaderPreferences{Disabled: true}
-	entry := NewLoginURLEntry(context.Background(), "https://old.example", preferences)
+	settings := paw.FaviconDownloaderSettings{Disabled: true}
+	entry := NewLoginURLEntry(context.Background(), "https://old.example", settings)
 	var received []*paw.Favicon
 	entry.FaviconListener = func(icon *paw.Favicon) { received = append(received, icon) }
 

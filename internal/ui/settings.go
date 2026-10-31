@@ -8,11 +8,13 @@ import (
 	"go.lucor.dev/paw/internal/paw"
 )
 
-func (a *app) makePreferencesView() fyne.CanvasObject {
+func (a *app) makeSettingsView() fyne.CanvasObject {
 	if a.state == nil {
-		a.state = &paw.AppState{Preferences: paw.NewDefaultPreferences()}
+		a.state = &paw.AppState{Settings: paw.NewDefaultSettings()}
 	}
-	view := NewPreferencesView(a.state, a.storage, a.win)
+	view := NewSettingsView(a.state, a.storage, a.win)
+	view.configureAutoLock = a.configureAutoLock
+	view.openAbout = func() { a.showAboutPawView(view.View) }
 	view.BackButton.OnTapped = func() { a.win.SetContent(a.main) }
 	return view.View
 }

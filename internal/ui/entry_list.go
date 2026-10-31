@@ -52,6 +52,7 @@ type EntryListOptions struct {
 	AddVault         func()
 	AddEntry         func(EntryKind)
 	Codes            fyne.CanvasObject
+	Settings         fyne.CanvasObject
 	OnFilterChanged  func(search, category string)
 	SectionState     *int
 }
@@ -209,18 +210,18 @@ func NewEntryList(options EntryListOptions) fyne.CanvasObject {
 	listHeader := container.NewVBox(container.NewBorder(nil, nil, widget.NewIcon(icons.Search), nil, input), container.NewBorder(nil, nil, categoryDisplay, count))
 	page := container.New(layout.NewCustomPaddedLayout(24, 24, 24, 24), container.NewBorder(listHeader, nil, nil, nil, container.NewStack(list, container.NewCenter(empty))))
 	navigation := NewNavigation(NavigationItem{icons.Vault, icons.VaultActive}, NavigationItem{icons.Codes, icons.CodesActive}, NavigationItem{icons.Settings, icons.SettingsActive})
-	back := func() { navigation.Select(0) }
-	codes := options.Codes
-	if codes == nil {
-		codes = NewPlaceholder("Codes", icons.Codes, back)
-	}
-	pages := []fyne.CanvasObject{page, codes, NewPlaceholder("Settings", icons.Settings, back)}
+	pages := []fyne.CanvasObject{page, options.Codes, options.Settings}
 	content := container.NewStack(page)
 	navigation.OnSelected = func(index int) {
 		if options.SectionState != nil {
 			*options.SectionState = index
 		}
 		content.Objects = []fyne.CanvasObject{pages[index]}
+		if index == 2 {
+			vaultHeader.Hide()
+		} else {
+			vaultHeader.Show()
+		}
 		if index == 0 && options.AddEntry != nil {
 			add.Show()
 		} else {

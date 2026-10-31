@@ -6,7 +6,7 @@ readonly REQUIRED_RESVG_VERSION="0.48.1"
 readonly ICON_SIZE=64
 readonly ICONS_ACTIVE="circle-plus vault timer settings"
 readonly ICONS_LINK=""
-readonly ICONS="folder-open archive-restore circle-plus cloud arrow-left chevron-right chevron-down chevron-up download dices lock lock-open ellipsis-vertical plus search file-text globe key-round rotate-ccw-key file-key terminal shield-check file-input file-output lock-keyhole copy eye eye-off square-pen trash external-link briefcase-business house archive shield folder laptop pencil check"
+readonly ICONS="folder-open archive-restore circle-plus cloud arrow-left chevron-right chevron-down chevron-up download dices lock lock-open ellipsis-vertical plus minus search file-text globe key-round rotate-ccw-key file-key terminal shield-check file-input file-output lock-keyhole copy eye eye-off square-pen settings-2 trash external-link briefcase-business house archive shield folder laptop pencil check timer play image hash binary sun-moon whole-word info scale scroll-text code bug"
 readonly ICONS_DANGER="trash"
 readonly SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 readonly REPO_ROOT="$(cd -- "$SCRIPT_DIR/../../../../.." && pwd)"
@@ -179,8 +179,10 @@ generate_group() {
 	done
 }
 
-for variant in light dark active danger; do
-	find "$output_dir/$variant" -maxdepth 1 -type f -name '*.png' -delete
+for icon in $ICONS_ACTIVE $ICONS_LINK $ICONS $ICONS_DANGER; do
+	for variant in light dark active danger; do
+		rm -f "$output_dir/$variant/$icon.png"
+	done
 done
 
 for icon in $ICONS_ACTIVE; do

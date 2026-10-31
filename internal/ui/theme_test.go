@@ -12,7 +12,20 @@ import (
 	"fyne.io/fyne/v2/test"
 	"fyne.io/fyne/v2/theme"
 	"github.com/stretchr/testify/require"
+	"go.lucor.dev/paw/internal/paw"
 )
+
+func TestCompactTextColorsFollowApplicationTheme(t *testing.T) {
+	app := test.NewApp()
+	t.Cleanup(app.Quit)
+	applySettingsTheme(paw.ThemeSystem)
+	compact := compactTextTheme{Theme: app.Settings().Theme()}
+	for _, selection := range []string{paw.ThemeSystem, paw.ThemeDark, paw.ThemeLight} {
+		applySettingsTheme(selection)
+		variant := app.Settings().ThemeVariant()
+		require.Equal(t, app.Settings().Theme().Color(theme.ColorNameForeground, variant), compact.Color(theme.ColorNameForeground, variant), selection)
+	}
+}
 
 // TestTypographyFollowsTheme checks rendered roles keep their hierarchy across theme changes.
 func TestTypographyFollowsTheme(t *testing.T) {

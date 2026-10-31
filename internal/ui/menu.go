@@ -6,43 +6,49 @@ package ui
 import (
 	"fmt"
 	"log"
-	"net/url"
 
 	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/driver/desktop"
-	"fyne.io/fyne/v2/widget"
-	"go.lucor.dev/paw/internal/paw"
 	"go.lucor.dev/paw/internal/storage"
+)
+
+const (
+	menuFileLabel        = "File"
+	menuVaultLabel       = "Vault"
+	menuNewVaultLabel    = "New Vault"
+	menuSettingsLabel    = "Settings"
+	menuCloseWindowLabel = "Close Window"
+	menuQuitLabel        = "Quit"
+	menuHelpLabel        = "Help"
+	menuAboutLabel       = "About" // Fyne maps this exact label to the native About Paw item.
 )
 
 func (a *app) makeMainMenu() *fyne.MainMenu {
 	// a Quit item will is appended automatically by Fyne to the first menu item
-	vaultItem := fyne.NewMenuItem("Vault", nil)
+	vaultItem := fyne.NewMenuItem(menuVaultLabel, nil)
 	vaultItem.ChildMenu = fyne.NewMenu("", a.makeVaultMenuItems()...)
 
-	fileMenu := fyne.NewMenu("File",
-		fyne.NewMenuItem("New Vault", func() {
+	fileMenu := fyne.NewMenu(menuFileLabel,
+		fyne.NewMenuItem(menuNewVaultLabel, func() {
 			a.showCreateVaultView()
 		}),
 		vaultItem,
 		fyne.NewMenuItemSeparator(),
-		fyne.NewMenuItem("Preferences", func() {
-			a.showPreferencesView()
+		fyne.NewMenuItem(menuSettingsLabel, func() {
+			a.showSettingsView()
 		}),
 		fyne.NewMenuItemSeparator(),
-		fyne.NewMenuItem("Close Window", func() {
+		fyne.NewMenuItem(menuCloseWindowLabel, func() {
 			a.win.Hide()
 		}),
-		fyne.NewMenuItem("Quit", func() {
+		fyne.NewMenuItem(menuQuitLabel, func() {
 			a.win.SetCloseIntercept(nil)
 			a.win.Close()
 		}),
 	)
 
-	helpMenu := fyne.NewMenu("Help",
-		fyne.NewMenuItem("About", a.about),
+	helpMenu := fyne.NewMenu(menuHelpLabel,
+		fyne.NewMenuItem(menuAboutLabel, func() { a.showAboutPawView(a.win.Content()) }),
 	)
 
 	return fyne.NewMainMenu(
@@ -51,28 +57,10 @@ func (a *app) makeMainMenu() *fyne.MainMenu {
 		helpMenu,
 	)
 }
-
-func (a *app) about() {
-	u, _ := url.Parse("https://paw.pm")
-	l := widget.NewLabel("Paw - " + paw.Version())
-	l.Alignment = fyne.TextAlignCenter
-	link := widget.NewHyperlink("https://paw.pm", u)
-	link.Alignment = fyne.TextAlignCenter
-	co := container.NewCenter(
-		container.NewVBox(
-			pawLogo(),
-			l,
-			link,
-		),
-	)
-	d := dialog.NewCustom("About Paw", "Ok", co, a.win)
-	d.Show()
-}
-
 func (a *app) makeVaultActions() []*fyne.MenuItem {
 	return NewVaultActions(func() { a.showVaultSettingsView() }, a.showAuditPasswordView, a.exportToFile, func() {
 		name, _ := a.vault.Name()
-		a.main.Content = a.makeUnlockVaultView(storage.VaultInfo{ID: a.vaultID, Name: name}, nil)
+		a.main.Content = a.makeUnlockVaultView(storage.VaultInfo{ID: a.vaultID, Name: name}, nil, nil)
 		a.lockVault()
 		a.main.Refresh()
 	})
@@ -85,6 +73,10 @@ func (a *app) makeVaultMenuItems() []*fyne.MenuItem {
 	}
 
 	mi := make([]*fyne.MenuItem, len(vaults))
+	var chooseAnother func()
+	if len(vaults) >= 2 {
+		chooseAnother = func() { a.showVaultSelector(vaults) }
+	}
 	for i, vault := range vaults {
 		i := i
 		info := vault
@@ -93,13 +85,13 @@ func (a *app) makeVaultMenuItems() []*fyne.MenuItem {
 		if isDesktop && i < 9 {
 			shortcut := &desktop.CustomShortcut{KeyName: fyne.KeyName(fmt.Sprint(i + 1)), Modifier: fyne.KeyModifierControl}
 			a.win.Canvas().AddShortcut(shortcut, func(shortcut fyne.Shortcut) {
-				a.setVaultViewByInfo(info, nil)
+				a.setVaultViewByInfo(info, nil, chooseAnother)
 			})
 			mi[i].Shortcut = shortcut
 		}
 		mi[i].Action = func() {
 			defer a.win.Show()
-			a.setVaultViewByInfo(info, nil)
+			a.setVaultViewByInfo(info, nil, chooseAnother)
 		}
 	}
 	return mi

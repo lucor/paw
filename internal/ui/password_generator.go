@@ -6,17 +6,20 @@ package ui
 import (
 	"fmt"
 	"log"
-	"strconv"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/data/binding"
 	"fyne.io/fyne/v2/dialog"
-	"fyne.io/fyne/v2/layout"
+	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
-	"go.lucor.dev/paw/internal/ui/assets/icons"
-
 	"go.lucor.dev/paw/internal/paw"
+	"go.lucor.dev/paw/internal/ui/assets/icons"
+)
+
+const (
+	passwordGeneratorDialogFrameWidth = 32
+	randomPasswordFormats             = paw.LowercaseFormat | paw.UppercaseFormat | paw.DigitsFormat | paw.SymbolsFormat
 )
 
 type pwgenOptions struct {
@@ -51,8 +54,8 @@ type pwgenDialog struct {
 	options pwgenOptions
 }
 
-func NewPasswordGenerator(key *paw.Key, ps paw.PasswordPreferences) *pwgenDialog {
-	pd := &pwgenDialog{
+func NewPasswordGenerator(key *paw.Key, ps paw.PasswordSettings) *pwgenDialog {
+	return &pwgenDialog{
 		key: key,
 		options: pwgenOptions{
 			RandomPasswordOptions: RandomPasswordOptions{
@@ -74,336 +77,205 @@ func NewPasswordGenerator(key *paw.Key, ps paw.PasswordPreferences) *pwgenDialog
 			},
 		},
 	}
-
-	return pd
 }
 
 func (pd *pwgenDialog) ShowPasswordGenerator(bind binding.String, password *paw.Password, w fyne.Window) {
+	working := *password
+	if working.Mode == paw.CustomPassword {
+		working.Mode = paw.RandomPassword
+	}
+	lengths := map[paw.PasswordMode]int{
+		paw.RandomPassword:     pd.options.RandomPasswordOptions.DefaultLength,
+		paw.PassphrasePassword: pd.options.PassphrasePasswordOptions.DefaultLength,
+		paw.PinPassword:        pd.options.PinPasswordOptions.DefaultLength,
+	}
+	if min, max, ok := pd.lengthBounds(working.Mode); ok && working.Length >= min && working.Length <= max {
+		lengths[working.Mode] = working.Length
+	} else {
+		working.Length = lengths[working.Mode]
+	}
+	pd.setModeDefaults(&working)
 
 	passwordBind := binding.NewString()
 	passwordEntry := widget.NewEntryWithData(passwordBind)
 	passwordEntry.Validator = nil
-	refreshButton := widget.NewButtonWithIcon("", icons.Generate, func() {
-		secret, err := pwgen(pd.key, password)
+	regenerate := func() {
+		secret, err := pwgen(pd.key, &working)
 		if err != nil {
 			log.Println(err)
 			return
 		}
-		passwordBind.Set(secret)
-	})
+		if err := passwordBind.Set(secret); err != nil {
+			log.Println(err)
+		}
+	}
+	refreshButton := widget.NewButtonWithIcon("", icons.Generate, regenerate)
+	resultRow := container.NewBorder(nil, nil, nil, refreshButton, passwordEntry)
 
-	content := container.NewStack(widget.NewLabel(""))
 	typeOptions := []string{
 		paw.RandomPassword.String(),
 		paw.PassphrasePassword.String(),
 		paw.PinPassword.String(),
 	}
-	typeList := widget.NewSelect(typeOptions, func(s string) {
-		switch s {
-		case paw.PassphrasePassword.String():
-			content.Objects[0] = passphraseOptions(pd.key, passwordBind, password, pd.options.PassphrasePasswordOptions)
-		case paw.PinPassword.String():
-			content.Objects[0] = pinOptions(pd.key, passwordBind, password, pd.options.PinPasswordOptions)
-		default:
-			content.Objects[0] = randomPasswordOptions(pd.key, passwordBind, password, pd.options.RandomPasswordOptions)
+	options := container.NewVBox()
+	typeList := widget.NewSelect(typeOptions, func(selected string) {
+		mode, ok := passwordModeFromLabel(selected)
+		if !ok {
+			return
 		}
-		content.Refresh()
+		if working.Mode != mode {
+			if min, max, valid := pd.lengthBounds(working.Mode); valid && working.Length >= min && working.Length <= max {
+				lengths[working.Mode] = working.Length
+			}
+			working.Mode = mode
+			working.Length = lengths[mode]
+			switch mode {
+			case paw.RandomPassword:
+				working.Format = pd.randomDefaultFormat()
+			case paw.PinPassword:
+				working.Format = paw.DigitsFormat
+			}
+		}
+		options.RemoveAll()
+		options.Add(pd.optionsView(&working, lengths, regenerate))
+		options.Refresh()
+		regenerate()
 	})
-	switch password.Mode.String() {
-	case paw.CustomPassword.String():
-		password.Mode = paw.RandomPassword
-		typeList.SetSelected(paw.RandomPassword.String())
-	default:
-		typeList.SetSelected(password.Mode.String())
+	typeList.SetSelected(working.Mode.String())
+	typeControl := typeList
+
+	content := container.NewVBox(
+		resultRow,
+		newText("Type", captionStyle),
+		typeControl,
+		options,
+	)
+	randomOptionsPassword := working
+	randomOptionsPassword.Mode = paw.RandomPassword
+	randomOptionsPassword.Length = lengths[paw.RandomPassword]
+	randomOptionsPassword.Format = pd.randomDefaultFormat()
+	randomOptions := pd.optionsView(&randomOptionsPassword, lengths, func() {})
+	maxContent := container.NewVBox(
+		resultRow,
+		newText("Type", captionStyle),
+		typeControl,
+		randomOptions,
+	)
+	maxContentSize := maxContent.MinSize()
+	contentWidth := maxContentSize.Width
+	if canvasWidth := w.Canvas().Size().Width; canvasWidth > 0 {
+		availableWidth := canvasWidth - 2*theme.Size(theme.SizeNamePadding) - passwordGeneratorDialogFrameWidth
+		if availableWidth > contentWidth {
+			contentWidth = availableWidth
+		}
 	}
-
-	form := container.New(layout.NewFormLayout())
-	form.Add(newText("Password", captionStyle))
-	form.Add(container.NewBorder(nil, nil, nil, refreshButton, passwordEntry))
-	form.Add(newText("Type", captionStyle))
-	form.Add(typeList)
-	c := container.NewBorder(form, nil, nil, nil, content)
-
-	d := dialog.NewCustomConfirm("Generate password", "Use", "Cancel", c, func(b bool) {
-		if b {
-			value, _ := passwordBind.Get()
-			bind.Set(value)
+	content = container.NewGridWrap(fyne.NewSize(contentWidth, maxContentSize.Height), content)
+	confirmDialog := dialog.NewCustomConfirm("Generate password", "Use", "Cancel", content, func(use bool) {
+		if !use {
+			return
+		}
+		value, err := passwordBind.Get()
+		if err != nil {
+			log.Println(err)
+			return
+		}
+		password.Mode = working.Mode
+		password.Length = working.Length
+		password.Format = working.Format
+		if err := bind.Set(value); err != nil {
+			log.Println(err)
 		}
 	}, w)
-	d.Resize(fyne.NewSize(400, 300))
-	d.Show()
+	confirmDialog.Show()
 }
 
-func passphraseOptions(key *paw.Key, passwordBind binding.String, password *paw.Password, opts PassphrasePasswordOptions) fyne.CanvasObject {
-
-	if password.Length == 0 || password.Length < opts.MinLength || password.Length > opts.MaxLength {
-		password.Length = opts.DefaultLength
-	}
-
-	if password.Mode != paw.PassphrasePassword {
-		password.Mode = paw.PassphrasePassword
-	}
-
-	lengthBind := binding.BindInt(&password.Length)
-	lengthEntry := widget.NewEntryWithData(binding.IntToString(lengthBind))
-	lengthEntry.Disabled()
-	lengthEntry.Validator = nil
-	lengthEntry.OnChanged = func(s string) {
-		if s == "" {
-			return
-		}
-		l, err := strconv.Atoi(s)
-		if err != nil {
-			log.Println(err)
-			return
-		}
-		if l < opts.MinLength || l > opts.MaxLength {
-			log.Printf("password lenght must be between %d and %d, got %d", opts.MinLength, opts.MaxLength, l)
-			return
-		}
-		lengthBind.Set(l)
-		secret, err := pwgen(key, password)
-		if err != nil {
-			log.Println(err)
-			return
-		}
-		passwordBind.Set(secret)
-	}
-
-	lengthSlider := widget.NewSlider(float64(opts.MinLength), float64(opts.MaxLength))
-	lengthSlider.OnChanged = func(f float64) {
-		lengthBind.Set(int(f))
-		secret, err := pwgen(key, password)
-		if err != nil {
-			log.Println(err)
-			return
-		}
-		passwordBind.Set(secret)
-	}
-	lengthSlider.SetValue(float64(password.Length))
-
-	secret, err := pwgen(key, password)
-	if err != nil {
-		log.Println(err)
-	}
-	passwordBind.Set(secret)
-
-	form := container.New(layout.NewFormLayout())
-	form.Add(newText("Length", captionStyle))
-	form.Add(container.NewBorder(nil, nil, nil, lengthEntry, lengthSlider))
-
-	return form
-}
-
-func pinOptions(key *paw.Key, passwordBind binding.String, password *paw.Password, opts PinPasswordOptions) fyne.CanvasObject {
-
-	if password.Length == 0 || password.Length < opts.MinLength || password.Length > opts.MaxLength {
-		password.Length = opts.DefaultLength
-	}
-
-	// with PIN we want only digits
-	password.Format = paw.DigitsFormat
-	if password.Mode != paw.PinPassword {
-		password.Mode = paw.PinPassword
-	}
-
-	lengthBind := binding.BindInt(&password.Length)
-	if password.Length == 0 || password.Mode != paw.PinPassword {
-		lengthBind.Set(opts.DefaultLength)
-	}
-
-	lengthEntry := widget.NewEntryWithData(binding.IntToString(lengthBind))
-	lengthEntry.Disabled()
-	lengthEntry.Validator = nil
-	lengthEntry.OnChanged = func(s string) {
-		if s == "" {
-			return
-		}
-		l, err := strconv.Atoi(s)
-		if err != nil {
-			log.Println(err)
-			return
-		}
-		if l < opts.MinLength || l > opts.MaxLength {
-			log.Printf("password lenght must be between %d and %d, got %d", opts.MinLength, opts.MaxLength, l)
-			return
-		}
-		lengthBind.Set(l)
-		secret, err := pwgen(key, password)
-		if err != nil {
-			log.Println(err)
-			return
-		}
-		passwordBind.Set(secret)
-	}
-
-	lengthSlider := widget.NewSlider(float64(opts.MinLength), float64(opts.MaxLength))
-	lengthSlider.OnChanged = func(f float64) {
-		lengthBind.Set(int(f))
-		secret, err := pwgen(key, password)
-		if err != nil {
-			log.Println(err)
-			return
-		}
-		passwordBind.Set(secret)
-	}
-	lengthSlider.SetValue(float64(password.Length))
-
-	secret, err := pwgen(key, password)
-	if err != nil {
-		log.Println(err)
-	}
-	passwordBind.Set(secret)
-
-	form := container.New(layout.NewFormLayout())
-	form.Add(newText("Length", captionStyle))
-	form.Add(container.NewBorder(nil, nil, nil, lengthEntry, lengthSlider))
-
-	return form
-}
-
-func randomPasswordOptions(key *paw.Key, passwordBind binding.String, password *paw.Password, opts RandomPasswordOptions) fyne.CanvasObject {
-
-	if password.Length == 0 || password.Length < opts.MinLength || password.Length > opts.MaxLength {
-		password.Length = opts.DefaultLength
-	}
-
-	if password.Format == 0 {
-		password.Format = opts.DefaultFormat
-	}
-
+func (pd *pwgenDialog) optionsView(password *paw.Password, lengths map[paw.PasswordMode]int, regenerate func()) fyne.CanvasObject {
+	min, max, _ := pd.lengthBounds(password.Mode)
+	length := newNumericStepper(&password.Length, min, max, 1, func() {
+		lengths[password.Mode] = password.Length
+		regenerate()
+	})
+	lengthRow := container.NewBorder(nil, nil, nil, length, newText("Length", captionStyle))
 	if password.Mode != paw.RandomPassword {
-		password.Mode = paw.RandomPassword
-		password.Format = opts.DefaultFormat
+		return lengthRow
 	}
+	checks := randomFormatChecks(password, regenerate)
+	return container.NewVBox(lengthRow, container.NewGridWithColumns(2, checks...))
+}
 
-	lengthBind := binding.BindInt(&password.Length)
-	lengthEntry := widget.NewEntryWithData(binding.IntToString(lengthBind))
-	lengthEntry.Disabled()
-	lengthEntry.Validator = nil
-	lengthEntry.OnChanged = func(s string) {
-		if s == "" {
-			return
-		}
-		l, err := strconv.Atoi(s)
-		if err != nil {
-			log.Println(err)
-			return
-		}
-		if l < opts.MinLength || l > opts.MaxLength {
-			log.Printf("password lenght must be between %d and %d, got %d", opts.MinLength, opts.MaxLength, l)
-			return
-		}
-		lengthBind.Set(l)
-		secret, err := pwgen(key, password)
-		if err != nil {
-			log.Println(err)
-			return
-		}
-		passwordBind.Set(secret)
+func randomFormatChecks(password *paw.Password, regenerate func()) []fyne.CanvasObject {
+	options := []struct {
+		label  string
+		format paw.Format
+	}{
+		{"Lowercase", paw.LowercaseFormat},
+		{"Uppercase", paw.UppercaseFormat},
+		{"Numbers", paw.DigitsFormat},
+		{"Symbols", paw.SymbolsFormat},
 	}
-
-	lengthSlider := widget.NewSlider(float64(opts.MinLength), float64(opts.MaxLength))
-	lengthSlider.OnChanged = func(f float64) {
-		lengthBind.Set(int(f))
-		secret, err := pwgen(key, password)
-		if err != nil {
-			log.Println(err)
-			return
+	checks := make([]fyne.CanvasObject, 0, len(options))
+	for _, option := range options {
+		option := option
+		check := widget.NewCheck(option.label, nil)
+		check.Checked = password.Format&option.format != 0
+		check.OnChanged = func(enabled bool) {
+			format := password.Format
+			if enabled {
+				format |= option.format
+			} else {
+				format &^= option.format
+			}
+			if format&randomPasswordFormats == 0 {
+				check.SetChecked(true)
+				return
+			}
+			password.Format = format
+			regenerate()
 		}
-		passwordBind.Set(secret)
+		checks = append(checks, check)
 	}
-	lengthSlider.SetValue(float64(password.Length))
+	return checks
+}
 
-	lowercaseButton := widget.NewCheck("a-z", func(isChecked bool) {
-		if isChecked {
-			password.Format |= paw.LowercaseFormat
-		} else {
-			password.Format &^= paw.LowercaseFormat
-		}
-		secret, err := pwgen(key, password)
-		if err != nil {
-			log.Println(err)
-			return
-		}
-		passwordBind.Set(secret)
-	})
-	if (password.Format & paw.LowercaseFormat) != 0 {
-		lowercaseButton.SetChecked(true)
-	} else {
-		lowercaseButton.SetChecked(false)
+func (pd *pwgenDialog) lengthBounds(mode paw.PasswordMode) (int, int, bool) {
+	switch mode {
+	case paw.RandomPassword:
+		return pd.options.RandomPasswordOptions.MinLength, pd.options.RandomPasswordOptions.MaxLength, true
+	case paw.PassphrasePassword:
+		return pd.options.PassphrasePasswordOptions.MinLength, pd.options.PassphrasePasswordOptions.MaxLength, true
+	case paw.PinPassword:
+		return pd.options.PinPasswordOptions.MinLength, pd.options.PinPasswordOptions.MaxLength, true
+	default:
+		return 0, 0, false
 	}
+}
 
-	uppercaseButton := widget.NewCheck("A-Z", func(isChecked bool) {
-		if isChecked {
-			password.Format |= paw.UppercaseFormat
-		} else {
-			password.Format &^= paw.UppercaseFormat
+func (pd *pwgenDialog) setModeDefaults(password *paw.Password) {
+	if password.Mode == paw.RandomPassword {
+		if password.Format&randomPasswordFormats == 0 {
+			password.Format = pd.randomDefaultFormat()
 		}
-		secret, err := pwgen(key, password)
-		if err != nil {
-			log.Println(err)
-			return
-		}
-		passwordBind.Set(secret)
-	})
-	if (password.Format & paw.UppercaseFormat) != 0 {
-		uppercaseButton.SetChecked(true)
-	} else {
-		uppercaseButton.SetChecked(false)
+		return
 	}
-
-	digitsButton := widget.NewCheck("0-9", func(isChecked bool) {
-		if isChecked {
-			password.Format |= paw.DigitsFormat
-		} else {
-			password.Format &^= paw.DigitsFormat
-		}
-		secret, err := pwgen(key, password)
-		if err != nil {
-			log.Println(err)
-			return
-		}
-		passwordBind.Set(secret)
-	})
-	if (password.Format & paw.DigitsFormat) != 0 {
-		digitsButton.SetChecked(true)
-	} else {
-		digitsButton.SetChecked(false)
+	if password.Mode == paw.PinPassword {
+		password.Format = paw.DigitsFormat
 	}
+}
 
-	symbolsButton := widget.NewCheck("!%$", func(isChecked bool) {
-		if isChecked {
-			password.Format |= paw.SymbolsFormat
-		} else {
-			password.Format &^= paw.SymbolsFormat
-		}
-		secret, err := pwgen(key, password)
-		if err != nil {
-			log.Println(err)
-			return
-		}
-		passwordBind.Set(secret)
-	})
-	if (password.Format & paw.SymbolsFormat) != 0 {
-		symbolsButton.SetChecked(true)
-	} else {
-		symbolsButton.SetChecked(false)
+func (pd *pwgenDialog) randomDefaultFormat() paw.Format {
+	if pd.options.RandomPasswordOptions.DefaultFormat != 0 {
+		return pd.options.RandomPasswordOptions.DefaultFormat
 	}
+	return paw.RandomPasswordDefaultFormat
+}
 
-	secret, err := pwgen(key, password)
-	if err != nil {
-		log.Println(err)
+func passwordModeFromLabel(label string) (paw.PasswordMode, bool) {
+	for _, mode := range []paw.PasswordMode{paw.RandomPassword, paw.PassphrasePassword, paw.PinPassword} {
+		if mode.String() == label {
+			return mode, true
+		}
 	}
-	passwordBind.Set(secret)
-
-	form := container.New(layout.NewFormLayout())
-	form.Add(newText("Length", captionStyle))
-	form.Add(container.NewBorder(nil, nil, nil, lengthEntry, lengthSlider))
-	form.Add(widget.NewLabel(""))
-	form.Add(container.NewGridWithColumns(4, lowercaseButton, uppercaseButton, digitsButton, symbolsButton))
-
-	return form
+	return paw.CustomPassword, false
 }
 
 func pwgen(key *paw.Key, password *paw.Password) (string, error) {

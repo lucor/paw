@@ -6,6 +6,7 @@ package ui
 import (
 	"context"
 	"encoding/json"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -31,9 +32,9 @@ func loginEditorFixture(t *testing.T) *model.Item {
 
 func newTestLoginEditor(t *testing.T, item *model.Item, isNew bool) *LoginEditor {
 	t.Helper()
-	preferences := paw.NewDefaultPreferences()
-	preferences.FaviconDownloader.Disabled = true
-	editor, err := NewLoginEditor(context.Background(), item, preferences.FaviconDownloader, preferences.TOTP, isNew)
+	settings := paw.NewDefaultSettings()
+	settings.FaviconDownloader.Disabled = true
+	editor, err := NewLoginEditor(context.Background(), item, settings.FaviconDownloader, isNew)
 	require.NoError(t, err)
 	return editor
 }
@@ -57,7 +58,14 @@ func TestLoginEditorControlsAndInteractions(t *testing.T) {
 	}
 	require.Contains(t, buttons, "Back")
 	require.Contains(t, buttons, "Generate password")
+	require.Contains(t, buttons, "Authenticator settings")
+	require.NotContains(t, buttons, "Show TOTP secret", "the password entry supplies its native reveal control")
+	var settingsIcon string
+	fyne.DoAndWait(func() { settingsIcon = buttons["Authenticator settings"].Icon.Name() })
+	require.Equal(t, icons.Settings2.Name(), settingsIcon)
 	require.True(t, editor.Password.Entry.Password, "password should use Fyne's native masked entry")
+	require.NotNil(t, editor.TOTPSecret.Validator, "TOTP secret uses native focus-loss validation")
+	require.NotNil(t, editor.TOTPSecret.ActionItem, "TOTP secret uses the native password reveal control")
 	require.Less(t, editor.GenerateButton.Size().Height, editor.Password.Size().Height,
 		"generator action should align with the entry instead of the strength row")
 	generated := false
@@ -70,7 +78,7 @@ func TestLoginEditorControlsAndInteractions(t *testing.T) {
 	for index, item := range editor.form.Items {
 		formLabels[index] = item.Text
 	}
-	require.Equal(t, []string{"Title", "Username", "Password", "Website", "TOTP secret", "Notes"}, formLabels)
+	require.Equal(t, []string{"Title", "Username", "Password", "Website", "Authenticator key", "Notes"}, formLabels)
 	for _, object := range test.LaidOutObjects(editor.View) {
 		_, isNavigation := object.(*Navigation)
 		require.False(t, isNavigation, "entry editor should hide bottom navigation")
@@ -131,24 +139,25 @@ func TestLoginEditorUpdatesCredentialsAndPreservesTOTP(t *testing.T) {
 	require.JSONEq(t, string(before), string(after))
 }
 
-func TestLoginEditorAddsTOTPUsingPreferences(t *testing.T) {
+func TestLoginEditorAddsTOTPUsingStandardDefaults(t *testing.T) {
 	test.NewTempApp(t)
 	item, err := model.NewLogin("GitHub", "dev@example.com", "password", model.PasswordSettings{Mode: paw.CustomPassword})
 	require.NoError(t, err)
-	preferences := paw.NewDefaultPreferences()
-	preferences.FaviconDownloader.Disabled = true
-	preferences.TOTP.Hash = paw.SHA256
-	preferences.TOTP.Digits = 8
-	preferences.TOTP.Interval = 45
-	editor, err := NewLoginEditor(context.Background(), item, preferences.FaviconDownloader, preferences.TOTP, true)
+	settings := paw.NewDefaultSettings()
+	settings.FaviconDownloader.Disabled = true
+	editor, err := NewLoginEditor(context.Background(), item, settings.FaviconDownloader, true)
 	require.NoError(t, err)
-	editor.TOTPSecret.SetText("jbsw y3dp-ehpk3pxp")
+	const enteredSecret = "jbsw \ty3dp-\nehpk3pxp"
+	editor.TOTPSecret.SetText(enteredSecret)
+	require.Equal(t, enteredSecret, editor.TOTPSecret.Text, "editing preserves the user's input")
 	editor.Title.SetText("GitHub")
 	require.True(t, editor.IsDirty())
 	require.True(t, editor.TOTPSecret.Password, "TOTP secret should be masked by default")
-	test.Tap(editor.TOTPReveal)
+	reveal, ok := editor.TOTPSecret.ActionItem.(fyne.Tappable)
+	require.True(t, ok, "password entry reveal control should be tappable")
+	test.Tap(reveal)
 	require.False(t, editor.TOTPSecret.Password)
-	test.Tap(editor.TOTPReveal)
+	test.Tap(reveal)
 	require.True(t, editor.TOTPSecret.Password)
 
 	updated, err := editor.UpdatedItem()
@@ -157,23 +166,295 @@ func TestLoginEditorAddsTOTPUsingPreferences(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "JBSWY3DPEHPK3PXP", decoded.totp.Secret)
 	require.Equal(t, cxf.CredentialTypeTOTP, decoded.totp.Type)
-	require.Equal(t, "sha256", decoded.totp.Algorithm)
-	require.Equal(t, uint16(45), decoded.totp.Period)
-	require.Equal(t, uint16(8), decoded.totp.Digits)
+	require.Equal(t, strings.ToLower(string(paw.TOTPHashDefault)), decoded.totp.Algorithm)
+	require.Equal(t, uint16(paw.TOTPIntervalDefault), decoded.totp.Period)
+	require.Equal(t, uint16(paw.TOTPDigitsDefault), decoded.totp.Digits)
+}
+
+func TestLegacyTOTPPreferencesDoNotAffectNewAuthenticatorDefaults(t *testing.T) {
+	test.NewTempApp(t)
+	var state paw.AppState
+	require.NoError(t, json.Unmarshal([]byte(`{"settings":{"totp":{"hash":"SHA256","digits":8,"interval":45}}}`), &state))
+	require.NotNil(t, state.Settings)
+	item, err := model.NewLogin("GitHub", "dev@example.com", "password", model.PasswordSettings{Mode: paw.CustomPassword})
+	require.NoError(t, err)
+	editor, err := NewLoginEditor(context.Background(), item, state.Settings.FaviconDownloader, true)
+	require.NoError(t, err)
+	editor.Title.SetText("GitHub")
+	editor.TOTPSecret.SetText("JBSWY3DPEHPK3PXP")
+	updated, err := editor.UpdatedItem()
+	require.NoError(t, err)
+	decoded, err := decodeEntryDetailCredentials(updated.Credentials)
+	require.NoError(t, err)
+	require.Equal(t, strings.ToLower(string(paw.TOTPHashDefault)), decoded.totp.Algorithm)
+	require.Equal(t, uint16(paw.TOTPDigitsDefault), decoded.totp.Digits)
+	require.Equal(t, uint16(paw.TOTPIntervalDefault), decoded.totp.Period)
+}
+
+func TestTOTPSecretNormalizationPreservesInvalidCharacters(t *testing.T) {
+	for _, testCase := range []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{name: "canonical", input: "JBSWY3DPEHPK3PXP", want: "JBSWY3DPEHPK3PXP"},
+		{name: "whitespace-and-case", input: "jbsw \ty3dp\r\nehpk3pxp", want: "JBSWY3DPEHPK3PXP"},
+		{name: "mixed-case", input: "JbswY3dpehpk3pxp", want: "JBSWY3DPEHPK3PXP"},
+		{name: "hyphen-separated", input: "jbsw-y3dpehpk3pxp", want: "JBSWY3DPEHPK3PXP"},
+		{name: "ambiguous-digit-preserved", input: "JBSW0Y3DPEHPK3PXP", want: "JBSW0Y3DPEHPK3PXP"},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			require.Equal(t, testCase.want, normalizeTOTPSecret(testCase.input))
+		})
+	}
+
+	test.NewTempApp(t)
+	editor := newTestLoginEditor(t, loginEditorFixture(t), false)
+	require.Error(t, editor.validateTOTPSecret("JBSW!Y3DPEHPK3PXP"), "invalid characters must remain invalid")
+	require.NoError(t, editor.validateTOTPSecret("JBSW-Y3DPEHPK3PXP"), "hyphens are removed as formatting separators")
+}
+
+func TestTOTPSettingsDialogUsesStandardDefaultsAndAppliesOnlyOnApply(t *testing.T) {
+	test.NewTempApp(t)
+	window := test.NewTempWindow(t, nil)
+	item, err := model.NewLogin("GitHub", "dev@example.com", "password", model.PasswordSettings{Mode: paw.CustomPassword})
+	require.NoError(t, err)
+	editor, err := NewLoginEditor(context.Background(), item, paw.NewDefaultSettings().FaviconDownloader, true)
+	require.NoError(t, err)
+	require.Equal(t, strings.ToLower(string(paw.TOTPHashDefault)), editor.totpSettings.Algorithm)
+	require.Equal(t, uint16(paw.TOTPDigitsDefault), editor.totpSettings.Digits)
+	require.Equal(t, uint16(paw.TOTPIntervalDefault), editor.totpSettings.Period)
+
+	showTOTPSettingsDialog(editor, window)
+	popup := totpDialogOverlay(window)
+	require.NotNil(t, popup)
+	require.Contains(t, totpDialogTexts(popup), totpSettingsDialogTitle)
+	algorithm, digits := totpDialogSelects(t, popup)
+	algorithmValue, digitsValue := totpDialogSelections(algorithm, digits)
+	require.Equal(t, string(paw.TOTPHashDefault), algorithmValue)
+	require.Equal(t, strconv.Itoa(paw.TOTPDigitsDefault), digitsValue)
+	require.Equal(t, paw.TOTPIntervalDefault, totpDialogInterval(t, popup))
+	require.Contains(t, totpDialogTexts(popup), "Interval")
+	var intervalLabelWidth, intervalLabelMinimum float32
+	fyne.DoAndWait(func() {
+		for _, object := range test.LaidOutObjects(popup) {
+			if label, ok := object.(*widget.Label); ok && label.Text == "Interval" {
+				intervalLabelWidth = label.Size().Width
+				intervalLabelMinimum = label.MinSize().Width
+			}
+		}
+	})
+	require.GreaterOrEqual(t, intervalLabelWidth, intervalLabelMinimum)
+	setTOTPDialogSelections(algorithm, digits, "SHA512", "9")
+	test.Tap(totpDialogButton(t, popup, icons.Plus))
+	require.Equal(t, uint16(paw.TOTPIntervalDefault), editor.totpSettings.Period, "dialog edits remain isolated until Apply")
+	test.Tap(totpDialogAction(t, popup, "Apply"))
+	require.Nil(t, totpDialogOverlay(window))
+	require.Equal(t, "sha512", editor.totpSettings.Algorithm)
+	require.Equal(t, uint16(9), editor.totpSettings.Digits)
+	require.Equal(t, uint16(paw.TOTPIntervalDefault+totpIntervalStep), editor.totpSettings.Period)
+	require.True(t, editor.IsDirty())
+
+	showTOTPSettingsDialog(editor, window)
+	popup = totpDialogOverlay(window)
+	algorithm, digits = totpDialogSelects(t, popup)
+	algorithmValue, digitsValue = totpDialogSelections(algorithm, digits)
+	require.Equal(t, "SHA512", algorithmValue)
+	require.Equal(t, "9", digitsValue)
+	require.Equal(t, paw.TOTPIntervalDefault+totpIntervalStep, totpDialogInterval(t, popup))
+	setTOTPDialogSelections(algorithm, digits, "SHA1", digitsValue)
+	test.Tap(totpDialogAction(t, popup, "Cancel"))
+	require.Nil(t, totpDialogOverlay(window))
+	require.Equal(t, "sha512", editor.totpSettings.Algorithm, "Cancel discards changes since opening")
+}
+
+func TestTOTPSettingsDialogLoadsStoredParametersAndPreservesNonFiveInterval(t *testing.T) {
+	test.NewTempApp(t)
+	window := test.NewTempWindow(t, nil)
+	item := loginEditorFixture(t)
+	var stored cxf.TOTP
+	require.NoError(t, json.Unmarshal(item.Credentials[2], &stored))
+	stored.Algorithm, stored.Digits, stored.Period = "sha512", 9, 47
+	item.Credentials[2], _ = json.Marshal(stored)
+	editor, err := NewLoginEditor(context.Background(), item, paw.NewDefaultSettings().FaviconDownloader, false)
+	require.NoError(t, err)
+	require.Equal(t, stored, editor.totpSettings, "editing uses the stored parameters, not current defaults")
+	updatedItem, err := editor.UpdatedItem()
+	require.NoError(t, err)
+	updatedCredentials, err := decodeEntryDetailCredentials(updatedItem.Credentials)
+	require.NoError(t, err)
+	require.Equal(t, stored, *updatedCredentials.totp, "saving without changes preserves imported per-item parameters")
+
+	showTOTPSettingsDialog(editor, window)
+	popup := totpDialogOverlay(window)
+	algorithm, digits := totpDialogSelects(t, popup)
+	algorithmValue, digitsValue := totpDialogSelections(algorithm, digits)
+	require.Equal(t, "SHA512", algorithmValue)
+	require.Equal(t, "9", digitsValue)
+	require.Equal(t, 47, totpDialogInterval(t, popup))
+	test.Tap(totpDialogButton(t, popup, icons.Plus))
+	require.Equal(t, 52, totpDialogInterval(t, popup))
+	test.Tap(totpDialogAction(t, popup, "Cancel"))
+	require.Equal(t, stored, editor.totpSettings)
+
+	showTOTPSettingsDialog(editor, window)
+	popup = totpDialogOverlay(window)
+	algorithm, digits = totpDialogSelects(t, popup)
+	setTOTPDialogSelections(algorithm, digits, "SHA1", "7")
+	test.Tap(totpDialogAction(t, popup, "Apply"))
+	updated, err := editor.UpdatedItem()
+	require.NoError(t, err)
+	decoded, err := decodeEntryDetailCredentials(updated.Credentials)
+	require.NoError(t, err)
+	require.Equal(t, "sha1", decoded.totp.Algorithm)
+	require.Equal(t, uint16(7), decoded.totp.Digits)
+	require.Equal(t, uint16(47), decoded.totp.Period, "Apply preserves valid intervals that are not a multiple of five")
+}
+
+func TestTOTPSettingsDialogRejectsUnsupportedParameters(t *testing.T) {
+	test.NewTempApp(t)
+	window := test.NewTempWindow(t, nil)
+	editor := newTestLoginEditor(t, loginEditorFixture(t), false)
+	editor.totpSettings.Algorithm = "unsupported"
+	showTOTPSettingsDialog(editor, window)
+	popup := totpDialogOverlay(window)
+	test.Tap(totpDialogAction(t, popup, "Apply"))
+	require.NotNil(t, totpDialogOverlay(window), "invalid settings keep the dialog open")
+	require.Contains(t, totpDialogTexts(popup), "select a supported TOTP algorithm")
+	require.Equal(t, "unsupported", editor.totpSettings.Algorithm, "Cancel preserves the editor's current value")
+	test.Tap(totpDialogAction(t, popup, "Cancel"))
+}
+
+func totpDialogSelects(t *testing.T, dialogObject fyne.CanvasObject) (*widget.Select, *widget.Select) {
+	t.Helper()
+	var algorithm, digits *widget.Select
+	fyne.DoAndWait(func() {
+		for _, object := range test.LaidOutObjects(dialogObject) {
+			selectWidget, ok := object.(*widget.Select)
+			if !ok {
+				continue
+			}
+			if len(selectWidget.Options) == len(totpHashOptions) {
+				algorithm = selectWidget
+			} else if len(selectWidget.Options) == len(totpDigitOptions) {
+				digits = selectWidget
+			}
+		}
+	})
+	require.NotNil(t, algorithm)
+	require.NotNil(t, digits)
+	return algorithm, digits
+}
+
+func totpDialogInterval(t *testing.T, dialogObject fyne.CanvasObject) int {
+	t.Helper()
+	var interval int
+	fyne.DoAndWait(func() {
+		for _, object := range test.LaidOutObjects(dialogObject) {
+			if label, ok := object.(*widget.Label); ok && label.TextStyle.Monospace {
+				interval, _ = strconv.Atoi(label.Text)
+			}
+		}
+	})
+	if interval != 0 {
+		return interval
+	}
+	t.Fatal("TOTP interval stepper is missing")
+	return 0
+}
+
+func totpDialogButton(t *testing.T, dialogObject fyne.CanvasObject, resource fyne.Resource) *widget.Button {
+	t.Helper()
+	var found *widget.Button
+	fyne.DoAndWait(func() {
+		for _, object := range test.LaidOutObjects(dialogObject) {
+			if button, ok := object.(*widget.Button); ok && button.Icon != nil && button.Icon.Name() == resource.Name() {
+				found = button
+			}
+		}
+	})
+	if found != nil {
+		return found
+	}
+	t.Fatalf("TOTP dialog button %q is missing", resource.Name())
+	return nil
+}
+
+func totpDialogAction(t *testing.T, dialogObject fyne.CanvasObject, title string) *widget.Button {
+	t.Helper()
+	var found *widget.Button
+	fyne.DoAndWait(func() {
+		for _, object := range test.LaidOutObjects(dialogObject) {
+			if button, ok := object.(*widget.Button); ok && button.Text == title {
+				found = button
+			}
+		}
+	})
+	if found != nil {
+		return found
+	}
+	t.Fatalf("TOTP dialog action %q is missing", title)
+	return nil
+}
+
+func totpDialogOverlay(window fyne.Window) fyne.CanvasObject {
+	var overlay fyne.CanvasObject
+	fyne.DoAndWait(func() { overlay = window.Canvas().Overlays().Top() })
+	return overlay
+}
+
+func totpDialogTexts(view fyne.CanvasObject) []string {
+	var texts []string
+	fyne.DoAndWait(func() {
+		for _, object := range test.LaidOutObjects(view) {
+			if label, ok := object.(*widget.Label); ok && label.Visible() {
+				texts = append(texts, label.Text)
+			}
+		}
+	})
+	return texts
+}
+
+func totpDialogSelections(algorithm, digits *widget.Select) (string, string) {
+	var algorithmValue, digitsValue string
+	fyne.DoAndWait(func() {
+		algorithmValue = algorithm.Selected
+		digitsValue = digits.Selected
+	})
+	return algorithmValue, digitsValue
+}
+
+func setTOTPDialogSelections(algorithm, digits *widget.Select, algorithmValue, digitsValue string) {
+	fyne.DoAndWait(func() {
+		algorithm.SetSelected(algorithmValue)
+		digits.SetSelected(digitsValue)
+	})
 }
 
 func TestLoginEditorUpdatesAndRemovesTOTP(t *testing.T) {
 	test.NewTempApp(t)
+	window := test.NewTempWindow(t, nil)
 	item := loginEditorFixture(t)
 	editor := newTestLoginEditor(t, item, false)
+	window.SetContent(editor.View)
+	window.Canvas().Focus(editor.TOTPSecret)
 	editor.TOTPSecret.SetText("not base32!")
+	require.False(t, editor.totpError.Visible(), "invalid text is not reported while the user is typing")
+	window.Canvas().Focus(editor.Title)
+	require.True(t, editor.totpError.Visible(), "invalid text is reported when the field loses focus")
+	var errorSize fyne.Size
+	fyne.DoAndWait(func() {
+		errorSize = editor.totpError.Size()
+	})
+	require.Greater(t, errorSize.Height, float32(0), "validation error should occupy visible form layout space")
 	if _, err := editor.UpdatedItem(); err == nil {
 		t.Fatal("expected invalid TOTP secret to be rejected")
 	}
 	require.True(t, editor.totpError.Visible())
-	require.Equal(t, "enter a valid Base32 secret", editor.totpError.Text)
+	require.Equal(t, "enter a valid secret", editor.totpError.Text)
 
 	editor.TOTPSecret.SetText("MZXW6YTBOI======")
+	require.False(t, editor.totpError.Visible(), "a corrected secret clears the error immediately")
 	updated, err := editor.UpdatedItem()
 	require.NoError(t, err)
 	decoded, err := decodeEntryDetailCredentials(updated.Credentials)

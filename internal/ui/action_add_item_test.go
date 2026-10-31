@@ -15,7 +15,7 @@ import (
 	"go.lucor.dev/paw/internal/paw"
 )
 
-// TestAddPasswordItemOpensGenerator checks a new password item has generator preferences.
+// TestAddPasswordItemOpensGenerator checks a new password item uses application settings.
 func TestAddPasswordItemOpensGenerator(t *testing.T) {
 	appDriver := test.NewApp()
 	t.Cleanup(appDriver.Quit)
@@ -28,7 +28,7 @@ func TestAddPasswordItemOpensGenerator(t *testing.T) {
 	application := &app{
 		win:   window,
 		main:  nil,
-		state: &paw.AppState{Preferences: paw.NewDefaultPreferences()},
+		state: &paw.AppState{Settings: paw.NewDefaultSettings()},
 		vault: vault,
 	}
 	application.addItem(paw.PasswordItemType)
@@ -58,7 +58,7 @@ func TestAddSSHItemShowsCreationActions(t *testing.T) {
 	require.NoError(t, err)
 	application := &app{
 		win:   window,
-		state: &paw.AppState{Preferences: paw.NewDefaultPreferences()},
+		state: &paw.AppState{Settings: paw.NewDefaultSettings()},
 		vault: vault,
 	}
 	application.addItem(paw.SSHKeyItemType)
@@ -71,4 +71,32 @@ func TestAddSSHItemShowsCreationActions(t *testing.T) {
 	}
 	require.True(t, labels["Generate"])
 	require.True(t, labels["Import"])
+}
+
+func TestLoginEditorSettingsActionOpensTOTPDialog(t *testing.T) {
+	for _, isNew := range []bool{true, false} {
+		t.Run(map[bool]string{true: "new", false: "edit"}[isNew], func(t *testing.T) {
+			appDriver := test.NewApp()
+			t.Cleanup(appDriver.Quit)
+			window := appDriver.NewWindow("Paw")
+			t.Cleanup(window.Close)
+			item := loginEditorFixture(t)
+			if isNew {
+				var err error
+				item, err = model.NewLogin("New login", "", "", model.PasswordSettings{Mode: paw.CustomPassword})
+				require.NoError(t, err)
+			}
+			application := &app{
+				win:   window,
+				state: &paw.AppState{Settings: paw.NewDefaultSettings()},
+			}
+			view := application.makeLoginEditView(item, isNew)
+			window.SetContent(view)
+			settings := findPilotIconButton(t, view, "Authenticator settings")
+			test.Tap(settings)
+			popup := totpDialogOverlay(window)
+			require.NotNil(t, popup)
+			require.Contains(t, totpDialogTexts(popup), totpSettingsDialogTitle)
+		})
+	}
 }

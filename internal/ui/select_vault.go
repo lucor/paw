@@ -7,7 +7,6 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/layout"
-	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 	"go.lucor.dev/paw/internal/storage"
 	"go.lucor.dev/paw/internal/ui/assets/icons"
@@ -28,8 +27,7 @@ func NewSelectVault(vaults []VaultChoice, addVault func()) fyne.CanvasObject {
 	list = widget.NewList(
 		func() int { return len(vaults) },
 		func() fyne.CanvasObject {
-			row := NewActionRow("Vault", "Locked", icons.Lock, nil)
-			return container.New(layout.NewCustomPaddedLayout(0, 0, theme.Size(theme.SizeNameInnerPadding), theme.Size(theme.SizeNameInnerPadding)), row)
+			return NewActionRow("Vault", "Locked", icons.Lock, nil)
 		},
 		func(id widget.ListItemID, object fyne.CanvasObject) {
 			vault := vaults[id]
@@ -37,7 +35,7 @@ func NewSelectVault(vaults []VaultChoice, addVault func()) fyne.CanvasObject {
 			if vault.Unlocked {
 				status = "Unlocked"
 			}
-			row := object.(*fyne.Container).Objects[0].(*ActionRow)
+			row := object.(*ActionRow)
 			row.SetContent(vault.Name, status, vaultIconResource(vault.Appearance.Icon))
 			row.SetLeadingObject(newVaultIcon(vault.Appearance, vaultIconMedium))
 			row.SetTapped(func() { list.Select(id) })

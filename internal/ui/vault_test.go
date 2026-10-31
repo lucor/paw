@@ -99,7 +99,7 @@ func TestAuditIsDiscardedOnLockAndVaultSwitch(t *testing.T) {
 			if action == "lock" {
 				a.makeVaultActions()[4].Action()
 			} else {
-				a.setVaultViewByInfo(storage.VaultInfo{ID: "work", Name: "Work"}, nil)
+				a.setVaultViewByInfo(storage.VaultInfo{ID: "work", Name: "Work"}, nil, nil)
 			}
 			require.Nil(t, a.audit)
 			require.ErrorIs(t, detailContext.Err(), context.Canceled)
@@ -460,7 +460,7 @@ func TestUnlockShowsMigrationFailure(t *testing.T) {
 	}
 	info := storage.VaultInfo{ID: "legacy-vault-id", Name: "Personal", NeedsMigration: true}
 	opened := false
-	unlocker := NewUnlockVault(info, store, func(*model.Vault) { opened = true }, nil, nil)
+	unlocker := NewUnlockVault(info, store, func(*model.Vault) { opened = true }, nil, nil, nil)
 	window.SetContent(unlocker)
 	password, button := unlockControls(t, unlocker)
 	password.SetText("vault password")
@@ -478,7 +478,9 @@ func TestUnlockShowsMigrationFailure(t *testing.T) {
 
 	var message string
 	require.Eventually(t, func() bool {
-		message = unlockViewText(t, unlocker)
+		fyne.DoAndWait(func() {
+			message = unlockViewText(t, unlocker)
+		})
 		return strings.Contains(message, "migration failed: 1/1 items")
 	}, time.Second, 10*time.Millisecond)
 	require.Contains(t, message, "migration failed: 1/1 items")
@@ -537,9 +539,13 @@ func TestSingleVaultUnlockControls(t *testing.T) {
 	require.True(t, button.Disabled())
 	require.Greater(t, button.Size().Width, float32(350))
 	foundHeading := false
+	foundPasswordLabel := false
+	foundChooseAnother := false
 	for _, object := range test.LaidOutObjects(unlocker) {
 		if label, ok := object.(*widget.Label); ok {
-			require.NotEqual(t, "Master password", label.Text)
+			if label.Text == "Master password" {
+				foundPasswordLabel = true
+			}
 		}
 		if label, ok := object.(*widget.Label); ok && label.Text == "Unlock Personal" {
 			foundHeading = true
@@ -548,11 +554,14 @@ func TestSingleVaultUnlockControls(t *testing.T) {
 		_, checkbox := object.(*widget.Check)
 		require.False(t, checkbox, "remembering the last vault belongs in Settings")
 		if button, ok := object.(*widget.Button); ok {
+			foundChooseAnother = foundChooseAnother || button.Text == "Choose another vault"
 			require.NotEqual(t, icons.Back, button.Icon, "single-vault unlock must not show Back")
 			require.NotEqual(t, "Add vault", button.Text, "Add vault belongs in the overflow menu")
 		}
 	}
 	require.True(t, foundHeading)
+	require.True(t, foundPasswordLabel)
+	require.False(t, foundChooseAnother, "the action is hidden when only one vault exists")
 }
 
 // TestUnlockAddVaultOptions checks adding a vault is reachable without unlocking.
@@ -657,6 +666,60 @@ func TestSelectedVaultUnlockReturnsToList(t *testing.T) {
 	unlocker, ok := a.main.Content.(*UnlockVault)
 	require.True(t, ok)
 	require.Contains(t, unlockViewText(t, unlocker), "Unlock Personal")
+	var chooseAnother *widget.Button
+	for _, object := range test.LaidOutObjects(unlocker) {
+		if button, ok := object.(*widget.Button); ok && button.Text == "Choose another vault" {
+			chooseAnother = button
+			break
+		}
+	}
+	require.NotNil(t, chooseAnother, "unlock from the selector should keep the choose action available")
+	test.Tap(chooseAnother)
+	selectorCount := 0
+	for _, object := range test.LaidOutObjects(a.main) {
+		if _, ok := object.(*widget.List); ok {
+			selectorCount++
+		}
+	}
+	require.Equal(t, 1, selectorCount, "Choose another vault should replace the unlock view with one selector")
+	listFound := false
+	for _, object := range test.LaidOutObjects(a.main) {
+		if list, ok := object.(*widget.List); ok {
+			list.Select(0)
+			listFound = true
+			break
+		}
+	}
+	require.True(t, listFound)
+	unlocker, ok = a.main.Content.(*UnlockVault)
+	require.True(t, ok)
+	chooseAnother = nil
+	for _, object := range test.LaidOutObjects(unlocker) {
+		if button, ok := object.(*widget.Button); ok && button.Text == "Choose another vault" {
+			chooseAnother = button
+			break
+		}
+	}
+	require.NotNil(t, chooseAnother)
+	test.Tap(chooseAnother)
+	selectorCount = 0
+	for _, object := range test.LaidOutObjects(a.main) {
+		if _, ok := object.(*widget.List); ok {
+			selectorCount++
+		}
+	}
+	require.Equal(t, 1, selectorCount, "repeated choose actions must not stack selectors")
+	listFound = false
+	for _, object := range test.LaidOutObjects(a.main) {
+		if list, ok := object.(*widget.List); ok {
+			list.Select(0)
+			listFound = true
+			break
+		}
+	}
+	require.True(t, listFound)
+	unlocker, ok = a.main.Content.(*UnlockVault)
+	require.True(t, ok)
 	var back *widget.Button
 	for _, object := range test.LaidOutObjects(unlocker) {
 		if button, ok := object.(*widget.Button); ok && button.Icon == icons.Back && button.Visible() {

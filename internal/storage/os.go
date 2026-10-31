@@ -153,8 +153,8 @@ func (s *OSStorage) Vaults() ([]VaultInfo, error) {
 // LoadAppState load the configuration from the underlying storage
 func (s *OSStorage) LoadAppState() (*paw.AppState, error) {
 	defaultAppState := &paw.AppState{
-		Modified:    time.Now().UTC(),
-		Preferences: paw.NewDefaultPreferences(),
+		Modified: time.Now().UTC(),
+		Settings: paw.NewDefaultSettings(),
 	}
 	appStateFile := appStateFilePath(s)
 	r, err := os.Open(appStateFile)

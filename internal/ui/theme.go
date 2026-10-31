@@ -58,6 +58,11 @@ type compactTextTheme struct {
 	fyne.Theme
 }
 
+// Color follows the application theme when its selected variant changes.
+func (t compactTextTheme) Color(name fyne.ThemeColorName, variant fyne.ThemeVariant) color.Color {
+	return fyne.CurrentApp().Settings().Theme().Color(name, variant)
+}
+
 // Size removes inner padding while preserving the rest of the active theme.
 func (t compactTextTheme) Size(name fyne.ThemeSizeName) float32 {
 	if name == theme.SizeNameInnerPadding {

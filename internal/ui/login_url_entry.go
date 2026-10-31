@@ -18,12 +18,12 @@ type LoginURLEntry struct {
 
 	ctx             context.Context
 	loginURL        *paw.LoginURL
-	preferences     paw.FaviconDownloaderPreferences
+	settings        paw.FaviconDownloaderSettings
 	FaviconListener func(*paw.Favicon)
 }
 
 // NewLoginURLEntry creates a Website field that fetches a favicon when its host changes.
-func NewLoginURLEntry(ctx context.Context, value string, preferences paw.FaviconDownloaderPreferences) *LoginURLEntry {
+func NewLoginURLEntry(ctx context.Context, value string, settings paw.FaviconDownloaderSettings) *LoginURLEntry {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -31,7 +31,7 @@ func NewLoginURLEntry(ctx context.Context, value string, preferences paw.Favicon
 	if value != "" {
 		_ = loginURL.Set(value)
 	}
-	entry := &LoginURLEntry{ctx: ctx, loginURL: loginURL, preferences: preferences}
+	entry := &LoginURLEntry{ctx: ctx, loginURL: loginURL, settings: settings}
 	entry.ExtendBaseWidget(entry)
 	entry.SetText(value)
 	entry.OnSubmitted = func(string) { entry.FocusLost() }
@@ -57,7 +57,7 @@ func (e *LoginURLEntry) FocusLost() {
 
 func (e *LoginURLEntry) downloadFavicon() {
 	host := e.loginURL.URL().Hostname()
-	if host == "" || e.preferences.Disabled || e.loginURL.URL().Scheme != "https" {
+	if host == "" || e.settings.Disabled || e.loginURL.URL().Scheme != "https" {
 		e.notifyFavicon(nil, host)
 		return
 	}

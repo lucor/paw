@@ -136,7 +136,7 @@ func (a *app) showChangeMasterPassword() {
 			err := a.storage.ChangeMasterPassword(ctx, id, current, next)
 			fyne.Do(func() {
 				if err == nil && a.vault != nil && a.vaultID == id {
-					a.main.Content = a.makeUnlockVaultView(info, nil)
+					a.main.Content = a.makeUnlockVaultView(info, nil, nil)
 					a.lockVault()
 					a.main.Refresh()
 					return

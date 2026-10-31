@@ -13,7 +13,6 @@ import (
 	"runtime"
 
 	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/driver/desktop"
@@ -25,7 +24,6 @@ import (
 	"go.lucor.dev/paw/internal/model"
 	"go.lucor.dev/paw/internal/paw"
 	"go.lucor.dev/paw/internal/storage"
-	"go.lucor.dev/paw/internal/ui/assets/icons"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -60,6 +58,8 @@ type app struct {
 	codesCancel  context.CancelFunc
 	codesView    *codesView
 	sshEditor    *SSHKeyEditor
+	autoLock     *backgroundAutoLock
+	detailClear  func()
 
 	// Paw agent client
 	client agent.PawAgent
@@ -79,8 +79,22 @@ func MakeApp(s storage.Storage, w fyne.Window) fyne.CanvasObject {
 		unlockedVault: make(map[string]*model.Vault),
 		win:           w,
 	}
+	if a.state == nil {
+		a.state = &paw.AppState{Settings: paw.NewDefaultSettings()}
+	}
+	if a.state.Settings == nil {
+		a.state.Settings = paw.NewDefaultSettings()
+	}
+	a.autoLock = newBackgroundAutoLock(a.lockAllVaults)
+	a.configureAutoLock(a.state.Settings.AutoLock)
+	fyne.CurrentApp().Lifecycle().SetOnExitedForeground(func() { fyne.Do(a.autoLock.exitedForeground) })
+	fyne.CurrentApp().Lifecycle().SetOnEnteredForeground(func() { fyne.Do(a.autoLock.enteredForeground) })
+	fyne.CurrentApp().Lifecycle().SetOnStopped(func() { fyne.Do(a.autoLock.close) })
 
 	a.win.SetMainMenu(a.makeMainMenu())
+	if a.state != nil && a.state.Settings != nil {
+		applySettingsTheme(a.state.Settings.Theme)
+	}
 
 	a.main = a.makeApp()
 	a.makeSysTray()
@@ -123,29 +137,30 @@ func (a *app) makeApp() *container.Scroll {
 	}
 
 	var o fyne.CanvasObject
+	var chooseAnother func()
+	if len(vaults) >= 2 {
+		chooseAnother = func() { a.showVaultSelector(vaults) }
+	}
 
 	switch len(vaults) {
 	case 0:
-		showSection := func(title string, resource fyne.Resource) {
-			a.win.SetContent(NewPlaceholder(title, resource, func() {
-				a.win.SetContent(a.main)
-			}))
-		}
-		o = NewWelcome(pawLogo(), WelcomeActions{
-			CreateVault: a.showCreateVaultView,
-			Restore:     a.showRestoreVaultView,
-			Sync:        func() { showSection("Connect via Sync", icons.Sync) },
-		})
+		o = NewAddVault(nil, a.showCreateVaultView, a.showRestoreVaultView)
 	case 1:
-		o = a.makeUnlockVaultView(vaults[0], nil)
+		o = a.makeUnlockVaultView(vaults[0], nil, nil)
 	default:
+		if a.state != nil && a.state.Settings != nil && a.state.Settings.StartupVault == paw.StartupVaultLastUsed && a.state.Settings.LastVaultID != "" {
+			if info, err := storage.FindVaultInfo(vaults, a.state.Settings.LastVaultID); err == nil {
+				o = a.makeUnlockVaultView(info, nil, chooseAnother)
+				break
+			}
+		}
 		o = a.makeSelectVaultView(vaults)
 	}
 	return container.NewVScroll(o)
 }
 
 // setVaultViewByInfo selects the unlocked vault or displays its unlock screen.
-func (a *app) setVaultViewByInfo(info storage.VaultInfo, back func()) {
+func (a *app) setVaultViewByInfo(info storage.VaultInfo, back, chooseAnother func()) {
 	if a.settingsVaultID != "" {
 		return
 	}
@@ -155,7 +170,7 @@ func (a *app) setVaultViewByInfo(info storage.VaultInfo, back func()) {
 	vault, ok := a.unlockedVault[info.ID]
 	if !ok {
 		a.vault = nil
-		a.main.Content = a.makeUnlockVaultView(info, back)
+		a.main.Content = a.makeUnlockVaultView(info, back, chooseAnother)
 		a.main.Refresh()
 		a.setWindowTitle()
 		a.showCurrentVaultView()
@@ -260,6 +275,12 @@ func (a *app) setVaultView(vault *model.Vault, vaultID string) {
 	a.vault = vault
 	a.vaultID = vaultID
 	a.unlockedVault[vaultID] = vault
+	if a.state != nil && a.state.Settings != nil && a.state.Settings.LastVaultID != vaultID {
+		a.state.Settings.LastVaultID = vaultID
+		if err := a.storage.StoreAppState(a.state); err != nil {
+			log.Println("unable to save last used vault:", err)
+		}
+	}
 	a.main.Content = a.makeCurrentVaultView()
 	a.main.Refresh()
 	a.setWindowTitle()
@@ -308,10 +329,10 @@ func (a *app) showEditItemView(item *model.Item, isNew bool) {
 	}
 }
 
-// showPreferencesView opens the preferences screen.
-func (a *app) showPreferencesView() {
+// showSettingsView opens the application settings.
+func (a *app) showSettingsView() {
 	a.closeItemDetail()
-	a.win.SetContent(a.makePreferencesView())
+	a.win.SetContent(a.makeSettingsView())
 }
 
 // lockVault removes the current vault from the unlocked views.
@@ -324,6 +345,27 @@ func (a *app) lockVault() {
 	delete(a.unlockedVault, a.vaultID)
 	a.vault = nil
 	a.vaultID = ""
+	a.win.SetContent(a.main)
+}
+
+func (a *app) configureAutoLock(key string) {
+	if a.autoLock != nil {
+		a.autoLock.configure(key)
+	}
+}
+
+func (a *app) lockAllVaults() {
+	log.Printf("auto-lock: locking %d unlocked vaults", len(a.unlockedVault))
+	a.closeMasterPasswordView()
+	a.settingsVaultID = ""
+	a.closeItemDetail()
+	a.closePasswordAudit()
+	a.closeCodesView()
+	a.unlockedVault = make(map[string]*model.Vault)
+	a.vault = nil
+	a.vaultID = ""
+	a.main.Content = a.makeApp().Content
+	a.main.Refresh()
 	a.win.SetContent(a.main)
 }
 
@@ -341,6 +383,10 @@ func (a *app) closeCodesView() {
 
 // closeItemDetail stops updates when leaving an entry or locking its vault.
 func (a *app) closeItemDetail() {
+	if a.detailClear != nil {
+		a.detailClear()
+		a.detailClear = nil
+	}
 	if a.sshEditor != nil {
 		a.sshEditor.ClearSensitive()
 		a.sshEditor = nil
@@ -363,19 +409,6 @@ func (a *app) closePasswordAudit() {
 func (a *app) refreshCurrentView() {
 	a.main.Content = a.makeCurrentVaultView()
 	a.main.Refresh()
-}
-
-// logo returns the Paw logo as a canvas image with the specified dimensions
-func pawLogo() *canvas.Image {
-	return imageFromResource(icon.PawIcon)
-}
-
-// imageFromResource creates a canvas image from a Fyne resource.
-func imageFromResource(resource fyne.Resource) *canvas.Image {
-	img := canvas.NewImageFromResource(resource)
-	img.FillMode = canvas.ImageFillContain
-	img.SetMinSize(fyne.NewSize(64, 64))
-	return img
 }
 
 // checkStatusNotifierWatcher checks if the StatusNotifierWatcher is available on the supported unix system

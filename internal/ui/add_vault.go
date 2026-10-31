@@ -13,10 +13,14 @@ import (
 )
 
 // NewAddVault shows the available ways to add a vault.
-func NewAddVault(back, create, restore, _ func()) fyne.CanvasObject {
-	button := widget.NewButtonWithIcon("", icons.Back, back)
-	button.Importance = widget.LowImportance
-	header := newPageHeader(button, newText("Add vault", titleStyle), nil)
+func NewAddVault(back, create, restore func()) fyne.CanvasObject {
+	var backButton fyne.CanvasObject
+	if back != nil {
+		button := widget.NewButtonWithIcon("", icons.Back, back)
+		button.Importance = widget.LowImportance
+		backButton = button
+	}
+	header := newPageHeader(backButton, newText("Add vault", titleStyle), nil)
 	createRow := newNavigationRowWithSubtitle("Create new vault", "Start with an empty encrypted vault", container.NewGridWrap(fyne.NewSquareSize(32), widget.NewIcon(icons.PlusCircle)), create)
 	restoreRow := newNavigationRowWithSubtitle("Restore from backup", "Create a vault from a backup file", container.NewGridWrap(fyne.NewSquareSize(32), widget.NewIcon(icons.ArchiveRestore)), restore)
 	choices := container.New(layout.NewVBoxLayout(), createRow, widget.NewSeparator(), restoreRow)
@@ -29,6 +33,5 @@ func ShowAddVault(window fyne.Window, back func(), create func(string, string, s
 	window.SetContent(NewAddVault(back,
 		func() { window.SetContent(NewCreateVault(showChoices, create)) },
 		restore,
-		func() {},
 	))
 }

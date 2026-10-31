@@ -33,13 +33,25 @@ func TestMasterPasswordChangeLocksVault(t *testing.T) {
 	test.Tap(v.submit)
 	require.True(t, v.progress.Visible())
 	require.True(t, v.activity.Visible())
-	require.Eventually(t, func() bool { return v.currentError.Visible() }, 15*time.Second, 10*time.Millisecond)
+	require.Eventually(t, func() bool {
+		var visible bool
+		fyne.DoAndWait(func() {
+			visible = v.currentError.Visible()
+		})
+		return visible
+	}, 15*time.Second, 10*time.Millisecond)
 	require.False(t, v.progress.Visible())
 	require.Same(t, vault, a.vault)
 	v.current.SetText("old password")
 	require.False(t, v.currentError.Visible())
 	test.Tap(v.submit)
-	require.Eventually(t, func() bool { return a.passwordChange == nil }, 15*time.Second, 10*time.Millisecond)
+	require.Eventually(t, func() bool {
+		var complete bool
+		fyne.DoAndWait(func() {
+			complete = a.passwordChange == nil
+		})
+		return complete
+	}, 15*time.Second, 10*time.Millisecond)
 	require.Nil(t, a.vault)
 	require.Empty(t, a.unlockedVault)
 	require.Empty(t, v.current.Text)

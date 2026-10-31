@@ -67,27 +67,34 @@ func (a *app) addItem(itemType paw.ItemType) {
 // makeSelectVaultView displays the available vaults.
 func (a *app) makeSelectVaultView(vaults []storage.VaultInfo) fyne.CanvasObject {
 	choices := make([]VaultChoice, 0, len(vaults))
+	showSelector := func() { a.showVaultSelector(vaults) }
+	var chooseAnother func()
+	if len(vaults) >= 2 {
+		chooseAnother = showSelector
+	}
 	for _, vault := range vaults {
 		info := vault
 		_, unlocked := a.unlockedVault[info.ID]
 		choices = append(choices, VaultChoice{Name: info.Name, Appearance: info.Appearance, Unlocked: unlocked, Open: func() {
-			a.setVaultViewByInfo(info, func() {
-				a.main.Content = a.makeSelectVaultView(vaults)
-				a.main.Refresh()
-				a.showCurrentVaultView()
-			})
+			a.setVaultViewByInfo(info, showSelector, chooseAnother)
 		}})
 	}
 	return NewSelectVault(choices, a.showAddVaultView)
 }
 
+func (a *app) showVaultSelector(vaults []storage.VaultInfo) {
+	a.main.Content = a.makeSelectVaultView(vaults)
+	a.main.Refresh()
+	a.showCurrentVaultView()
+}
+
 // makeUnlockVaultView displays the password form for a locked vault.
-func (a *app) makeUnlockVaultView(info storage.VaultInfo, back func()) fyne.CanvasObject {
+func (a *app) makeUnlockVaultView(info storage.VaultInfo, back, chooseAnother func()) fyne.CanvasObject {
 	return NewUnlockVault(info, a.storage, func(vault *model.Vault) {
 		a.setVaultView(vault, info.ID)
 		a.showCurrentVaultView()
 		a.addSSHKeysToAgent()
-	}, back, a.showAddVaultView)
+	}, back, a.showAddVaultView, chooseAnother)
 }
 
 // makeCurrentVaultView displays the current vault and its item summaries.
@@ -169,10 +176,15 @@ func (a *app) makeCurrentVaultView() fyne.CanvasObject {
 	choices := make([]VaultChoice, 0, len(vaults))
 	currentID := a.vaultID
 	currentAppearance := storage.DefaultVaultAppearance()
+	showSelector := func() { a.showVaultSelector(vaults) }
+	var chooseAnother func()
+	if len(vaults) >= 2 {
+		chooseAnother = showSelector
+	}
 	for _, info := range vaults {
 		_, unlocked := a.unlockedVault[info.ID]
 		choices = append(choices, VaultChoice{Name: info.Name, Appearance: info.Appearance, Unlocked: unlocked, Active: info.ID == currentID, Open: func() {
-			a.setVaultViewByInfo(info, func() { a.setVaultViewByInfo(storage.VaultInfo{ID: currentID}, nil) })
+			a.setVaultViewByInfo(info, func() { a.setVaultViewByInfo(storage.VaultInfo{ID: currentID}, nil, nil) }, chooseAnother)
 		}})
 		if info.ID == currentID {
 			currentAppearance = info.Appearance
@@ -180,7 +192,10 @@ func (a *app) makeCurrentVaultView() fyne.CanvasObject {
 	}
 	name, _ := vault.Name()
 	categories := []EntryCategory{{ID: "all", Label: "All items", Icon: icons.Vault}, {ID: "login", Label: "Logins", Icon: icons.Login}, {ID: "password", Label: "Passwords", Icon: icons.Password}, {ID: "note", Label: "Notes", Icon: icons.Note}, {ID: "ssh", Label: "SSH keys", Icon: icons.SSH}}
-	return NewEntryList(EntryListOptions{VaultName: name, VaultAppearance: currentAppearance, Vaults: choices, VaultActions: a.makeVaultActions(), Entries: rows, Categories: categories, Search: filter.Name, Category: categoryIDs[filter.ItemType], Codes: a.codesView.View, SectionState: &a.vaultSection, AddEntry: func(kind EntryKind) {
+	settings := NewSettingsView(a.state, a.storage, a.win)
+	settings.configureAutoLock = a.configureAutoLock
+	settings.BackButton.Hide()
+	return NewEntryList(EntryListOptions{Settings: settings.View, VaultName: name, VaultAppearance: currentAppearance, Vaults: choices, VaultActions: a.makeVaultActions(), Entries: rows, Categories: categories, Search: filter.Name, Category: categoryIDs[filter.ItemType], Codes: a.codesView.View, SectionState: &a.vaultSection, AddEntry: func(kind EntryKind) {
 		switch kind {
 		case EntryNote:
 			a.addItem(paw.NoteItemType)

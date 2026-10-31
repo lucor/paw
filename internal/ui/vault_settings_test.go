@@ -94,7 +94,7 @@ func TestVaultSettingsCannotSwitchToAnotherVault(t *testing.T) {
 	current, err := model.NewVault(key, "Personal")
 	require.NoError(t, err)
 	a := &app{win: window, vault: current, vaultID: "personal", settingsVaultID: "personal", unlockedVault: map[string]*model.Vault{"personal": current}}
-	a.setVaultViewByInfo(storage.VaultInfo{ID: "work", Name: "Work"}, nil)
+	a.setVaultViewByInfo(storage.VaultInfo{ID: "work", Name: "Work"}, nil, nil)
 	require.Same(t, current, a.vault)
 	require.Equal(t, "personal", a.vaultID)
 }

@@ -12,6 +12,7 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
+	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/data/binding"
 	fynestorage "fyne.io/fyne/v2/storage"
 	"fyne.io/fyne/v2/test"
@@ -63,7 +64,7 @@ func runUIE2EScreenshotGallery(t *testing.T, outputDir string, variant fyne.Them
 		captureUIPilotScreen(t, window, outputDir, name+suffix)
 	}
 
-	addVault := NewAddVault(func() {}, func() {}, func() {}, func() {})
+	addVault := NewAddVault(func() {}, func() {}, func() {})
 	capture("add-vault", addVault)
 	captureAt("add-vault-narrow", addVault, fyne.NewSize(320, 540))
 	createVault := NewCreateVault(func() {}, func(string, string, storage.VaultAppearance) error { return nil })
@@ -118,7 +119,7 @@ func runUIE2EScreenshotGallery(t *testing.T, outputDir string, variant fyne.Them
 		createFields[2].SetText("example master password")
 		capture("create-vault-valid", createVault)
 	}
-	capture("unlock-vault", NewUnlockVault(storage.VaultInfo{ID: "personal", Name: "Personal"}, &storage.StorageMock{}, nil, func() {}, func() {}))
+	capture("unlock-vault", NewUnlockVault(storage.VaultInfo{ID: "personal", Name: "Personal"}, &storage.StorageMock{}, nil, func() {}, func() {}, func() {}))
 	capture("vault-selector", NewSelectVault([]VaultChoice{
 		{Name: "Personal", Unlocked: true, Open: func() {}},
 		{Name: "Work", Open: func() {}},
@@ -240,7 +241,6 @@ func runUIE2EScreenshotGallery(t *testing.T, outputDir string, variant fyne.Them
 	cancelEmpty()
 	cancelCodes()
 	navigation.Select(2)
-	captureCurrent("settings-placeholder", fyne.NewSize(440, 800))
 
 	login := loginEditorFixture(t)
 	password, err := model.NewPassword("Home Wi-Fi", "synthetic-password", model.PasswordSettings{Mode: paw.CustomPassword})
@@ -271,6 +271,18 @@ func runUIE2EScreenshotGallery(t *testing.T, outputDir string, variant fyne.Them
 
 	loginEditor := newTestLoginEditor(t, login, false)
 	capture("edit-login", loginEditor.View)
+	window.SetContent(loginEditor.View)
+	showTOTPSettingsDialog(loginEditor, window)
+	captureCurrent("totp-settings-dialog", fyne.NewSize(440, 800))
+	popup := totpDialogOverlay(window)
+	fyne.DoAndWait(func() {
+		for _, object := range test.LaidOutObjects(popup) {
+			if button, ok := object.(*widget.Button); ok && button.Text == "Cancel" {
+				button.OnTapped()
+				break
+			}
+		}
+	})
 	passwordEditor, err := NewPasswordEditor(password, false)
 	require.NoError(t, err)
 	capture("edit-password", passwordEditor.View)
@@ -284,9 +296,17 @@ func runUIE2EScreenshotGallery(t *testing.T, outputDir string, variant fyne.Them
 	test.Tap(sshEditor.RevealPrivateButton)
 	capture("edit-ssh-key-private-revealed", sshEditor.View)
 
-	preferences := &paw.AppState{Preferences: paw.NewDefaultPreferences()}
-	settings := NewPreferencesView(preferences, &storage.StorageMock{}, window)
-	capture("preferences", settings.View)
+	appState := &paw.AppState{Settings: paw.NewDefaultSettings()}
+	settings := NewSettingsView(appState, &storage.StorageMock{}, window)
+	capture("settings", settings.View)
+	for _, object := range test.LaidOutObjects(settings.View) {
+		if scroll, ok := object.(*container.Scroll); ok {
+			scroll.ScrollToBottom()
+			break
+		}
+	}
+	captureCurrent("settings-about", fyne.NewSize(440, 800))
+	capture("about-paw", NewAboutPawView(window, func() {}))
 
 	for _, state := range []string{"idle", "running", "completed", "partial", "no-passwords", "findings", "exposed-findings", "reused-findings", "success", "error"} {
 		audit := newPilotAudit(state)
@@ -339,18 +359,42 @@ func runUIE2EScreenshotGallery(t *testing.T, outputDir string, variant fyne.Them
 	captureCurrent("export-plaintext-warning", fyne.NewSize(440, 800))
 	closePilotOverlay(window)
 
-	generator := NewPasswordGenerator(key, paw.NewDefaultPreferences().Password)
-	passwordSpec := &paw.Password{Mode: paw.CustomPassword}
-	generator.ShowPasswordGenerator(binding.NewString(), passwordSpec, window)
-	captureCurrent("password-generator-random", fyne.NewSize(440, 800))
-	for _, mode := range []string{paw.PassphrasePassword.String(), paw.PinPassword.String()} {
-		for _, object := range test.LaidOutObjects(window.Canvas().Overlays().Top()) {
-			if selectMode, ok := object.(*widget.Select); ok && len(selectMode.Options) == 3 {
-				selectMode.SetSelected(mode)
-				break
-			}
+	passwordItem, err := model.NewPassword("Example password", "", model.PasswordSettings{Mode: paw.CustomPassword})
+	require.NoError(t, err)
+	passwordEditor, err = NewPasswordEditor(passwordItem, true)
+	require.NoError(t, err)
+	window.SetContent(passwordEditor.View)
+	passwordSettings := paw.NewDefaultSettings().Password
+	generator := NewPasswordGenerator(key, passwordSettings)
+	for _, mode := range []paw.PasswordMode{paw.RandomPassword, paw.PassphrasePassword, paw.PinPassword} {
+		password := &paw.Password{Mode: mode}
+		switch mode {
+		case paw.RandomPassword:
+			password.Length = passwordSettings.Random.DefaultLength
+			password.Format = passwordSettings.Random.DefaultFormat
+		case paw.PassphrasePassword:
+			password.Length = passwordSettings.Passphrase.DefaultLength
+		case paw.PinPassword:
+			password.Length = passwordSettings.Pin.DefaultLength
+			password.Format = paw.DigitsFormat
 		}
-		captureCurrent("password-generator-"+pilotModeName(mode), fyne.NewSize(440, 800))
+		generator.ShowPasswordGenerator(binding.NewString(), password, window)
+		popup := window.Canvas().Overlays().Top()
+		result := passwordGeneratorEntry(t, popup).Text
+		if mode == paw.PassphrasePassword {
+			words := strings.Split(result, "-")
+			require.Len(t, words, passwordSettings.Passphrase.DefaultLength)
+			for _, word := range words {
+				require.NotEmpty(t, word)
+				require.Empty(t, strings.Trim(word, "abcdefghijklmnopqrstuvwxyz"))
+			}
+		} else if mode == paw.PinPassword {
+			require.Regexp(t, `^\d+$`, result)
+		} else {
+			require.Len(t, result, passwordSettings.Random.DefaultLength)
+		}
+		captureCurrent("password-generator-"+pilotModeName(mode.String()), fyne.NewSize(440, 800))
+		closePilotOverlay(window)
 	}
 }
 
