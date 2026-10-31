@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -225,7 +226,7 @@ func (s *OSStorage) migrateDeprecatedRootStorage() (bool, error) {
 }
 
 // CreateVault saves a new CXF vault before publishing its catalog entry.
-func (s *OSStorage) CreateVault(name, password string) (*model.Vault, error) {
+func (s *OSStorage) CreateVault(name, password string, appearances ...VaultAppearance) (*model.Vault, error) {
 	vault, keyData, err := prepareVault(name, password)
 	if err != nil {
 		return nil, err
@@ -240,7 +241,7 @@ func (s *OSStorage) CreateVault(name, password string) (*model.Vault, error) {
 	if err := s.storeEncrypted(vaultPath(s, id), vault.Key(), vault); err != nil {
 		return nil, fmt.Errorf("could not store vault: %w", err)
 	}
-	if err := s.publishVault(VaultInfo{ID: id, Name: name}); err != nil {
+	if err := s.publishVault(VaultInfo{ID: id, Name: name, Appearance: requestedVaultAppearance(appearances)}); err != nil {
 		return nil, err
 	}
 	return vault, nil
@@ -500,6 +501,17 @@ func (s *OSStorage) DeleteItem(vault *model.Vault, itemID string) error {
 
 // RenameVault updates the encrypted vault name and its catalog entry.
 func (s *OSStorage) RenameVault(vault *model.Vault, name string) error {
+	return s.UpdateVaultIdentity(vault, name, s.vaultAppearance(vault.Accounts[0].ID))
+}
+
+// UpdateVaultIdentity updates the encrypted name and public appearance metadata.
+func (s *OSStorage) UpdateVaultIdentity(vault *model.Vault, name string, appearance VaultAppearance) error {
+	if strings.TrimSpace(name) == "" {
+		return fmt.Errorf("vault name is required")
+	}
+	if name == vault.Metadata.VaultName {
+		return s.storeVaultInfo(VaultInfo{ID: vault.Accounts[0].ID, Name: name, Appearance: NormalizeVaultAppearance(appearance)})
+	}
 	updated := *vault
 	updated.Metadata.VaultName = name
 	updated.Accounts = cloneVaultAccounts(vault.Accounts)
@@ -511,7 +523,7 @@ func (s *OSStorage) RenameVault(vault *model.Vault, name string) error {
 	if err := s.storeEncrypted(vaultPath(s, id), vault.Key(), &updated); err != nil {
 		return fmt.Errorf("could not store renamed vault: %w", err)
 	}
-	if err := s.storeVaultInfo(VaultInfo{ID: id, Name: name}); err != nil {
+	if err := s.storeVaultInfo(VaultInfo{ID: id, Name: name, Appearance: NormalizeVaultAppearance(appearance)}); err != nil {
 		return fmt.Errorf("could not update vault catalog: %w", err)
 	}
 	*vault = updated
@@ -617,10 +629,10 @@ func vaultHasItem(vault *model.Vault, itemID string) bool {
 
 // cloneVaultAccounts copies the account and mutable slices before a vault update.
 func cloneVaultAccounts(accounts []cxf.Account) []cxf.Account {
-	cloned := append([]cxf.Account(nil), accounts...)
+	cloned := slices.Clone(accounts)
 	for index := range cloned {
-		cloned[index].Items = append([]cxf.Item(nil), accounts[index].Items...)
-		cloned[index].Extensions = append([]json.RawMessage(nil), accounts[index].Extensions...)
+		cloned[index].Items = slices.Clone(accounts[index].Items)
+		cloned[index].Extensions = slices.Clone(accounts[index].Extensions)
 	}
 	return cloned
 }

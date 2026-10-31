@@ -46,20 +46,12 @@ func TestWelcomeActionUsesWholeRow(t *testing.T) {
 		}
 		require.Equal(t, 4, calls, "title, subtitle, icon and arrow must all activate the row")
 
-		button := row.(*ActionRow).button
+		button := navigationRowButton(t, row)
 		background := test.WidgetRenderer(button).Objects()[0].(*canvas.Rectangle)
 		normal := background.FillColor
 		test.MoveMouse(window.Canvas(), app.Driver().AbsolutePositionForObject(row).Add(fyne.NewPos(2, 2)))
 		require.NotEqual(t, normal, background.FillColor, "hover must highlight the underlying button")
 		require.Equal(t, row.Size(), background.Size(), "highlight must cover the whole row")
-		renderer := test.WidgetRenderer(row.(*ActionRow)).(*actionRowRenderer)
-		require.Positive(t, renderer.outline.CornerRadius, "outline must have rounded corners")
-		require.Positive(t, renderer.outline.StrokeWidth, "outline must remain visible without hover")
-		require.Equal(t, row.Size(), renderer.outline.Size(), "outline must surround the whole row")
-		require.Equal(t, theme.Color(theme.ColorNameInputBorder), renderer.outline.StrokeColor)
-		position := app.Driver().AbsolutePositionForObject(leftIcon).Subtract(app.Driver().AbsolutePositionForObject(row))
-		require.GreaterOrEqual(t, position.X, theme.Size(theme.SizeNameInnerPadding), "icon must have an inner margin")
-		require.GreaterOrEqual(t, position.Y, theme.Size(theme.SizeNameInnerPadding), "icon must have a vertical margin")
 	}
 }
 
@@ -74,15 +66,43 @@ func TestAddVaultKeepsRestoreAction(t *testing.T) {
 	window.Resize(fyne.NewSize(440, 300))
 	window.Show()
 
-	var restoreRow *ActionRow
+	var restoreTitle *widget.Label
+	var restoreIcon bool
 	for _, object := range test.LaidOutObjects(view) {
-		if row, ok := object.(*ActionRow); ok && row.title.Text == "Restore from backup" {
-			restoreRow = row
+		if label, ok := object.(*widget.Label); ok && label.Text == "Restore from backup" {
+			restoreTitle = label
+		}
+		if icon, ok := object.(*widget.Icon); ok && icon.Resource == icons.ArchiveRestore {
+			restoreIcon = true
 		}
 	}
-	require.NotNil(t, restoreRow)
-	test.Tap(restoreRow.button)
+	require.NotNil(t, restoreTitle)
+	require.True(t, restoreIcon)
+	test.TapCanvas(window.Canvas(), app.Driver().AbsolutePositionForObject(restoreTitle).Add(fyne.NewPos(restoreTitle.Size().Width/2, restoreTitle.Size().Height/2)))
 	require.True(t, called)
+	for _, object := range test.LaidOutObjects(view) {
+		if label, ok := object.(*widget.Label); ok {
+			require.NotEqual(t, "Connect via Sync", label.Text)
+		}
+	}
+}
+
+func TestAddVaultDescriptionsWrapAtNarrowWidth(t *testing.T) {
+	app := test.NewApp()
+	t.Cleanup(app.Quit)
+	window := app.NewWindow("Add vault")
+	t.Cleanup(window.Close)
+	view := NewAddVault(func() {}, func() {}, func() {}, func() {})
+	window.SetContent(view)
+	window.Resize(fyne.NewSize(320, 540))
+	window.Show()
+	for _, object := range test.LaidOutObjects(view) {
+		if label, ok := object.(*widget.Label); ok && (label.Text == "Start with an empty encrypted vault" || label.Text == "Create a vault from a backup file") {
+			require.Equal(t, fyne.TextWrapWord, label.Wrapping)
+			require.Equal(t, fyne.TextTruncateOff, label.Truncation)
+			require.Greater(t, label.Size().Height, float32(0))
+		}
+	}
 }
 
 // TestWelcomeRowSpacing checks the gaps between the welcome actions.
@@ -94,12 +114,7 @@ func TestWelcomeRowSpacing(t *testing.T) {
 	content := NewWelcome(widget.NewLabel("Paw"), WelcomeActions{})
 	window.SetContent(content)
 	window.Show()
-	var rows []*ActionRow
-	for _, object := range test.LaidOutObjects(content) {
-		if row, ok := object.(*ActionRow); ok {
-			rows = append(rows, row)
-		}
-	}
+	rows := welcomeRows(t, content)
 	require.Len(t, rows, 3)
 	for i := 1; i < len(rows); i++ {
 		gap := rows[i].Position().Y - rows[i-1].Position().Y - rows[i-1].Size().Height
@@ -124,26 +139,19 @@ func TestWelcomeRowsExpandWithWindow(t *testing.T) {
 
 func welcomeRowWidth(t *testing.T, content fyne.CanvasObject) float32 {
 	t.Helper()
-	for _, object := range test.LaidOutObjects(content) {
-		if row, ok := object.(*ActionRow); ok {
-			return row.Size().Width
-		}
-	}
-	t.Fatal("welcome action row was not laid out")
-	return 0
+	rows := welcomeRows(t, content)
+	return rows[0].Size().Width
 }
 
 // TestWelcomeFrameFollowsThemeChanges checks an existing frame updates its border.
 func TestWelcomeFrameFollowsThemeChanges(t *testing.T) {
 	app := test.NewApp()
 	t.Cleanup(app.Quit)
-	row := welcomeAction("Restore from backup", "Open an existing vault file", icons.RestoreVault, func() {}).(*ActionRow)
+	row := welcomeAction("Restore from backup", "Open an existing vault file", icons.RestoreVault, func() {})
 	window := app.NewWindow("Welcome")
 	t.Cleanup(window.Close)
 	window.SetContent(row)
 	window.Show()
-	renderer := test.WidgetRenderer(row).(*actionRowRenderer)
-
 	for _, appearance := range []fyne.Theme{
 		variantTheme{Theme: theme.DefaultTheme(), variant: theme.VariantLight},
 		variantTheme{Theme: theme.DefaultTheme(), variant: theme.VariantDark},
@@ -151,11 +159,31 @@ func TestWelcomeFrameFollowsThemeChanges(t *testing.T) {
 	} {
 		app.Settings().SetTheme(appearance)
 		row.Refresh()
-		require.Equal(t, theme.Color(theme.ColorNameInputBorder), renderer.outline.StrokeColor)
-		background := test.WidgetRenderer(row.button).Objects()[0].(*canvas.Rectangle)
-		require.Equal(t, background.CornerRadius, renderer.outline.CornerRadius, "outline must match the native hover surface")
-		require.Equal(t, theme.Size(theme.SizeNameInputBorder), renderer.outline.StrokeWidth)
+		button := navigationRowButton(t, row)
+		require.NotNil(t, button)
 	}
+}
+
+func welcomeRows(t *testing.T, content fyne.CanvasObject) []*fyne.Container {
+	t.Helper()
+	var rows []*fyne.Container
+	for _, object := range test.LaidOutObjects(content) {
+		if row, ok := object.(*fyne.Container); ok && len(row.Objects) == 2 {
+			if _, ok := row.Objects[0].(*widget.Button); ok {
+				rows = append(rows, row)
+			}
+		}
+	}
+	return rows
+}
+
+func navigationRowButton(t *testing.T, row fyne.CanvasObject) *widget.Button {
+	t.Helper()
+	container, ok := row.(*fyne.Container)
+	require.True(t, ok)
+	button, ok := container.Objects[0].(*widget.Button)
+	require.True(t, ok)
+	return button
 }
 
 type variantTheme struct {

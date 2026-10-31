@@ -42,7 +42,7 @@ func NewPreferencesView(state *paw.AppState, store storage.Storage, window fyne.
 	content := container.NewVScroll(container.New(layout.NewCustomPaddedVBoxLayout(16),
 		e.faviconPreferences(), e.passwordPreferences(), e.totpPreferences(),
 	))
-	e.View = container.New(layout.NewCustomPaddedLayout(16, 24, 24, 24), container.NewBorder(header, nil, nil, nil, content))
+	e.View = newSecondaryPage(header, nil, content)
 	return e
 }
 

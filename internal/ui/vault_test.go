@@ -97,7 +97,7 @@ func TestAuditIsDiscardedOnLockAndVaultSwitch(t *testing.T) {
 			view := a.audit.View
 			window.SetContent(view)
 			if action == "lock" {
-				a.makeVaultActions()[3].Action()
+				a.makeVaultActions()[4].Action()
 			} else {
 				a.setVaultViewByInfo(storage.VaultInfo{ID: "work", Name: "Work"}, nil)
 			}
@@ -577,7 +577,7 @@ func TestUnlockAddVaultOptions(t *testing.T) {
 		}
 	}
 	require.NotNil(t, more)
-	for index, choice := range []string{"Create new vault", "Restore from backup", "Connect via Sync"} {
+	for index, choice := range []string{"Create new vault", "Restore from backup"} {
 		test.Tap(more)
 		menu := window.Canvas().Overlays().Top()
 		require.NotNil(t, menu)
@@ -602,7 +602,7 @@ func TestUnlockAddVaultOptions(t *testing.T) {
 				actions = append(actions, button)
 			}
 		}
-		require.Len(t, actions, 3)
+		require.Len(t, actions, 2)
 		test.Tap(actions[index])
 		var back *widget.Button
 		foundTitle := false

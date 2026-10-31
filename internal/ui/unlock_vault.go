@@ -10,7 +10,6 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/layout"
-	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 	"go.lucor.dev/paw/internal/model"
 	"go.lucor.dev/paw/internal/storage"
@@ -59,7 +58,7 @@ func NewUnlockVault(info storage.VaultInfo, store storage.VaultStorage, onUnlock
 	}
 	u.message = newText("", bodyStyle)
 	u.message.Hide()
-	u.content = unlockVaultContent(info.Name, u.password, u.button, u.activity, u.message, back, addVault)
+	u.content = unlockVaultContent(info, u.password, u.button, u.activity, u.message, back, addVault)
 	u.ExtendBaseWidget(u)
 	return u
 }
@@ -126,8 +125,8 @@ func (u *UnlockVault) CreateRenderer() fyne.WidgetRenderer {
 	return widget.NewSimpleRenderer(u.content)
 }
 
-func unlockVaultContent(name string, password *widget.Entry, unlock *widget.Button, activity *widget.Activity, message *widget.Label, back, addVault func()) *fyne.Container {
-	heading := newText("Unlock "+name, headingStyle)
+func unlockVaultContent(info storage.VaultInfo, password *widget.Entry, unlock *widget.Button, activity *widget.Activity, message *widget.Label, back, addVault func()) *fyne.Container {
+	heading := newText("Unlock "+info.Name, headingStyle)
 	heading.Alignment = fyne.TextAlignCenter
 	var navigation fyne.CanvasObject
 	if back != nil {
@@ -137,12 +136,7 @@ func unlockVaultContent(name string, password *widget.Entry, unlock *widget.Butt
 	}
 	more := newVaultOptions(addVault)
 	header := container.NewBorder(nil, nil, navigation, more)
-	backdrop := theme.NewColoredResource(fyne.NewStaticResource("vault-backdrop.svg", []byte(
-		`<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96"><circle cx="48" cy="48" r="48" fill="#000000"/></svg>`)), theme.ColorNameFocus)
-	badge := container.NewStack(
-		container.NewGridWrap(fyne.NewSquareSize(96), widget.NewIcon(backdrop)),
-		container.NewCenter(container.NewGridWrap(fyne.NewSquareSize(32), widget.NewIcon(icons.Lock))),
-	)
+	badge := newVaultIcon(info.Appearance, vaultIconLarge)
 	fields := container.NewVBox(
 		container.New(layout.NewCustomPaddedLayout(24, 24, 0, 0), container.NewCenter(badge)),
 		heading,

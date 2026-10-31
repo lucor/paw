@@ -12,7 +12,7 @@ import (
 	"go.lucor.dev/paw/internal/ui/assets/icons"
 )
 
-// summaryIcon uses a stored login favicon or the entry type's Lucide icon.
+// summaryIcon uses a stored login favicon or the entry type's icon.
 func summaryIcon(item *cxf.Item) fyne.Resource {
 	kind, err := model.ItemTypeOf(item)
 	if err != nil {

@@ -1,4 +1,4 @@
-// Package icons provides embedded Lucide PNGs as Fyne resources.
+// Package icons provides embedded PNG icons as Fyne resources.
 package icons
 
 import (
@@ -50,6 +50,10 @@ var (
 	CreateVault = resource("active/circle-plus.png")
 	// RestoreVault is the theme-aware open folder icon.
 	RestoreVault = themed("folder-open")
+	// ArchiveRestore identifies restoring a vault from a backup.
+	ArchiveRestore = themed("archive-restore")
+	// PlusCircle identifies creating a new vault.
+	PlusCircle = themed("circle-plus")
 	// Sync is the theme-aware cloud icon.
 	Sync = themed("cloud")
 	// Back is the theme-aware back navigation arrow.
@@ -68,6 +72,45 @@ var (
 	ImportKey = themed("file-key")
 	// Vault is the theme-aware vault icon used by vault forms.
 	Vault = themed("vault")
+	// PawLight and PawDark are the transparent Paw application mark variants.
+	PawLight = resource("light/paw.png")
+	PawDark  = resource("dark/paw.png")
+	// Paw is the theme-aware Paw application mark.
+	Paw = icon.NewThemedResource(PawDark, PawLight)
+	// VaultWhite is the vault glyph for colored appearance surfaces.
+	VaultWhite = resource("dark/vault.png")
+	// BriefcaseBusiness identifies the business briefcase appearance.
+	BriefcaseBusiness = themed("briefcase-business")
+	// BriefcaseBusinessWhite is the glyph for colored appearance surfaces.
+	BriefcaseBusinessWhite = resource("dark/briefcase-business.png")
+	// House identifies the home appearance.
+	House = themed("house")
+	// HouseWhite is the glyph for colored appearance surfaces.
+	HouseWhite = resource("dark/house.png")
+	// Archive identifies the archive appearance.
+	Archive = themed("archive")
+	// ArchiveWhite is the glyph for colored appearance surfaces.
+	ArchiveWhite = resource("dark/archive.png")
+	// Shield identifies the shield appearance.
+	Shield = themed("shield")
+	// ShieldWhite is the glyph for colored appearance surfaces.
+	ShieldWhite = resource("dark/shield.png")
+	// Folder identifies the folder appearance.
+	Folder = themed("folder")
+	// FolderWhite is the glyph for colored appearance surfaces.
+	FolderWhite = resource("dark/folder.png")
+	// Laptop identifies the laptop appearance.
+	Laptop = themed("laptop")
+	// LaptopWhite is the glyph for colored appearance surfaces.
+	LaptopWhite = resource("dark/laptop.png")
+	// KeyRoundWhite is the key glyph for colored appearance surfaces.
+	KeyRoundWhite = resource("dark/key-round.png")
+	// Pencil indicates that the vault appearance can be edited.
+	Pencil = themed("pencil")
+	// Check marks the selected vault color.
+	Check = themed("check")
+	// CheckWhite marks a selected color swatch.
+	CheckWhite = resource("dark/check.png")
 	// Lock identifies a locked vault on the unlock screen.
 	Lock = themed("lock")
 	// LockOpen identifies an unlocked vault in the selector.

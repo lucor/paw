@@ -9,17 +9,19 @@ import (
 	"go.lucor.dev/paw/internal/ui/assets/icons"
 )
 
-// NewVaultActions connects the implemented vault management operations to native menu items.
-func NewVaultActions(audit, exportFile, lock func()) []*fyne.MenuItem {
+// NewVaultActions connects available vault management operations to native menu items.
+func NewVaultActions(settings, audit, exportFile, lock func()) []*fyne.MenuItem {
 	items := []*fyne.MenuItem{
+		fyne.NewMenuItem("Vault settings", settings),
 		fyne.NewMenuItem("Password audit", audit),
 		fyne.NewMenuItem("Export credentials", exportFile),
 		fyne.NewMenuItemSeparator(),
 		fyne.NewMenuItem("Lock vault", lock),
 	}
-	items[0].Icon = icons.Audit
-	items[1].Icon = icons.Export
-	items[3].Icon = icons.LockVault
+	items[0].Icon = icons.Settings
+	items[1].Icon = icons.Audit
+	items[2].Icon = icons.Export
+	items[4].Icon = icons.LockVault
 	return items
 }
 

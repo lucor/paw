@@ -13,6 +13,7 @@ import (
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
+	"go.lucor.dev/paw/internal/storage"
 	"go.lucor.dev/paw/internal/ui/assets/icons"
 )
 
@@ -42,6 +43,7 @@ const (
 // EntryListOptions connects the list to vault navigation and saved filters.
 type EntryListOptions struct {
 	VaultName        string
+	VaultAppearance  storage.VaultAppearance
 	Vaults           []VaultChoice
 	VaultActions     []*fyne.MenuItem
 	Entries          []EntryRow
@@ -51,6 +53,7 @@ type EntryListOptions struct {
 	AddEntry         func(EntryKind)
 	Codes            fyne.CanvasObject
 	OnFilterChanged  func(search, category string)
+	SectionState     *int
 }
 
 // NewEntryList builds the unlocked vault interface with bottom navigation and a native list.
@@ -154,7 +157,8 @@ func NewEntryList(options EntryListOptions) fyne.CanvasObject {
 			if vault.Unlocked {
 				status, resource = "Unlocked", icons.LockOpen
 			}
-			rows = append(rows, newSelectionMenuRow(vault.Name+" — "+status, resource, vault.Active, func() {
+			appearance := container.NewHBox(newVaultIcon(vault.Appearance, vaultIconMedium), widget.NewIcon(resource))
+			rows = append(rows, newSelectionMenuRowWithObject(vault.Name+" — "+status, appearance, vault.Active, func() {
 				menu.Hide()
 				vault.Open()
 			}))
@@ -169,7 +173,7 @@ func NewEntryList(options EntryListOptions) fyne.CanvasObject {
 	vaultLabel := newText(options.VaultName, bodyStyle)
 	vaultLabel.Wrapping = fyne.TextWrapOff
 	vaultLabel.Truncation = fyne.TextTruncateEllipsis
-	vaultControl := container.NewStack(vaultButton, container.NewPadded(container.NewBorder(nil, nil, widget.NewIcon(icons.Vault), widget.NewIcon(icons.Down), vaultLabel)))
+	vaultControl := container.NewStack(vaultButton, container.NewPadded(container.NewBorder(nil, nil, newVaultIcon(options.VaultAppearance, vaultIconSmall), widget.NewIcon(icons.Down), vaultLabel)))
 	add := newIconButton("Add entry", icons.Plus, nil)
 	add.Importance = widget.LowImportance
 	add.OnTapped = func() {
@@ -213,6 +217,9 @@ func NewEntryList(options EntryListOptions) fyne.CanvasObject {
 	pages := []fyne.CanvasObject{page, codes, NewPlaceholder("Settings", icons.Settings, back)}
 	content := container.NewStack(page)
 	navigation.OnSelected = func(index int) {
+		if options.SectionState != nil {
+			*options.SectionState = index
+		}
 		content.Objects = []fyne.CanvasObject{pages[index]}
 		if index == 0 && options.AddEntry != nil {
 			add.Show()
@@ -220,6 +227,13 @@ func NewEntryList(options EntryListOptions) fyne.CanvasObject {
 			add.Hide()
 		}
 		content.Refresh()
+	}
+	selectedSection := 0
+	if options.SectionState != nil {
+		selectedSection = *options.SectionState
+	}
+	if selectedSection > 0 && selectedSection < len(pages) {
+		navigation.Select(selectedSection)
 	}
 	refresh()
 	main := container.NewBorder(vaultHeader, nil, nil, nil, content)
@@ -234,6 +248,10 @@ func itemCountLabel(count int) string {
 }
 
 func newSelectionMenuRow(text string, icon fyne.Resource, selected bool, tapped func()) fyne.CanvasObject {
+	return newSelectionMenuRowWithObject(text, widget.NewIcon(icon), selected, tapped)
+}
+
+func newSelectionMenuRowWithObject(text string, icon fyne.CanvasObject, selected bool, tapped func()) fyne.CanvasObject {
 	button := widget.NewButton("", tapped)
 	button.Importance = widget.LowImportance
 	label := newText(text, bodyStyle)
@@ -243,6 +261,6 @@ func newSelectionMenuRow(text string, icon fyne.Resource, selected bool, tapped 
 		check.Hide()
 	}
 	iconSize := fyne.NewSquareSize(theme.Size(theme.SizeNameInlineIcon))
-	content := container.NewBorder(nil, nil, widget.NewIcon(icon), container.NewCenter(container.NewGridWrap(iconSize, check)), label)
+	content := container.NewBorder(nil, nil, icon, container.NewCenter(container.NewGridWrap(iconSize, check)), label)
 	return container.NewStack(button, container.NewPadded(content))
 }

@@ -42,8 +42,8 @@ func (a *app) showRestoreVaultView() {
 }
 
 // createVault stores a vault and makes it the active vault.
-func (a *app) createVault(name, password string) error {
-	vault, err := a.storage.CreateVault(name, password)
+func (a *app) createVault(name, password string, appearance storage.VaultAppearance) error {
+	vault, err := a.storage.CreateVault(name, password, appearance)
 	if err != nil {
 		return err
 	}
@@ -70,7 +70,7 @@ func (a *app) makeSelectVaultView(vaults []storage.VaultInfo) fyne.CanvasObject 
 	for _, vault := range vaults {
 		info := vault
 		_, unlocked := a.unlockedVault[info.ID]
-		choices = append(choices, VaultChoice{Name: info.Name, Unlocked: unlocked, Open: func() {
+		choices = append(choices, VaultChoice{Name: info.Name, Appearance: info.Appearance, Unlocked: unlocked, Open: func() {
 			a.setVaultViewByInfo(info, func() {
 				a.main.Content = a.makeSelectVaultView(vaults)
 				a.main.Refresh()
@@ -168,15 +168,19 @@ func (a *app) makeCurrentVaultView() fyne.CanvasObject {
 	}
 	choices := make([]VaultChoice, 0, len(vaults))
 	currentID := a.vaultID
+	currentAppearance := storage.DefaultVaultAppearance()
 	for _, info := range vaults {
 		_, unlocked := a.unlockedVault[info.ID]
-		choices = append(choices, VaultChoice{Name: info.Name, Unlocked: unlocked, Active: info.ID == currentID, Open: func() {
+		choices = append(choices, VaultChoice{Name: info.Name, Appearance: info.Appearance, Unlocked: unlocked, Active: info.ID == currentID, Open: func() {
 			a.setVaultViewByInfo(info, func() { a.setVaultViewByInfo(storage.VaultInfo{ID: currentID}, nil) })
 		}})
+		if info.ID == currentID {
+			currentAppearance = info.Appearance
+		}
 	}
 	name, _ := vault.Name()
 	categories := []EntryCategory{{ID: "all", Label: "All items", Icon: icons.Vault}, {ID: "login", Label: "Logins", Icon: icons.Login}, {ID: "password", Label: "Passwords", Icon: icons.Password}, {ID: "note", Label: "Notes", Icon: icons.Note}, {ID: "ssh", Label: "SSH keys", Icon: icons.SSH}}
-	return NewEntryList(EntryListOptions{VaultName: name, Vaults: choices, VaultActions: a.makeVaultActions(), Entries: rows, Categories: categories, Search: filter.Name, Category: categoryIDs[filter.ItemType], Codes: a.codesView.View, AddEntry: func(kind EntryKind) {
+	return NewEntryList(EntryListOptions{VaultName: name, VaultAppearance: currentAppearance, Vaults: choices, VaultActions: a.makeVaultActions(), Entries: rows, Categories: categories, Search: filter.Name, Category: categoryIDs[filter.ItemType], Codes: a.codesView.View, SectionState: &a.vaultSection, AddEntry: func(kind EntryKind) {
 		switch kind {
 		case EntryNote:
 			a.addItem(paw.NoteItemType)

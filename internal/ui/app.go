@@ -34,6 +34,10 @@ const (
 	AppID = "dev.lucor.paw"
 	// AppTitle represents the application title
 	AppTitle = "Paw"
+	// DefaultWindowWidth is the default desktop window width in logical Fyne units.
+	DefaultWindowWidth = 400
+	// DefaultWindowHeight is the default desktop window height in logical Fyne units.
+	DefaultWindowHeight = 640
 )
 
 type app struct {
@@ -44,8 +48,11 @@ type app struct {
 
 	unlockedVault map[string]*model.Vault
 
-	vault   *model.Vault
-	vaultID string
+	vault           *model.Vault
+	vaultID         string
+	vaultSection    int
+	settingsVaultID string
+	passwordChange  *masterPasswordView
 
 	filter       map[string]*paw.VaultFilterOptions
 	audit        *PasswordAudit
@@ -139,6 +146,9 @@ func (a *app) makeApp() *container.Scroll {
 
 // setVaultViewByInfo selects the unlocked vault or displays its unlock screen.
 func (a *app) setVaultViewByInfo(info storage.VaultInfo, back func()) {
+	if a.settingsVaultID != "" {
+		return
+	}
 	a.closeItemDetail()
 	a.closePasswordAudit()
 	a.closeCodesView()
@@ -267,6 +277,7 @@ func (a *app) showAuditPasswordView() {
 
 // showCurrentVaultView displays the selected vault or its unlock screen.
 func (a *app) showCurrentVaultView() {
+	a.closeMasterPasswordView()
 	a.closeItemDetail()
 	a.closePasswordAudit()
 	a.win.SetContent(a.main)
@@ -305,6 +316,8 @@ func (a *app) showPreferencesView() {
 
 // lockVault removes the current vault from the unlocked views.
 func (a *app) lockVault() {
+	a.closeMasterPasswordView()
+	a.settingsVaultID = ""
 	a.closeItemDetail()
 	a.closePasswordAudit()
 	a.closeCodesView()

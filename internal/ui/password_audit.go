@@ -61,7 +61,7 @@ func auditHeader(title string, back func()) fyne.CanvasObject {
 }
 
 func auditPage(title string, back func(), content fyne.CanvasObject) fyne.CanvasObject {
-	return container.New(layout.NewCustomPaddedLayout(24, 24, 24, 24), container.NewBorder(auditHeader(title, back), nil, nil, nil, content))
+	return newSecondaryPage(auditHeader(title, back), nil, content)
 }
 
 func (a *PasswordAudit) staleBanner() *widget.Label {

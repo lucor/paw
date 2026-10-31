@@ -116,7 +116,7 @@ func main() {
 	// create window and run the app
 	w := fyneApp.NewWindow(ui.AppTitle)
 	w.SetMaster()
-	w.Resize(fyne.NewSize(400, 600))
+	w.Resize(fyne.NewSize(ui.DefaultWindowWidth, ui.DefaultWindowHeight))
 	w.SetContent(ui.MakeApp(s, w))
 	w.ShowAndRun()
 }

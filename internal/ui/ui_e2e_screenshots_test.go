@@ -6,10 +6,12 @@ package ui
 import (
 	"context"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/data/binding"
 	fynestorage "fyne.io/fyne/v2/storage"
 	"fyne.io/fyne/v2/test"
@@ -61,14 +63,106 @@ func runUIE2EScreenshotGallery(t *testing.T, outputDir string, variant fyne.Them
 		captureUIPilotScreen(t, window, outputDir, name+suffix)
 	}
 
-	capture("add-vault", NewAddVault(func() {}, func() {}, func() {}, func() {}))
-	capture("create-vault", NewCreateVault(func() {}, func(string, string) error { return nil }))
+	addVault := NewAddVault(func() {}, func() {}, func() {}, func() {})
+	capture("add-vault", addVault)
+	captureAt("add-vault-narrow", addVault, fyne.NewSize(320, 540))
+	createVault := NewCreateVault(func() {}, func(string, string, storage.VaultAppearance) error { return nil })
+	capture("create-vault", createVault)
+	captureAt("create-vault-narrow-empty", createVault, fyne.NewSize(320, 540))
+	var createFields []*widget.Entry
+	var createForm *widget.Form
+	for _, object := range test.LaidOutObjects(createVault) {
+		switch object := object.(type) {
+		case *widget.Entry:
+			createFields = append(createFields, object)
+		case *widget.Form:
+			createForm = object
+		}
+	}
+	if len(createFields) == 3 && createForm != nil {
+		createFields[0].SetText("Personal")
+		var previewButton *widget.Button
+		for _, object := range test.LaidOutObjects(createVault) {
+			if button, ok := object.(*widget.Button); ok && button.Icon == nil && button.Size().Width == 80 {
+				previewButton = button
+				break
+			}
+		}
+		require.NotNil(t, previewButton)
+		previewPosition := driver.Driver().AbsolutePositionForObject(previewButton)
+		test.TapCanvas(window.Canvas(), previewPosition.Add(fyne.NewPos(8, 8)))
+		captureCurrent("vault-appearance-default", fyne.NewSize(440, 800))
+		captureCurrent("vault-appearance-narrow", fyne.NewSize(320, 540))
+		for _, object := range test.LaidOutObjects(window.Content()) {
+			if button, ok := object.(*widget.Button); ok && button.Icon != nil && strings.Contains(button.Icon.Name(), "briefcase-business") {
+				test.Tap(button)
+				break
+			}
+		}
+		for _, object := range test.LaidOutObjects(window.Content()) {
+			if circle, ok := object.(*canvas.Circle); ok && circle.FillColor == selectedVaultColor("green") {
+				position := driver.Driver().AbsolutePositionForObject(circle).Add(fyne.NewPos(circle.Size().Width/2, circle.Size().Height/2))
+				test.TapCanvas(window.Canvas(), position)
+				break
+			}
+		}
+		captureCurrent("vault-appearance-custom", fyne.NewSize(440, 800))
+		for _, object := range test.LaidOutObjects(window.Content()) {
+			if button, ok := object.(*widget.Button); ok && button.Icon == icons.Back {
+				test.Tap(button)
+				break
+			}
+		}
+		captureCurrent("create-vault-customized", fyne.NewSize(440, 800))
+		createFields[1].SetText("example master password")
+		createFields[2].SetText("example master password")
+		capture("create-vault-valid", createVault)
+	}
 	capture("unlock-vault", NewUnlockVault(storage.VaultInfo{ID: "personal", Name: "Personal"}, &storage.StorageMock{}, nil, func() {}, func() {}))
 	capture("vault-selector", NewSelectVault([]VaultChoice{
 		{Name: "Personal", Unlocked: true, Open: func() {}},
 		{Name: "Work", Open: func() {}},
 		{Name: "Archive", Unlocked: true, Open: func() {}},
 	}, func() {}))
+	vaultSettings := NewVaultSettingsView("Personal", storage.DefaultVaultAppearance(), func() {}, func() {}, func() {}, func() {})
+	capture("vault-settings", vaultSettings)
+	captureAt("vault-settings-narrow", vaultSettings, fyne.NewSize(320, 540))
+	masterPassword := newMasterPasswordView(func() {})
+	capture("change-master-password", masterPassword.view)
+	masterPassword.current.SetText("example current password")
+	masterPassword.password.Entry.SetText("example new master password")
+	masterPassword.confirm.SetText("example new master password")
+	masterPassword.password.strength.label.Refresh()
+	capture("change-master-password-filled", masterPassword.view)
+	captureAt("change-master-password-narrow", masterPassword.view, fyne.NewSize(320, 540))
+	vaultEditor := NewVaultIdentityEditor("Personal", storage.DefaultVaultAppearance(), func(string, storage.VaultAppearance) error { return nil }, func() {})
+	capture("edit-vault", vaultEditor)
+	captureAt("edit-vault-narrow", vaultEditor, fyne.NewSize(320, 540))
+	customizedEditor := NewVaultIdentityEditor("Work", storage.DefaultVaultAppearance(), func(string, storage.VaultAppearance) error { return nil }, func() {})
+	window.SetContent(customizedEditor)
+	window.Resize(fyne.NewSize(440, 800))
+	test.Tap(findVaultIdentityPreview(t, customizedEditor))
+	appearanceView := window.Content()
+	for _, object := range test.LaidOutObjects(appearanceView) {
+		if button, ok := object.(*widget.Button); ok && button.Icon != nil && strings.Contains(button.Icon.Name(), "briefcase-business") {
+			test.Tap(button)
+			break
+		}
+	}
+	for _, object := range test.LaidOutObjects(appearanceView) {
+		if circle, ok := object.(*canvas.Circle); ok && circle.FillColor == selectedVaultColor("green") {
+			position := driver.Driver().AbsolutePositionForObject(circle).Add(fyne.NewPos(circle.Size().Width/2, circle.Size().Height/2))
+			test.TapCanvas(window.Canvas(), position)
+			break
+		}
+	}
+	for _, object := range test.LaidOutObjects(appearanceView) {
+		if button, ok := object.(*widget.Button); ok && button.Icon == icons.Back {
+			test.Tap(button)
+			break
+		}
+	}
+	captureCurrent("edit-vault-customized", fyne.NewSize(440, 800))
 
 	listOptions := entryListFixture()
 	list := NewEntryList(listOptions)
@@ -210,25 +304,29 @@ func runUIE2EScreenshotGallery(t *testing.T, outputDir string, variant fyne.Them
 		audit.Close()
 	}
 
-	backupFlow := &restoreFlow{window: window, store: &storage.StorageMock{}, back: func() {}, restored: func(*model.Vault) {}}
+	backupStore := &storage.StorageMock{}
+	backupStore.OnVaults = func() ([]storage.VaultInfo, error) { return nil, nil }
+	backupFlow := &restoreFlow{window: window, store: backupStore, back: func() {}, restored: func(*model.Vault) {}}
 	backupFlow.selectFile("")
 	captureCurrent("restore-select-file", fyne.NewSize(440, 800))
 	backupFlow.unlock(fynestorage.NewFileURI("/tmp/paw-example.cxf.age"), "")
 	captureCurrent("restore-unlock-backup", fyne.NewSize(440, 800))
 	createdAt, exportedAt := uint64(1705055040), uint64(1709475420)
 	backup := &storage.PawBackup{Name: "Personal", CreationAt: &createdAt, ExportedAt: exportedAt, Collections: 2, Credentials: 5, AccountID: "account-123"}
-	backupFlow.review(backup, false, "")
+	backupFlow.review(backup, "")
 	captureCurrent("restore-review", fyne.NewSize(440, 800))
-	backupFlow.review(backup, true, "")
+	captureAt("restore-review-narrow", window.Content(), fyne.NewSize(320, 540))
+	backupStore.OnVaults = func() ([]storage.VaultInfo, error) {
+		return []storage.VaultInfo{{Name: "Personal"}}, nil
+	}
+	backupFlow.review(backup, "")
 	captureCurrent("restore-review-collision", fyne.NewSize(440, 800))
 	key, err := paw.MakeOneTimeKey()
 	require.NoError(t, err)
 	vault, err := model.NewVault(key, "Personal")
 	require.NoError(t, err)
-	backupFlow.complete(vault, false)
+	backupFlow.complete(vault)
 	captureCurrent("restore-complete", fyne.NewSize(440, 800))
-	backupFlow.complete(vault, true)
-	captureCurrent("restore-complete-copy", fyne.NewSize(440, 800))
 
 	ShowExportCredentials(window, &storage.StorageMock{}, vault)
 	captureCurrent("export-encrypted-default", fyne.NewSize(440, 800))

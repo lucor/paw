@@ -7,11 +7,207 @@ import (
 	"testing"
 
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/canvas"
+	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/test"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 	"github.com/stretchr/testify/require"
+	"go.lucor.dev/paw/internal/storage"
+	"go.lucor.dev/paw/internal/ui/assets/icons"
 )
+
+func TestVaultAppearanceIsShownInVaultHeaderAndUnlock(t *testing.T) {
+	test.NewTempApp(t)
+	appearance := storage.VaultAppearance{Icon: "briefcase-business", Color: "green"}
+	options := entryListFixture()
+	options.VaultAppearance = appearance
+	window := test.NewTempWindow(t, NewEntryList(options))
+	window.Resize(fyne.NewSize(440, 650))
+	require.True(t, hasVaultAppearance(window.Content(), appearance))
+
+	info := storage.VaultInfo{ID: "vault-id", Name: "Work", Appearance: appearance}
+	window.SetContent(NewUnlockVault(info, &storage.StorageMock{}, nil, func() {}, func() {}))
+	require.True(t, hasVaultAppearance(window.Content(), appearance))
+}
+
+func TestVaultAppearanceCanSelectNoColor(t *testing.T) {
+	test.NewTempApp(t)
+	var selected storage.VaultAppearance
+	view := newVaultAppearanceView("Work", storage.VaultAppearance{Icon: "paw", Color: "green"}, func(appearance storage.VaultAppearance) {
+		selected = appearance
+	}, func() {})
+	var noColor *widget.Button
+	for _, object := range test.LaidOutObjects(view) {
+		if button, ok := object.(*widget.Button); ok && button.Icon == nil && button.Text == "" {
+			noColor = button
+			break
+		}
+	}
+	require.NotNil(t, noColor, "the first color option should be the no-color choice")
+	test.Tap(noColor)
+	require.Equal(t, storage.VaultAppearance{Icon: "paw", Color: "none"}, selected)
+	require.Equal(t, "none", storage.DefaultVaultAppearance().Color)
+	require.Equal(t, "paw", storage.DefaultVaultAppearance().Icon)
+	require.Len(t, vaultIcons, 8)
+	require.Equal(t, "paw", vaultIcons[0].id)
+	require.Same(t, icons.Paw, vaultIcons[0].resource)
+}
+
+func TestVaultAppearanceSwatchesMatchPreviewColors(t *testing.T) {
+	app := test.NewTempApp(t)
+	for _, variant := range []fyne.ThemeVariant{theme.VariantLight, theme.VariantDark} {
+		app.Settings().SetTheme(variantTheme{Theme: theme.DefaultTheme(), variant: variant})
+		view := newVaultAppearanceView("Work", storage.VaultAppearance{Icon: "paw", Color: "blue"}, nil, func() {})
+		want := vaultIconPalette("blue", variant, app.Settings().Theme()).background
+		var found bool
+		for _, object := range test.LaidOutObjects(view) {
+			circle, ok := object.(*canvas.Circle)
+			if ok && circle.FillColor == want {
+				found = true
+				break
+			}
+		}
+		require.True(t, found, "%s selector swatch should use the preview background color", variant)
+
+		preview := newVaultIcon(storage.VaultAppearance{Icon: "paw", Color: "blue"}, vaultIconMedium)
+		renderer := test.WidgetRenderer(preview).(*vaultIconRenderer)
+		require.Equal(t, want, renderer.background.FillColor)
+	}
+}
+
+func TestVaultAppearancePreviewHasCompactGapOnNarrowWindow(t *testing.T) {
+	test.NewTempApp(t)
+	view := newVaultAppearanceView("Personal", storage.DefaultVaultAppearance(), nil, func() {})
+	window := test.NewTempWindow(t, view)
+	window.Resize(fyne.NewSize(320, 540))
+	var previewIcon *vaultIcon
+	var previewName *widget.Label
+	for _, object := range test.LaidOutObjects(view) {
+		switch object := object.(type) {
+		case *vaultIcon:
+			if object.size == vaultIconMedium {
+				previewIcon = object
+			}
+		case *widget.Label:
+			if object.Text == "Personal" {
+				previewName = object
+			}
+		}
+	}
+	require.NotNil(t, previewIcon)
+	require.NotNil(t, previewName)
+	iconPosition := fyne.CurrentApp().Driver().AbsolutePositionForObject(previewIcon)
+	namePosition := fyne.CurrentApp().Driver().AbsolutePositionForObject(previewName)
+	require.LessOrEqual(t, namePosition.X-(iconPosition.X+previewIcon.Size().Width), float32(4))
+	require.LessOrEqual(t, namePosition.X+previewName.Size().Width, float32(296))
+}
+
+func TestSecondaryViewsShareHeaderPosition(t *testing.T) {
+	test.NewTempApp(t)
+	window := test.NewTempWindow(t, nil)
+	window.Resize(fyne.NewSize(440, 800))
+	views := []struct {
+		title string
+		view  fyne.CanvasObject
+	}{
+		{title: "Add vault", view: NewAddVault(func() {}, func() {}, func() {}, func() {})},
+		{title: "Create new vault", view: NewCreateVault(func() {}, func(string, string, storage.VaultAppearance) error { return nil })},
+		{title: "Vault appearance", view: newVaultAppearanceView("Personal", storage.DefaultVaultAppearance(), nil, func() {})},
+		{title: "Restore from backup", view: auditPage("Restore from backup", func() {}, container.NewVScroll(container.NewVBox()))},
+		{title: "Password Audit", view: auditPage("Password Audit", func() {}, container.NewVScroll(container.NewVBox()))},
+		{title: "Settings", view: NewPreferencesView(nil, &storage.StorageMock{}, window).View},
+	}
+	var expectedBack, expectedTitle fyne.Position
+	for index, page := range views {
+		window.SetContent(page.view)
+		var backPosition, titlePosition fyne.Position
+		var foundBack, foundTitle bool
+		for _, object := range test.LaidOutObjects(page.view) {
+			switch object := object.(type) {
+			case *widget.Button:
+				if object.Icon == icons.Back {
+					backPosition = fyne.CurrentApp().Driver().AbsolutePositionForObject(object)
+					foundBack = true
+				}
+			case *iconButton:
+				if object.Icon == icons.Back {
+					backPosition = fyne.CurrentApp().Driver().AbsolutePositionForObject(object)
+					foundBack = true
+				}
+			case *widget.Label:
+				if object.Text == page.title {
+					titlePosition = fyne.CurrentApp().Driver().AbsolutePositionForObject(object)
+					foundTitle = true
+				}
+			}
+		}
+		require.True(t, foundBack, "%s back button should be in the shared header", page.title)
+		require.True(t, foundTitle, "%s title should be in the shared header", page.title)
+		if index == 0 {
+			expectedBack, expectedTitle = backPosition, titlePosition
+			continue
+		}
+		require.Equal(t, expectedBack, backPosition, "%s back position", page.title)
+		require.Equal(t, expectedTitle, titlePosition, "%s title position", page.title)
+	}
+}
+
+func TestDefaultVaultAppearanceUsesPawIconAndThemeSurface(t *testing.T) {
+	app := test.NewTempApp(t)
+	for _, variant := range []fyne.ThemeVariant{theme.VariantLight, theme.VariantDark} {
+		app.Settings().SetTheme(variantTheme{Theme: theme.DefaultTheme(), variant: variant})
+		view := newVaultIcon(storage.DefaultVaultAppearance(), vaultIconLarge)
+		renderer := test.WidgetRenderer(view).(*vaultIconRenderer)
+		renderer.Layout(view.MinSize())
+		palette := vaultIconPalette("none", variant, view.Theme())
+		require.Equal(t, palette.background, renderer.background.FillColor)
+		require.Equal(t, fyne.NewSquareSize(80), renderer.MinSize())
+		require.Equal(t, fyne.NewSquareSize(44), renderer.image.Size())
+		require.Equal(t, float32(16), renderer.background.CornerRadius)
+		wantResource := icons.PawLight
+		if variant == theme.VariantDark {
+			wantResource = icons.PawDark
+		}
+		require.Equal(t, wantResource.Name(), renderer.image.Resource.Name())
+	}
+}
+
+func TestVaultIconVariantsUsePastelThemePalette(t *testing.T) {
+	app := test.NewTempApp(t)
+	variants := []struct {
+		size      vaultIconSize
+		container float32
+		glyph     float32
+	}{
+		{size: vaultIconLarge, container: 80, glyph: 44},
+		{size: vaultIconMedium, container: 40, glyph: 24},
+		{size: vaultIconSmall, container: 28, glyph: 18},
+	}
+	for _, themeVariant := range []fyne.ThemeVariant{theme.VariantLight, theme.VariantDark} {
+		app.Settings().SetTheme(variantTheme{Theme: theme.DefaultTheme(), variant: themeVariant})
+		for _, sizes := range variants {
+			icon := newVaultIcon(storage.VaultAppearance{Icon: "briefcase-business", Color: "blue"}, sizes.size)
+			renderer := test.WidgetRenderer(icon).(*vaultIconRenderer)
+			renderer.Layout(icon.MinSize())
+			palette := vaultIconPalette("blue", themeVariant, icon.Theme())
+			require.Equal(t, fyne.NewSquareSize(sizes.container), renderer.MinSize())
+			require.Equal(t, fyne.NewSquareSize(sizes.glyph), renderer.image.Size())
+			require.Equal(t, sizes.container*0.2, renderer.background.CornerRadius)
+			require.Equal(t, palette.background, renderer.background.FillColor)
+			require.Equal(t, vaultIconResource("briefcase-business").Name(), renderer.image.Resource.Name())
+		}
+	}
+}
+
+func hasVaultAppearance(view fyne.CanvasObject, want storage.VaultAppearance) bool {
+	for _, object := range test.LaidOutObjects(view) {
+		if icon, ok := object.(*vaultIcon); ok && icon.appearance == want {
+			return true
+		}
+	}
+	return false
+}
 
 func TestVaultSelectorGolden(t *testing.T) {
 	for _, variant := range []fyne.ThemeVariant{theme.VariantLight, theme.VariantDark} {

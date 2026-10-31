@@ -9,15 +9,17 @@ import (
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
+	"go.lucor.dev/paw/internal/storage"
 	"go.lucor.dev/paw/internal/ui/assets/icons"
 )
 
 // VaultChoice describes a vault available in the selector.
 type VaultChoice struct {
-	Name     string
-	Unlocked bool
-	Active   bool
-	Open     func()
+	Name       string
+	Appearance storage.VaultAppearance
+	Unlocked   bool
+	Active     bool
+	Open       func()
 }
 
 // NewSelectVault displays the available vaults in a native scrolling list.
@@ -31,12 +33,13 @@ func NewSelectVault(vaults []VaultChoice, addVault func()) fyne.CanvasObject {
 		},
 		func(id widget.ListItemID, object fyne.CanvasObject) {
 			vault := vaults[id]
-			status, resource := "Locked", icons.Lock
+			status := "Locked"
 			if vault.Unlocked {
-				status, resource = "Unlocked", icons.LockOpen
+				status = "Unlocked"
 			}
 			row := object.(*fyne.Container).Objects[0].(*ActionRow)
-			row.SetContent(vault.Name, status, resource)
+			row.SetContent(vault.Name, status, vaultIconResource(vault.Appearance.Icon))
+			row.SetLeadingObject(newVaultIcon(vault.Appearance, vaultIconMedium))
 			row.SetTapped(func() { list.Select(id) })
 		},
 	)

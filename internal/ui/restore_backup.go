@@ -7,16 +7,21 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"image/color"
 	"strings"
 	"time"
 
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
+	"fyne.io/fyne/v2/layout"
 	fynestorage "fyne.io/fyne/v2/storage"
+	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 	"go.lucor.dev/paw/internal/model"
 	"go.lucor.dev/paw/internal/storage"
+	"go.lucor.dev/paw/internal/ui/assets/icons"
 )
 
 type restoreFlow struct {
@@ -25,6 +30,11 @@ type restoreFlow struct {
 	back     func()
 	restored func(*model.Vault)
 }
+
+const (
+	restorePlainBackupSuffix     = ".cxf"
+	restoreEncryptedBackupSuffix = ".cxf.age"
+)
 
 // ShowRestoreBackup opens single-page navigation for selecting and restoring a backup.
 func ShowRestoreBackup(window fyne.Window, store storage.Storage, restored func(*model.Vault)) {
@@ -39,7 +49,7 @@ func (f *restoreFlow) page(title string, back func(), content fyne.CanvasObject)
 
 func (f *restoreFlow) selectFile(message string) {
 	choose := widget.NewButton("Select backup file", func() {
-		dialog.NewFileOpen(func(reader fyne.URIReadCloser, err error) {
+		picker := dialog.NewFileOpen(func(reader fyne.URIReadCloser, err error) {
 			if err != nil {
 				f.selectFile(err.Error())
 				return
@@ -48,14 +58,29 @@ func (f *restoreFlow) selectFile(message string) {
 				return
 			}
 			f.decode(reader, "")
-		}, f.window).Show()
+		}, f.window)
+		picker.SetView(dialog.ListView)
+		picker.SetFilter(restoreBackupFileFilter{})
+		if !fyne.CurrentDevice().IsMobile() {
+			picker.Resize(fyne.NewSize(DefaultWindowWidth, DefaultWindowHeight))
+		}
+		picker.Show()
 	})
 	choose.Importance = widget.HighImportance
 	feedback := newErrorText(message)
 	if message == "" {
 		feedback.Hide()
 	}
-	f.page("Restore from backup", f.back, container.NewVBox(newText("Restore a Paw export (.cxf or .cxf.age).", bodyStyle), feedback, choose))
+	content := container.NewVScroll(container.NewVBox(newText("Select a Paw backup file (.cxf or .cxf.age).", bodyStyle), feedback, choose))
+	f.page("Restore from backup", f.back, content)
+}
+
+// restoreBackupFileFilter matches Paw backup names, including the compound age extension.
+type restoreBackupFileFilter struct{}
+
+func (restoreBackupFileFilter) Matches(uri fyne.URI) bool {
+	name := strings.ToLower(uri.Name())
+	return strings.HasSuffix(name, restorePlainBackupSuffix) || strings.HasSuffix(name, restoreEncryptedBackupSuffix)
 }
 
 func (f *restoreFlow) busy(title string, cancel func()) {
@@ -90,12 +115,7 @@ func (f *restoreFlow) decode(reader fyne.URIReadCloser, password string) {
 				f.selectFile(restoreErrorMessage(err))
 				return
 			}
-			collision, err := storage.BackupCollision(f.store, backup)
-			if err != nil {
-				f.selectFile(err.Error())
-				return
-			}
-			f.review(backup, collision, "")
+			f.review(backup, "")
 		})
 	}()
 }
@@ -137,27 +157,94 @@ func (f *restoreFlow) unlock(uri fyne.URI, message string) {
 	if message == "" {
 		feedback.Hide()
 	}
-	f.page("Unlock backup", func() { entry.SetText(""); f.selectFile("") }, container.NewVBox(newText("Backup password", captionStyle), entry, feedback, unlock))
+	content := container.NewVScroll(container.NewVBox(newText("Backup password", captionStyle), entry, feedback, unlock))
+	f.page("Unlock backup", func() { entry.SetText(""); f.selectFile("") }, content)
 }
 
-func (f *restoreFlow) review(backup *storage.PawBackup, collision bool, message string) {
+func (f *restoreFlow) review(backup *storage.PawBackup, message string) {
 	name := widget.NewEntry()
 	name.SetText(backup.Name)
 	password := NewPasswordField()
 	confirm := widget.NewPasswordEntry()
-	summary := container.NewVBox(newText("Original vault: "+backup.Name, bodyStyle), newText(fmt.Sprintf("%d collections · %d credentials", backup.Collections, backup.Credentials), bodyStyle))
+	confirm.Validator = func(value string) error {
+		if value == "" {
+			return errors.New("password confirmation is required")
+		}
+		if value != password.Entry.Text {
+			return errors.New("passwords do not match")
+		}
+		return nil
+	}
+	nameWarning := newText("A vault with this name already exists. A separate vault will be created.", captionStyle)
+	nameWarning.Hide()
+	nameInput := container.NewVBox(name, nameWarning)
+	form := widget.NewForm(
+		widget.NewFormItem("Vault name", nameInput),
+		widget.NewFormItem("New master password", password),
+		widget.NewFormItem("Confirm password", confirm),
+	)
+	form.Orientation = widget.Vertical
+
+	var existingVaults []storage.VaultInfo
+	if f.store != nil {
+		vaults, err := f.store.Vaults()
+		if err != nil && message == "" {
+			message = restoreErrorMessage(err)
+		} else {
+			existingVaults = vaults
+		}
+	}
+
+	var updateCreateButton func()
+	updateNameWarning := func() {
+		show := restoreVaultNameExists(existingVaults, name.Text)
+		if show == nameWarning.Visible() {
+			return
+		}
+		if show {
+			nameWarning.Show()
+		} else {
+			nameWarning.Hide()
+		}
+		form.Refresh()
+	}
+	name.OnChanged = func(string) {
+		updateNameWarning()
+		if updateCreateButton != nil {
+			updateCreateButton()
+		}
+	}
+
+	backupContents := make([]fyne.CanvasObject, 0, 5)
+	if backup.Name != "" {
+		backupContents = append(backupContents, restoreMetadataRow("Original vault", backup.Name))
+	}
+	backupContents = append(backupContents,
+		restoreMetadataRow("Collections", fmt.Sprint(backup.Collections)),
+		restoreMetadataRow("Items", fmt.Sprint(backup.Credentials)),
+	)
 	if backup.CreationAt != nil {
-		summary.Add(newText("Created: "+time.Unix(int64(*backup.CreationAt), 0).UTC().Format("2006-01-02 15:04 UTC"), captionStyle))
+		backupContents = append(backupContents, restoreMetadataRow("Created", restoreDate(*backup.CreationAt)))
 	}
 	if backup.ExportedAt != 0 {
-		summary.Add(newText("CXF document date: "+time.Unix(int64(backup.ExportedAt), 0).UTC().Format("2006-01-02 15:04 UTC"), captionStyle))
+		backupContents = append(backupContents, restoreMetadataRow("Exported", restoreDate(backup.ExportedAt)))
 	}
-	if collision {
-		summary.Add(newText("This vault already exists. An independent copy will be created.", captionStyle))
+	backupSection := container.New(layout.NewCustomPaddedVBoxLayout(theme.Size(theme.SizeNameLineSpacing)), backupContents...)
+	newVaultMessage := newText("A separate vault will be created. Existing vaults won't be changed.", captionStyle)
+	newVaultSection := container.NewVBox(newText("New vault", headingStyle), form, newVaultMessage)
+	contents := container.NewVScroll(container.New(layout.NewCustomPaddedVBoxLayout(theme.Size(theme.SizeNamePadding)),
+		newText("Backup contents", headingStyle), backupSection,
+		widget.NewSeparator(), newVaultSection,
+	))
+
+	feedback := newErrorText(message)
+	if message == "" {
+		feedback.Hide()
 	}
-	form := widget.NewForm(widget.NewFormItem("New vault name", name), widget.NewFormItem("New master password", password), widget.NewFormItem("Confirm master password", confirm))
-	form.Orientation = widget.Vertical
 	create := widget.NewButton("Create vault", func() {
+		if name.Validate() != nil || form.Validate() != nil || strings.TrimSpace(name.Text) == "" || password.Entry.Text == "" || confirm.Text != password.Entry.Text {
+			return
+		}
 		newName, secret := strings.TrimSpace(name.Text), password.Entry.Text
 		password.Entry.SetText("")
 		confirm.SetText("")
@@ -169,25 +256,25 @@ func (f *restoreFlow) review(backup *storage.PawBackup, collision bool, message 
 			cancel()
 			fyne.Do(func() {
 				if errors.Is(err, context.Canceled) {
-					f.review(backup, collision, "")
+					f.review(backup, "")
 					return
 				}
 				if err != nil {
-					f.review(backup, collision, restoreErrorMessage(err))
+					f.review(backup, restoreErrorMessage(err))
 					return
 				}
-				f.complete(vault, vault.Accounts[0].ID != backup.AccountID)
+				f.complete(vault)
 			})
 		}()
 	})
 	create.Importance = widget.HighImportance
 	create.Disable()
-	update := func() {
-		if strings.TrimSpace(name.Text) != "" && password.Entry.Text != "" && password.Entry.Text == confirm.Text {
-			create.Enable()
-		} else {
+	updateCreateButton = func() {
+		if strings.TrimSpace(name.Text) == "" || password.Entry.Text == "" || confirm.Text != password.Entry.Text {
 			create.Disable()
+			return
 		}
+		create.Enable()
 	}
 	wasEmpty := true
 	password.OnChanged = func(value string) {
@@ -195,25 +282,56 @@ func (f *restoreFlow) review(backup *storage.PawBackup, collision bool, message 
 			form.Refresh()
 			wasEmpty = value == ""
 		}
-		update()
+		if confirm.Text != "" && confirm.Text == password.Entry.Text {
+			confirm.Validate()
+		}
+		updateCreateButton()
 	}
-	name.OnChanged = func(string) { update() }
-	confirm.OnChanged = func(string) { update() }
+	confirm.OnChanged = func(string) {
+		if confirm.Text == password.Entry.Text {
+			confirm.Validate()
+		}
+		updateCreateButton()
+	}
+	updateNameWarning()
+	updateCreateButton()
 	back := func() { password.Entry.SetText(""); confirm.SetText(""); f.selectFile("") }
-	feedback := newErrorText(message)
-	if message == "" {
-		feedback.Hide()
-	}
-	f.page("Review backup", back, container.NewBorder(nil, container.NewVBox(feedback, create), nil, nil, container.NewVScroll(container.NewVBox(summary, form))))
+	f.page("Review backup", back, container.NewBorder(nil, container.NewVBox(feedback, create), nil, nil, contents))
 }
 
-func (f *restoreFlow) complete(vault *model.Vault, copy bool) {
-	message := "Vault restored successfully."
-	if copy {
-		message = "An independent vault copy was restored successfully."
+func restoreMetadataRow(label, value string) fyne.CanvasObject {
+	labelText := newText(label, captionStyle)
+	valueLabel := newText(value, bodyStyle)
+	valueLabel.Alignment = fyne.TextAlignTrailing
+	return container.NewBorder(nil, nil, labelText, valueLabel)
+}
+
+func restoreDate(timestamp uint64) string {
+	return time.Unix(int64(timestamp), 0).UTC().Format("2 Jan 2006")
+}
+
+func restoreVaultNameExists(vaults []storage.VaultInfo, name string) bool {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return false
 	}
+	for _, vault := range vaults {
+		if strings.EqualFold(strings.TrimSpace(vault.Name), name) {
+			return true
+		}
+	}
+	return false
+}
+
+func (f *restoreFlow) complete(vault *model.Vault) {
 	open := func() { f.restored(vault) }
-	button := widget.NewButton("Open vault", open)
-	button.Importance = widget.HighImportance
-	f.page("Restore complete", open, container.NewVBox(newText(message, bodyStyle), button))
+	circle := canvas.NewCircle(color.Transparent)
+	circle.StrokeColor = theme.Color(theme.ColorNameForeground)
+	circle.StrokeWidth = 1
+	check := container.NewGridWrap(fyne.NewSquareSize(16), widget.NewIcon(icons.Check))
+	status := container.NewHBox(container.NewGridWrap(fyne.NewSquareSize(32), container.NewStack(circle, container.NewCenter(check))), newText("Vault restored", headingStyle))
+	openButton := widget.NewButton("Open vault", open)
+	openButton.Importance = widget.HighImportance
+	content := container.NewVScroll(container.NewVBox(status, newText(vault.Metadata.VaultName+" is ready to use.", bodyStyle), openButton))
+	f.page("Restore complete", open, content)
 }

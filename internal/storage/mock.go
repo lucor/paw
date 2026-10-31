@@ -4,6 +4,7 @@
 package storage
 
 import (
+	"context"
 	"errors"
 	"os"
 	"path/filepath"
@@ -72,16 +73,26 @@ func (c *AppStateStorageMock) StoreAppState(s *paw.AppState) error {
 
 // VaultStorageMock implements VaultStorage through callbacks.
 type VaultStorageMock struct {
-	OnCreateVault  func(name, password string) (*model.Vault, error)
-	OnDeleteVault  func(vaultID string) error
-	OnLoadVault    func(vaultID string, key *paw.Key) (*model.Vault, error)
-	OnLoadVaultKey func(vaultID string, password string) (*paw.Key, error)
-	OnRenameVault  func(vault *model.Vault, name string) error
-	OnVaults       func() ([]VaultInfo, error)
+	OnChangeMasterPassword func(context.Context, string, string, string) error
+	OnCreateVault          func(name, password string) (*model.Vault, error)
+	OnDeleteVault          func(vaultID string) error
+	OnLoadVault            func(vaultID string, key *paw.Key) (*model.Vault, error)
+	OnLoadVaultKey         func(vaultID string, password string) (*paw.Key, error)
+	OnRenameVault          func(vault *model.Vault, name string) error
+	OnUpdateVaultIdentity  func(vault *model.Vault, name string, appearance VaultAppearance) error
+	OnVaults               func() ([]VaultInfo, error)
+}
+
+// ChangeMasterPassword runs the configured test operation.
+func (c *VaultStorageMock) ChangeMasterPassword(ctx context.Context, id, current, next string) error {
+	if c.OnChangeMasterPassword == nil {
+		return ErrCallbackRequired
+	}
+	return c.OnChangeMasterPassword(ctx, id, current, next)
 }
 
 // CreateVault creates a vault through the configured callback.
-func (c *VaultStorageMock) CreateVault(name, password string) (*model.Vault, error) {
+func (c *VaultStorageMock) CreateVault(name, password string, _ ...VaultAppearance) (*model.Vault, error) {
 	if c.OnCreateVault == nil {
 		return nil, ErrCallbackRequired
 	}
@@ -118,6 +129,14 @@ func (c *VaultStorageMock) RenameVault(vault *model.Vault, name string) error {
 		return ErrCallbackRequired
 	}
 	return c.OnRenameVault(vault, name)
+}
+
+// UpdateVaultIdentity updates a vault through the configured callback.
+func (c *VaultStorageMock) UpdateVaultIdentity(vault *model.Vault, name string, appearance VaultAppearance) error {
+	if c.OnUpdateVaultIdentity == nil {
+		return ErrCallbackRequired
+	}
+	return c.OnUpdateVaultIdentity(vault, name, appearance)
 }
 
 // Vaults lists vaults through the configured callback.

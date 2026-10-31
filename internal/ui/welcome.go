@@ -65,5 +65,6 @@ func NewPlaceholder(title string, resource fyne.Resource, back func()) fyne.Canv
 
 // welcomeAction layers the row content over one native button.
 func welcomeAction(title, description string, resource fyne.Resource, tapped func()) fyne.CanvasObject {
-	return NewActionRow(title, description, resource, tapped)
+	leading := container.NewGridWrap(fyne.NewSquareSize(32), widget.NewIcon(resource))
+	return newNavigationRowWithSubtitle(title, description, leading, tapped)
 }

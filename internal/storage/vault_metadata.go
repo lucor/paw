@@ -33,34 +33,37 @@ func FindVaultInfo(vaults []VaultInfo, value string) (VaultInfo, error) {
 }
 
 type vaultMetadata struct {
-	Name string `json:"name"`
+	Name  string `json:"name"`
+	Icon  string `json:"icon,omitempty"`
+	Color string `json:"color,omitempty"`
 }
 
-// encodeVaultMetadata encodes the public name used to list a CXF vault.
-func encodeVaultMetadata(name string) ([]byte, error) {
+// encodeVaultMetadata encodes the public details used to list a CXF vault.
+func encodeVaultMetadata(name string, appearance VaultAppearance) ([]byte, error) {
 	if name == "" || !utf8.ValidString(name) {
 		return nil, fmt.Errorf("vault name is empty or invalid UTF-8")
 	}
-	data, err := json.Marshal(vaultMetadata{Name: name})
+	appearance = NormalizeVaultAppearance(appearance)
+	data, err := json.Marshal(vaultMetadata{Name: name, Icon: appearance.Icon, Color: appearance.Color})
 	if err != nil {
 		return nil, fmt.Errorf("could not encode vault metadata")
 	}
 	return data, nil
 }
 
-// decodeVaultMetadata decodes a public vault name from its metadata file.
-func decodeVaultMetadata(data []byte) (string, error) {
+// decodeVaultMetadata decodes public vault details from its metadata file.
+func decodeVaultMetadata(data []byte) (vaultMetadata, error) {
 	if !utf8.Valid(data) {
-		return "", fmt.Errorf("vault metadata is invalid UTF-8")
+		return vaultMetadata{}, fmt.Errorf("vault metadata is invalid UTF-8")
 	}
 	var metadata vaultMetadata
 	if err := json.Unmarshal(data, &metadata); err != nil {
-		return "", fmt.Errorf("could not decode vault metadata: %w", err)
+		return vaultMetadata{}, fmt.Errorf("could not decode vault metadata: %w", err)
 	}
 	if metadata.Name == "" || !utf8.ValidString(metadata.Name) {
-		return "", fmt.Errorf("vault metadata has an empty or invalid name")
+		return vaultMetadata{}, fmt.Errorf("vault metadata has an empty or invalid name")
 	}
-	return metadata.Name, nil
+	return metadata, nil
 }
 
 // isVaultID reports whether value is a canonical Paw 128-bit Base64url ID.
@@ -83,19 +86,19 @@ func vaultInfoFromMetadata(id string, data []byte) (VaultInfo, error) {
 	if !isVaultID(id) {
 		return VaultInfo{}, fmt.Errorf("invalid CXF vault ID")
 	}
-	name, err := decodeVaultMetadata(data)
+	metadata, err := decodeVaultMetadata(data)
 	if err != nil {
 		return VaultInfo{}, err
 	}
-	return VaultInfo{ID: id, Name: name}, nil
+	return VaultInfo{ID: id, Name: metadata.Name, Appearance: NormalizeVaultAppearance(VaultAppearance{Icon: metadata.Icon, Color: metadata.Color})}, nil
 }
 
-// writeVaultMetadata writes a vault's public listing name.
+// writeVaultMetadata writes a vault's public listing details.
 func writeVaultMetadata(w io.Writer, info VaultInfo) error {
 	if !isVaultID(info.ID) {
 		return fmt.Errorf("invalid CXF vault ID")
 	}
-	data, err := encodeVaultMetadata(info.Name)
+	data, err := encodeVaultMetadata(info.Name, info.Appearance)
 	if err != nil {
 		return err
 	}
@@ -107,4 +110,32 @@ func writeVaultMetadata(w io.Writer, info VaultInfo) error {
 		return io.ErrShortWrite
 	}
 	return nil
+}
+
+func requestedVaultAppearance(appearances []VaultAppearance) VaultAppearance {
+	if len(appearances) == 0 {
+		return DefaultVaultAppearance()
+	}
+	return NormalizeVaultAppearance(appearances[0])
+}
+
+func (s *OSStorage) vaultAppearance(id string) VaultAppearance {
+	return vaultAppearance(s, id)
+}
+
+func (s *FyneStorage) vaultAppearance(id string) VaultAppearance {
+	return vaultAppearance(s, id)
+}
+
+func vaultAppearance(store VaultStorage, id string) VaultAppearance {
+	vaults, err := store.Vaults()
+	if err != nil {
+		return DefaultVaultAppearance()
+	}
+	for _, vault := range vaults {
+		if vault.ID == id {
+			return vault.Appearance
+		}
+	}
+	return DefaultVaultAppearance()
 }

@@ -4,6 +4,7 @@
 package storage
 
 import (
+	"context"
 	"go.lucor.dev/paw/internal/model"
 	"go.lucor.dev/paw/internal/paw"
 )
@@ -32,8 +33,8 @@ type AppStateStorage interface {
 
 // VaultStorage loads and saves vaults and their encrypted keys.
 type VaultStorage interface {
-	// CreateVault creates and stores an empty vault protected by password.
-	CreateVault(name, password string) (*model.Vault, error)
+	// CreateVault creates an empty password-protected vault with optional public appearance metadata.
+	CreateVault(name, password string, appearance ...VaultAppearance) (*model.Vault, error)
 	// DeleteVault removes a vault by its filesystem ID.
 	DeleteVault(vaultID string) error
 	// LoadVault reads a vault and migrates it when it uses the legacy format.
@@ -42,6 +43,10 @@ type VaultStorage interface {
 	LoadVaultKey(vaultID string, password string) (*paw.Key, error)
 	// RenameVault changes a vault's display name.
 	RenameVault(vault *model.Vault, name string) error
+	// UpdateVaultIdentity stores a vault's display name and public appearance.
+	UpdateVaultIdentity(vault *model.Vault, name string, appearance VaultAppearance) error
+	// ChangeMasterPassword rewraps the existing key and atomically replaces its protection file.
+	ChangeMasterPassword(ctx context.Context, vaultID, currentPassword, newPassword string) error
 	// Vaults lists vault IDs and display names.
 	Vaults() ([]VaultInfo, error)
 }
@@ -56,14 +61,56 @@ type ItemStorage interface {
 	StoreItem(vault *model.Vault, item *model.Item) error
 }
 
-// VaultInfo contains the ID used for storage and the name shown to users.
+// VaultInfo contains the storage ID and public details shown to users.
 type VaultInfo struct {
 	// ID is the vault's canonical Base64url identifier.
 	ID string
 	// Name is the display name.
 	Name string
+	// Appearance contains the public icon and color identifiers.
+	Appearance VaultAppearance
 	// NeedsMigration reports whether the vault still uses the legacy format.
 	NeedsMigration bool
+}
+
+// VaultAppearance contains public stable identifiers for displaying a vault.
+type VaultAppearance struct {
+	Icon  string
+	Color string
+}
+
+// DefaultVaultAppearance returns Paw's appearance for vaults without customization.
+func DefaultVaultAppearance() VaultAppearance {
+	return VaultAppearance{Icon: "paw", Color: "none"}
+}
+
+// NormalizeVaultAppearance replaces unsupported identifiers with Paw defaults.
+func NormalizeVaultAppearance(appearance VaultAppearance) VaultAppearance {
+	if !isVaultAppearanceIcon(appearance.Icon) {
+		appearance.Icon = "paw"
+	}
+	if !isVaultAppearanceColor(appearance.Color) {
+		appearance.Color = "none"
+	}
+	return appearance
+}
+
+func isVaultAppearanceIcon(icon string) bool {
+	switch icon {
+	case "paw", "vault", "briefcase-business", "house", "archive", "shield", "folder", "key-round", "laptop":
+		return true
+	default:
+		return false
+	}
+}
+
+func isVaultAppearanceColor(color string) bool {
+	switch color {
+	case "none", "gray", "blue", "green", "purple", "orange", "red":
+		return true
+	default:
+		return false
+	}
 }
 
 // LogStorage provides the application log location.

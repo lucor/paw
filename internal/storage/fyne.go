@@ -193,7 +193,7 @@ func (s *FyneStorage) createFile(name string) (fyne.URIWriteCloser, error) {
 }
 
 // CreateVault saves a new CXF vault before publishing its catalog entry.
-func (s *FyneStorage) CreateVault(name, password string) (*model.Vault, error) {
+func (s *FyneStorage) CreateVault(name, password string, appearances ...VaultAppearance) (*model.Vault, error) {
 	vault, keyData, err := prepareVault(name, password)
 	if err != nil {
 		return nil, err
@@ -213,7 +213,7 @@ func (s *FyneStorage) CreateVault(name, password string) (*model.Vault, error) {
 	if err := s.storeEncrypted(vaultPath(s, id), vault.Key(), vault); err != nil {
 		return nil, fmt.Errorf("could not store vault: %w", err)
 	}
-	if err := s.publishVault(VaultInfo{ID: id, Name: name}); err != nil {
+	if err := s.publishVault(VaultInfo{ID: id, Name: name, Appearance: requestedVaultAppearance(appearances)}); err != nil {
 		return nil, err
 	}
 	return vault, nil
@@ -496,6 +496,17 @@ func (s *FyneStorage) DeleteItem(vault *model.Vault, itemID string) error {
 
 // RenameVault updates the encrypted vault name and its catalog entry.
 func (s *FyneStorage) RenameVault(vault *model.Vault, name string) error {
+	return s.UpdateVaultIdentity(vault, name, s.vaultAppearance(vault.Accounts[0].ID))
+}
+
+// UpdateVaultIdentity updates the encrypted name and public appearance metadata.
+func (s *FyneStorage) UpdateVaultIdentity(vault *model.Vault, name string, appearance VaultAppearance) error {
+	if strings.TrimSpace(name) == "" {
+		return fmt.Errorf("vault name is required")
+	}
+	if name == vault.Metadata.VaultName {
+		return s.storeVaultInfo(VaultInfo{ID: vault.Accounts[0].ID, Name: name, Appearance: NormalizeVaultAppearance(appearance)})
+	}
 	updated := *vault
 	updated.Metadata.VaultName = name
 	updated.Accounts = cloneVaultAccounts(vault.Accounts)
@@ -507,7 +518,7 @@ func (s *FyneStorage) RenameVault(vault *model.Vault, name string) error {
 	if err := s.storeEncrypted(vaultPath(s, id), vault.Key(), &updated); err != nil {
 		return fmt.Errorf("could not store renamed vault: %w", err)
 	}
-	if err := s.storeVaultInfo(VaultInfo{ID: id, Name: name}); err != nil {
+	if err := s.storeVaultInfo(VaultInfo{ID: id, Name: name, Appearance: NormalizeVaultAppearance(appearance)}); err != nil {
 		return fmt.Errorf("could not update vault catalog: %w", err)
 	}
 	*vault = updated

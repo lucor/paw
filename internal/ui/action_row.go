@@ -20,6 +20,7 @@ type ActionRow struct {
 	widget.BaseWidget
 	button       *widget.Button
 	leading      *widget.Icon
+	leadingArea  *fyne.Container
 	title        *widget.Label
 	detail       *widget.Label
 	content      *fyne.Container
@@ -41,19 +42,27 @@ func NewActionRow(title, detail string, resource fyne.Resource, tapped func()) *
 	row.detail = newText(detail, bodyStyle)
 	row.text = container.New(layout.NewCustomPaddedVBoxLayout(0), row.title, row.detail)
 	text := container.NewThemeOverride(row.text, compactTextTheme{Theme: theme.Current()})
-	icon := container.NewPadded(container.NewGridWrap(fyne.NewSquareSize(32), row.leading))
+	row.leadingArea = container.NewPadded(container.NewGridWrap(fyne.NewSquareSize(32), row.leading))
 	row.count = newText("", captionStyle)
 	row.count.Wrapping = fyne.TextWrapOff
 	row.count.Hide()
 	row.next = widget.NewIcon(icons.Next)
 	row.trailing = row.trailingArrow()
 	row.content = container.NewBorder(nil, nil,
-		container.NewCenter(icon),
+		container.NewCenter(row.leadingArea),
 		row.trailing,
 		text,
 	)
 	row.ExtendBaseWidget(row)
 	return row
+}
+
+// SetLeadingObject replaces the standard icon with a custom object in the same row slot.
+func (r *ActionRow) SetLeadingObject(object fyne.CanvasObject) {
+	size := object.MinSize()
+	r.leadingArea.Objects[0] = container.NewGridWrap(fyne.NewSize(size.Width, size.Height), object)
+	r.leadingArea.Refresh()
+	r.Refresh()
 }
 
 // UseDefaultTextTheme keeps native label padding for wrapped or supplemental content.

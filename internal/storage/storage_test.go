@@ -142,7 +142,7 @@ func TestStorageInteroperability(t *testing.T) {
 			}
 			vaults, err := tt.reader.Vaults()
 			require.NoError(t, err)
-			require.Contains(t, vaults, VaultInfo{ID: id, Name: tt.name})
+			require.Contains(t, vaults, VaultInfo{ID: id, Name: tt.name, Appearance: DefaultVaultAppearance()})
 
 			state := &paw.AppState{Modified: time.Now().UTC(), Preferences: paw.NewDefaultPreferences()}
 			state.Preferences.FaviconDownloader.Disabled = true
@@ -205,7 +205,7 @@ func TestCreateCXFVaultFiles(t *testing.T) {
 
 			listed, err := osStorage.Vaults()
 			require.NoError(t, err)
-			require.Contains(t, listed, VaultInfo{ID: id, Name: "Personal " + name})
+			require.Contains(t, listed, VaultInfo{ID: id, Name: "Personal " + name, Appearance: DefaultVaultAppearance()})
 		})
 	}
 }
@@ -346,16 +346,168 @@ func TestStoreVaultInfoListsCXFVaults(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	info := VaultInfo{ID: base64.RawURLEncoding.EncodeToString(make([]byte, 16)), Name: "Personal"}
+	info := VaultInfo{ID: base64.RawURLEncoding.EncodeToString(make([]byte, 16)), Name: "Personal", Appearance: VaultAppearance{Icon: "briefcase-business", Color: "green"}}
 	for _, backend := range []cxfTestBackend{osStorage.(*OSStorage), fyneStorage.(*FyneStorage)} {
 		require.NoError(t, backend.storeVaultInfo(info))
 		data, err := os.ReadFile(vaultMetadataPath(backend, info.ID))
 		require.NoError(t, err)
-		require.JSONEq(t, `{"name":"Personal"}`, string(data))
+		require.JSONEq(t, `{"name":"Personal","icon":"briefcase-business","color":"green"}`, string(data))
 		vaults, err := backend.Vaults()
 		require.NoError(t, err)
 		require.Contains(t, vaults, info)
 	}
+}
+
+func TestVaultMetadataAppearanceDefaultsAndValidation(t *testing.T) {
+	id := base64.RawURLEncoding.EncodeToString(make([]byte, 16))
+	for _, testCase := range []struct {
+		name string
+		data string
+		want VaultAppearance
+	}{
+		{name: "legacy metadata", data: `{"name":"Personal"}`, want: DefaultVaultAppearance()},
+		{name: "unsupported identifiers", data: `{"name":"Personal","icon":"upload","color":"pink"}`, want: DefaultVaultAppearance()},
+		{name: "supported identifiers", data: `{"name":"Personal","icon":"folder","color":"purple"}`, want: VaultAppearance{Icon: "folder", Color: "purple"}},
+		{name: "no color", data: `{"name":"Personal","icon":"paw","color":"none"}`, want: VaultAppearance{Icon: "paw", Color: "none"}},
+		{name: "preserve configured vault icon", data: `{"name":"Personal","icon":"vault","color":"red"}`, want: VaultAppearance{Icon: "vault", Color: "red"}},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			info, err := vaultInfoFromMetadata(id, []byte(testCase.data))
+			require.NoError(t, err)
+			require.Equal(t, testCase.want, info.Appearance)
+		})
+	}
+}
+
+func TestCreateVaultPersistsAppearance(t *testing.T) {
+	app := test.NewApp()
+	t.Cleanup(app.Quit)
+	osStorage, err := NewOSStorageRooted(t.TempDir())
+	require.NoError(t, err)
+	fyneStorage, err := NewFyneStorage(rootedFyneStorage{
+		Storage: app.Storage(), root: fynestorage.NewFileURI(osStorage.Root()),
+	})
+	require.NoError(t, err)
+	want := VaultAppearance{Icon: "briefcase-business", Color: "green"}
+	for _, backend := range []Storage{osStorage, fyneStorage} {
+		vault, err := backend.CreateVault("Work", "test password", want)
+		require.NoError(t, err)
+		vaults, err := backend.Vaults()
+		require.NoError(t, err)
+		info, err := FindVaultInfo(vaults, vault.Accounts[0].ID)
+		require.NoError(t, err)
+		require.Equal(t, want, info.Appearance)
+	}
+}
+
+func TestCreateVaultPersistsNoColorAppearance(t *testing.T) {
+	backend, err := NewOSStorageRooted(t.TempDir())
+	require.NoError(t, err)
+	want := DefaultVaultAppearance()
+	vault, err := backend.CreateVault("Personal", "test password", want)
+	require.NoError(t, err)
+	vaults, err := backend.Vaults()
+	require.NoError(t, err)
+	info, err := FindVaultInfo(vaults, vault.Accounts[0].ID)
+	require.NoError(t, err)
+	require.Equal(t, want, info.Appearance)
+}
+
+func TestRenameVaultPreservesAppearance(t *testing.T) {
+	backend, err := NewOSStorageRooted(t.TempDir())
+	require.NoError(t, err)
+	want := VaultAppearance{Icon: "laptop", Color: "purple"}
+	vault, err := backend.CreateVault("Work", "test password", want)
+	require.NoError(t, err)
+	item, err := model.NewNote("Test", "note")
+	require.NoError(t, err)
+	require.NoError(t, backend.StoreItem(vault, item))
+	updatedAppearance := VaultAppearance{Icon: "house", Color: "orange"}
+	require.NoError(t, backend.UpdateVaultIdentity(vault, "Renamed work", updatedAppearance))
+	vaults, err := backend.Vaults()
+	require.NoError(t, err)
+	info, err := FindVaultInfo(vaults, vault.Accounts[0].ID)
+	require.NoError(t, err)
+	require.Equal(t, "Renamed work", info.Name)
+	require.Equal(t, updatedAppearance, info.Appearance)
+	require.Equal(t, "Renamed work", vault.Metadata.VaultName)
+	loaded, err := backend.LoadItem(vault, item.ID)
+	require.NoError(t, err)
+	require.Equal(t, item.ID, loaded.ID)
+	require.Equal(t, item.Credentials, loaded.Credentials)
+	require.NoError(t, backend.RenameVault(vault, "Renamed again"))
+	vaults, err = backend.Vaults()
+	require.NoError(t, err)
+	info, err = FindVaultInfo(vaults, vault.Accounts[0].ID)
+	require.NoError(t, err)
+	require.Equal(t, "Renamed again", info.Name)
+	require.Equal(t, updatedAppearance, info.Appearance)
+}
+
+func TestRenameReopenedEmptyVault(t *testing.T) {
+	for _, backendName := range []string{"OS", "Fyne"} {
+		t.Run(backendName, func(t *testing.T) {
+			app := test.NewApp()
+			t.Cleanup(app.Quit)
+			osStorage, err := NewOSStorageRooted(t.TempDir())
+			require.NoError(t, err)
+			var backend Storage = osStorage
+			if backendName == "Fyne" {
+				backend, err = NewFyneStorage(rootedFyneStorage{Storage: app.Storage(), root: fynestorage.NewFileURI(osStorage.Root())})
+				require.NoError(t, err)
+			}
+			vault, err := backend.CreateVault("Personal", "test password")
+			require.NoError(t, err)
+			id := vault.Accounts[0].ID
+			vault, err = backend.LoadVault(id, vault.Key())
+			require.NoError(t, err)
+			require.NoError(t, backend.UpdateVaultIdentity(vault, "Work", DefaultVaultAppearance()))
+			vault, err = backend.LoadVault(id, vault.Key())
+			require.NoError(t, err)
+			require.Equal(t, "Work", vault.Metadata.VaultName)
+			require.NotNil(t, vault.Accounts[0].Items)
+			require.Empty(t, vault.Accounts[0].Items)
+		})
+	}
+}
+
+func TestFyneStorageUpdatesVaultIdentity(t *testing.T) {
+	app := test.NewApp()
+	t.Cleanup(app.Quit)
+	osStorage, err := NewOSStorageRooted(t.TempDir())
+	require.NoError(t, err)
+	backend, err := NewFyneStorage(rootedFyneStorage{
+		Storage: app.Storage(), root: fynestorage.NewFileURI(osStorage.Root()),
+	})
+	require.NoError(t, err)
+	wantAppearance := VaultAppearance{Icon: "laptop", Color: "purple"}
+	vault, err := backend.CreateVault("Personal", "test password", wantAppearance)
+	require.NoError(t, err)
+	item, err := model.NewNote("Test", "note")
+	require.NoError(t, err)
+	require.NoError(t, backend.StoreItem(vault, item))
+	keyString := vault.Key().String()
+	vaultID := vault.Accounts[0].ID
+
+	updatedAppearance := VaultAppearance{Icon: "house", Color: "orange"}
+	require.NoError(t, backend.UpdateVaultIdentity(vault, "Work", updatedAppearance))
+	require.Equal(t, vaultID, vault.Accounts[0].ID)
+	require.Equal(t, "Work", vault.Metadata.VaultName)
+	vaults, err := backend.Vaults()
+	require.NoError(t, err)
+	info, err := FindVaultInfo(vaults, vaultID)
+	require.NoError(t, err)
+	require.Equal(t, "Work", info.Name)
+	require.Equal(t, updatedAppearance, info.Appearance)
+
+	loadedKey, err := backend.LoadVaultKey(vaultID, "test password")
+	require.NoError(t, err)
+	require.Equal(t, keyString, loadedKey.String())
+	loadedVault, err := backend.LoadVault(vaultID, loadedKey)
+	require.NoError(t, err)
+	loadedItem, err := backend.LoadItem(loadedVault, item.ID)
+	require.NoError(t, err)
+	require.Equal(t, item.Credentials, loadedItem.Credentials)
 }
 
 // TestVaultsHidesUnpublishedIDDirectories checks missing metadata keeps new folders hidden.

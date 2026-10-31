@@ -12,11 +12,13 @@ import (
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
+	"go.lucor.dev/paw/internal/storage"
 	"go.lucor.dev/paw/internal/ui/assets/icons"
 )
 
 // NewCreateVault displays the vault name and master password form.
-func NewCreateVault(back func(), create func(name, password string) error) fyne.CanvasObject {
+func NewCreateVault(back func(), create func(name, password string, appearance storage.VaultAppearance) error) fyne.CanvasObject {
+	appearance := storage.DefaultVaultAppearance()
 	name := widget.NewEntry()
 	name.SetPlaceHolder("e.g. Personal")
 	name.Validator = func(value string) error {
@@ -25,16 +27,11 @@ func NewCreateVault(back func(), create func(name, password string) error) fyne.
 		}
 		return nil
 	}
+	nameHint := newText("Identify this vault on your devices.", captionStyle)
+	nameInput := container.NewVBox(name, nameHint)
 	passwordField := NewPasswordField()
 	password := passwordField.Entry
-	password.Validator = func(value string) error {
-		if value == "" {
-			return errors.New("master password is required")
-		}
-		return nil
-	}
-	confirm := widget.NewPasswordEntry()
-	confirm.Validator = func(value string) error {
+	confirmValidator := func(value string) error {
 		if value == "" {
 			return errors.New("password confirmation is required")
 		}
@@ -43,6 +40,8 @@ func NewCreateVault(back func(), create func(name, password string) error) fyne.
 		}
 		return nil
 	}
+	confirm := widget.NewPasswordEntry()
+	confirm.Validator = confirmValidator
 	message := newErrorText("")
 	message.Hide()
 	showError := func(text string) {
@@ -51,18 +50,17 @@ func NewCreateVault(back func(), create func(name, password string) error) fyne.
 	}
 
 	form := widget.NewForm(
-		widget.NewFormItem("Vault name", name),
+		widget.NewFormItem("Vault name", nameInput),
 		widget.NewFormItem("Master password", passwordField),
 		widget.NewFormItem("Confirm password", confirm),
 	)
 	form.Orientation = widget.Vertical
-	form.Items[0].HintText = "Choose a name to easily identify this vault on your devices."
 	createButton := widget.NewButton("Create vault", func() {
-		if err := form.Validate(); err != nil {
+		if err := name.Validate(); err != nil || form.Validate() != nil || strings.TrimSpace(name.Text) == "" || password.Text == "" || confirm.Text != password.Text {
 			return
 		}
 		message.Hide()
-		if err := create(name.Text, password.Text); err != nil {
+		if err := create(name.Text, password.Text, appearance); err != nil {
 			showError(err.Error())
 		}
 	})
@@ -83,6 +81,9 @@ func NewCreateVault(back func(), create func(name, password string) error) fyne.
 			form.Refresh()
 			passwordWasEmpty = empty
 		}
+		if confirm.Text != "" {
+			confirm.Validate()
+		}
 		updateSubmit()
 	}
 	confirm.OnChanged = func(string) { updateSubmit() }
@@ -90,18 +91,34 @@ func NewCreateVault(back func(), create func(name, password string) error) fyne.
 	backButton := widget.NewButtonWithIcon("", icons.Back, back)
 	backButton.Importance = widget.LowImportance
 	heading := newText("Create new vault", titleStyle)
-	backdrop := theme.NewColoredResource(fyne.NewStaticResource("vault-backdrop.svg", []byte(
-		`<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96"><circle cx="48" cy="48" r="48" fill="#000000"/></svg>`)), theme.ColorNameFocus)
-	badge := container.NewStack(
-		container.NewGridWrap(fyne.NewSquareSize(96), widget.NewIcon(backdrop)),
-		container.NewCenter(container.NewGridWrap(fyne.NewSquareSize(32), widget.NewIcon(icons.Vault))),
-	)
-	fields := container.New(layout.NewCustomPaddedVBoxLayout(theme.Size(theme.SizeNameInnerPadding)),
-		container.New(layout.NewCustomPaddedLayout(24, 24, 0, 0), container.NewCenter(badge)),
-		form,
-	)
 	header := newPageHeader(backButton, heading, nil)
 	footer := container.NewVBox(message, container.NewStack(createButton))
-	page := container.NewBorder(header, footer, nil, nil, container.NewVScroll(fields))
-	return container.New(layout.NewCustomPaddedLayout(24, 24, 24, 24), page)
+
+	previewButton := widget.NewButton("", nil)
+	previewButton.Importance = widget.LowImportance
+	preview := func() fyne.CanvasObject {
+		return newEditableVaultPreview(appearance, previewButton)
+	}
+	previewObject := preview()
+	fields := container.New(layout.NewCustomPaddedVBoxLayout(theme.Size(theme.SizeNameInnerPadding)),
+		container.New(layout.NewCustomPaddedLayout(24, 24, 0, 0), container.NewCenter(previewObject)),
+		form,
+	)
+	formPage := newSecondaryPage(header, footer, container.NewVScroll(fields))
+	screen := container.NewStack(formPage)
+	previewButton.OnTapped = func() {
+		appearancePage := newVaultAppearanceView(name.Text, appearance, func(updated storage.VaultAppearance) {
+			appearance = updated
+			previewObject = preview()
+			fields.Objects[0] = container.New(layout.NewCustomPaddedLayout(24, 24, 0, 0), container.NewCenter(previewObject))
+			fields.Refresh()
+			updateSubmit()
+		}, func() {
+			screen.Objects = []fyne.CanvasObject{formPage}
+			screen.Refresh()
+		})
+		screen.Objects = []fyne.CanvasObject{appearancePage}
+		screen.Refresh()
+	}
+	return screen
 }

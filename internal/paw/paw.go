@@ -259,6 +259,29 @@ func (k *Key) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// WriteWrapped protects the existing identity with a password without generating a new key.
+func (k *Key) WriteWrapped(w io.Writer, password string) error {
+	if password == "" {
+		return fmt.Errorf("master password is required")
+	}
+	recipient, err := age.NewScryptRecipient(password)
+	if err != nil {
+		return err
+	}
+	armored := armor.NewWriter(w)
+	encrypted, err := age.Encrypt(armored, recipient)
+	if err != nil {
+		return err
+	}
+	if _, err = io.WriteString(encrypted, k.ageIdentity.String()+"\n"); err != nil {
+		return err
+	}
+	if err = encrypted.Close(); err != nil {
+		return err
+	}
+	return armored.Close()
+}
+
 func (k *Key) String() string {
 	return k.ageIdentity.String()
 }
