@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"filippo.io/age"
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
@@ -120,6 +121,19 @@ func runUIE2EScreenshotGallery(t *testing.T, outputDir string, variant fyne.Them
 		capture("create-vault-valid", createVault)
 	}
 	capture("unlock-vault", NewUnlockVault(storage.VaultInfo{ID: "personal", Name: "Personal"}, &storage.StorageMock{}, nil, func() {}, func() {}, func() {}))
+	unlockFailureStore := &storage.StorageMock{}
+	unlockFailureStore.OnLoadVaultKey = func(string, string) (*paw.Key, error) { return nil, &age.NoIdentityMatchError{} }
+	unlockFailure := NewUnlockVault(storage.VaultInfo{ID: "personal", Name: "Personal"}, unlockFailureStore, nil, nil, nil, func() {})
+	window.SetContent(unlockFailure)
+	window.Resize(fyne.NewSize(440, 800))
+	unlockFailure.password.SetText("incorrect password")
+	test.Tap(unlockFailure.button)
+	require.Eventually(t, func() bool {
+		var visible bool
+		fyne.DoAndWait(func() { visible = unlockFailure.passwordError.Visible() })
+		return visible
+	}, time.Second, 10*time.Millisecond)
+	captureCurrent("unlock-vault-error", fyne.NewSize(440, 800))
 	capture("vault-selector", NewSelectVault([]VaultChoice{
 		{Name: "Personal", Unlocked: true, Open: func() {}},
 		{Name: "Work", Open: func() {}},
@@ -166,8 +180,21 @@ func runUIE2EScreenshotGallery(t *testing.T, outputDir string, variant fyne.Them
 	captureCurrent("edit-vault-customized", fyne.NewSize(440, 800))
 
 	listOptions := entryListFixture()
+	githubFavicon := darkFaviconFixture()
+	listOptions.Entries[0].Icon = githubFavicon
 	list := NewEntryList(listOptions)
 	capture("entry-list", list)
+	captureAt("entry-list-narrow", list, fyne.NewSize(320, 540))
+	emptyVaultOptions := entryListFixture()
+	emptyVaultOptions.Entries = nil
+	capture("entry-list-empty-vault", NewEntryList(emptyVaultOptions))
+	searchEmptyOptions := entryListFixture()
+	searchEmptyOptions.Search = "not-found"
+	capture("entry-list-search-empty", NewEntryList(searchEmptyOptions))
+	categoryEmptyOptions := entryListFixture()
+	categoryEmptyOptions.Category = "password"
+	categoryEmptyOptions.Entries = []EntryRow{{Title: "GitHub", Category: "login", Icon: icons.Login, Open: func() {}}}
+	capture("entry-list-category-empty", NewEntryList(categoryEmptyOptions))
 	window.Resize(fyne.NewSize(320, 540))
 	captureUIPilotScreen(t, window, outputDir, "entry-list-short-window"+suffix)
 	for _, menu := range []struct {
@@ -206,7 +233,7 @@ func runUIE2EScreenshotGallery(t *testing.T, outputDir string, variant fyne.Them
 	navigation := findPilotNavigation(t, list)
 	codeContext, cancelCodes := context.WithCancel(context.Background())
 	codesView := newCodesView(codeContext, []codesEntry{
-		{Title: "GitHub", Username: "dev@example.com", ItemID: "github", Icon: icons.Globe, Credential: testTOTPCredential()},
+		{Title: "GitHub", Username: "dev@example.com", ItemID: "github", Icon: githubFavicon, Credential: testTOTPCredential()},
 		{Title: "Google", Username: "user@gmail.com", ItemID: "google", Icon: icons.Globe, Credential: testTOTPCredential()},
 		{Title: "GitLab", Username: "dev@example.com", ItemID: "gitlab", Icon: icons.Globe, Credential: testTOTPCredential()},
 	}, nil)
@@ -243,6 +270,7 @@ func runUIE2EScreenshotGallery(t *testing.T, outputDir string, variant fyne.Them
 	navigation.Select(2)
 
 	login := loginEditorFixture(t)
+	login.Metadata.Favicon = githubFavicon
 	password, err := model.NewPassword("Home Wi-Fi", "synthetic-password", model.PasswordSettings{Mode: paw.CustomPassword})
 	require.NoError(t, err)
 	note, err := model.NewNote("Recovery note", "Synthetic note for UI review.")
@@ -348,16 +376,11 @@ func runUIE2EScreenshotGallery(t *testing.T, outputDir string, variant fyne.Them
 	backupFlow.complete(vault)
 	captureCurrent("restore-complete", fyne.NewSize(440, 800))
 
-	ShowExportCredentials(window, &storage.StorageMock{}, vault)
+	exportView := newExportCredentialsView(window, &storage.StorageMock{}, vault, "Personal", func() {})
+	window.SetContent(exportView.View)
 	captureCurrent("export-encrypted-default", fyne.NewSize(440, 800))
-	for _, object := range test.LaidOutObjects(window.Canvas().Overlays().Top()) {
-		if mode, ok := object.(*widget.RadioGroup); ok {
-			mode.SetSelected("Plaintext")
-			break
-		}
-	}
+	exportView.Mode.SetSelected(exportPlaintextLabel)
 	captureCurrent("export-plaintext-warning", fyne.NewSize(440, 800))
-	closePilotOverlay(window)
 
 	passwordItem, err := model.NewPassword("Example password", "", model.PasswordSettings{Mode: paw.CustomPassword})
 	require.NoError(t, err)

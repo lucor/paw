@@ -64,19 +64,22 @@ func newCodesView(ctx context.Context, entries []codesEntry, opener codeEntryOpe
 		row := container.NewVBox(header, display.View())
 		objects = append(objects, row)
 	}
+	var content fyne.CanvasObject
 	if len(view.displays) == 0 {
-		empty := container.NewVBox(
-			newText("No verification codes", headingStyle),
-			newText("Verification codes from your login items will appear here.", bodyStyle),
-		)
-		objects = append(objects, container.NewCenter(empty))
+		emptyTitle := newText("No verification codes", headingStyle)
+		emptyTitle.Alignment = fyne.TextAlignCenter
+		emptyDescription := newText("Verification codes from your login items will appear here.", captionStyle)
+		emptyDescription.Alignment = fyne.TextAlignCenter
+		empty := container.NewVBox(emptyTitle, emptyDescription)
+		content = container.NewCenter(empty)
+	} else {
+		content = container.NewVScroll(container.NewVBox(objects...))
 	}
-	content := container.NewVBox(objects...)
 	count := newText(codeCountLabel(len(view.displays)), bodyStyle)
 	count.Wrapping = fyne.TextWrapOff
 	heading := container.NewBorder(nil, nil, newText("Verification codes", headingStyle), count, nil)
 	padding := theme.Size(theme.SizeNamePadding)
-	body := container.New(layout.NewCustomPaddedLayout(padding, padding, padding, padding), container.NewBorder(heading, nil, nil, nil, container.NewVScroll(content)))
+	body := container.New(layout.NewCustomPaddedLayout(padding, padding, padding, padding), container.NewBorder(heading, nil, nil, nil, content))
 	view.View = body
 	if len(view.displays) > 0 {
 		go view.run(ctx)

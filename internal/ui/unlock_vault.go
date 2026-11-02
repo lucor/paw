@@ -5,11 +5,13 @@ package ui
 
 import (
 	"errors"
+	"fmt"
 
 	"filippo.io/age"
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/layout"
+	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 	"go.lucor.dev/paw/internal/model"
 	"go.lucor.dev/paw/internal/storage"
@@ -19,32 +21,49 @@ import (
 // UnlockVault displays and handles unlocking one stored vault.
 type UnlockVault struct {
 	widget.BaseWidget
-	info       storage.VaultInfo
-	store      storage.VaultStorage
-	onUnlocked func(*model.Vault)
-	password   *widget.Entry
-	button     *widget.Button
-	activity   *widget.Activity
-	message    *widget.Label
-	content    fyne.CanvasObject
+	info              storage.VaultInfo
+	store             storage.VaultStorage
+	onUnlocked        func(*model.Vault)
+	password          *widget.Entry
+	passwordError     *widget.Label
+	incorrectPassword bool
+	button            *widget.Button
+	activity          *widget.Activity
+	message           *widget.Label
+	content           fyne.CanvasObject
 }
+
+const incorrectMasterPasswordMessage = "Incorrect master password. Try again."
 
 // NewUnlockVault creates a vault unlock view with navigation to Add vault.
 func NewUnlockVault(info storage.VaultInfo, store storage.VaultStorage, onUnlocked func(*model.Vault), back, addVault, chooseAnother func()) *UnlockVault {
 	u := &UnlockVault{info: info, store: store, onUnlocked: onUnlocked}
 	u.password = widget.NewPasswordEntry()
 	u.password.Validator = func(value string) error {
+		if u.incorrectPassword {
+			return fmt.Errorf("%s", incorrectMasterPasswordMessage)
+		}
 		if value == "" {
 			return errors.New("master password is required")
 		}
 		return nil
 	}
+	u.passwordError = newErrorText(incorrectMasterPasswordMessage)
+	u.passwordError.Hide()
 	u.button = widget.NewButton("Unlock", u.unlock)
 	u.button.Importance = widget.HighImportance
 	u.button.Disable()
 	u.activity = widget.NewActivity()
 	u.activity.Hide()
 	u.password.OnChanged = func(value string) {
+		if u.incorrectPassword {
+			u.incorrectPassword = false
+			u.password.SetValidationError(nil)
+		}
+		if u.passwordError.Visible() {
+			u.passwordError.Hide()
+			u.Refresh()
+		}
 		if value == "" || u.password.Disabled() {
 			u.button.Disable()
 		} else {
@@ -58,9 +77,33 @@ func NewUnlockVault(info storage.VaultInfo, store storage.VaultStorage, onUnlock
 	}
 	u.message = newText("", bodyStyle)
 	u.message.Hide()
-	u.content = unlockVaultContent(info, u.password, u.button, u.activity, u.message, back, addVault, chooseAnother)
+	back = u.clearPasswordWhenLeaving(back)
+	addVault = u.clearPasswordWhenLeaving(addVault)
+	chooseAnother = u.clearPasswordWhenLeaving(chooseAnother)
+	u.content = unlockVaultContent(info, u.password, u.passwordError, u.button, u.activity, u.message, back, addVault, chooseAnother)
 	u.ExtendBaseWidget(u)
 	return u
+}
+
+func (u *UnlockVault) clearPasswordWhenLeaving(action func()) func() {
+	if action == nil {
+		return nil
+	}
+	return func() {
+		u.ClearPassword()
+		action()
+	}
+}
+
+// ClearPassword clears sensitive input when this view is left.
+func (u *UnlockVault) ClearPassword() {
+	u.incorrectPassword = false
+	u.password.SetText("")
+	u.password.SetValidationError(nil)
+	u.passwordError.Hide()
+	u.message.Hide()
+	u.button.Disable()
+	u.Refresh()
 }
 
 func (u *UnlockVault) unlock() {
@@ -69,9 +112,9 @@ func (u *UnlockVault) unlock() {
 	}
 
 	password := u.password.Text
-	u.password.SetText("")
 	u.password.Disable()
 	u.button.Disable()
+	u.passwordError.Hide()
 	u.message.Hide()
 	u.activity.Show()
 	u.activity.Start()
@@ -89,7 +132,8 @@ func (u *UnlockVault) unlock() {
 		if err != nil {
 			var invalidPassword *age.NoIdentityMatchError
 			if errors.As(err, &invalidPassword) {
-				err = errors.New("the password is incorrect")
+				fyne.Do(u.showIncorrectPassword)
+				return
 			}
 			fyne.Do(func() { u.showError(err) })
 			return
@@ -102,8 +146,7 @@ func (u *UnlockVault) unlock() {
 		fyne.Do(func() {
 			u.activity.Stop()
 			u.activity.Hide()
-			u.message.Hide()
-			u.password.Enable()
+			u.ClearPassword()
 			if u.onUnlocked != nil {
 				u.onUnlocked(vault)
 			}
@@ -111,9 +154,31 @@ func (u *UnlockVault) unlock() {
 	}()
 }
 
+func (u *UnlockVault) showIncorrectPassword() {
+	u.activity.Stop()
+	u.activity.Hide()
+	u.message.Hide()
+	u.password.Enable()
+	u.incorrectPassword = true
+	u.password.SetValidationError(fmt.Errorf("%s", incorrectMasterPasswordMessage))
+	u.passwordError.Show()
+	if u.password.Text == "" {
+		u.button.Disable()
+	} else {
+		u.button.Enable()
+	}
+	if canvas := fyne.CurrentApp().Driver().CanvasForObject(u.password); canvas != nil {
+		canvas.Focus(u.password)
+	}
+	u.Refresh()
+}
+
 func (u *UnlockVault) showError(err error) {
 	u.activity.Stop()
 	u.activity.Hide()
+	u.incorrectPassword = false
+	u.password.SetText("")
+	u.password.SetValidationError(nil)
 	u.password.Enable()
 	u.message.SetText(err.Error())
 	u.message.Importance = widget.DangerImportance
@@ -125,7 +190,7 @@ func (u *UnlockVault) CreateRenderer() fyne.WidgetRenderer {
 	return widget.NewSimpleRenderer(u.content)
 }
 
-func unlockVaultContent(info storage.VaultInfo, password *widget.Entry, unlock *widget.Button, activity *widget.Activity, message *widget.Label, back, addVault, chooseAnother func()) fyne.CanvasObject {
+func unlockVaultContent(info storage.VaultInfo, password *widget.Entry, passwordError *widget.Label, unlock *widget.Button, activity *widget.Activity, message *widget.Label, back, addVault, chooseAnother func()) fyne.CanvasObject {
 	heading := newText("Unlock "+info.Name, headingStyle)
 	heading.Alignment = fyne.TextAlignCenter
 	var navigation fyne.CanvasObject
@@ -146,7 +211,7 @@ func unlockVaultContent(info storage.VaultInfo, password *widget.Entry, unlock *
 	fields := []fyne.CanvasObject{
 		container.New(layout.NewCustomPaddedLayout(24, 24, 0, 0), container.NewCenter(badge)),
 		heading,
-		container.NewVBox(newText("Master password", captionStyle), password),
+		container.NewVBox(newText("Master password", captionStyle), password, container.NewThemeOverride(passwordError, compactTextTheme{Theme: theme.Current()})),
 		container.NewStack(unlock),
 	}
 	if chooseAnotherAction != nil {

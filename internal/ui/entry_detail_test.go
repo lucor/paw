@@ -151,6 +151,13 @@ func TestEntryDetailSSHKeyDisclosureAndActions(t *testing.T) {
 	test.Tap(buttons["Download public key"])
 	saveDialog := window.Canvas().Overlays().Top()
 	require.NotNil(t, saveDialog)
+	var saveLists int
+	for _, object := range test.LaidOutObjects(saveDialog) {
+		if _, ok := object.(*widget.List); ok {
+			saveLists++
+		}
+	}
+	require.GreaterOrEqual(t, saveLists, 2)
 	window.Canvas().Overlays().Remove(saveDialog)
 	test.Tap(buttons["Entry actions"])
 	require.Equal(t, []string{"Edit entry", "Delete entry"}, menuLabels(t, window))
@@ -735,11 +742,16 @@ func TestEntryDetailMetadataStaysAtBottomForShortItems(t *testing.T) {
 }
 
 func TestEntryDetailMetadataRowsHaveCompactSpacing(t *testing.T) {
+	previousZone := time.Local
+	time.Local = time.UTC
+	t.Cleanup(func() { time.Local = previousZone })
 	for _, kind := range []string{"login", "password", "note", "ssh"} {
 		t.Run(kind, func(t *testing.T) {
 			test.NewTempApp(t)
 			window := test.NewTempWindow(t, nil)
-			view, err := NewEntryDetail(context.Background(), detailItemFixture(t, kind), window, func() {}, func() {}, func() {})
+			item := detailItemFixture(t, kind)
+			createdBefore, modifiedBefore := *item.CreationAt, *item.ModifiedAt
+			view, err := NewEntryDetail(context.Background(), item, window, func() {}, func() {}, func() {})
 			require.NoError(t, err)
 			window.SetContent(view)
 			window.Resize(fyne.NewSize(430, 640))
@@ -755,9 +767,33 @@ func TestEntryDetailMetadataRowsHaveCompactSpacing(t *testing.T) {
 				}
 			}
 			require.NotNil(t, metadata)
-			require.Contains(t, metadata.Text, "\nModified · ", "rows should share one compact text layout")
+			require.Equal(t, "Created · 12 Jan 2024, 10:24:00\nModified · 3 Mar 2024, 14:17:00", metadata.Text,
+				"all item types should show compact local timestamps with seconds")
+			require.Equal(t, createdBefore, *item.CreationAt)
+			require.Equal(t, modifiedBefore, *item.ModifiedAt)
 		})
 	}
+}
+
+func TestFormatDetailTimestampUsesLocalTimeAndSeconds(t *testing.T) {
+	previousZone := time.Local
+	time.Local = time.FixedZone("test local", 2*60*60)
+	t.Cleanup(func() { time.Local = previousZone })
+
+	timestamp := uint64(time.Date(2026, time.November, 2, 15, 45, 21, 987654321, time.UTC).Unix())
+	require.Equal(t, "2 Nov 2026, 17:45:21", formatDetailTimestamp(timestamp))
+}
+
+func TestEntryDetailOmitsMissingTimestamps(t *testing.T) {
+	test.NewTempApp(t)
+	item := detailItemFixture(t, "password")
+	item.CreationAt = nil
+	item.ModifiedAt = nil
+	window := test.NewTempWindow(t, nil)
+	view, err := NewEntryDetail(context.Background(), item, window, func() {}, func() {}, func() {})
+	require.NoError(t, err)
+	require.NotContains(t, auditTexts(view), "Created · ")
+	require.NotContains(t, auditTexts(view), "Modified · ")
 }
 
 func TestEntryDetailLongNoteMetadataFollowsScrollableContent(t *testing.T) {

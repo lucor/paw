@@ -12,25 +12,27 @@ import (
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
+	"go.lucor.dev/paw/internal/paw"
 	"go.lucor.dev/paw/internal/ui/assets/icons"
 )
 
 // ActionRow is a full-width outlined action with a leading icon and two text lines.
 type ActionRow struct {
 	widget.BaseWidget
-	button       *widget.Button
-	leading      *widget.Icon
-	leadingArea  *fyne.Container
-	title        *widget.Label
-	detail       *widget.Label
-	content      *fyne.Container
-	text         *fyne.Container
-	trailing     *fyne.Container
-	count        *widget.Label
-	next         *widget.Icon
-	supplemental fyne.CanvasObject
-	flat         bool
-	interactive  bool
+	button        *widget.Button
+	leading       *widget.Icon
+	leadingArea   *fyne.Container
+	title         *widget.Label
+	detail        *widget.Label
+	content       *fyne.Container
+	text          *fyne.Container
+	trailing      *fyne.Container
+	count         *widget.Label
+	next          *widget.Icon
+	supplemental  fyne.CanvasObject
+	customLeading bool
+	flat          bool
+	interactive   bool
 }
 
 // NewActionRow creates a reusable, clickable row for navigation and list items.
@@ -43,6 +45,10 @@ func NewActionRow(title, detail string, resource fyne.Resource, tapped func()) *
 	row.text = container.New(layout.NewCustomPaddedVBoxLayout(0), row.title, row.detail)
 	text := container.NewThemeOverride(row.text, compactTextTheme{Theme: theme.Current()})
 	row.leadingArea = container.NewPadded(container.NewGridWrap(fyne.NewSquareSize(32), row.leading))
+	if favicon, ok := resource.(*paw.Favicon); ok && len(favicon.Data) > 0 {
+		row.leadingArea.Objects[0] = container.NewGridWrap(fyne.NewSquareSize(32), newIconPreview(favicon))
+		row.customLeading = true
+	}
 	row.count = newText("", captionStyle)
 	row.count.Wrapping = fyne.TextWrapOff
 	row.count.Hide()
@@ -61,8 +67,22 @@ func NewActionRow(title, detail string, resource fyne.Resource, tapped func()) *
 func (r *ActionRow) SetLeadingObject(object fyne.CanvasObject) {
 	size := object.MinSize()
 	r.leadingArea.Objects[0] = container.NewGridWrap(fyne.NewSize(size.Width, size.Height), object)
+	r.customLeading = true
 	r.leadingArea.Refresh()
 	r.Refresh()
+}
+
+func (r *ActionRow) setLeadingResource(resource fyne.Resource) {
+	r.leading.SetResource(resource)
+	if favicon, ok := resource.(*paw.Favicon); ok && len(favicon.Data) > 0 {
+		r.SetLeadingObject(container.NewGridWrap(fyne.NewSquareSize(32), newIconPreview(favicon)))
+		return
+	}
+	if r.customLeading {
+		r.leadingArea.Objects[0] = container.NewGridWrap(fyne.NewSquareSize(32), r.leading)
+		r.customLeading = false
+		r.leadingArea.Refresh()
+	}
 }
 
 // UseDefaultTextTheme keeps native label padding for wrapped or supplemental content.
@@ -101,7 +121,7 @@ func (r *ActionRow) SetDetailStyle(style textStyle) {
 func (r *ActionRow) SetContent(title, detail string, resource fyne.Resource) {
 	r.title.SetText(title)
 	r.detail.SetText(detail)
-	r.leading.SetResource(resource)
+	r.setLeadingResource(resource)
 	r.Refresh()
 }
 

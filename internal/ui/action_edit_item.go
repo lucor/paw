@@ -248,11 +248,7 @@ func (a *app) saveEditedItem(original, item *model.Item, isNew bool) {
 
 // deleteItem confirms deletion and updates the existing vault navigation.
 func (a *app) deleteItem(original *model.Item) {
-	msg := widget.NewLabel(fmt.Sprintf("Are you sure you want to delete %q?", original.Title))
-	d := dialog.NewCustomConfirm("", "Delete", "Cancel", msg, func(ok bool) {
-		if !ok {
-			return
-		}
+	showDeleteConfirmation("Delete item?", "Delete item", fmt.Sprintf("Permanently delete %q from this vault? This action cannot be undone.", original.Title), func() {
 		if err := a.storage.DeleteItem(a.vault, original.ID); err != nil {
 			dialog.ShowError(err, a.win)
 			return
@@ -268,6 +264,4 @@ func (a *app) deleteItem(original *model.Item) {
 		a.refreshCurrentView()
 		a.showCurrentVaultView()
 	}, a.win)
-	d.SetConfirmImportance(widget.DangerImportance)
-	d.Show()
 }

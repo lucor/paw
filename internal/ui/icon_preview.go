@@ -15,20 +15,36 @@ import (
 	"go.lucor.dev/paw/internal/ui/assets/icons"
 )
 
+var faviconPreviewBackground = color.NRGBA{R: 245, G: 245, B: 245, A: 255}
+
+const (
+	defaultFaviconIconSize = 24
+	smallFaviconIconSize   = 16
+)
+
 // iconPreview frames a favicon or entry icon with a theme-aware background.
 type iconPreview struct {
 	widget.BaseWidget
 	background *canvas.Rectangle
 	icon       *widget.Icon
+	content    *fyne.Container
+	iconSize   float32
+	favicon    bool
 }
 
 func newIconPreview(resource fyne.Resource) *iconPreview {
+	return newIconPreviewWithIconSize(resource, defaultFaviconIconSize)
+}
+
+func newIconPreviewWithIconSize(resource fyne.Resource, iconSize float32) *iconPreview {
 	if resource == nil {
 		resource = icons.Globe
 	}
 	preview := &iconPreview{
 		background: canvas.NewRectangle(color.Transparent),
 		icon:       widget.NewIcon(resource),
+		iconSize:   iconSize,
+		favicon:    isDownloadedFavicon(resource),
 	}
 	preview.ExtendBaseWidget(preview)
 	return preview
@@ -38,7 +54,12 @@ func (f *iconPreview) SetResource(resource fyne.Resource) {
 	if resource == nil {
 		resource = icons.Globe
 	}
+	f.favicon = isDownloadedFavicon(resource)
 	f.icon.SetResource(resource)
+	if f.content != nil {
+		f.content.Objects[1] = f.iconObject()
+		f.content.Refresh()
+	}
 	f.Refresh()
 }
 
@@ -50,9 +71,21 @@ func (f *iconPreview) SetFavicon(favicon *paw.Favicon) {
 	f.SetResource(favicon)
 }
 
+func isDownloadedFavicon(resource fyne.Resource) bool {
+	favicon, ok := resource.(*paw.Favicon)
+	return ok && len(favicon.Data) > 0
+}
+
 func (f *iconPreview) CreateRenderer() fyne.WidgetRenderer {
-	content := container.NewStack(f.background, container.NewCenter(f.icon))
-	return &iconPreviewRenderer{WidgetRenderer: widget.NewSimpleRenderer(content), preview: f}
+	f.content = container.NewStack(f.background, f.iconObject())
+	return &iconPreviewRenderer{WidgetRenderer: widget.NewSimpleRenderer(f.content), preview: f}
+}
+
+func (f *iconPreview) iconObject() fyne.CanvasObject {
+	if f.favicon {
+		return container.NewCenter(container.NewGridWrap(fyne.NewSquareSize(f.iconSize), f.icon))
+	}
+	return container.NewCenter(f.icon)
 }
 
 type iconPreviewRenderer struct {
@@ -61,7 +94,11 @@ type iconPreviewRenderer struct {
 }
 
 func (r *iconPreviewRenderer) Refresh() {
-	r.preview.background.FillColor = theme.Color(theme.ColorNameInputBackground)
+	if r.preview.favicon {
+		r.preview.background.FillColor = faviconPreviewBackground
+	} else {
+		r.preview.background.FillColor = theme.Color(theme.ColorNameInputBackground)
+	}
 	r.preview.background.CornerRadius = theme.Size(theme.SizeNameButtonRadius)
 	r.preview.background.Refresh()
 	r.WidgetRenderer.Refresh()

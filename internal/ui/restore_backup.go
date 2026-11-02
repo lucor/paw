@@ -59,11 +59,8 @@ func (f *restoreFlow) selectFile(message string) {
 			}
 			f.decode(reader, "")
 		}, f.window)
-		picker.SetView(dialog.ListView)
+		configureFilePicker(picker)
 		picker.SetFilter(restoreBackupFileFilter{})
-		if !fyne.CurrentDevice().IsMobile() {
-			picker.Resize(fyne.NewSize(DefaultWindowWidth, DefaultWindowHeight))
-		}
 		picker.Show()
 	})
 	choose.Importance = widget.HighImportance

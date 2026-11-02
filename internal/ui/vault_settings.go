@@ -5,6 +5,7 @@ package ui
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 
 	"fyne.io/fyne/v2"
@@ -153,22 +154,35 @@ func (a *app) showVaultSettings() {
 }
 
 func (a *app) confirmDeleteVault(vaultID, name string) {
-	if a.vault == nil || a.vaultID != vaultID || a.settingsVaultID != vaultID {
+	if a.vault == nil || a.vaultID != vaultID || a.settingsVaultID != vaultID || a.deletingVault {
 		return
 	}
-	dialog.NewConfirm("Delete vault?", "Permanently delete \""+name+"\" and its locally stored data from this device? This action cannot be undone.", func(confirmed bool) {
-		if !confirmed || a.vault == nil || a.vaultID != vaultID || a.settingsVaultID != vaultID {
+	showDeleteConfirmation("Delete vault?", "Delete vault", fmt.Sprintf("Permanently delete %q and its locally stored data from this device?\nThis action cannot be undone.", name), func() {
+		if a.vault == nil || a.vaultID != vaultID || a.settingsVaultID != vaultID || a.deletingVault {
 			return
 		}
+		a.deletingVault = true
+		defer func() { a.deletingVault = false }()
 		if err := a.storage.DeleteVault(vaultID); err != nil {
 			dialog.ShowError(err, a.win)
 			return
 		}
 		delete(a.unlockedVault, vaultID)
-		a.main.Content = a.makeApp().Content
+		vaults, err := a.storage.Vaults()
+		if err != nil {
+			a.main.Content = NewAddVault(nil, a.showCreateVaultView, a.showRestoreVaultView)
+			a.lockVault()
+			dialog.ShowError(err, a.win)
+			return
+		}
+		if len(vaults) == 0 {
+			a.main.Content = NewAddVault(nil, a.showCreateVaultView, a.showRestoreVaultView)
+		} else {
+			a.main.Content = a.makeSelectVaultView(vaults)
+		}
 		a.lockVault()
 		a.main.Refresh()
-	}, a.win).Show()
+	}, a.win)
 }
 
 func (a *app) showVaultIdentityEditor(vaultID, name string, appearance storage.VaultAppearance) {

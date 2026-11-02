@@ -36,6 +36,7 @@ func NewAboutPawView(window fyne.Window, back func()) fyne.CanvasObject {
 }
 
 func (a *app) showAboutPawView(back fyne.CanvasObject) {
+	a.clearUnlockPassword()
 	if back == nil {
 		back = a.main
 	}

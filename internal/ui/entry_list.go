@@ -68,23 +68,26 @@ func NewEntryList(options EntryListOptions) fyne.CanvasObject {
 	}
 	var list *widget.List
 	list = widget.NewList(func() int { return len(visible) }, func() fyne.CanvasObject {
-		return container.New(layout.NewCustomPaddedLayout(0, 0, theme.Size(theme.SizeNameInnerPadding), theme.Size(theme.SizeNameInnerPadding)), NewActionRow("Entry", "Summary", icons.Vault, nil))
+		return container.NewStack(newNavigationRowWithSubtitle("Entry", " ", navigationRowIcon(icons.Paw), nil))
 	}, func(id widget.ListItemID, object fyne.CanvasObject) {
 		entry := visible[id]
-		row := object.(*fyne.Container).Objects[0].(*ActionRow)
-		row.SetContent(entry.Title, entry.Subtitle, entry.Icon)
-		row.SetTapped(func() { list.Select(id) })
+		cell := object.(*fyne.Container)
+		cell.Objects[0] = newNavigationRowWithSubtitle(entry.Title, entry.Subtitle, navigationRowIcon(entry.Icon), func() { list.Select(id) })
+		cell.Refresh()
 	})
-	list.HideSeparators = true
+	list.HideSeparators = false
 	list.OnSelected = func(id widget.ListItemID) { entry := visible[id]; list.UnselectAll(); entry.Open() }
-	empty := newText("No entries yet. Use + to add an entry.", captionStyle)
-	empty.Alignment = fyne.TextAlignCenter
+	emptyTitle := newText("No items yet", headingStyle)
+	emptyTitle.Alignment = fyne.TextAlignCenter
+	emptyDescription := newText("Use + to add your first item.", captionStyle)
+	emptyDescription.Alignment = fyne.TextAlignCenter
+	empty := container.NewCenter(container.NewVBox(emptyTitle, emptyDescription))
 	input := widget.NewEntry()
 	input.SetPlaceHolder("Search entries…")
 	input.SetText(search)
 	input.ActionItem = widget.NewButtonWithIcon("", theme.CancelIcon(), func() { input.SetText("") })
 	if len(options.Categories) == 0 {
-		options.Categories = []EntryCategory{{ID: "all", Label: "All items", Icon: icons.Vault}}
+		options.Categories = []EntryCategory{{ID: "all", Label: "All items", Icon: icons.List}}
 	}
 	categoryFor := func(id string) EntryCategory {
 		for _, value := range options.Categories {
@@ -132,13 +135,26 @@ func NewEntryList(options EntryListOptions) fyne.CanvasObject {
 		categoryIcon.SetResource(selected.Icon)
 		categoryLabel.SetText(selected.Label)
 		if len(visible) == 0 {
-			if len(entries) > 0 {
-				empty.SetText("No items match these filters.")
-			} else {
-				empty.SetText("No entries in this vault yet.")
+			switch {
+			case len(entries) == 0:
+				emptyTitle.SetText("No items yet")
+				emptyDescription.SetText("Use + to add your first item.")
+			case strings.TrimSpace(search) != "":
+				emptyTitle.SetText("No results found")
+				emptyDescription.SetText("Try a different search.")
+			case category != "all":
+				emptyTitle.SetText("No items in this category")
+				emptyDescription.SetText("Try another category.")
+			default:
+				emptyTitle.SetText("No results found")
+				emptyDescription.SetText("Try a different search.")
 			}
+			emptyTitle.Show()
+			emptyDescription.Show()
 			empty.Show()
 		} else {
+			emptyTitle.Hide()
+			emptyDescription.Hide()
 			empty.Hide()
 		}
 	}

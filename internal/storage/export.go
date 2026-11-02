@@ -94,6 +94,14 @@ func WriteEncryptedCXF(ctx context.Context, w io.Writer, s Storage, vault *model
 	return ctx.Err()
 }
 
+// WriteExport writes the selected CXF export format to the supplied stream.
+func WriteExport(ctx context.Context, w io.Writer, s Storage, vault *model.Vault, password string, plaintext bool) error {
+	if plaintext {
+		return WriteCXF(ctx, w, s, vault)
+	}
+	return WriteEncryptedCXF(ctx, w, s, vault, password)
+}
+
 // ExportFile writes a private file and publishes it atomically without replacing existing files.
 // Callers must obtain explicit consent before selecting plaintext.
 func ExportFile(ctx context.Context, s Storage, vault *model.Vault, path, password string, plaintext bool) (err error) {
@@ -114,12 +122,7 @@ func ExportFile(ctx context.Context, s Storage, vault *model.Vault, path, passwo
 	}
 	defer os.Remove(f.Name())
 	defer f.Close()
-	if plaintext {
-		err = WriteCXF(ctx, f, s, vault)
-	} else {
-		err = WriteEncryptedCXF(ctx, f, s, vault, password)
-	}
-	if err != nil {
+	if err := WriteExport(ctx, f, s, vault, password, plaintext); err != nil {
 		return err
 	}
 	if err := f.Sync(); err != nil {

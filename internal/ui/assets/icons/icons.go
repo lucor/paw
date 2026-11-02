@@ -133,6 +133,8 @@ var (
 	Plus = themed("plus")
 	// Minus decreases a numeric setting.
 	Minus = themed("minus")
+	// List represents the complete item category.
+	List = themed("list")
 	// Play identifies startup behavior.
 	Play = themed("play")
 	// Image identifies favicon settings.

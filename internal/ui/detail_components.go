@@ -5,6 +5,7 @@ package ui
 
 import (
 	"strings"
+	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
@@ -13,6 +14,13 @@ import (
 	"fyne.io/fyne/v2/widget"
 	"go.lucor.dev/paw/internal/ui/assets/icons"
 )
+
+const detailTimestampLayout = "2 Jan 2006, 15:04:05"
+
+// formatDetailTimestamp formats a stored Unix timestamp for item details.
+func formatDetailTimestamp(timestamp uint64) string {
+	return time.Unix(int64(timestamp), 0).Local().Format(detailTimestampLayout)
+}
 
 // newPageHeader aligns navigation, title, and trailing actions consistently.
 func newPageHeader(back, title, trailing fyne.CanvasObject) fyne.CanvasObject {

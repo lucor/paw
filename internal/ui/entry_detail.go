@@ -11,7 +11,6 @@ import (
 	"net/url"
 	"strings"
 	"sync"
-	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
@@ -196,7 +195,7 @@ func newEntryDetailWithClear(ctx context.Context, item *model.Item, window fyne.
 		if date.value == nil {
 			continue
 		}
-		value := time.Unix(int64(*date.value), 0).Local().Format("Jan 2, 2006")
+		value := formatDetailTimestamp(*date.value)
 		dates = append(dates, date.label+" · "+value)
 	}
 	var metadata fyne.CanvasObject
@@ -297,6 +296,7 @@ func detailDownload(window fyne.Window, filename, value string) {
 		fyne.CurrentApp().SendNotification(&fyne.Notification{Title: "Paw", Content: filename + " saved"})
 	}, window)
 	save.SetFileName(filename)
+	configureFilePicker(save)
 	save.Show()
 }
 

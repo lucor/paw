@@ -3,5 +3,12 @@
 
 package ui
 
-// exportToFile opens the active vault's export dialog.
-func (a *app) exportToFile() { ShowExportCredentials(a.win, a.storage, a.vault) }
+// exportToFile opens the active vault's dedicated export view.
+func (a *app) exportToFile() {
+	if a.vault == nil {
+		return
+	}
+	a.closeItemDetail()
+	a.closePasswordAudit()
+	a.win.SetContent(NewExportCredentialsView(a.win, a.storage, a.vault, a.showCurrentVaultView))
+}

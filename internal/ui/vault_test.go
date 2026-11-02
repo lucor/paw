@@ -674,7 +674,9 @@ func TestSelectedVaultUnlockReturnsToList(t *testing.T) {
 		}
 	}
 	require.NotNil(t, chooseAnother, "unlock from the selector should keep the choose action available")
+	unlocker.password.SetText("previous vault password")
 	test.Tap(chooseAnother)
+	require.Empty(t, unlocker.password.Text, "changing vault clears the previous password")
 	selectorCount := 0
 	for _, object := range test.LaidOutObjects(a.main) {
 		if _, ok := object.(*widget.List); ok {

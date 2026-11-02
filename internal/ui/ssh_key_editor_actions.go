@@ -82,7 +82,7 @@ func encodeSSHKey(private crypto.PrivateKey, keyType, comment string) (cxf.SSHKe
 }
 
 func (e *SSHKeyEditor) importKey(window fyne.Window) {
-	dialog.NewFileOpen(func(reader fyne.URIReadCloser, err error) {
+	picker := dialog.NewFileOpen(func(reader fyne.URIReadCloser, err error) {
 		if err != nil {
 			dialog.ShowError(err, window)
 			return
@@ -119,5 +119,7 @@ func (e *SSHKeyEditor) importKey(window fyne.Window) {
 			}
 			e.usePrivateKey(key.PrivateKey(), key.PublicKey().Type(), passphrase, window)
 		}, window)
-	}, window).Show()
+	}, window)
+	configureFilePicker(picker)
+	picker.Show()
 }

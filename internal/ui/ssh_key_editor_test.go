@@ -252,3 +252,27 @@ func TestSSHKeyEditorGenerationUpdatesDisplayedAndSavedKey(t *testing.T) {
 	require.Equal(t, paw.PassphrasePassword, settings.Mode)
 	require.Equal(t, 5, settings.Length)
 }
+
+func TestSSHKeyImportPickerUsesSharedDesktopDefaults(t *testing.T) {
+	test.NewTempApp(t)
+	window := test.NewTempWindow(t, nil)
+	item, _ := sshDetailFixture(t)
+	editor, err := NewSSHKeyEditor(item, false)
+	require.NoError(t, err)
+	editor.ConnectWindow(window)
+	window.Resize(fyne.NewSize(DefaultWindowWidth, DefaultWindowHeight))
+	window.SetContent(editor.View)
+	test.Tap(editor.ImportButton)
+
+	picker := window.Canvas().Overlays().Top()
+	require.NotNil(t, picker)
+	require.Equal(t, fyne.NewSize(DefaultWindowWidth, DefaultWindowHeight), picker.Size())
+	var lists int
+	for _, object := range test.LaidOutObjects(picker) {
+		if _, ok := object.(*widget.List); ok {
+			lists++
+		}
+	}
+	require.GreaterOrEqual(t, lists, 2)
+	window.Canvas().Overlays().Remove(picker)
+}

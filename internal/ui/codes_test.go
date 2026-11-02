@@ -114,14 +114,33 @@ func TestCodesSectionReusesVaultHeaderAndHidesAddAction(t *testing.T) {
 }
 
 func TestCodesViewEmptyState(t *testing.T) {
-	test.NewTempApp(t)
+	app := test.NewTempApp(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	view := newCodesView(ctx, nil, nil)
+	window := test.NewTempWindow(t, view.View)
+	window.Resize(fyne.NewSize(440, 720))
+	window.Show()
 	texts := auditTexts(view.View)
 	require.Contains(t, texts, "0 codes")
 	require.Contains(t, texts, "No verification codes")
 	require.Contains(t, texts, "Verification codes from your login items will appear here.")
+	for _, object := range test.LaidOutObjects(view.View) {
+		label, ok := object.(*widget.Label)
+		if !ok {
+			continue
+		}
+		switch label.Text {
+		case "No verification codes":
+			require.Equal(t, fyne.TextAlignCenter, label.Alignment)
+			require.Equal(t, theme.SizeNameHeadingText, label.SizeName)
+			position := app.Driver().AbsolutePositionForObject(label)
+			require.Greater(t, position.Y, window.Canvas().Size().Height/3, "the empty message is centered in the available Codes content")
+		case "Verification codes from your login items will appear here.":
+			require.Equal(t, fyne.TextAlignCenter, label.Alignment)
+			require.Equal(t, theme.SizeNameCaptionText, label.SizeName)
+		}
+	}
 }
 
 func TestCodesViewNarrowLayout(t *testing.T) {

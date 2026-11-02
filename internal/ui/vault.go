@@ -20,18 +20,21 @@ import (
 
 // showCreateVaultView opens the vault creation screen.
 func (a *app) showCreateVaultView() {
+	a.clearUnlockPassword()
 	a.closeItemDetail()
 	a.win.SetContent(NewCreateVault(a.showCurrentVaultView, a.createVault))
 }
 
 // showAddVaultView opens the available ways to add a vault.
 func (a *app) showAddVaultView() {
+	a.clearUnlockPassword()
 	a.closeItemDetail()
 	ShowAddVault(a.win, a.showCurrentVaultView, a.createVault, a.showRestoreVaultView)
 }
 
 // showRestoreVaultView restores a Paw backup as a new unlocked vault.
 func (a *app) showRestoreVaultView() {
+	a.clearUnlockPassword()
 	a.closeItemDetail()
 	ShowRestoreBackup(a.win, a.storage, func(vault *model.Vault) {
 		a.setVaultView(vault, vault.Accounts[0].ID)
@@ -83,6 +86,7 @@ func (a *app) makeSelectVaultView(vaults []storage.VaultInfo) fyne.CanvasObject 
 }
 
 func (a *app) showVaultSelector(vaults []storage.VaultInfo) {
+	a.clearUnlockPassword()
 	a.main.Content = a.makeSelectVaultView(vaults)
 	a.main.Refresh()
 	a.showCurrentVaultView()
@@ -191,7 +195,7 @@ func (a *app) makeCurrentVaultView() fyne.CanvasObject {
 		}
 	}
 	name, _ := vault.Name()
-	categories := []EntryCategory{{ID: "all", Label: "All items", Icon: icons.Vault}, {ID: "login", Label: "Logins", Icon: icons.Login}, {ID: "password", Label: "Passwords", Icon: icons.Password}, {ID: "note", Label: "Notes", Icon: icons.Note}, {ID: "ssh", Label: "SSH keys", Icon: icons.SSH}}
+	categories := []EntryCategory{{ID: "all", Label: "All items", Icon: icons.List}, {ID: "login", Label: "Logins", Icon: icons.Login}, {ID: "password", Label: "Passwords", Icon: icons.Password}, {ID: "note", Label: "Notes", Icon: icons.Note}, {ID: "ssh", Label: "SSH keys", Icon: icons.SSH}}
 	settings := NewSettingsView(a.state, a.storage, a.win)
 	settings.configureAutoLock = a.configureAutoLock
 	settings.BackButton.Hide()

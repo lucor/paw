@@ -51,6 +51,7 @@ type app struct {
 	vaultSection    int
 	settingsVaultID string
 	passwordChange  *masterPasswordView
+	deletingVault   bool
 
 	filter       map[string]*paw.VaultFilterOptions
 	audit        *PasswordAudit
@@ -331,8 +332,18 @@ func (a *app) showEditItemView(item *model.Item, isNew bool) {
 
 // showSettingsView opens the application settings.
 func (a *app) showSettingsView() {
+	a.clearUnlockPassword()
 	a.closeItemDetail()
 	a.win.SetContent(a.makeSettingsView())
+}
+
+func (a *app) clearUnlockPassword() {
+	if a.main == nil {
+		return
+	}
+	if unlock, ok := a.main.Content.(*UnlockVault); ok {
+		unlock.ClearPassword()
+	}
 }
 
 // lockVault removes the current vault from the unlocked views.
@@ -355,6 +366,7 @@ func (a *app) configureAutoLock(key string) {
 }
 
 func (a *app) lockAllVaults() {
+	a.clearUnlockPassword()
 	log.Printf("auto-lock: locking %d unlocked vaults", len(a.unlockedVault))
 	a.closeMasterPasswordView()
 	a.settingsVaultID = ""

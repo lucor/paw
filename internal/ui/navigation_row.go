@@ -9,6 +9,7 @@ import (
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
+	"go.lucor.dev/paw/internal/paw"
 	"go.lucor.dev/paw/internal/ui/assets/icons"
 )
 
@@ -19,6 +20,10 @@ const (
 )
 
 func navigationRowIcon(resource fyne.Resource) fyne.CanvasObject {
+	if favicon, ok := resource.(*paw.Favicon); ok && len(favicon.Data) > 0 {
+		preview := container.NewGridWrap(fyne.NewSquareSize(navigationRowIconSize), newIconPreviewWithIconSize(favicon, smallFaviconIconSize))
+		return container.NewGridWrap(fyne.NewSquareSize(navigationRowIconAreaSize), container.NewCenter(preview))
+	}
 	return container.NewGridWrap(fyne.NewSquareSize(navigationRowIconAreaSize), container.NewCenter(container.NewGridWrap(fyne.NewSquareSize(navigationRowIconSize), widget.NewIcon(resource))))
 }
 
