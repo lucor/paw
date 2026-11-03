@@ -8,12 +8,14 @@ description = "Generate Lucide PNG icons for the interface"
 run = "bash internal/ui/assets/icons/generate-icons.sh"
 
 [tasks.generate-app-icon]
-description = "Render the high-resolution app icon from its SVG source"
+description = "Render high-resolution app icons from the SVG source"
 run = """
 set -eu
 resvg --width 1024 --height 1024 logo/paw.svg internal/icon/paw.png
 oxipng --opt 2 --strip safe --nb --nc internal/icon/paw.png
 cp internal/icon/paw.png logo/paw.png
+resvg --width 1024 --height 1024 logo/paw-macos.svg logo/paw-macos.png
+oxipng --opt 2 --strip safe --nb --nc logo/paw-macos.png
 """
 
 [tasks.setup]

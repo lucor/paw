@@ -7,9 +7,6 @@ Name = "Paw"
 ID = "dev.lucor.paw"
 Version = "0.29.0"
 
-[Migrations]
-fyneDo = true
-
 [Source]
 Repo = "https://github.com/lucor/paw"
 
@@ -19,3 +16,5 @@ Categories = ["Utility", "Security"]
 Comment = "Manage passwords, identities, and encrypted vaults"
 Keywords = ["password", "vault", "credentials", "encryption"]
 
+[Migrations]
+fyneDo = true

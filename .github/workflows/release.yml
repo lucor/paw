@@ -196,7 +196,7 @@ jobs:
           mkdir -p dist
           cd dist
           go tool fyne package --source-dir .. --name Paw \
-            --app-id dev.lucor.paw --icon logo/paw.png \
+            --app-id dev.lucor.paw --icon logo/paw-macos.png \
             --app-version "$PACKAGE_VERSION" --tags migrated_fynedo --release
 
       - name: Create macOS disk image
