@@ -1,9 +1,8 @@
 // SPDX-FileCopyrightText: 2021-2025 Luca Corbo, Paw contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-// Package provides an implementation to generate one-time password values based
-// on the TOTP (Time-Based One-Time Password) and HOTP (HMAC-Based One-Time
-// Password) algorithms as defined into the RFC4226 and RFC6238 specifications
+// Package otp generates one-time password values using the HOTP and TOTP
+// algorithms defined in RFC 4226 and RFC 6238.
 package otp
 
 import (

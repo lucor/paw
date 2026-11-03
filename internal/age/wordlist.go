@@ -7,6 +7,8 @@
 // Source code of this file is a modified version of
 // https://github.com/FiloSottile/age/blob/v1.0.0/cmd/age/wordlist.go
 // and it is governed by the license above
+
+// Package age provides the passphrase word list used by Paw.
 package age
 
 import (

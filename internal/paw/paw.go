@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2021-2025 Luca Corbo, Paw contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+// Package paw provides shared helpers for keys, URLs, passwords, and TOTP.
 package paw
 
 import (

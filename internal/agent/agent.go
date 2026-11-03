@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2023-2025 Luca Corbo, Paw contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+// Package agent provides Paw's local agent protocol and SSH-agent integration.
 package agent
 
 import (

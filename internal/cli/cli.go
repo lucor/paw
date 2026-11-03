@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2022-2025 Luca Corbo, Paw contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+// Package cli provides Paw's command-line interface.
 package cli
 
 import (
