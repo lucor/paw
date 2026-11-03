@@ -74,6 +74,34 @@ func TestPasswordEditorUpdatesPasswordAndPreservesOtherCredentials(t *testing.T)
 	require.JSONEq(t, string(before), string(after))
 }
 
+func TestPasswordEditorKeepsManuallyModifiedGeneratedPassword(t *testing.T) {
+	test.NewTempApp(t)
+	editor, err := NewPasswordEditor(passwordEditorFixture(t), false)
+	require.NoError(t, err)
+
+	editor.Password.Entry.SetText("GeneratedPassword-123!")
+	editor.PasswordSpec = &paw.PasswordSpec{Mode: paw.RandomPassword, Value: "GeneratedPassword-123!", Length: 22, Format: paw.LowercaseFormat | paw.UppercaseFormat | paw.DigitsFormat | paw.SymbolsFormat}
+	unchanged, err := editor.UpdatedItem()
+	require.NoError(t, err)
+	unchangedCredentials, err := model.DecodeCredentials(unchanged.Credentials)
+	require.NoError(t, err)
+	require.Equal(t, paw.RandomPassword, model.PasswordSettingsFromField(unchangedCredentials.BasicAuth.Password).Mode)
+	generatedScore := editor.Password.strength.score
+	editor.Password.Entry.SetText("manually changed")
+
+	require.NotEqual(t, generatedScore, editor.Password.strength.score)
+	updated, err := editor.UpdatedItem()
+	require.NoError(t, err)
+	decoded, err := model.DecodeCredentials(updated.Credentials)
+	require.NoError(t, err)
+	require.Equal(t, "manually changed", decoded.BasicAuth.Password.Value)
+	require.Equal(t, paw.CustomPassword, model.PasswordSettingsFromField(decoded.BasicAuth.Password).Mode)
+	reopened, err := NewPasswordEditor(updated, false)
+	require.NoError(t, err)
+	require.Equal(t, paw.CustomPassword, reopened.PasswordSpec.Mode)
+	require.Equal(t, "manually changed", reopened.Password.Entry.Text)
+}
+
 func TestPasswordEditorValidatesTitleAndTracksDirtyState(t *testing.T) {
 	test.NewTempApp(t)
 	editor, err := NewPasswordEditor(passwordEditorFixture(t), true)

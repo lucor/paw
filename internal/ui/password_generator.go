@@ -180,6 +180,7 @@ func (pd *pwgenDialog) ShowPasswordGenerator(bind binding.String, password *paw.
 		password.Mode = working.Mode
 		password.Length = working.Length
 		password.Format = working.Format
+		password.Value = value
 		if err := bind.Set(value); err != nil {
 			log.Println(err)
 		}

@@ -119,6 +119,9 @@ func (e *PasswordEditor) UpdatedItem() (*model.Item, error) {
 	updated := cloneItem(e.item)
 	updated.Title = e.Title.Text
 	credential := *e.basicAuth
+	if e.Password.Entry.Text != e.PasswordSpec.Value {
+		e.PasswordSpec.Mode = paw.CustomPassword
+	}
 	e.PasswordSpec.Value = e.Password.Entry.Text
 	password, err := passwordFieldWithSettings(e.Password.Entry.Text, e.PasswordSpec, credential.Password)
 	if err != nil {
