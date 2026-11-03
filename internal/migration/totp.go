@@ -8,11 +8,12 @@ import (
 
 	"go.lucor.dev/cxf"
 
+	"go.lucor.dev/paw/internal/legacy"
 	"go.lucor.dev/paw/internal/paw"
 )
 
 // MigrateTOTP converts a configured legacy TOTP to its CXF credential.
-func MigrateTOTP(old *paw.TOTP) (*cxf.TOTP, error) {
+func MigrateTOTP(old *legacy.TOTP) (*cxf.TOTP, error) {
 	if old == nil || old.Secret == "" {
 		return nil, nil
 	}

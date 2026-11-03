@@ -21,7 +21,7 @@ import (
 // UnlockVault displays and handles unlocking one stored vault.
 type UnlockVault struct {
 	widget.BaseWidget
-	info              storage.VaultInfo
+	info              model.VaultInfo
 	store             storage.VaultStorage
 	onUnlocked        func(*model.Vault)
 	password          *widget.Entry
@@ -36,7 +36,7 @@ type UnlockVault struct {
 const incorrectMasterPasswordMessage = "Incorrect master password. Try again."
 
 // NewUnlockVault creates a vault unlock view with navigation to Add vault.
-func NewUnlockVault(info storage.VaultInfo, store storage.VaultStorage, onUnlocked func(*model.Vault), back, addVault, chooseAnother func()) *UnlockVault {
+func NewUnlockVault(info model.VaultInfo, store storage.VaultStorage, onUnlocked func(*model.Vault), back, addVault, chooseAnother func()) *UnlockVault {
 	u := &UnlockVault{info: info, store: store, onUnlocked: onUnlocked}
 	u.password = widget.NewPasswordEntry()
 	u.password.Validator = func(value string) error {
@@ -190,7 +190,7 @@ func (u *UnlockVault) CreateRenderer() fyne.WidgetRenderer {
 	return widget.NewSimpleRenderer(u.content)
 }
 
-func unlockVaultContent(info storage.VaultInfo, password *widget.Entry, passwordError *widget.Label, unlock *widget.Button, activity *widget.Activity, message *widget.Label, back, addVault, chooseAnother func()) fyne.CanvasObject {
+func unlockVaultContent(info model.VaultInfo, password *widget.Entry, passwordError *widget.Label, unlock *widget.Button, activity *widget.Activity, message *widget.Label, back, addVault, chooseAnother func()) fyne.CanvasObject {
 	heading := newText("Unlock "+info.Name, headingStyle)
 	heading.Alignment = fyne.TextAlignCenter
 	var navigation fyne.CanvasObject

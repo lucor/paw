@@ -12,13 +12,13 @@ import (
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
-	"go.lucor.dev/paw/internal/storage"
+	"go.lucor.dev/paw/internal/model"
 	"go.lucor.dev/paw/internal/ui/assets/icons"
 )
 
 // NewCreateVault displays the vault name and master password form.
-func NewCreateVault(back func(), create func(name, password string, appearance storage.VaultAppearance) error) fyne.CanvasObject {
-	appearance := storage.DefaultVaultAppearance()
+func NewCreateVault(back func(), create func(name, password string, appearance model.VaultAppearance) error) fyne.CanvasObject {
+	appearance := model.DefaultVaultAppearance()
 	name := widget.NewEntry()
 	name.SetPlaceHolder("e.g. Personal")
 	name.Validator = func(value string) error {
@@ -107,7 +107,7 @@ func NewCreateVault(back func(), create func(name, password string, appearance s
 	formPage := newSecondaryPage(header, footer, container.NewVScroll(fields))
 	screen := container.NewStack(formPage)
 	previewButton.OnTapped = func() {
-		appearancePage := newVaultAppearanceView(name.Text, appearance, func(updated storage.VaultAppearance) {
+		appearancePage := newVaultAppearanceView(name.Text, appearance, func(updated model.VaultAppearance) {
 			appearance = updated
 			previewObject = preview()
 			fields.Objects[0] = container.New(layout.NewCustomPaddedLayout(24, 24, 0, 0), container.NewCenter(previewObject))

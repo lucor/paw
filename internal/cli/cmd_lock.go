@@ -11,7 +11,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"go.lucor.dev/paw/internal/agent"
-	"go.lucor.dev/paw/internal/paw"
+	"go.lucor.dev/paw/internal/model"
 )
 
 // Lock locks a Paw vault removing all the associated sessions from the agent
@@ -69,7 +69,7 @@ func (cmd *LockCmd) removeSSHKeysFromAgent(c agent.PawAgent) error {
 	if err != nil {
 		return err
 	}
-	summaries, err := vault.FilterItems("", paw.SSHKeyItemType)
+	summaries, err := vault.FilterItems("", model.SSHKeyItemType)
 	if err != nil {
 		return err
 	}

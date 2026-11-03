@@ -5,14 +5,12 @@ import (
 	"fmt"
 
 	"go.lucor.dev/cxf"
-
-	"go.lucor.dev/paw/internal/paw"
 )
 
 const itemExtensionName = "paw.pm/item"
 
 // ItemTypeOf reads Paw's item category from a CXF summary extension.
-func ItemTypeOf(item *cxf.Item) (paw.ItemType, error) {
+func ItemTypeOf(item *cxf.Item) (ItemType, error) {
 	if item == nil {
 		return 0, fmt.Errorf("item summary is nil")
 	}
@@ -41,9 +39,9 @@ type Item struct {
 // ItemMetadata holds fields Paw stores in the item extension.
 type ItemMetadata struct {
 	// Type identifies the item's Paw category.
-	Type paw.ItemType
+	Type ItemType
 	// Favicon is the optional icon shown for the item.
-	Favicon *paw.Favicon
+	Favicon *Favicon
 	// AddToAgent records whether the SSH key should be loaded into the agent.
 	AddToAgent bool
 }
@@ -186,10 +184,10 @@ func findItemExtension(extensions []json.RawMessage) (int, json.RawMessage, erro
 // decodeItemExtension reads the Paw fields from its extension.
 func decodeItemExtension(raw json.RawMessage) (ItemMetadata, error) {
 	var extension struct {
-		Name       string        `json:"name"`
-		Type       *paw.ItemType `json:"type"`
-		Favicon    *paw.Favicon  `json:"favicon"`
-		AddToAgent bool          `json:"addToAgent"`
+		Name       string    `json:"name"`
+		Type       *ItemType `json:"type"`
+		Favicon    *Favicon  `json:"favicon"`
+		AddToAgent bool      `json:"addToAgent"`
 	}
 	if err := json.Unmarshal(raw, &extension); err != nil {
 		return ItemMetadata{}, fmt.Errorf("cannot decode Paw item metadata")
@@ -243,7 +241,7 @@ func encodeItemExtension(raw json.RawMessage, metadata ItemMetadata) (json.RawMe
 }
 
 // encodeItemFavicon preserves unknown icon fields while updating Paw's fields.
-func encodeItemFavicon(raw json.RawMessage, favicon *paw.Favicon) (json.RawMessage, error) {
+func encodeItemFavicon(raw json.RawMessage, favicon *Favicon) (json.RawMessage, error) {
 	fields := make(map[string]json.RawMessage)
 	if len(raw) != 0 {
 		if err := json.Unmarshal(raw, &fields); err != nil {
@@ -272,9 +270,9 @@ func encodeItemFavicon(raw json.RawMessage, favicon *paw.Favicon) (json.RawMessa
 }
 
 // validItemType reports whether itemType is a supported Paw item category.
-func validItemType(itemType paw.ItemType) bool {
+func validItemType(itemType ItemType) bool {
 	switch itemType {
-	case paw.NoteItemType, paw.PasswordItemType, paw.LoginItemType, paw.SSHKeyItemType:
+	case NoteItemType, PasswordItemType, LoginItemType, SSHKeyItemType:
 		return true
 	default:
 		return false

@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"time"
 
-	"go.lucor.dev/paw/internal/paw"
+	"go.lucor.dev/paw/internal/model"
 	"go.lucor.dev/paw/internal/storage"
 )
 
@@ -29,7 +29,7 @@ type GetAppStateHandlerRequestPayload struct {
 }
 
 type GetAppStateHandlerResponsePayload struct {
-	AppStatate *paw.AppState `json:"app_state"`
+	AppStatate *model.AppState `json:"app_state"`
 }
 
 // Serve implements browser.Handler.

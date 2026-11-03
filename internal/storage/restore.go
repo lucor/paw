@@ -276,7 +276,7 @@ func RestorePawBackup(ctx context.Context, s Storage, backup *PawBackup, name, p
 	if err = ctx.Err(); err != nil {
 		return nil, err
 	}
-	metadata, err := encodeVaultMetadata(name, DefaultVaultAppearance())
+	metadata, err := encodeVaultMetadata(name, model.DefaultVaultAppearance())
 	if err != nil {
 		return nil, err
 	}

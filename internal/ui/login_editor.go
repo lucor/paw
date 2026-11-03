@@ -35,7 +35,7 @@ type LoginEditor struct {
 	TOTPSecret     *widget.Entry
 	TOTPSettings   *iconButton
 	Notes          *widget.Entry
-	PasswordSpec   *paw.Password
+	PasswordSpec   *paw.PasswordSpec
 
 	item           *model.Item
 	initial        loginEditorValues
@@ -49,18 +49,18 @@ type LoginEditor struct {
 	form           *widget.Form
 	headerTitle    *widget.Label
 	favicon        *iconPreview
-	faviconValue   *paw.Favicon
+	faviconValue   *model.Favicon
 	titleError     *widget.Label
 	websiteError   *widget.Label
 	totpError      *widget.Label
 }
 
 // NewLoginEditor builds the create or edit screen for a Login item.
-func NewLoginEditor(ctx context.Context, item *model.Item, faviconSettings paw.FaviconDownloaderSettings, isNew bool) (*LoginEditor, error) {
+func NewLoginEditor(ctx context.Context, item *model.Item, faviconSettings model.FaviconDownloaderSettings, isNew bool) (*LoginEditor, error) {
 	if err := item.Validate(); err != nil {
 		return nil, err
 	}
-	if item.Metadata.Type != paw.LoginItemType {
+	if item.Metadata.Type != model.LoginItemType {
 		return nil, fmt.Errorf("item is not a login")
 	}
 	decoded, err := decodeEntryDetailCredentials(item.Credentials)
@@ -70,7 +70,6 @@ func NewLoginEditor(ctx context.Context, item *model.Item, faviconSettings paw.F
 	if decoded.basicAuth == nil {
 		return nil, fmt.Errorf("login credential is missing")
 	}
-	defaultTOTP := paw.NewDefaultTOTP()
 
 	editor := &LoginEditor{
 		item:           item,
@@ -81,8 +80,8 @@ func NewLoginEditor(ctx context.Context, item *model.Item, faviconSettings paw.F
 		totp:           decoded.totp,
 		totpIndex:      decoded.totpIndex,
 		totpSettings: cxf.TOTP{
-			Type: cxf.CredentialTypeTOTP, Algorithm: strings.ToLower(string(defaultTOTP.Hash)),
-			Period: uint16(defaultTOTP.Interval), Digits: uint16(defaultTOTP.Digits),
+			Type: cxf.CredentialTypeTOTP, Algorithm: strings.ToLower(string(paw.TOTPHashDefault)),
+			Period: uint16(paw.TOTPIntervalDefault), Digits: uint16(paw.TOTPDigitsDefault),
 		},
 		Title:        widget.NewEntry(),
 		Username:     widget.NewEntry(),
@@ -125,7 +124,7 @@ func NewLoginEditor(ctx context.Context, item *model.Item, faviconSettings paw.F
 	editor.Notes.SetText(notes)
 	editor.PasswordSpec = passwordSpecFromField(decoded.basicAuth.Password)
 	editor.Website.PlaceHolder = "https://example.com"
-	var previewFavicon *paw.Favicon
+	var previewFavicon *model.Favicon
 	if item.Metadata.Favicon != nil && len(item.Metadata.Favicon.Data) > 0 {
 		loginURL := paw.NewLoginURL()
 		if loginURL.Set(website) == nil && item.Metadata.Favicon.Host == loginURL.URL().Hostname() {
@@ -134,7 +133,7 @@ func NewLoginEditor(ctx context.Context, item *model.Item, faviconSettings paw.F
 	}
 	editor.faviconValue = previewFavicon
 	editor.favicon.SetFavicon(previewFavicon)
-	editor.Website.FaviconListener = func(favicon *paw.Favicon) {
+	editor.Website.FaviconListener = func(favicon *model.Favicon) {
 		editor.faviconValue = favicon
 		editor.favicon.SetFavicon(favicon)
 	}
@@ -380,7 +379,7 @@ type loginEditorValues struct {
 	passwordFormat                                  paw.Format
 }
 
-func passwordSpecFromField(field *cxf.EditableField) *paw.Password {
+func passwordSpecFromField(field *cxf.EditableField) *paw.PasswordSpec {
 	password := paw.NewCustomPassword()
 	if field == nil {
 		return password
@@ -401,7 +400,7 @@ func passwordSpecFromField(field *cxf.EditableField) *paw.Password {
 	return password
 }
 
-func passwordFieldWithSettings(value string, settings *paw.Password, previous *cxf.EditableField) (*cxf.EditableField, error) {
+func passwordFieldWithSettings(value string, settings *paw.PasswordSpec, previous *cxf.EditableField) (*cxf.EditableField, error) {
 	encodedSettings, err := json.Marshal(struct {
 		Name   string           `json:"name"`
 		Mode   paw.PasswordMode `json:"mode"`

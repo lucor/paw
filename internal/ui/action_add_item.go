@@ -11,16 +11,16 @@ import (
 )
 
 // newItemTemplate creates an empty CXF item for a supported category.
-func newItemTemplate(itemType paw.ItemType) (*model.Item, error) {
+func newItemTemplate(itemType model.ItemType) (*model.Item, error) {
 	settings := model.PasswordSettings{Mode: paw.CustomPassword}
 	switch itemType {
-	case paw.NoteItemType:
+	case model.NoteItemType:
 		return model.NewNote("", "")
-	case paw.PasswordItemType:
+	case model.PasswordItemType:
 		return model.NewPassword("", "", settings)
-	case paw.LoginItemType:
+	case model.LoginItemType:
 		return model.NewLogin("", "", "", settings)
-	case paw.SSHKeyItemType:
+	case model.SSHKeyItemType:
 		credential, err := GenerateSSHKey()
 		if err != nil {
 			return nil, err

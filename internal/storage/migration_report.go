@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"go.lucor.dev/paw/internal/paw"
+	"go.lucor.dev/paw/internal/model"
 )
 
 // MigrationPhase identifies the migration step that failed for an item.
@@ -37,7 +37,7 @@ type MigrationItemFailure struct {
 	// Title is the item's legacy title.
 	Title string
 	// ItemType is the item's Paw category.
-	ItemType paw.ItemType
+	ItemType model.ItemType
 	// Phases lists the migration steps that reported errors for this item.
 	Phases []MigrationPhase
 	// Err contains the cause or causes without formatting them into the report summary.

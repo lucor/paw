@@ -8,14 +8,14 @@ import (
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/widget"
-	"go.lucor.dev/paw/internal/storage"
+	"go.lucor.dev/paw/internal/model"
 	"go.lucor.dev/paw/internal/ui/assets/icons"
 )
 
 // VaultChoice describes a vault available in the selector.
 type VaultChoice struct {
 	Name       string
-	Appearance storage.VaultAppearance
+	Appearance model.VaultAppearance
 	Unlocked   bool
 	Active     bool
 	Open       func()

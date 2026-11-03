@@ -17,14 +17,15 @@ import (
 
 	"go.lucor.dev/cxf"
 
+	"go.lucor.dev/paw/internal/legacy"
 	"go.lucor.dev/paw/internal/model"
 	"go.lucor.dev/paw/internal/paw"
 	"go.lucor.dev/paw/internal/sshkey"
 )
 
 // MigrateSSHKey converts a legacy SSH key to a CXF-backed Paw item.
-func MigrateSSHKey(old *paw.SSHKey) (*model.Item, error) {
-	if old == nil || old.Metadata == nil || old.Type != paw.SSHKeyItemType {
+func MigrateSSHKey(old *legacy.SSHKey) (*model.Item, error) {
+	if old == nil || old.Metadata == nil || old.Type != model.SSHKeyItemType {
 		return nil, fmt.Errorf("cannot migrate SSH key: invalid metadata")
 	}
 	if !utf8.ValidString(old.Name) || !utf8.ValidString(old.Metadata.Subtitle) || !utf8.ValidString(old.Comment) {

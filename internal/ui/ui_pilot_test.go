@@ -44,11 +44,11 @@ func runUIPilotCreateVaultFlow(t *testing.T, outputDir string, variant fyne.Them
 
 	var createdVault *model.Vault
 	store := &storage.StorageMock{}
-	store.OnVaults = func() ([]storage.VaultInfo, error) {
+	store.OnVaults = func() ([]model.VaultInfo, error) {
 		if createdVault == nil {
 			return nil, nil
 		}
-		return []storage.VaultInfo{{ID: createdVault.Accounts[0].ID, Name: "Personal"}}, nil
+		return []model.VaultInfo{{ID: createdVault.Accounts[0].ID, Name: "Personal"}}, nil
 	}
 	store.OnCreateVault = func(name, password string) (*model.Vault, error) {
 		key, err := paw.MakeOneTimeKey()
@@ -62,8 +62,8 @@ func runUIPilotCreateVaultFlow(t *testing.T, outputDir string, variant fyne.Them
 	a := &app{
 		win:           window,
 		storage:       store,
-		state:         &paw.AppState{Settings: paw.NewDefaultSettings()},
-		filter:        make(map[string]*paw.VaultFilterOptions),
+		state:         &model.AppState{Settings: model.NewDefaultSettings()},
+		filter:        make(map[string]*vaultFilterOptions),
 		unlockedVault: make(map[string]*model.Vault),
 	}
 	a.main = a.makeApp()

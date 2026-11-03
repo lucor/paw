@@ -13,6 +13,7 @@ import (
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
+	"go.lucor.dev/paw/internal/model"
 	"go.lucor.dev/paw/internal/paw"
 	"go.lucor.dev/paw/internal/ui/assets/icons"
 )
@@ -54,7 +55,7 @@ type pwgenDialog struct {
 	options pwgenOptions
 }
 
-func NewPasswordGenerator(key *paw.Key, ps paw.PasswordSettings) *pwgenDialog {
+func NewPasswordGenerator(key *paw.Key, ps model.PasswordGeneratorSettings) *pwgenDialog {
 	return &pwgenDialog{
 		key: key,
 		options: pwgenOptions{
@@ -79,7 +80,7 @@ func NewPasswordGenerator(key *paw.Key, ps paw.PasswordSettings) *pwgenDialog {
 	}
 }
 
-func (pd *pwgenDialog) ShowPasswordGenerator(bind binding.String, password *paw.Password, w fyne.Window) {
+func (pd *pwgenDialog) ShowPasswordGenerator(bind binding.String, password *paw.PasswordSpec, w fyne.Window) {
 	working := *password
 	if working.Mode == paw.CustomPassword {
 		working.Mode = paw.RandomPassword
@@ -189,7 +190,7 @@ func (pd *pwgenDialog) ShowPasswordGenerator(bind binding.String, password *paw.
 	confirmDialog.Show()
 }
 
-func (pd *pwgenDialog) optionsView(password *paw.Password, lengths map[paw.PasswordMode]int, regenerate func()) fyne.CanvasObject {
+func (pd *pwgenDialog) optionsView(password *paw.PasswordSpec, lengths map[paw.PasswordMode]int, regenerate func()) fyne.CanvasObject {
 	min, max, _ := pd.lengthBounds(password.Mode)
 	length := newNumericStepper(&password.Length, min, max, 1, func() {
 		lengths[password.Mode] = password.Length
@@ -203,7 +204,7 @@ func (pd *pwgenDialog) optionsView(password *paw.Password, lengths map[paw.Passw
 	return container.NewVBox(lengthRow, container.NewGridWithColumns(2, checks...))
 }
 
-func randomFormatChecks(password *paw.Password, regenerate func()) []fyne.CanvasObject {
+func randomFormatChecks(password *paw.PasswordSpec, regenerate func()) []fyne.CanvasObject {
 	options := []struct {
 		label  string
 		format paw.Format
@@ -250,7 +251,7 @@ func (pd *pwgenDialog) lengthBounds(mode paw.PasswordMode) (int, int, bool) {
 	}
 }
 
-func (pd *pwgenDialog) setModeDefaults(password *paw.Password) {
+func (pd *pwgenDialog) setModeDefaults(password *paw.PasswordSpec) {
 	if password.Mode == paw.RandomPassword {
 		if password.Format&randomPasswordFormats == 0 {
 			password.Format = pd.randomDefaultFormat()
@@ -278,7 +279,7 @@ func passwordModeFromLabel(label string) (paw.PasswordMode, bool) {
 	return paw.CustomPassword, false
 }
 
-func pwgen(key *paw.Key, password *paw.Password) (string, error) {
+func pwgen(key *paw.Key, password *paw.PasswordSpec) (string, error) {
 	if password.Mode == paw.PassphrasePassword {
 		return key.Passphrase(password.Length)
 	}

@@ -4,16 +4,17 @@
 package ui
 
 import (
+	"image/color"
+
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
-	"go.lucor.dev/paw/internal/paw"
+	"go.lucor.dev/paw/internal/model"
 	"go.lucor.dev/paw/internal/storage"
 	"go.lucor.dev/paw/internal/ui/assets/icons"
-	"image/color"
 )
 
 const (
@@ -30,7 +31,7 @@ const (
 type SettingsView struct {
 	View              fyne.CanvasObject
 	BackButton        *iconButton
-	state             *paw.AppState
+	state             *model.AppState
 	storage           storage.Storage
 	window            fyne.Window
 	configureAutoLock func(string)
@@ -38,12 +39,12 @@ type SettingsView struct {
 }
 
 // NewSettingsView builds the application's Settings view.
-func NewSettingsView(state *paw.AppState, store storage.Storage, window fyne.Window) *SettingsView {
+func NewSettingsView(state *model.AppState, store storage.Storage, window fyne.Window) *SettingsView {
 	if state == nil {
-		state = &paw.AppState{}
+		state = &model.AppState{}
 	}
 	if state.Settings == nil {
-		state.Settings = paw.NewDefaultSettings()
+		state.Settings = model.NewDefaultSettings()
 	}
 	e := &SettingsView{state: state, storage: store, window: window}
 	e.BackButton = newIconButton("Back", icons.Back, nil)
@@ -60,32 +61,32 @@ func NewSettingsView(state *paw.AppState, store storage.Storage, window fyne.Win
 	}
 	startup := widget.NewSelect([]string{startupVaultLastUsedLabel, startupVaultChooseLabel}, nil)
 	startup.Selected = startupVaultLastUsedLabel
-	if p.StartupVault == paw.StartupVaultChooseAtStartup || p.StartupVault == startupVaultChooseLabel {
+	if p.StartupVault == model.StartupVaultChooseAtStartup || p.StartupVault == startupVaultChooseLabel {
 		startup.Selected = startupVaultChooseLabel
 	}
 	startup.OnChanged = func(value string) {
-		p.StartupVault = paw.StartupVaultLastUsed
+		p.StartupVault = model.StartupVaultLastUsed
 		if value == startupVaultChooseLabel {
-			p.StartupVault = paw.StartupVaultChooseAtStartup
+			p.StartupVault = model.StartupVaultChooseAtStartup
 		}
 		e.save()
 	}
 	appearance := widget.NewSelect([]string{settingsThemeSystemLabel, settingsThemeLightLabel, settingsThemeDarkLabel}, nil)
 	appearance.Selected = settingsThemeSystemLabel
 	switch p.Theme {
-	case paw.ThemeLight, settingsThemeLightLabel:
+	case model.ThemeLight, settingsThemeLightLabel:
 		appearance.Selected = settingsThemeLightLabel
-	case paw.ThemeDark, settingsThemeDarkLabel:
+	case model.ThemeDark, settingsThemeDarkLabel:
 		appearance.Selected = settingsThemeDarkLabel
 	}
 	appearance.OnChanged = func(value string) {
 		switch value {
 		case settingsThemeLightLabel:
-			p.Theme = paw.ThemeLight
+			p.Theme = model.ThemeLight
 		case settingsThemeDarkLabel:
-			p.Theme = paw.ThemeDark
+			p.Theme = model.ThemeDark
 		default:
-			p.Theme = paw.ThemeSystem
+			p.Theme = model.ThemeSystem
 		}
 		applySettingsTheme(p.Theme)
 		e.save()
@@ -134,10 +135,10 @@ func (t settingsTheme) Color(name fyne.ThemeColorName, _ fyne.ThemeVariant) colo
 
 func applySettingsTheme(value string) {
 	var selected fyne.Theme = theme.DefaultTheme()
-	if value == paw.ThemeLight || value == settingsThemeLightLabel {
+	if value == model.ThemeLight || value == settingsThemeLightLabel {
 		selected = settingsTheme{selected, theme.VariantLight}
 	}
-	if value == paw.ThemeDark || value == settingsThemeDarkLabel {
+	if value == model.ThemeDark || value == settingsThemeDarkLabel {
 		selected = settingsTheme{selected, theme.VariantDark}
 	}
 	fyne.CurrentApp().Settings().SetTheme(selected)

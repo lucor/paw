@@ -10,39 +10,30 @@ import (
 	"strings"
 	"time"
 
+	"go.lucor.dev/paw/internal/legacy"
 	"go.lucor.dev/paw/internal/migration"
 	"go.lucor.dev/paw/internal/model"
-	"go.lucor.dev/paw/internal/paw"
 )
 
-type legacyItemRef struct {
-	id       string
-	metadata *paw.Metadata
-}
-
 // legacyItems returns vault items in a stable order for predictable reports.
-func legacyItems(vault *paw.Vault) []legacyItemRef {
-	items := make([]legacyItemRef, 0, vault.Size())
-	vault.Range(func(id string, metadata *paw.Metadata) bool {
-		items = append(items, legacyItemRef{id: id, metadata: metadata})
-		return true
-	})
-	slices.SortFunc(items, func(a, b legacyItemRef) int {
-		return strings.Compare(a.id, b.id)
+func legacyItems(vault *legacy.Vault) []legacy.VaultItem {
+	items := vault.Items()
+	slices.SortFunc(items, func(a, b legacy.VaultItem) int {
+		return strings.Compare(a.ID, b.ID)
 	})
 	return items
 }
 
 // convertLegacyItem converts a decoded Paw item into the current model.
-func convertLegacyItem(item paw.Item) (*model.Item, error) {
+func convertLegacyItem(item legacy.Item) (*model.Item, error) {
 	switch value := item.(type) {
-	case *paw.Note:
+	case *legacy.Note:
 		return migration.MigrateNote(value)
-	case *paw.Password:
+	case *legacy.Password:
 		return migration.MigratePassword(value)
-	case *paw.Login:
+	case *legacy.Login:
 		return migration.MigrateLogin(value)
-	case *paw.SSHKey:
+	case *legacy.SSHKey:
 		return migration.MigrateSSHKey(value)
 	default:
 		return nil, fmt.Errorf("unsupported legacy item type")
@@ -50,16 +41,16 @@ func convertLegacyItem(item paw.Item) (*model.Item, error) {
 }
 
 // migrationVault creates a new CXF vault while retaining the legacy creation time.
-func migrationVault(legacy *paw.Vault) (*model.Vault, error) {
-	if !legacy.Created.IsZero() && legacy.Created.Before(time.Unix(0, 0)) {
+func migrationVault(legacyVault *legacy.Vault) (*model.Vault, error) {
+	if !legacyVault.Created.IsZero() && legacyVault.Created.Before(time.Unix(0, 0)) {
 		return nil, fmt.Errorf("legacy vault creation date predates Unix time")
 	}
-	vault, err := model.NewVault(legacy.Key(), legacy.Name)
+	vault, err := model.NewVault(legacyVault.Key(), legacyVault.Name)
 	if err != nil {
 		return nil, err
 	}
-	if !legacy.Created.IsZero() {
-		created := uint64(legacy.Created.Unix())
+	if !legacyVault.Created.IsZero() {
+		created := uint64(legacyVault.Created.Unix())
 		vault.Metadata.CreationAt = &created
 	}
 	return vault, nil

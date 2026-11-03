@@ -6,8 +6,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"go.lucor.dev/cxf"
-
-	"go.lucor.dev/paw/internal/paw"
 )
 
 // TestItemJSONPreservesOpaqueData checks edits retain unknown CXF and Paw data.
@@ -26,11 +24,11 @@ func TestItemJSONPreservesOpaqueData(t *testing.T) {
 
 	var item Item
 	require.NoError(t, json.Unmarshal(encoded, &item))
-	require.Equal(t, paw.NoteItemType, item.Metadata.Type)
-	require.Equal(t, &paw.Favicon{Host: "old.example"}, item.Metadata.Favicon)
+	require.Equal(t, NoteItemType, item.Metadata.Type)
+	require.Equal(t, &Favicon{Host: "old.example"}, item.Metadata.Favicon)
 
-	item.Metadata.Type = paw.LoginItemType
-	item.Metadata.Favicon = &paw.Favicon{Host: "new.example"}
+	item.Metadata.Type = LoginItemType
+	item.Metadata.Favicon = &Favicon{Host: "new.example"}
 	item.Metadata.AddToAgent = true
 	encoded, err = json.Marshal(&item)
 	require.NoError(t, err)
@@ -90,14 +88,14 @@ func TestItemUnmarshalRejectsInvalidMetadata(t *testing.T) {
 func TestItemUnmarshalIsAtomic(t *testing.T) {
 	item := Item{
 		Item:     cxf.Item{ID: "AQEBAQEBAQEBAQEBAQEBAQ", Title: "Existing", Credentials: []json.RawMessage{}},
-		Metadata: ItemMetadata{Type: paw.NoteItemType},
+		Metadata: ItemMetadata{Type: NoteItemType},
 	}
 
 	err := json.Unmarshal([]byte(`{"id":"AAAAAAAAAAAAAAAAAAAAAA","title":"Changed","credentials":[],"extensions":[{"name":"paw.pm/item","type":99}]}`), &item)
 
 	require.Error(t, err)
 	require.Equal(t, "Existing", item.Title)
-	require.Equal(t, paw.NoteItemType, item.Metadata.Type)
+	require.Equal(t, NoteItemType, item.Metadata.Type)
 }
 
 // TestItemMarshalForms checks metadata edits for pointers and maps of pointers.
@@ -105,7 +103,7 @@ func TestItemMarshalForms(t *testing.T) {
 	for _, existingExtension := range []bool{false, true} {
 		item := Item{
 			Item:     cxf.Item{ID: "AQ", Title: "Example", Credentials: []json.RawMessage{}},
-			Metadata: ItemMetadata{Type: paw.LoginItemType},
+			Metadata: ItemMetadata{Type: LoginItemType},
 		}
 		if existingExtension {
 			item.Extensions = []json.RawMessage{json.RawMessage(`{"name":"paw.pm/item","type":2}`)}
@@ -128,7 +126,7 @@ func TestItemMarshalForms(t *testing.T) {
 				}
 				var decoded Item
 				require.NoError(t, json.Unmarshal(encoded, &decoded))
-				require.Equal(t, paw.LoginItemType, decoded.Metadata.Type)
+				require.Equal(t, LoginItemType, decoded.Metadata.Type)
 			})
 		}
 		// Encoding must not replace the original raw extension or add one in place.
@@ -144,11 +142,11 @@ func TestItemMarshalForms(t *testing.T) {
 func TestItemFaviconPreservesUnknownFields(t *testing.T) {
 	for _, test := range []struct {
 		name    string
-		favicon *paw.Favicon
+		favicon *Favicon
 	}{
-		{name: "unchanged", favicon: &paw.Favicon{Host: "example.com", Data: []byte("icon"), Format: "png"}},
-		{name: "edited", favicon: &paw.Favicon{Host: "new.example"}},
-		{name: "cleared fields", favicon: &paw.Favicon{}},
+		{name: "unchanged", favicon: &Favicon{Host: "example.com", Data: []byte("icon"), Format: "png"}},
+		{name: "edited", favicon: &Favicon{Host: "new.example"}},
+		{name: "cleared fields", favicon: &Favicon{}},
 		{name: "removed"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
@@ -203,8 +201,8 @@ func TestItemSummaryProjectsPublicFields(t *testing.T) {
 			},
 		},
 		Metadata: ItemMetadata{
-			Type:    paw.NoteItemType,
-			Favicon: &paw.Favicon{Host: "github.com", Data: []byte("icon"), Format: "png"},
+			Type:    NoteItemType,
+			Favicon: &Favicon{Host: "github.com", Data: []byte("icon"), Format: "png"},
 		},
 	}
 

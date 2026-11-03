@@ -28,10 +28,10 @@ func TestAddPasswordItemOpensGenerator(t *testing.T) {
 	application := &app{
 		win:   window,
 		main:  nil,
-		state: &paw.AppState{Settings: paw.NewDefaultSettings()},
+		state: &model.AppState{Settings: model.NewDefaultSettings()},
 		vault: vault,
 	}
-	application.addItem(paw.PasswordItemType)
+	application.addItem(model.PasswordItemType)
 
 	var generatePassword fyne.Tappable
 	for _, object := range test.LaidOutObjects(window.Canvas().Content()) {
@@ -58,10 +58,10 @@ func TestAddSSHItemShowsCreationActions(t *testing.T) {
 	require.NoError(t, err)
 	application := &app{
 		win:   window,
-		state: &paw.AppState{Settings: paw.NewDefaultSettings()},
+		state: &model.AppState{Settings: model.NewDefaultSettings()},
 		vault: vault,
 	}
-	application.addItem(paw.SSHKeyItemType)
+	application.addItem(model.SSHKeyItemType)
 
 	labels := make(map[string]bool)
 	for _, object := range test.LaidOutObjects(window.Canvas().Content()) {
@@ -88,7 +88,7 @@ func TestLoginEditorSettingsActionOpensTOTPDialog(t *testing.T) {
 			}
 			application := &app{
 				win:   window,
-				state: &paw.AppState{Settings: paw.NewDefaultSettings()},
+				state: &model.AppState{Settings: model.NewDefaultSettings()},
 			}
 			view := application.makeLoginEditView(item, isNew)
 			window.SetContent(view)

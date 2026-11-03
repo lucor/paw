@@ -15,7 +15,6 @@ import (
 	"fyne.io/fyne/v2"
 	"go.lucor.dev/cxf"
 	"go.lucor.dev/paw/internal/model"
-	"go.lucor.dev/paw/internal/paw"
 	"go.lucor.dev/paw/internal/ui/assets/icons"
 	"go.lucor.dev/zxcvbn"
 )
@@ -136,7 +135,7 @@ func (a *PasswordAuditor) Run(ctx context.Context, progress chan<- AuditProgress
 			result.LoadErrors++
 			continue
 		}
-		if kind != paw.PasswordItemType && kind != paw.LoginItemType {
+		if kind != model.PasswordItemType && kind != model.LoginItemType {
 			continue
 		}
 		if seen[summary.ID] {
@@ -166,7 +165,7 @@ func (a *PasswordAuditor) Run(ctx context.Context, progress chan<- AuditProgress
 		if summary.Subtitle != nil {
 			entry.Subtitle = *summary.Subtitle
 		}
-		if kind == paw.LoginItemType {
+		if kind == model.LoginItemType {
 			entry.Icon = icons.Login
 			if item.Metadata.Favicon != nil {
 				entry.Icon = item.Metadata.Favicon

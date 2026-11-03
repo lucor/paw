@@ -12,6 +12,7 @@ import (
 	"fyne.io/fyne/v2/test"
 	"fyne.io/fyne/v2/widget"
 	"github.com/stretchr/testify/require"
+	"go.lucor.dev/paw/internal/model"
 	"go.lucor.dev/paw/internal/paw"
 	"go.lucor.dev/paw/internal/storage"
 	"go.lucor.dev/paw/internal/ui/assets/icons"
@@ -23,8 +24,8 @@ func TestSettingsAboutNavigationReturnsToSameView(t *testing.T) {
 	window := driver.NewWindow("Settings")
 	t.Cleanup(window.Close)
 	store := &storage.StorageMock{}
-	store.OnStoreAppState = func(*paw.AppState) error { return nil }
-	state := &paw.AppState{Settings: paw.NewDefaultSettings()}
+	store.OnStoreAppState = func(*model.AppState) error { return nil }
+	state := &model.AppState{Settings: model.NewDefaultSettings()}
 	a := &app{win: window, main: container.NewVScroll(widget.NewLabel("Main")), state: state, storage: store}
 	settings := a.makeSettingsView()
 	window.SetContent(settings)

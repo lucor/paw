@@ -19,6 +19,7 @@ import (
 	"go.lucor.dev/cxf"
 	"golang.org/x/crypto/ssh"
 
+	legacyModel "go.lucor.dev/paw/internal/legacy"
 	"go.lucor.dev/paw/internal/model"
 	"go.lucor.dev/paw/internal/paw"
 )
@@ -34,32 +35,32 @@ func TestMigrateSSHKeyConvertsRSAAndEd25519(t *testing.T) {
 	}
 	for _, test := range keys {
 		t.Run(test.name, func(t *testing.T) {
-			legacy := newLegacySSHKey(t, test.key, "")
-			legacy.Name = "Deploy key"
-			legacy.Metadata.Subtitle = "Saved subtitle"
-			legacy.Comment = "deploy@example"
-			legacy.AddToAgent = true
-			legacy.Passphrase = &paw.Password{
+			oldKey := newLegacySSHKey(t, test.key, "")
+			oldKey.Name = "Deploy key"
+			oldKey.Metadata.Subtitle = "Saved subtitle"
+			oldKey.Comment = "deploy@example"
+			oldKey.AddToAgent = true
+			oldKey.Passphrase = &legacyModel.Password{
 				Value: "saved passphrase", Mode: paw.RandomPassword, Length: 24, Format: paw.DigitsFormat,
-				Metadata: &paw.Metadata{Name: "ignored password metadata", Type: paw.PasswordItemType},
-				Note:     &paw.Note{Value: "ignored password note"},
+				Metadata: &legacyModel.Metadata{Name: "ignored password metadata", Type: model.PasswordItemType},
+				Note:     &legacyModel.Note{Value: "ignored password note"},
 			}
-			legacy.Note = &paw.Note{
+			oldKey.Note = &legacyModel.Note{
 				Value:    "SSH note",
-				Metadata: &paw.Metadata{Name: "ignored note metadata", Type: paw.NoteItemType},
+				Metadata: &legacyModel.Metadata{Name: "ignored note metadata", Type: model.NoteItemType},
 			}
-			legacy.Metadata.Created = time.Unix(100, 123).UTC()
-			legacy.Metadata.Modified = time.Unix(200, 456).UTC()
+			oldKey.Metadata.Created = time.Unix(100, 123).UTC()
+			oldKey.Metadata.Modified = time.Unix(200, 456).UTC()
 
-			item, err := MigrateSSHKey(legacy)
+			item, err := MigrateSSHKey(oldKey)
 			require.NoError(t, err)
-			require.NotEqual(t, legacy.ID(), item.ID)
+			require.NotEqual(t, oldKey.ID(), item.ID)
 			require.Equal(t, "Deploy key", item.Title)
 			require.Equal(t, "Saved subtitle", *item.Subtitle)
 			require.Equal(t, uint64(100), *item.CreationAt)
 			require.Equal(t, uint64(200), *item.ModifiedAt)
 			require.True(t, item.Metadata.AddToAgent)
-			require.Equal(t, paw.SSHKeyItemType, item.Metadata.Type)
+			require.Equal(t, model.SSHKeyItemType, item.Metadata.Type)
 			require.Len(t, item.Credentials, 3)
 
 			var credential cxf.SSHKey
@@ -75,8 +76,8 @@ func TestMigrateSSHKeyConvertsRSAAndEd25519(t *testing.T) {
 			signature, err := signer.Sign(rand.Reader, message)
 			require.NoError(t, err)
 			require.NoError(t, signer.PublicKey().Verify(message, signature))
-			require.Equal(t, legacy.PublicKey, string(ssh.MarshalAuthorizedKey(signer.PublicKey())))
-			require.Equal(t, legacy.Fingerprint, ssh.FingerprintSHA256(signer.PublicKey()))
+			require.Equal(t, oldKey.PublicKey, string(ssh.MarshalAuthorizedKey(signer.PublicKey())))
+			require.Equal(t, oldKey.Fingerprint, ssh.FingerprintSHA256(signer.PublicKey()))
 
 			var passphrase cxf.BasicAuth
 			require.NoError(t, json.Unmarshal(item.Credentials[1], &passphrase))
@@ -121,12 +122,12 @@ func TestMigrateSSHKeyHandlesPassphrases(t *testing.T) {
 	protected := pem.EncodeToMemory(block)
 	for _, test := range []struct {
 		name       string
-		passphrase *paw.Password
+		passphrase *legacyModel.Password
 		wantErr    bool
 	}{
 		{name: "missing", wantErr: true},
-		{name: "wrong", passphrase: &paw.Password{Value: "wrong", Mode: paw.CustomPassword}, wantErr: true},
-		{name: "correct", passphrase: &paw.Password{Value: "correct horse", Mode: paw.PassphrasePassword, Length: 4}, wantErr: false},
+		{name: "wrong", passphrase: &legacyModel.Password{Value: "wrong", Mode: paw.CustomPassword}, wantErr: true},
+		{name: "correct", passphrase: &legacyModel.Password{Value: "correct horse", Mode: paw.PassphrasePassword, Length: 4}, wantErr: false},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			legacy := newLegacySSHKey(t, key, "")
@@ -145,7 +146,7 @@ func TestMigrateSSHKeyHandlesPassphrases(t *testing.T) {
 	}
 
 	legacy := newLegacySSHKey(t, key, "")
-	legacy.Passphrase = &paw.Password{Value: "saved but not used", Mode: paw.CustomPassword}
+	legacy.Passphrase = &legacyModel.Password{Value: "saved but not used", Mode: paw.CustomPassword}
 	item, err := MigrateSSHKey(legacy)
 	require.NoError(t, err)
 	var passphrase cxf.BasicAuth
@@ -159,8 +160,8 @@ func TestMigrateSSHKeyOptionalFields(t *testing.T) {
 	for _, mode := range []paw.PasswordMode{paw.CustomPassword, paw.RandomPassword, paw.PassphrasePassword, paw.PinPassword} {
 		t.Run(mode.String(), func(t *testing.T) {
 			legacy := newLegacySSHKey(t, key, "")
-			legacy.Passphrase = &paw.Password{Mode: mode, Length: 12, Format: paw.DigitsFormat}
-			legacy.Note = &paw.Note{}
+			legacy.Passphrase = &legacyModel.Password{Mode: mode, Length: 12, Format: paw.DigitsFormat}
+			legacy.Note = &legacyModel.Note{}
 			item, err := MigrateSSHKey(legacy)
 			require.NoError(t, err)
 			require.Len(t, item.Credentials, 2)
@@ -194,22 +195,22 @@ func TestMigrateSSHKeyOptionalFields(t *testing.T) {
 func TestMigrateSSHKeyRejectsInvalidData(t *testing.T) {
 	for _, test := range []struct {
 		name  string
-		setup func(*paw.SSHKey)
+		setup func(*legacyModel.SSHKey)
 	}{
-		{name: "nil", setup: func(_ *paw.SSHKey) {}},
-		{name: "missing metadata", setup: func(key *paw.SSHKey) { key.Metadata = nil }},
-		{name: "invalid key", setup: func(key *paw.SSHKey) { key.PrivateKey = "private-secret" }},
-		{name: "unsupported mode", setup: func(key *paw.SSHKey) {
+		{name: "nil", setup: func(_ *legacyModel.SSHKey) {}},
+		{name: "missing metadata", setup: func(key *legacyModel.SSHKey) { key.Metadata = nil }},
+		{name: "invalid key", setup: func(key *legacyModel.SSHKey) { key.PrivateKey = "private-secret" }},
+		{name: "unsupported mode", setup: func(key *legacyModel.SSHKey) {
 			key.Passphrase.Mode = paw.PasswordMode(4)
 			key.Passphrase.Value = "password-secret"
 		}},
-		{name: "invalid title", setup: func(key *paw.SSHKey) { key.Metadata.Name = "bad\xff" }},
-		{name: "invalid subtitle", setup: func(key *paw.SSHKey) { key.Metadata.Subtitle = "bad\xff" }},
-		{name: "public mismatch", setup: func(key *paw.SSHKey) {
+		{name: "invalid title", setup: func(key *legacyModel.SSHKey) { key.Metadata.Name = "bad\xff" }},
+		{name: "invalid subtitle", setup: func(key *legacyModel.SSHKey) { key.Metadata.Subtitle = "bad\xff" }},
+		{name: "public mismatch", setup: func(key *legacyModel.SSHKey) {
 			key.PublicKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA mismatch"
 		}},
-		{name: "fingerprint mismatch", setup: func(key *paw.SSHKey) { key.Fingerprint = "SHA256:mismatch" }},
-		{name: "invalid note", setup: func(key *paw.SSHKey) { key.Note.Value = "bad\xff" }},
+		{name: "fingerprint mismatch", setup: func(key *legacyModel.SSHKey) { key.Fingerprint = "SHA256:mismatch" }},
+		{name: "invalid note", setup: func(key *legacyModel.SSHKey) { key.Note.Value = "bad\xff" }},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			if test.name == "nil" {
@@ -219,7 +220,7 @@ func TestMigrateSSHKeyRejectsInvalidData(t *testing.T) {
 				return
 			}
 			legacy := newLegacySSHKey(t, generateEd25519Key(t), "")
-			legacy.Passphrase = &paw.Password{Mode: paw.CustomPassword}
+			legacy.Passphrase = &legacyModel.Password{Mode: paw.CustomPassword}
 			test.setup(legacy)
 			item, err := MigrateSSHKey(legacy)
 			require.Error(t, err)
@@ -247,7 +248,7 @@ func generateRSAKey(t *testing.T) *rsa.PrivateKey {
 }
 
 // newLegacySSHKey builds a legacy item with a matching public key and fingerprint.
-func newLegacySSHKey(t *testing.T, key crypto.PrivateKey, passphrase string) *paw.SSHKey {
+func newLegacySSHKey(t *testing.T, key crypto.PrivateKey, passphrase string) *legacyModel.SSHKey {
 	t.Helper()
 	var block *pem.Block
 	var err error
@@ -263,12 +264,12 @@ func newLegacySSHKey(t *testing.T, key crypto.PrivateKey, passphrase string) *pa
 	require.NoError(t, err)
 	publicKey, err := ssh.NewSignerFromKey(key)
 	require.NoError(t, err)
-	return &paw.SSHKey{
-		Metadata:    &paw.Metadata{Type: paw.SSHKeyItemType, Name: "Legacy key", Created: time.Unix(10, 0), Modified: time.Unix(20, 0)},
+	return &legacyModel.SSHKey{
+		Metadata:    &legacyModel.Metadata{Type: model.SSHKeyItemType, Name: "Legacy key", Created: time.Unix(10, 0), Modified: time.Unix(20, 0)},
 		PrivateKey:  string(pem.EncodeToMemory(block)),
 		PublicKey:   string(ssh.MarshalAuthorizedKey(publicKey.PublicKey())),
 		Fingerprint: ssh.FingerprintSHA256(publicKey.PublicKey()),
-		Passphrase:  &paw.Password{Mode: paw.CustomPassword},
-		Note:        &paw.Note{},
+		Passphrase:  &legacyModel.Password{Mode: paw.CustomPassword},
+		Note:        &legacyModel.Note{},
 	}
 }

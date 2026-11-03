@@ -68,7 +68,7 @@ func runUIE2EScreenshotGallery(t *testing.T, outputDir string, variant fyne.Them
 	addVault := NewAddVault(func() {}, func() {}, func() {})
 	capture("add-vault", addVault)
 	captureAt("add-vault-narrow", addVault, fyne.NewSize(320, 540))
-	createVault := NewCreateVault(func() {}, func(string, string, storage.VaultAppearance) error { return nil })
+	createVault := NewCreateVault(func() {}, func(string, string, model.VaultAppearance) error { return nil })
 	capture("create-vault", createVault)
 	captureAt("create-vault-narrow-empty", createVault, fyne.NewSize(320, 540))
 	var createFields []*widget.Entry
@@ -120,10 +120,10 @@ func runUIE2EScreenshotGallery(t *testing.T, outputDir string, variant fyne.Them
 		createFields[2].SetText("example master password")
 		capture("create-vault-valid", createVault)
 	}
-	capture("unlock-vault", NewUnlockVault(storage.VaultInfo{ID: "personal", Name: "Personal"}, &storage.StorageMock{}, nil, func() {}, func() {}, func() {}))
+	capture("unlock-vault", NewUnlockVault(model.VaultInfo{ID: "personal", Name: "Personal"}, &storage.StorageMock{}, nil, func() {}, func() {}, func() {}))
 	unlockFailureStore := &storage.StorageMock{}
 	unlockFailureStore.OnLoadVaultKey = func(string, string) (*paw.Key, error) { return nil, &age.NoIdentityMatchError{} }
-	unlockFailure := NewUnlockVault(storage.VaultInfo{ID: "personal", Name: "Personal"}, unlockFailureStore, nil, nil, nil, func() {})
+	unlockFailure := NewUnlockVault(model.VaultInfo{ID: "personal", Name: "Personal"}, unlockFailureStore, nil, nil, nil, func() {})
 	window.SetContent(unlockFailure)
 	window.Resize(fyne.NewSize(440, 800))
 	unlockFailure.password.SetText("incorrect password")
@@ -139,7 +139,7 @@ func runUIE2EScreenshotGallery(t *testing.T, outputDir string, variant fyne.Them
 		{Name: "Work", Open: func() {}},
 		{Name: "Archive", Unlocked: true, Open: func() {}},
 	}, func() {}))
-	vaultSettings := NewVaultSettingsView("Personal", storage.DefaultVaultAppearance(), func() {}, func() {}, func() {}, func() {})
+	vaultSettings := NewVaultSettingsView("Personal", model.DefaultVaultAppearance(), func() {}, func() {}, func() {}, func() {})
 	capture("vault-settings", vaultSettings)
 	captureAt("vault-settings-narrow", vaultSettings, fyne.NewSize(320, 540))
 	masterPassword := newMasterPasswordView(func() {})
@@ -150,10 +150,10 @@ func runUIE2EScreenshotGallery(t *testing.T, outputDir string, variant fyne.Them
 	masterPassword.password.strength.label.Refresh()
 	capture("change-master-password-filled", masterPassword.view)
 	captureAt("change-master-password-narrow", masterPassword.view, fyne.NewSize(320, 540))
-	vaultEditor := NewVaultIdentityEditor("Personal", storage.DefaultVaultAppearance(), func(string, storage.VaultAppearance) error { return nil }, func() {})
+	vaultEditor := NewVaultIdentityEditor("Personal", model.DefaultVaultAppearance(), func(string, model.VaultAppearance) error { return nil }, func() {})
 	capture("edit-vault", vaultEditor)
 	captureAt("edit-vault-narrow", vaultEditor, fyne.NewSize(320, 540))
-	customizedEditor := NewVaultIdentityEditor("Work", storage.DefaultVaultAppearance(), func(string, storage.VaultAppearance) error { return nil }, func() {})
+	customizedEditor := NewVaultIdentityEditor("Work", model.DefaultVaultAppearance(), func(string, model.VaultAppearance) error { return nil }, func() {})
 	window.SetContent(customizedEditor)
 	window.Resize(fyne.NewSize(440, 800))
 	test.Tap(findVaultIdentityPreview(t, customizedEditor))
@@ -324,7 +324,7 @@ func runUIE2EScreenshotGallery(t *testing.T, outputDir string, variant fyne.Them
 	test.Tap(sshEditor.RevealPrivateButton)
 	capture("edit-ssh-key-private-revealed", sshEditor.View)
 
-	appState := &paw.AppState{Settings: paw.NewDefaultSettings()}
+	appState := &model.AppState{Settings: model.NewDefaultSettings()}
 	settings := NewSettingsView(appState, &storage.StorageMock{}, window)
 	capture("settings", settings.View)
 	for _, object := range test.LaidOutObjects(settings.View) {
@@ -353,7 +353,7 @@ func runUIE2EScreenshotGallery(t *testing.T, outputDir string, variant fyne.Them
 	}
 
 	backupStore := &storage.StorageMock{}
-	backupStore.OnVaults = func() ([]storage.VaultInfo, error) { return nil, nil }
+	backupStore.OnVaults = func() ([]model.VaultInfo, error) { return nil, nil }
 	backupFlow := &restoreFlow{window: window, store: backupStore, back: func() {}, restored: func(*model.Vault) {}}
 	backupFlow.selectFile("")
 	captureCurrent("restore-select-file", fyne.NewSize(440, 800))
@@ -364,8 +364,8 @@ func runUIE2EScreenshotGallery(t *testing.T, outputDir string, variant fyne.Them
 	backupFlow.review(backup, "")
 	captureCurrent("restore-review", fyne.NewSize(440, 800))
 	captureAt("restore-review-narrow", window.Content(), fyne.NewSize(320, 540))
-	backupStore.OnVaults = func() ([]storage.VaultInfo, error) {
-		return []storage.VaultInfo{{Name: "Personal"}}, nil
+	backupStore.OnVaults = func() ([]model.VaultInfo, error) {
+		return []model.VaultInfo{{Name: "Personal"}}, nil
 	}
 	backupFlow.review(backup, "")
 	captureCurrent("restore-review-collision", fyne.NewSize(440, 800))
@@ -387,10 +387,10 @@ func runUIE2EScreenshotGallery(t *testing.T, outputDir string, variant fyne.Them
 	passwordEditor, err = NewPasswordEditor(passwordItem, true)
 	require.NoError(t, err)
 	window.SetContent(passwordEditor.View)
-	passwordSettings := paw.NewDefaultSettings().Password
+	passwordSettings := model.NewDefaultSettings().Password
 	generator := NewPasswordGenerator(key, passwordSettings)
 	for _, mode := range []paw.PasswordMode{paw.RandomPassword, paw.PassphrasePassword, paw.PinPassword} {
-		password := &paw.Password{Mode: mode}
+		password := &paw.PasswordSpec{Mode: mode}
 		switch mode {
 		case paw.RandomPassword:
 			password.Length = passwordSettings.Random.DefaultLength
@@ -539,13 +539,13 @@ func closePilotOverlay(window fyne.Window) {
 
 func pilotItemName(item *model.Item) string {
 	switch item.Metadata.Type {
-	case paw.LoginItemType:
+	case model.LoginItemType:
 		return "login-totp"
-	case paw.PasswordItemType:
+	case model.PasswordItemType:
 		return "password"
-	case paw.NoteItemType:
+	case model.NoteItemType:
 		return "note"
-	case paw.SSHKeyItemType:
+	case model.SSHKeyItemType:
 		return "ssh-key"
 	default:
 		return "unknown"

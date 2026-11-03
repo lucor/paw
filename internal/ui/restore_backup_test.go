@@ -24,8 +24,8 @@ func TestRestoreReviewShowsBackupMetadataAndValidatesNewVault(t *testing.T) {
 	window := app.NewWindow("Restore")
 	t.Cleanup(window.Close)
 	store := &storage.StorageMock{}
-	store.OnVaults = func() ([]storage.VaultInfo, error) {
-		return []storage.VaultInfo{{Name: "Personal"}}, nil
+	store.OnVaults = func() ([]model.VaultInfo, error) {
+		return []model.VaultInfo{{Name: "Personal"}}, nil
 	}
 	flow := &restoreFlow{window: window, store: store, back: func() {}, restored: func(*model.Vault) {}}
 	created := uint64(1705055040)
@@ -87,7 +87,7 @@ func TestRestoreReviewOmitsMissingMetadataAndFitsNarrowWindow(t *testing.T) {
 	window.Show()
 
 	flow := &restoreFlow{window: window, store: &storage.StorageMock{VaultStorageMock: storage.VaultStorageMock{
-		OnVaults: func() ([]storage.VaultInfo, error) { return nil, nil },
+		OnVaults: func() ([]model.VaultInfo, error) { return nil, nil },
 	}}, back: func() {}, restored: func(*model.Vault) {}}
 	flow.review(&storage.PawBackup{Collections: 0, Credentials: 0}, "")
 	texts := auditTexts(window.Content())

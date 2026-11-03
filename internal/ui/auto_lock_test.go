@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
-	"go.lucor.dev/paw/internal/paw"
+	"go.lucor.dev/paw/internal/model"
 )
 
 func TestAutoLockOptionsUseSupportedKeys(t *testing.T) {
@@ -32,7 +32,7 @@ func TestBackgroundAutoLockRejectsStaleTimer(t *testing.T) {
 	c := newBackgroundAutoLock(func() { locked++ })
 	c.now = func() time.Time { return now }
 	t.Cleanup(c.close)
-	c.configure(paw.AutoLockOneMinute)
+	c.configure(model.AutoLockOneMinute)
 	c.exitedForeground()
 	old := c.generation
 	c.enteredForeground()
@@ -50,10 +50,10 @@ func TestBackgroundAutoLockRecalculatesFromBackgroundEntry(t *testing.T) {
 	c := newBackgroundAutoLock(func() { locked++ })
 	c.now = func() time.Time { return now }
 	t.Cleanup(c.close)
-	c.configure(paw.AutoLockFiveMinutes)
+	c.configure(model.AutoLockFiveMinutes)
 	c.exitedForeground()
 	now = now.Add(2 * time.Minute)
-	c.configure(paw.AutoLockOneMinute)
+	c.configure(model.AutoLockOneMinute)
 	require.Equal(t, 1, locked)
 	c.close()
 	c.expire(c.generation)
@@ -65,7 +65,7 @@ func TestBackgroundAutoLockLocksAfterConfiguredDeadline(t *testing.T) {
 	locked := 0
 	controller := newBackgroundAutoLock(func() { locked++ })
 	controller.now = func() time.Time { return now }
-	controller.configure(paw.AutoLockOneMinute)
+	controller.configure(model.AutoLockOneMinute)
 	controller.exitedForeground()
 	now = now.Add(59 * time.Second)
 	controller.enteredForeground()
@@ -82,9 +82,9 @@ func TestBackgroundAutoLockNeverCancelsPendingLock(t *testing.T) {
 	locked := 0
 	controller := newBackgroundAutoLock(func() { locked++ })
 	controller.now = func() time.Time { return now }
-	controller.configure(paw.AutoLockOneMinute)
+	controller.configure(model.AutoLockOneMinute)
 	controller.exitedForeground()
-	controller.configure(paw.AutoLockNever)
+	controller.configure(model.AutoLockNever)
 	now = now.Add(2 * time.Minute)
 	controller.enteredForeground()
 	require.Zero(t, locked)

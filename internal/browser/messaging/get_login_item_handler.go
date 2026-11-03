@@ -11,7 +11,6 @@ import (
 
 	"go.lucor.dev/paw/internal/agent"
 	"go.lucor.dev/paw/internal/model"
-	"go.lucor.dev/paw/internal/paw"
 	"go.lucor.dev/paw/internal/storage"
 )
 
@@ -54,8 +53,8 @@ func (h *GetLoginItemHandler) Serve(res *Response, req *Request) {
 		return
 	}
 
-	if paw.ItemType(v.Type) != paw.LoginItemType {
-		res.Error = fmt.Errorf("invalid item type: expected %d (%s), got %d (%s)", v.Type, paw.LoginItemType, paw.ItemType(v.Type), paw.LoginItemType)
+	if model.ItemType(v.Type) != model.LoginItemType {
+		res.Error = fmt.Errorf("invalid item type: expected %d (%s), got %d (%s)", v.Type, model.LoginItemType, model.ItemType(v.Type), model.LoginItemType)
 		return
 	}
 
@@ -90,7 +89,7 @@ func (h *GetLoginItemHandler) Serve(res *Response, req *Request) {
 			res.Error = err
 			return
 		}
-		if candidate.Title == v.Name && itemType == paw.LoginItemType {
+		if candidate.Title == v.Name && itemType == model.LoginItemType {
 			if summary != nil {
 				res.Error = fmt.Errorf("login item %q is ambiguous", v.Name)
 				return

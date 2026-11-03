@@ -14,19 +14,18 @@ import (
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/widget"
 	"go.lucor.dev/paw/internal/model"
-	"go.lucor.dev/paw/internal/paw"
 )
 
 // makeEditItemView builds the screen for editing or creating an item.
 func (a *app) makeEditItemView(original *model.Item, isNew bool) fyne.CanvasObject {
 	switch original.Metadata.Type {
-	case paw.LoginItemType:
+	case model.LoginItemType:
 		return a.makeLoginEditView(original, isNew)
-	case paw.PasswordItemType:
+	case model.PasswordItemType:
 		return a.makePasswordEditView(original, isNew)
-	case paw.NoteItemType:
+	case model.NoteItemType:
 		return a.makeNoteEditView(original, isNew)
-	case paw.SSHKeyItemType:
+	case model.SSHKeyItemType:
 		return a.makeSSHKeyEditView(original, isNew)
 	}
 	dialog.ShowError(fmt.Errorf("unsupported entry type"), a.win)
@@ -68,7 +67,7 @@ func (a *app) makeSSHKeyEditView(original *model.Item, isNew bool) fyne.CanvasOb
 		}
 		save()
 	}
-	settings := paw.NewDefaultSettings()
+	settings := model.NewDefaultSettings()
 	if a.state != nil && a.state.Settings != nil {
 		settings = a.state.Settings
 	}
@@ -85,7 +84,7 @@ func (a *app) makeSSHKeyEditView(original *model.Item, isNew bool) fyne.CanvasOb
 }
 
 func (a *app) makeLoginEditView(original *model.Item, isNew bool) fyne.CanvasObject {
-	settings := paw.NewDefaultSettings()
+	settings := model.NewDefaultSettings()
 	if a.state != nil && a.state.Settings != nil {
 		settings = a.state.Settings
 	}
@@ -155,7 +154,7 @@ func (a *app) makePasswordEditView(original *model.Item, isNew bool) fyne.Canvas
 		a.saveEditedItem(original, item, isNew)
 	}
 	editor.GenerateButton.OnTapped = func() {
-		settings := paw.NewDefaultSettings()
+		settings := model.NewDefaultSettings()
 		if a.state != nil && a.state.Settings != nil {
 			settings = a.state.Settings
 		}

@@ -12,7 +12,7 @@ import (
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
-	"go.lucor.dev/paw/internal/paw"
+	"go.lucor.dev/paw/internal/model"
 	"go.lucor.dev/paw/internal/ui/assets/icons"
 )
 
@@ -45,7 +45,7 @@ func NewActionRow(title, detail string, resource fyne.Resource, tapped func()) *
 	row.text = container.New(layout.NewCustomPaddedVBoxLayout(0), row.title, row.detail)
 	text := container.NewThemeOverride(row.text, compactTextTheme{Theme: theme.Current()})
 	row.leadingArea = container.NewPadded(container.NewGridWrap(fyne.NewSquareSize(32), row.leading))
-	if favicon, ok := resource.(*paw.Favicon); ok && len(favicon.Data) > 0 {
+	if favicon, ok := resource.(*model.Favicon); ok && len(favicon.Data) > 0 {
 		row.leadingArea.Objects[0] = container.NewGridWrap(fyne.NewSquareSize(32), newIconPreview(favicon))
 		row.customLeading = true
 	}
@@ -74,7 +74,7 @@ func (r *ActionRow) SetLeadingObject(object fyne.CanvasObject) {
 
 func (r *ActionRow) setLeadingResource(resource fyne.Resource) {
 	r.leading.SetResource(resource)
-	if favicon, ok := resource.(*paw.Favicon); ok && len(favicon.Data) > 0 {
+	if favicon, ok := resource.(*model.Favicon); ok && len(favicon.Data) > 0 {
 		r.SetLeadingObject(container.NewGridWrap(fyne.NewSquareSize(32), newIconPreview(favicon)))
 		return
 	}

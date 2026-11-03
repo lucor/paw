@@ -10,13 +10,14 @@ import (
 
 	"go.lucor.dev/cxf"
 
+	"go.lucor.dev/paw/internal/legacy"
 	"go.lucor.dev/paw/internal/model"
 	"go.lucor.dev/paw/internal/paw"
 )
 
 // MigrateLogin converts a legacy login to a CXF-backed Paw item.
-func MigrateLogin(login *paw.Login) (*model.Item, error) {
-	if login == nil || login.Metadata == nil || login.Type != paw.LoginItemType {
+func MigrateLogin(login *legacy.Login) (*model.Item, error) {
+	if login == nil || login.Metadata == nil || login.Type != model.LoginItemType {
 		return nil, fmt.Errorf("cannot migrate login: invalid metadata")
 	}
 	if !utf8.ValidString(login.Metadata.Subtitle) {

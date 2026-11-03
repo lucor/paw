@@ -14,15 +14,15 @@ import (
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 	"github.com/stretchr/testify/require"
-	"go.lucor.dev/paw/internal/storage"
+	"go.lucor.dev/paw/internal/model"
 	"go.lucor.dev/paw/internal/ui/assets/icons"
 )
 
 func TestCreateVaultAppearanceSelectionReturnsToPreview(t *testing.T) {
 	test.NewTempApp(t)
 	window := test.NewTempWindow(t, nil)
-	var submitted storage.VaultAppearance
-	view := NewCreateVault(func() {}, func(name, password string, appearance storage.VaultAppearance) error {
+	var submitted model.VaultAppearance
+	view := NewCreateVault(func() {}, func(name, password string, appearance model.VaultAppearance) error {
 		submitted = appearance
 		return nil
 	})
@@ -106,7 +106,7 @@ func TestCreateVaultAppearanceSelectionReturnsToPreview(t *testing.T) {
 	entries[1].SetText("test password")
 	entries[2].SetText("test password")
 	test.Tap(create)
-	require.Equal(t, storage.VaultAppearance{Icon: "briefcase-business", Color: "green"}, submitted)
+	require.Equal(t, model.VaultAppearance{Icon: "briefcase-business", Color: "green"}, submitted)
 }
 
 // TestCreateVaultValidatesAndSubmitsFields checks required input and password confirmation.
@@ -116,8 +116,8 @@ func TestCreateVaultValidatesAndSubmitsFields(t *testing.T) {
 	window := app.NewWindow("Create vault")
 	t.Cleanup(window.Close)
 	var submittedName, submittedPassword string
-	var submittedAppearance storage.VaultAppearance
-	view := NewCreateVault(func() {}, func(name, password string, appearance storage.VaultAppearance) error {
+	var submittedAppearance model.VaultAppearance
+	view := NewCreateVault(func() {}, func(name, password string, appearance model.VaultAppearance) error {
 		submittedName, submittedPassword, submittedAppearance = name, password, appearance
 		return nil
 	})
@@ -172,7 +172,7 @@ func TestCreateVaultValidatesAndSubmitsFields(t *testing.T) {
 	test.Tap(create)
 	require.Equal(t, "Personal", submittedName)
 	require.Equal(t, "master password", submittedPassword)
-	require.Equal(t, storage.DefaultVaultAppearance(), submittedAppearance)
+	require.Equal(t, model.DefaultVaultAppearance(), submittedAppearance)
 	for _, object := range test.LaidOutObjects(view) {
 		if button, ok := object.(*widget.Button); ok && button.Text == "Create vault" {
 			require.Equal(t, widget.HighImportance, button.Importance)
@@ -187,7 +187,7 @@ func TestCreateVaultUsesCompactCenteredVaultIcon(t *testing.T) {
 	t.Cleanup(app.Quit)
 	window := app.NewWindow("Create vault")
 	t.Cleanup(window.Close)
-	view := NewCreateVault(func() {}, func(string, string, storage.VaultAppearance) error { return nil })
+	view := NewCreateVault(func() {}, func(string, string, model.VaultAppearance) error { return nil })
 	window.SetContent(view)
 	window.Resize(fyne.NewSize(320, 540))
 	window.Show()
@@ -231,7 +231,7 @@ func TestCreateVaultKeepsActionVisible(t *testing.T) {
 	t.Cleanup(app.Quit)
 	window := app.NewWindow("Create vault")
 	t.Cleanup(window.Close)
-	view := NewCreateVault(func() {}, func(string, string, storage.VaultAppearance) error { return nil })
+	view := NewCreateVault(func() {}, func(string, string, model.VaultAppearance) error { return nil })
 	window.SetContent(view)
 	window.Resize(fyne.NewSize(440, 380))
 	window.Show()
@@ -258,7 +258,7 @@ func TestCreateVaultNarrowLayoutFitsViewport(t *testing.T) {
 			t.Cleanup(app.Quit)
 			window := app.NewWindow("Create vault")
 			t.Cleanup(window.Close)
-			view := NewCreateVault(func() {}, func(string, string, storage.VaultAppearance) error { return nil })
+			view := NewCreateVault(func() {}, func(string, string, model.VaultAppearance) error { return nil })
 			window.SetContent(view)
 			window.Resize(fyne.NewSize(320, 540))
 			window.Show()

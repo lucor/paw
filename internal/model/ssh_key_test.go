@@ -31,7 +31,7 @@ func TestNewSSHKeyBuildsCredentials(t *testing.T) {
 				PrivateKey: base64.RawURLEncoding.EncodeToString(privateDER), KeyComment: "deploy@example",
 			}, "secret passphrase", settings)
 			require.NoError(t, err)
-			require.Equal(t, paw.SSHKeyItemType, item.Metadata.Type)
+			require.Equal(t, SSHKeyItemType, item.Metadata.Type)
 			require.Len(t, item.Credentials, 2)
 
 			var key cxf.SSHKey

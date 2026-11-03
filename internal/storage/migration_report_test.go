@@ -5,8 +5,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-
-	"go.lucor.dev/paw/internal/paw"
+	"go.lucor.dev/paw/internal/model"
 )
 
 // TestMigrationReportCountsItems checks repeated errors count once per legacy item.
@@ -17,7 +16,7 @@ func TestMigrationReportCountsItems(t *testing.T) {
 	failure := MigrationItemFailure{
 		LegacyID: "legacy-42",
 		Title:    "GitHub",
-		ItemType: paw.LoginItemType,
+		ItemType: model.LoginItemType,
 		Err:      firstErr,
 	}
 	report.add(failure, MigrationPhaseConvert)
@@ -29,7 +28,7 @@ func TestMigrationReportCountsItems(t *testing.T) {
 	require.Len(t, report.Failures, 1)
 	require.Equal(t, "legacy-42", report.Failures[0].LegacyID)
 	require.Equal(t, "GitHub", report.Failures[0].Title)
-	require.Equal(t, paw.LoginItemType, report.Failures[0].ItemType)
+	require.Equal(t, model.LoginItemType, report.Failures[0].ItemType)
 	require.Equal(t, []MigrationPhase{MigrationPhaseConvert, MigrationPhaseValidate}, report.Failures[0].Phases)
 	require.ErrorIs(t, report, firstErr)
 	require.ErrorIs(t, report, secondErr)

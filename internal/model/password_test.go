@@ -25,7 +25,7 @@ func TestNewPasswordPreservesValueAndSettings(t *testing.T) {
 			settings := PasswordSettings{Mode: mode, Length: 24, Format: paw.LowercaseFormat | paw.DigitsFormat}
 			item, err := NewPassword("Example", "", settings)
 			require.NoError(t, err)
-			require.Equal(t, paw.PasswordItemType, item.Metadata.Type)
+			require.Equal(t, PasswordItemType, item.Metadata.Type)
 			require.Len(t, item.Credentials, 1)
 
 			var credential cxf.BasicAuth

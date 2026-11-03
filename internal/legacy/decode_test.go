@@ -1,18 +1,19 @@
-// SPDX-FileCopyrightText: 2026 Luca Corbo, Paw contributors
+// SPDX-FileCopyrightText: 2021-2025 Luca Corbo, Paw contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-package paw
+package legacy
 
 import (
 	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"go.lucor.dev/paw/internal/model"
+	"go.lucor.dev/paw/internal/paw"
 )
 
-// TestDecodeVault checks saved metadata and the runtime key are preserved.
 func TestDecodeVault(t *testing.T) {
-	key, err := MakeOneTimeKey()
+	key, err := paw.MakeOneTimeKey()
 	require.NoError(t, err)
 	vault := NewVault(key, "Personal")
 	note := NewNote()
@@ -27,7 +28,6 @@ func TestDecodeVault(t *testing.T) {
 	require.Same(t, key, decoded.Key())
 }
 
-// TestDecodeVaultPreservesMissingDates checks reading does not invent saved dates.
 func TestDecodeVaultPreservesMissingDates(t *testing.T) {
 	vault, err := DecodeVault([]byte(`{"Name":"Personal"}`), nil)
 	require.NoError(t, err)
@@ -35,11 +35,10 @@ func TestDecodeVaultPreservesMissingDates(t *testing.T) {
 	require.True(t, vault.Modified.IsZero())
 }
 
-// TestDecodeItem checks all supported legacy types retain their saved fields.
 func TestDecodeItem(t *testing.T) {
 	note := NewNote()
 	note.Name, note.Value = "Note", "Synthetic note"
-	password := NewRandomPassword()
+	password := NewPassword()
 	password.Name, password.Value = "Password", "Synthetic password"
 	login := NewLogin()
 	login.Name, login.Username = "Login", "example user"
@@ -59,33 +58,30 @@ func TestDecodeItem(t *testing.T) {
 	}
 }
 
-// TestDecodeLegacyRejectsInvalidJSON checks incomplete or extra documents fail.
-func TestDecodeLegacyRejectsInvalidJSON(t *testing.T) {
+func TestDecodeRejectsInvalidJSON(t *testing.T) {
 	for _, data := range []string{`{`, `{} {}`, `[]`, `null`} {
 		t.Run(data, func(t *testing.T) {
 			vault, err := DecodeVault([]byte(data), nil)
 			require.Error(t, err)
 			require.Nil(t, vault)
-			item, err := DecodeItem([]byte(data), NoteItemType)
+			item, err := DecodeItem([]byte(data), model.NoteItemType)
 			require.Error(t, err)
 			require.Nil(t, item)
 		})
 	}
 }
 
-// TestDecodeLegacyErrorsExcludeValues checks date decoder errors cannot leak secrets.
-func TestDecodeLegacyErrorsExcludeValues(t *testing.T) {
+func TestDecodeErrorsExcludeValues(t *testing.T) {
 	_, err := DecodeVault([]byte(`{"Created":"synthetic private value"}`), nil)
 	require.Error(t, err)
 	require.NotContains(t, err.Error(), "synthetic private value")
-	_, err = DecodeItem([]byte(`{"metadata":{"created":"synthetic private value"}}`), NoteItemType)
+	_, err = DecodeItem([]byte(`{"metadata":{"created":"synthetic private value"}}`), model.NoteItemType)
 	require.Error(t, err)
 	require.NotContains(t, err.Error(), "synthetic private value")
 }
 
-// TestDecodeItemRejectsUnsupportedType checks unknown records cannot be skipped silently.
 func TestDecodeItemRejectsUnsupportedType(t *testing.T) {
-	item, err := DecodeItem([]byte(`{}`), ItemType(999))
+	item, err := DecodeItem([]byte(`{}`), model.ItemType(999))
 	require.ErrorContains(t, err, "unsupported legacy item type")
 	require.Nil(t, item)
 }

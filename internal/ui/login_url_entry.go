@@ -9,6 +9,7 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/widget"
 	"go.lucor.dev/paw/internal/favicon"
+	"go.lucor.dev/paw/internal/model"
 	"go.lucor.dev/paw/internal/paw"
 )
 
@@ -18,12 +19,12 @@ type LoginURLEntry struct {
 
 	ctx             context.Context
 	loginURL        *paw.LoginURL
-	settings        paw.FaviconDownloaderSettings
-	FaviconListener func(*paw.Favicon)
+	settings        model.FaviconDownloaderSettings
+	FaviconListener func(*model.Favicon)
 }
 
 // NewLoginURLEntry creates a Website field that fetches a favicon when its host changes.
-func NewLoginURLEntry(ctx context.Context, value string, settings paw.FaviconDownloaderSettings) *LoginURLEntry {
+func NewLoginURLEntry(ctx context.Context, value string, settings model.FaviconDownloaderSettings) *LoginURLEntry {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -64,15 +65,15 @@ func (e *LoginURLEntry) downloadFavicon() {
 	pageURL := *e.loginURL.URL()
 	go func() {
 		data, format, err := favicon.Download(e.ctx, &pageURL, favicon.Options{})
-		var downloaded *paw.Favicon
+		var downloaded *model.Favicon
 		if err == nil {
-			downloaded = paw.NewFavicon(host, data, format)
+			downloaded = model.NewFavicon(host, data, format)
 		}
 		e.notifyFavicon(downloaded, host)
 	}()
 }
 
-func (e *LoginURLEntry) notifyFavicon(downloaded *paw.Favicon, host string) {
+func (e *LoginURLEntry) notifyFavicon(downloaded *model.Favicon, host string) {
 	fyne.Do(func() {
 		if host == "" && downloaded == nil && e.FaviconListener != nil {
 			currentURL := paw.NewLoginURL()

@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.lucor.dev/cxf"
 
+	legacyModel "go.lucor.dev/paw/internal/legacy"
 	"go.lucor.dev/paw/internal/migration"
 	"go.lucor.dev/paw/internal/model"
 	"go.lucor.dev/paw/internal/paw"
@@ -27,32 +28,32 @@ func TestMigratePasswordPreservesData(t *testing.T) {
 		paw.PinPassword,
 	} {
 		t.Run(mode.String(), func(t *testing.T) {
-			legacy := &paw.Password{
+			legacy := &legacyModel.Password{
 				Value:  "saved secret",
 				Mode:   mode,
 				Length: 24,
 				Format: paw.LowercaseFormat | paw.DigitsFormat,
-				Metadata: &paw.Metadata{
-					Name: "Example password", Subtitle: "Account", Type: paw.PasswordItemType,
+				Metadata: &legacyModel.Metadata{
+					Name: "Example password", Subtitle: "Account", Type: model.PasswordItemType,
 					Created: created, Modified: modified,
-					Favicon:  &paw.Favicon{Host: "ignored.example"},
-					Autofill: &paw.Autofill{TLDPlusOne: "ignored.example"},
+					Favicon:  &model.Favicon{Host: "ignored.example"},
+					Autofill: &model.Autofill{TLDPlusOne: "ignored.example"},
 				},
 			}
-			legacy.Note = &paw.Note{
+			legacy.Note = &legacyModel.Note{
 				Value: "Recovery text",
-				Metadata: &paw.Metadata{
-					Name: "Ignored note title", Subtitle: "Ignored note subtitle", Type: paw.NoteItemType,
+				Metadata: &legacyModel.Metadata{
+					Name: "Ignored note title", Subtitle: "Ignored note subtitle", Type: model.NoteItemType,
 					Created:  time.Date(2001, 1, 2, 3, 4, 5, 0, time.UTC),
 					Modified: time.Date(2002, 1, 2, 3, 4, 5, 0, time.UTC),
-					Favicon:  &paw.Favicon{Host: "ignored-note.example"},
-					Autofill: &paw.Autofill{TLDPlusOne: "ignored-note.example"},
+					Favicon:  &model.Favicon{Host: "ignored-note.example"},
+					Autofill: &model.Autofill{TLDPlusOne: "ignored-note.example"},
 				},
 			}
 
 			item, err := migration.MigratePassword(legacy)
 			require.NoError(t, err)
-			require.Equal(t, paw.PasswordItemType, item.Metadata.Type)
+			require.Equal(t, model.PasswordItemType, item.Metadata.Type)
 			require.Nil(t, item.Metadata.Favicon)
 			require.Equal(t, legacy.Name, item.Title)
 			require.Equal(t, legacy.Subtitle, *item.Subtitle)
@@ -105,15 +106,15 @@ func TestMigratePasswordPreservesData(t *testing.T) {
 func TestMigratePasswordNotePresence(t *testing.T) {
 	for _, test := range []struct {
 		name string
-		note *paw.Note
+		note *legacyModel.Note
 		want int
 	}{
 		{name: "absent", want: 1},
-		{name: "empty", note: &paw.Note{Value: ""}, want: 1},
-		{name: "present", note: &paw.Note{Value: "Attached text"}, want: 2},
+		{name: "empty", note: &legacyModel.Note{Value: ""}, want: 1},
+		{name: "present", note: &legacyModel.Note{Value: "Attached text"}, want: 2},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			legacy := &paw.Password{Metadata: &paw.Metadata{Type: paw.PasswordItemType}, Note: test.note}
+			legacy := &legacyModel.Password{Metadata: &legacyModel.Metadata{Type: model.PasswordItemType}, Note: test.note}
 			item, err := migration.MigratePassword(legacy)
 			require.NoError(t, err)
 			require.Len(t, item.Credentials, test.want)
@@ -123,7 +124,7 @@ func TestMigratePasswordNotePresence(t *testing.T) {
 
 // TestMigratePasswordGeneratesNewID checks each conversion creates a fresh identity.
 func TestMigratePasswordGeneratesNewID(t *testing.T) {
-	legacy := &paw.Password{Metadata: &paw.Metadata{Type: paw.PasswordItemType, Name: "Legacy"}}
+	legacy := &legacyModel.Password{Metadata: &legacyModel.Metadata{Type: model.PasswordItemType, Name: "Legacy"}}
 	first, err := migration.MigratePassword(legacy)
 	require.NoError(t, err)
 	second, err := migration.MigratePassword(legacy)
@@ -135,19 +136,19 @@ func TestMigratePasswordGeneratesNewID(t *testing.T) {
 func TestMigratePasswordInvalidInput(t *testing.T) {
 	tests := []struct {
 		name     string
-		password *paw.Password
+		password *legacyModel.Password
 	}{
 		{name: "nil password"},
-		{name: "missing metadata", password: &paw.Password{Value: "private value"}},
-		{name: "wrong type", password: &paw.Password{Value: "private value", Metadata: &paw.Metadata{Type: paw.LoginItemType}}},
-		{name: "invalid title", password: &paw.Password{Value: "private value", Metadata: &paw.Metadata{Type: paw.PasswordItemType, Name: "bad\xff"}}},
-		{name: "invalid value", password: &paw.Password{Value: "private\xff", Metadata: &paw.Metadata{Type: paw.PasswordItemType}}},
-		{name: "invalid subtitle", password: &paw.Password{Metadata: &paw.Metadata{Type: paw.PasswordItemType, Subtitle: "bad\xff"}}},
-		{name: "invalid note", password: &paw.Password{Metadata: &paw.Metadata{Type: paw.PasswordItemType}, Note: &paw.Note{Value: "private\xff"}}},
-		{name: "unsupported mode", password: &paw.Password{Mode: paw.PasswordMode(4), Metadata: &paw.Metadata{Type: paw.PasswordItemType}}},
-		{name: "unknown mode", password: &paw.Password{Mode: paw.PasswordMode(99), Metadata: &paw.Metadata{Type: paw.PasswordItemType}}},
-		{name: "pre-epoch creation", password: &paw.Password{Metadata: &paw.Metadata{Type: paw.PasswordItemType, Created: time.Unix(-1, 0)}}},
-		{name: "pre-epoch modification", password: &paw.Password{Metadata: &paw.Metadata{Type: paw.PasswordItemType, Modified: time.Unix(-1, 0)}}},
+		{name: "missing metadata", password: &legacyModel.Password{Value: "private value"}},
+		{name: "wrong type", password: &legacyModel.Password{Value: "private value", Metadata: &legacyModel.Metadata{Type: model.LoginItemType}}},
+		{name: "invalid title", password: &legacyModel.Password{Value: "private value", Metadata: &legacyModel.Metadata{Type: model.PasswordItemType, Name: "bad\xff"}}},
+		{name: "invalid value", password: &legacyModel.Password{Value: "private\xff", Metadata: &legacyModel.Metadata{Type: model.PasswordItemType}}},
+		{name: "invalid subtitle", password: &legacyModel.Password{Metadata: &legacyModel.Metadata{Type: model.PasswordItemType, Subtitle: "bad\xff"}}},
+		{name: "invalid note", password: &legacyModel.Password{Metadata: &legacyModel.Metadata{Type: model.PasswordItemType}, Note: &legacyModel.Note{Value: "private\xff"}}},
+		{name: "unsupported mode", password: &legacyModel.Password{Mode: paw.PasswordMode(4), Metadata: &legacyModel.Metadata{Type: model.PasswordItemType}}},
+		{name: "unknown mode", password: &legacyModel.Password{Mode: paw.PasswordMode(99), Metadata: &legacyModel.Metadata{Type: model.PasswordItemType}}},
+		{name: "pre-epoch creation", password: &legacyModel.Password{Metadata: &legacyModel.Metadata{Type: model.PasswordItemType, Created: time.Unix(-1, 0)}}},
+		{name: "pre-epoch modification", password: &legacyModel.Password{Metadata: &legacyModel.Metadata{Type: model.PasswordItemType, Modified: time.Unix(-1, 0)}}},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

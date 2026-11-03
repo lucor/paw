@@ -20,7 +20,6 @@ import (
 	"fyne.io/fyne/v2/widget"
 	"go.lucor.dev/cxf"
 	"go.lucor.dev/paw/internal/model"
-	"go.lucor.dev/paw/internal/paw"
 	"go.lucor.dev/paw/internal/ui/assets/icons"
 )
 
@@ -101,16 +100,16 @@ func newEntryDetailWithClear(ctx context.Context, item *model.Item, window fyne.
 	}
 	var resource fyne.Resource
 	switch item.Metadata.Type {
-	case paw.LoginItemType:
+	case model.LoginItemType:
 		resource = icons.Globe
 		if item.Metadata.Favicon != nil && len(item.Metadata.Favicon.Data) > 0 {
 			resource = item.Metadata.Favicon
 		}
-	case paw.PasswordItemType:
+	case model.PasswordItemType:
 		resource = icons.Password
-	case paw.NoteItemType:
+	case model.NoteItemType:
 		resource = icons.Note
-	case paw.SSHKeyItemType:
+	case model.SSHKeyItemType:
 		resource = icons.SSH
 	default:
 		return nil, nil, fmt.Errorf("unsupported entry category")
@@ -121,7 +120,7 @@ func newEntryDetailWithClear(ctx context.Context, item *model.Item, window fyne.
 	}
 	var bodyObjects []fyne.CanvasObject
 	var clearSensitive []*detailSecret
-	if item.Metadata.Type == paw.SSHKeyItemType {
+	if item.Metadata.Type == model.SSHKeyItemType {
 		if decoded.sshKey == nil {
 			return nil, nil, fmt.Errorf("SSH key credential is missing")
 		}

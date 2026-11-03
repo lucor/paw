@@ -23,9 +23,9 @@ func TestFirstRunUsesAddVaultAndReturnsFromCreateAndRestore(t *testing.T) {
 	window := driver.NewWindow("Paw")
 	t.Cleanup(window.Close)
 	store := &storage.StorageMock{}
-	store.OnVaults = func() ([]storage.VaultInfo, error) { return nil, nil }
-	state := &paw.AppState{Settings: paw.NewDefaultSettings()}
-	state.Settings.StartupVault = paw.StartupVaultLastUsed
+	store.OnVaults = func() ([]model.VaultInfo, error) { return nil, nil }
+	state := &model.AppState{Settings: model.NewDefaultSettings()}
+	state.Settings.StartupVault = model.StartupVaultLastUsed
 	state.Settings.LastVaultID = "previously-used"
 	application := &app{win: window, storage: store, state: state}
 	application.main = application.makeApp()
@@ -80,9 +80,9 @@ func TestMakeAppUsesLastUsedVaultSetting(t *testing.T) {
 	window := driver.NewWindow("Paw")
 	t.Cleanup(window.Close)
 	store := &storage.StorageMock{}
-	vaults := []storage.VaultInfo{{ID: "first", Name: "First"}, {ID: "last", Name: "Last"}}
-	store.OnVaults = func() ([]storage.VaultInfo, error) { return vaults, nil }
-	state := &paw.AppState{Settings: paw.NewDefaultSettings()}
+	vaults := []model.VaultInfo{{ID: "first", Name: "First"}, {ID: "last", Name: "Last"}}
+	store.OnVaults = func() ([]model.VaultInfo, error) { return vaults, nil }
+	state := &model.AppState{Settings: model.NewDefaultSettings()}
 	state.Settings.LastVaultID = "last"
 	application := &app{win: window, storage: store, state: state}
 	content := application.makeApp()

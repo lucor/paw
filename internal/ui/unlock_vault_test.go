@@ -53,7 +53,7 @@ func TestUnlockVaultViewReportsPasswordErrorAndOpensVault(t *testing.T) {
 		return vault, nil
 	}
 	opened := make(chan *model.Vault, 1)
-	view := NewUnlockVault(storage.VaultInfo{ID: "personal", Name: "Personal"}, store, func(openedVault *model.Vault) {
+	view := NewUnlockVault(model.VaultInfo{ID: "personal", Name: "Personal"}, store, func(openedVault *model.Vault) {
 		opened <- openedVault
 	}, nil, func() {}, func() {})
 	window.SetContent(view)
@@ -147,7 +147,7 @@ func TestUnlockVaultViewReportsPasswordErrorAndOpensVault(t *testing.T) {
 func TestUnlockVaultChooseAnotherClearsPassword(t *testing.T) {
 	test.NewTempApp(t)
 	chosen := false
-	view := NewUnlockVault(storage.VaultInfo{ID: "personal", Name: "Personal"}, &storage.StorageMock{}, nil, nil, nil, func() { chosen = true })
+	view := NewUnlockVault(model.VaultInfo{ID: "personal", Name: "Personal"}, &storage.StorageMock{}, nil, nil, nil, func() { chosen = true })
 	window := test.NewTempWindow(t, view)
 	window.Show()
 	view.password.SetText("previous vault password")
@@ -169,7 +169,7 @@ func TestUnlockVaultUnrelatedFailureDoesNotShowIncorrectPassword(t *testing.T) {
 	test.NewTempApp(t)
 	store := &storage.StorageMock{}
 	store.OnLoadVaultKey = func(string, string) (*paw.Key, error) { return nil, errors.New("vault I/O failed") }
-	view := NewUnlockVault(storage.VaultInfo{ID: "personal", Name: "Personal"}, store, nil, nil, nil, nil)
+	view := NewUnlockVault(model.VaultInfo{ID: "personal", Name: "Personal"}, store, nil, nil, nil, nil)
 	window := test.NewTempWindow(t, view)
 	window.Show()
 	view.password.SetText("master password")
@@ -187,7 +187,7 @@ func TestUnlockVaultContentStaysAboveViewportCenter(t *testing.T) {
 	test.NewTempApp(t)
 	window := test.NewTempWindow(t, nil)
 	window.Resize(fyne.NewSize(440, 800))
-	view := NewUnlockVault(storage.VaultInfo{ID: "personal", Name: "Personal"}, &storage.StorageMock{}, nil, func() {}, nil, nil)
+	view := NewUnlockVault(model.VaultInfo{ID: "personal", Name: "Personal"}, &storage.StorageMock{}, nil, func() {}, nil, nil)
 	window.SetContent(view)
 	window.Show()
 

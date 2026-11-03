@@ -12,15 +12,15 @@ import (
 	"fyne.io/fyne/v2/test"
 	"fyne.io/fyne/v2/theme"
 	"github.com/stretchr/testify/require"
-	"go.lucor.dev/paw/internal/paw"
+	"go.lucor.dev/paw/internal/model"
 )
 
 func TestCompactTextColorsFollowApplicationTheme(t *testing.T) {
 	app := test.NewApp()
 	t.Cleanup(app.Quit)
-	applySettingsTheme(paw.ThemeSystem)
+	applySettingsTheme(model.ThemeSystem)
 	compact := compactTextTheme{Theme: app.Settings().Theme()}
-	for _, selection := range []string{paw.ThemeSystem, paw.ThemeDark, paw.ThemeLight} {
+	for _, selection := range []string{model.ThemeSystem, model.ThemeDark, model.ThemeLight} {
 		applySettingsTheme(selection)
 		variant := app.Settings().ThemeVariant()
 		require.Equal(t, app.Settings().Theme().Color(theme.ColorNameForeground, variant), compact.Color(theme.ColorNameForeground, variant), selection)

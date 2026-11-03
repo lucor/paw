@@ -182,7 +182,7 @@ func (f *restoreFlow) review(backup *storage.PawBackup, message string) {
 	)
 	form.Orientation = widget.Vertical
 
-	var existingVaults []storage.VaultInfo
+	var existingVaults []model.VaultInfo
 	if f.store != nil {
 		vaults, err := f.store.Vaults()
 		if err != nil && message == "" {
@@ -307,7 +307,7 @@ func restoreDate(timestamp uint64) string {
 	return time.Unix(int64(timestamp), 0).UTC().Format("2 Jan 2006")
 }
 
-func restoreVaultNameExists(vaults []storage.VaultInfo, name string) bool {
+func restoreVaultNameExists(vaults []model.VaultInfo, name string) bool {
 	name = strings.TrimSpace(name)
 	if name == "" {
 		return false

@@ -9,7 +9,7 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/driver/desktop"
-	"go.lucor.dev/paw/internal/storage"
+	"go.lucor.dev/paw/internal/model"
 )
 
 const (
@@ -60,7 +60,7 @@ func (a *app) makeMainMenu() *fyne.MainMenu {
 func (a *app) makeVaultActions() []*fyne.MenuItem {
 	return NewVaultActions(func() { a.showVaultSettingsView() }, a.showAuditPasswordView, a.exportToFile, func() {
 		name, _ := a.vault.Name()
-		a.main.Content = a.makeUnlockVaultView(storage.VaultInfo{ID: a.vaultID, Name: name}, nil, nil)
+		a.main.Content = a.makeUnlockVaultView(model.VaultInfo{ID: a.vaultID, Name: name}, nil, nil)
 		a.lockVault()
 		a.main.Refresh()
 	})

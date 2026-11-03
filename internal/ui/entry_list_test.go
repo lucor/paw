@@ -4,6 +4,8 @@
 package ui
 
 import (
+	"testing"
+
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/test"
@@ -11,7 +13,6 @@ import (
 	"fyne.io/fyne/v2/widget"
 	"github.com/stretchr/testify/require"
 	"go.lucor.dev/paw/internal/ui/assets/icons"
-	"testing"
 )
 
 func entryListFixture() EntryListOptions {

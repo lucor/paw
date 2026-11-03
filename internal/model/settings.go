@@ -1,7 +1,9 @@
 // SPDX-FileCopyrightText: 2024-2025 Luca Corbo, Paw contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-package paw
+package model
+
+import "go.lucor.dev/paw/internal/paw"
 
 const (
 	ThemeSystem                      = "system"
@@ -34,22 +36,22 @@ func NewDefaultSettings() *Settings {
 		FaviconDownloader: FaviconDownloaderSettings{
 			Disabled: FaviconDownloaderDisabledDefault,
 		},
-		Password: PasswordSettings{
+		Password: PasswordGeneratorSettings{
 			Passphrase: PassphrasePasswordSettings{
-				DefaultLength: PassphrasePasswordDefaultLength,
-				MaxLength:     PassphrasePasswordMaxLength,
-				MinLength:     PassphrasePasswordMinLength,
+				DefaultLength: paw.PassphrasePasswordDefaultLength,
+				MaxLength:     paw.PassphrasePasswordMaxLength,
+				MinLength:     paw.PassphrasePasswordMinLength,
 			},
 			Pin: PinPasswordSettings{
-				DefaultLength: PinPasswordDefaultLength,
-				MaxLength:     PinPasswordMaxLength,
-				MinLength:     PinPasswordMinLength,
+				DefaultLength: paw.PinPasswordDefaultLength,
+				MaxLength:     paw.PinPasswordMaxLength,
+				MinLength:     paw.PinPasswordMinLength,
 			},
 			Random: RandomPasswordSettings{
-				DefaultLength: RandomPasswordDefaultLength,
-				DefaultFormat: RandomPasswordDefaultFormat,
-				MaxLength:     RandomPasswordMaxLength,
-				MinLength:     RandomPasswordMinLength,
+				DefaultLength: paw.RandomPasswordDefaultLength,
+				DefaultFormat: paw.RandomPasswordDefaultFormat,
+				MaxLength:     paw.RandomPasswordMaxLength,
+				MinLength:     paw.RandomPasswordMinLength,
 			},
 		},
 	}
@@ -61,7 +63,7 @@ type Settings struct {
 	AutoLock          string                    `json:"auto_lock,omitempty"`
 	LastVaultID       string                    `json:"last_vault_id,omitempty"`
 	FaviconDownloader FaviconDownloaderSettings `json:"favicon_downloader,omitempty"`
-	Password          PasswordSettings          `json:"password,omitempty"`
+	Password          PasswordGeneratorSettings `json:"password,omitempty"`
 }
 
 // FaviconDownloaderSettings configures automatic favicon downloads.
@@ -70,7 +72,7 @@ type FaviconDownloaderSettings struct {
 	Disabled bool `json:"disabled,omitempty"` // Disabled is true if the favicon downloader is disabled.
 }
 
-type PasswordSettings struct {
+type PasswordGeneratorSettings struct {
 	Passphrase PassphrasePasswordSettings `json:"passphrase,omitempty"`
 	Pin        PinPasswordSettings        `json:"pin,omitempty"`
 	Random     RandomPasswordSettings     `json:"random,omitempty"`
@@ -88,8 +90,8 @@ type PinPasswordSettings struct {
 	MinLength     int `json:"min_length,omitempty"`
 }
 type RandomPasswordSettings struct {
-	DefaultLength int    `json:"default_length,omitempty"`
-	DefaultFormat Format `json:"default_format,omitempty"`
-	MaxLength     int    `json:"max_length,omitempty"`
-	MinLength     int    `json:"min_length,omitempty"`
+	DefaultLength int        `json:"default_length,omitempty"`
+	DefaultFormat paw.Format `json:"default_format,omitempty"`
+	MaxLength     int        `json:"max_length,omitempty"`
+	MinLength     int        `json:"min_length,omitempty"`
 }

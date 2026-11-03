@@ -38,7 +38,7 @@ type SSHKeyEditor struct {
 	Title                    *widget.Entry
 	Passphrase               *widget.Entry
 	AddToAgent               *widget.Check
-	PasswordSpec             *paw.Password
+	PasswordSpec             *paw.PasswordSpec
 
 	item             *model.Item
 	sshKey           *cxf.SSHKey
@@ -70,7 +70,7 @@ func NewSSHKeyEditor(item *model.Item, isNew bool) (*SSHKeyEditor, error) {
 	if err := item.Validate(); err != nil {
 		return nil, err
 	}
-	if item.Metadata.Type != paw.SSHKeyItemType {
+	if item.Metadata.Type != model.SSHKeyItemType {
 		return nil, errors.New("item is not an SSH key")
 	}
 	item = cloneItem(item)

@@ -12,6 +12,7 @@ import (
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 	"github.com/stretchr/testify/require"
+	"go.lucor.dev/paw/internal/model"
 	"go.lucor.dev/paw/internal/paw"
 	"go.lucor.dev/paw/internal/storage"
 	"go.lucor.dev/paw/internal/ui/assets/icons"
@@ -22,10 +23,10 @@ func TestSettingsViewEditsAndPersistsSettings(t *testing.T) {
 	t.Cleanup(app.Quit)
 	window := app.NewWindow("Settings")
 	t.Cleanup(window.Close)
-	state := &paw.AppState{Settings: paw.NewDefaultSettings()}
+	state := &model.AppState{Settings: model.NewDefaultSettings()}
 	saved := 0
 	store := &storage.StorageMock{}
-	store.OnStoreAppState = func(got *paw.AppState) error {
+	store.OnStoreAppState = func(got *model.AppState) error {
 		require.Same(t, state, got)
 		saved++
 		return nil
@@ -62,7 +63,7 @@ func TestSettingsViewEditsAndPersistsSettings(t *testing.T) {
 		}
 	}
 	test.Tap(steppers[0])
-	require.Equal(t, paw.StartupVaultChooseAtStartup, state.Settings.StartupVault)
+	require.Equal(t, model.StartupVaultChooseAtStartup, state.Settings.StartupVault)
 	require.Equal(t, paw.PassphrasePasswordDefaultLength+1, state.Settings.Password.Passphrase.DefaultLength)
 	require.Equal(t, 3, saved)
 
@@ -78,11 +79,11 @@ func TestSettingsViewEditsAndPersistsSettings(t *testing.T) {
 func TestSettingsViewPersistsStableSelectionKeys(t *testing.T) {
 	app := test.NewApp()
 	t.Cleanup(app.Quit)
-	state := &paw.AppState{Settings: paw.NewDefaultSettings()}
-	require.Equal(t, paw.DefaultTheme, state.Settings.Theme)
-	require.Equal(t, paw.DefaultStartupVault, state.Settings.StartupVault)
+	state := &model.AppState{Settings: model.NewDefaultSettings()}
+	require.Equal(t, model.DefaultTheme, state.Settings.Theme)
+	require.Equal(t, model.DefaultStartupVault, state.Settings.StartupVault)
 	store := &storage.StorageMock{}
-	store.OnStoreAppState = func(*paw.AppState) error { return nil }
+	store.OnStoreAppState = func(*model.AppState) error { return nil }
 	window := app.NewWindow("Settings")
 	t.Cleanup(window.Close)
 	view := NewSettingsView(state, store, window)
@@ -108,16 +109,16 @@ func TestSettingsViewPersistsStableSelectionKeys(t *testing.T) {
 	require.NotNil(t, appearance)
 	startup.SetSelected(startupVaultChooseLabel)
 	appearance.SetSelected(settingsThemeDarkLabel)
-	require.Equal(t, paw.StartupVaultChooseAtStartup, state.Settings.StartupVault)
-	require.Equal(t, paw.ThemeDark, state.Settings.Theme)
+	require.Equal(t, model.StartupVaultChooseAtStartup, state.Settings.StartupVault)
+	require.Equal(t, model.ThemeDark, state.Settings.Theme)
 }
 
 func TestSettingsViewPersistsCanonicalAutoLockKey(t *testing.T) {
 	app := test.NewApp()
 	t.Cleanup(app.Quit)
-	state := &paw.AppState{Settings: paw.NewDefaultSettings()}
+	state := &model.AppState{Settings: model.NewDefaultSettings()}
 	store := &storage.StorageMock{}
-	store.OnStoreAppState = func(*paw.AppState) error { return nil }
+	store.OnStoreAppState = func(*model.AppState) error { return nil }
 	window := app.NewWindow("Settings")
 	t.Cleanup(window.Close)
 	view := NewSettingsView(state, store, window)
@@ -132,7 +133,7 @@ func TestSettingsViewPersistsCanonicalAutoLockKey(t *testing.T) {
 	}
 	require.NotNil(t, autoLock)
 	autoLock.SetSelected("1 minute")
-	require.Equal(t, paw.AutoLockOneMinute, state.Settings.AutoLock)
+	require.Equal(t, model.AutoLockOneMinute, state.Settings.AutoLock)
 }
 
 func TestSettingsTypographyFollowsSelectedTheme(t *testing.T) {
@@ -141,9 +142,9 @@ func TestSettingsTypographyFollowsSelectedTheme(t *testing.T) {
 	app.Settings().SetTheme(settingsTheme{Theme: theme.DefaultTheme(), variant: theme.VariantLight})
 	window := app.NewWindow("Settings")
 	t.Cleanup(window.Close)
-	state := &paw.AppState{Settings: paw.NewDefaultSettings()}
+	state := &model.AppState{Settings: model.NewDefaultSettings()}
 	store := &storage.StorageMock{}
-	store.OnStoreAppState = func(*paw.AppState) error { return nil }
+	store.OnStoreAppState = func(*model.AppState) error { return nil }
 	view := NewSettingsView(state, store, window)
 	window.SetContent(view.View)
 	window.Resize(fyne.NewSize(430, 926))

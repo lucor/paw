@@ -11,8 +11,7 @@ import (
 
 	urfave "github.com/urfave/cli/v3"
 	"go.lucor.dev/cxf"
-
-	"go.lucor.dev/paw/internal/paw"
+	"go.lucor.dev/paw/internal/model"
 )
 
 const (
@@ -74,7 +73,7 @@ func (cmd *ShowCmd) Run(ctx context.Context) error {
 	var pclip []byte
 	var pclipMsg string
 	switch cmd.itemType {
-	case paw.LoginItemType:
+	case model.LoginItemType:
 		if item.Scope != nil && len(item.Scope.URLs) > 0 {
 			fmt.Fprintf(cmd.out, "URL: %s\n", item.Scope.URLs[0])
 		}
@@ -102,7 +101,7 @@ func (cmd *ShowCmd) Run(ctx context.Context) error {
 				break
 			}
 		}
-	case paw.PasswordItemType:
+	case model.PasswordItemType:
 		credential, _, err := basicAuth(item)
 		if err != nil {
 			return err
@@ -113,7 +112,7 @@ func (cmd *ShowCmd) Run(ctx context.Context) error {
 			pclip = []byte(passwordValue(credential))
 			pclipMsg = "[✓] password copied to clipboard"
 		}
-	case paw.SSHKeyItemType:
+	case model.SSHKeyItemType:
 		var credential cxf.SSHKey
 		for _, raw := range item.Credentials {
 			typeName, err := cxf.CredentialTypeOf(raw)
@@ -144,7 +143,7 @@ func (cmd *ShowCmd) Run(ctx context.Context) error {
 			addToAgent = "Yes"
 		}
 		fmt.Fprintf(cmd.out, "Add to agent: %s\n", addToAgent)
-	case paw.NoteItemType:
+	case model.NoteItemType:
 		note, _, err := noteCredential(item)
 		if err != nil {
 			return err

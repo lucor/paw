@@ -10,8 +10,6 @@ import (
 	"unicode/utf8"
 
 	"go.lucor.dev/cxf"
-
-	"go.lucor.dev/paw/internal/paw"
 )
 
 // NewSSHKey creates a Paw SSH-key item with a new ID and current dates.
@@ -43,7 +41,7 @@ func NewSSHKey(title string, key cxf.SSHKey, passphrase string, settings Passwor
 	}
 	created := uint64(time.Now().Unix())
 	modified := created
-	metadata := ItemMetadata{Type: paw.SSHKeyItemType}
+	metadata := ItemMetadata{Type: SSHKeyItemType}
 	extension, err := encodeItemExtension(nil, metadata)
 	if err != nil {
 		return nil, fmt.Errorf("cannot encode SSH key metadata: %w", err)

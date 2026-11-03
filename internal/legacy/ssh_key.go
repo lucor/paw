@@ -1,19 +1,18 @@
 // SPDX-FileCopyrightText: 2022-2025 Luca Corbo, Paw contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-package paw
+package legacy
 
 import (
 	"time"
+
+	"go.lucor.dev/paw/internal/model"
 )
 
-// Declare conformity to Item interface
-var _ Item = (*SSHKey)(nil)
-
+// SSHKey is an SSH key decoded from the legacy Paw storage format.
 type SSHKey struct {
-	*Metadata `json:"metadata,omitempty"`
-	*Note     `json:"note,omitempty"`
-
+	*Metadata   `json:"metadata,omitempty"`
+	*Note       `json:"note,omitempty"`
 	AddToAgent  bool      `json:"add_to_agent,omitempty"`
 	Comment     string    `json:"comment,omitempty"`
 	Fingerprint string    `json:"fingerprint,omitempty"`
@@ -22,20 +21,11 @@ type SSHKey struct {
 	PublicKey   string    `json:"public_key,omitempty"`
 }
 
-// Subtitle implements MetadataSubtitler.
-func (i *SSHKey) Subtitle() string {
-	return i.Comment
-}
-
+// NewSSHKey creates a legacy SSH-key fixture with current metadata.
 func NewSSHKey() *SSHKey {
 	now := time.Now().UTC()
 	return &SSHKey{
-		Metadata: &Metadata{
-			Type:     SSHKeyItemType,
-			Created:  now,
-			Modified: now,
-		},
-		Passphrase: NewPassword(),
-		Note:       NewNote(),
+		Metadata:   &Metadata{Type: model.SSHKeyItemType, Created: now, Modified: now},
+		Passphrase: NewPassword(), Note: NewNote(),
 	}
 }

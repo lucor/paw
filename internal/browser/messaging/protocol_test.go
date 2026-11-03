@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"go.lucor.dev/paw/internal/model"
 	"go.lucor.dev/paw/internal/storage"
 )
 
@@ -28,8 +29,8 @@ func Test_PawMux(t *testing.T) {
 	t.Run("registered action", func(t *testing.T) {
 		req := &Request{Action: ListVaultAction}
 		s := &storage.StorageMock{}
-		s.OnVaults = func() ([]storage.VaultInfo, error) {
-			return []storage.VaultInfo{}, nil
+		s.OnVaults = func() ([]model.VaultInfo, error) {
+			return []model.VaultInfo{}, nil
 		}
 		mux := NewPawMux(&ListVaultHandler{Storage: s})
 		in := &bytes.Buffer{}
@@ -40,9 +41,9 @@ func Test_PawMux(t *testing.T) {
 	})
 
 	t.Run("list vaults", func(t *testing.T) {
-		vaults := []storage.VaultInfo{{ID: "vault1", Name: "Vault One"}, {ID: "vault2", Name: "Vault Two"}}
+		vaults := []model.VaultInfo{{ID: "vault1", Name: "Vault One"}, {ID: "vault2", Name: "Vault Two"}}
 		s := &storage.StorageMock{}
-		s.OnVaults = func() ([]storage.VaultInfo, error) {
+		s.OnVaults = func() ([]model.VaultInfo, error) {
 			return vaults, nil
 		}
 

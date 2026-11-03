@@ -69,7 +69,7 @@ func (cmd *AddCmd) Run(ctx context.Context) error {
 	}
 	var item *model.Item
 	switch cmd.itemType {
-	case paw.NoteItemType:
+	case model.NoteItemType:
 		content, err := cmd.prompter.ask("Note")
 		if err != nil {
 			return err
@@ -79,7 +79,7 @@ func (cmd *AddCmd) Run(ctx context.Context) error {
 			return createErr
 		}
 		item = created
-	case paw.PasswordItemType:
+	case model.PasswordItemType:
 		password, err := cmd.generatePassword(key, paw.CustomPassword)
 		if err != nil {
 			return err
@@ -89,9 +89,9 @@ func (cmd *AddCmd) Run(ctx context.Context) error {
 			return createErr
 		}
 		item = created
-	case paw.LoginItemType:
+	case model.LoginItemType:
 		item, err = cmd.newLogin(key)
-	case paw.SSHKeyItemType:
+	case model.SSHKeyItemType:
 		item, err = cmd.newSSHKey()
 	default:
 		return fmt.Errorf("unsupported item type: %q", cmd.itemType)
@@ -209,6 +209,6 @@ func (cmd *AddCmd) newSSHKey() (*model.Item, error) {
 }
 
 // generatePassword prompts for a password using the supported generators.
-func (cmd *AddCmd) generatePassword(key *paw.Key, defaultMode paw.PasswordMode) (*paw.Password, error) {
+func (cmd *AddCmd) generatePassword(key *paw.Key, defaultMode paw.PasswordMode) (*paw.PasswordSpec, error) {
 	return (&PwGenCmd{command: cmd.command}).Pwgen(key, []paw.PasswordMode{paw.CustomPassword, paw.RandomPassword, paw.PassphrasePassword, paw.PinPassword}, defaultMode)
 }

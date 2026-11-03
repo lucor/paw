@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"fyne.io/fyne/v2"
-	"go.lucor.dev/paw/internal/paw"
+	"go.lucor.dev/paw/internal/model"
 )
 
 type autoLockOption struct {
@@ -14,17 +14,17 @@ type autoLockOption struct {
 }
 
 var autoLockChoices = []autoLockOption{
-	{paw.AutoLockNever, "Never", 0},
-	{paw.AutoLockOneMinute, "1 minute", time.Minute},
-	{paw.AutoLockFiveMinutes, "5 minutes", 5 * time.Minute},
-	{paw.AutoLockTenMinutes, "10 minutes", 10 * time.Minute},
-	{paw.AutoLockFifteenMinutes, "15 minutes", 15 * time.Minute},
-	{paw.AutoLockThirtyMinutes, "30 minutes", 30 * time.Minute},
-	{paw.AutoLockOneHour, "1 hour", time.Hour},
-	{paw.AutoLockTwoHours, "2 hours", 2 * time.Hour},
-	{paw.AutoLockFourHours, "4 hours", 4 * time.Hour},
-	{paw.AutoLockEightHours, "8 hours", 8 * time.Hour},
-	{paw.AutoLockOneDay, "1 day", 24 * time.Hour},
+	{model.AutoLockNever, "Never", 0},
+	{model.AutoLockOneMinute, "1 minute", time.Minute},
+	{model.AutoLockFiveMinutes, "5 minutes", 5 * time.Minute},
+	{model.AutoLockTenMinutes, "10 minutes", 10 * time.Minute},
+	{model.AutoLockFifteenMinutes, "15 minutes", 15 * time.Minute},
+	{model.AutoLockThirtyMinutes, "30 minutes", 30 * time.Minute},
+	{model.AutoLockOneHour, "1 hour", time.Hour},
+	{model.AutoLockTwoHours, "2 hours", 2 * time.Hour},
+	{model.AutoLockFourHours, "4 hours", 4 * time.Hour},
+	{model.AutoLockEightHours, "8 hours", 8 * time.Hour},
+	{model.AutoLockOneDay, "1 day", 24 * time.Hour},
 }
 
 func autoLockLabels() []string {
@@ -48,7 +48,7 @@ func autoLockKey(label string) string {
 			return option.key
 		}
 	}
-	return paw.AutoLockNever
+	return model.AutoLockNever
 }
 func autoLockByKey(key string) (time.Duration, bool) {
 	for _, option := range autoLockChoices {
@@ -83,7 +83,7 @@ func (a *backgroundAutoLock) configure(key string) {
 	a.stop()
 	a.delay, _ = autoLockByKey(key)
 	log.Printf("auto-lock: configured key=%q timeout=%s", key, a.delay)
-	if a.delay == 0 && key != "" && key != paw.AutoLockNever {
+	if a.delay == 0 && key != "" && key != model.AutoLockNever {
 		log.Printf("auto-lock: unsupported timeout key=%q; disabled", key)
 	}
 	a.schedule()

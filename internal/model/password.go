@@ -51,7 +51,7 @@ func NewPassword(title, value string, settings PasswordSettings) (*Item, error) 
 	}
 	created := uint64(time.Now().Unix())
 	modified := created
-	metadata := ItemMetadata{Type: paw.PasswordItemType}
+	metadata := ItemMetadata{Type: PasswordItemType}
 	itemExtension, err := encodeItemExtension(nil, metadata)
 	if err != nil {
 		return nil, fmt.Errorf("cannot encode password item metadata: %w", err)

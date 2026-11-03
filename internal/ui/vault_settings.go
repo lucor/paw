@@ -14,12 +14,12 @@ import (
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
-	"go.lucor.dev/paw/internal/storage"
+	"go.lucor.dev/paw/internal/model"
 	"go.lucor.dev/paw/internal/ui/assets/icons"
 )
 
 // NewVaultSettingsView displays settings for the currently selected vault.
-func NewVaultSettingsView(name string, appearance storage.VaultAppearance, edit, changePassword, deleteVault, back func()) fyne.CanvasObject {
+func NewVaultSettingsView(name string, appearance model.VaultAppearance, edit, changePassword, deleteVault, back func()) fyne.CanvasObject {
 	backButton := widget.NewButtonWithIcon("", icons.Back, back)
 	backButton.Importance = widget.LowImportance
 	header := newPageHeader(backButton, newText("Vault settings", titleStyle), nil)
@@ -41,8 +41,8 @@ func NewVaultSettingsView(name string, appearance storage.VaultAppearance, edit,
 }
 
 // NewVaultIdentityEditor keeps name and appearance changes temporary until Save.
-func NewVaultIdentityEditor(name string, appearance storage.VaultAppearance, save func(string, storage.VaultAppearance) error, back func()) fyne.CanvasObject {
-	appearance = storage.NormalizeVaultAppearance(appearance)
+func NewVaultIdentityEditor(name string, appearance model.VaultAppearance, save func(string, model.VaultAppearance) error, back func()) fyne.CanvasObject {
+	appearance = model.NormalizeVaultAppearance(appearance)
 
 	nameField := widget.NewEntry()
 	nameField.SetText(name)
@@ -95,7 +95,7 @@ func NewVaultIdentityEditor(name string, appearance storage.VaultAppearance, sav
 	screen := container.NewStack(editor)
 	previewButton.OnTapped = func() {
 		errorText.Hide()
-		appearancePage := newVaultAppearanceView(nameField.Text, appearance, func(updated storage.VaultAppearance) {
+		appearancePage := newVaultAppearanceView(nameField.Text, appearance, func(updated model.VaultAppearance) {
 			appearance = updated
 			preview.Objects[0] = newEditableVaultPreview(appearance, previewButton)
 			preview.Refresh()
@@ -137,7 +137,7 @@ func (a *app) showVaultSettings() {
 		dialog.ShowError(err, a.win)
 		return
 	}
-	appearance := storage.DefaultVaultAppearance()
+	appearance := model.DefaultVaultAppearance()
 	for _, info := range infos {
 		if info.ID == vaultID {
 			appearance = info.Appearance
@@ -185,13 +185,13 @@ func (a *app) confirmDeleteVault(vaultID, name string) {
 	}, a.win)
 }
 
-func (a *app) showVaultIdentityEditor(vaultID, name string, appearance storage.VaultAppearance) {
+func (a *app) showVaultIdentityEditor(vaultID, name string, appearance model.VaultAppearance) {
 	if a.vault == nil || a.vaultID != vaultID || a.settingsVaultID != vaultID {
 		a.settingsVaultID = ""
 		a.showCurrentVaultView()
 		return
 	}
-	view := NewVaultIdentityEditor(name, appearance, func(updatedName string, updatedAppearance storage.VaultAppearance) error {
+	view := NewVaultIdentityEditor(name, appearance, func(updatedName string, updatedAppearance model.VaultAppearance) error {
 		if a.vault == nil || a.vaultID != vaultID || a.settingsVaultID != vaultID {
 			return errors.New("the selected vault is no longer available")
 		}

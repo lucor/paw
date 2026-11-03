@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2021-2025 Luca Corbo, Paw contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-package paw
+package model
 
 import (
 	"fmt"
@@ -11,8 +11,8 @@ import (
 type ItemType int
 
 const (
-	// MetadataItemType is the Metadata Item type
-	MetadataItemType ItemType = 1 << iota
+	// Reserve the legacy metadata category without shifting saved item values.
+	_ ItemType = 1 << iota
 	// NoteItemType is the Note Item type
 	NoteItemType
 	// PasswordItemType is the Password Item type
@@ -26,8 +26,6 @@ const (
 // Label returns the item type label used in the UI
 func (it ItemType) Label() string {
 	switch it {
-	case MetadataItemType:
-		return "Metadata"
 	case NoteItemType:
 		return "Note"
 	case PasswordItemType:
@@ -43,8 +41,6 @@ func (it ItemType) Label() string {
 // String returns the item type string representation
 func (it ItemType) String() string {
 	switch it {
-	case MetadataItemType:
-		return "metadata"
 	case NoteItemType:
 		return "note"
 	case PasswordItemType:
@@ -74,32 +70,4 @@ func ItemTypeFromString(v string) (ItemType, error) {
 		err = fmt.Errorf("invalid item type %q", v)
 	}
 	return itemType, err
-}
-
-// Item wraps all methods allow to generate a password with paw
-type Item interface {
-	// ID returns the identity ID
-	ID() string
-
-	GetMetadata() *Metadata
-
-	fmt.Stringer
-}
-
-func NewItem(name string, itemType ItemType) (Item, error) {
-	var item Item
-	switch itemType {
-	case LoginItemType:
-		item = NewLogin()
-	case NoteItemType:
-		item = NewNote()
-	case PasswordItemType:
-		item = NewPassword()
-	case SSHKeyItemType:
-		item = NewSSHKey()
-	default:
-		return nil, fmt.Errorf("invalid item type %q", itemType)
-	}
-	item.GetMetadata().Name = name
-	return item, nil
 }

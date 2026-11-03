@@ -10,7 +10,6 @@ import (
 	urfave "github.com/urfave/cli/v3"
 
 	"go.lucor.dev/paw/internal/model"
-	"go.lucor.dev/paw/internal/paw"
 	"go.lucor.dev/paw/internal/tree"
 )
 
@@ -90,10 +89,10 @@ func (cmd *ListCmd) items() ([]tree.Node, error) {
 		return nil, err
 	}
 
-	loginNode := tree.Node{Value: paw.LoginItemType.String()}
-	noteNode := tree.Node{Value: paw.NoteItemType.String()}
-	passwordNode := tree.Node{Value: paw.PasswordItemType.String()}
-	sshkeyNode := tree.Node{Value: paw.SSHKeyItemType.String()}
+	loginNode := tree.Node{Value: model.LoginItemType.String()}
+	noteNode := tree.Node{Value: model.NoteItemType.String()}
+	passwordNode := tree.Node{Value: model.PasswordItemType.String()}
+	sshkeyNode := tree.Node{Value: model.SSHKeyItemType.String()}
 	for index := range items {
 		v := &items[index]
 		itemType, err := model.ItemTypeOf(v)
@@ -101,13 +100,13 @@ func (cmd *ListCmd) items() ([]tree.Node, error) {
 			return nil, err
 		}
 		switch itemType {
-		case paw.LoginItemType:
+		case model.LoginItemType:
 			loginNode.Child = append(loginNode.Child, tree.Node{Value: v.Title})
-		case paw.NoteItemType:
+		case model.NoteItemType:
 			noteNode.Child = append(noteNode.Child, tree.Node{Value: v.Title})
-		case paw.PasswordItemType:
+		case model.PasswordItemType:
 			passwordNode.Child = append(passwordNode.Child, tree.Node{Value: v.Title})
-		case paw.SSHKeyItemType:
+		case model.SSHKeyItemType:
 			sshkeyNode.Child = append(sshkeyNode.Child, tree.Node{Value: v.Title})
 		}
 	}

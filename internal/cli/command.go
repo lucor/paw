@@ -33,7 +33,13 @@ type command struct {
 	getenv              func(string) string
 	now                 func() time.Time
 	oneTimeKey          func() (*paw.Key, error)
-	generateSSHKey      func() (*paw.SSHKey, error)
+	generateSSHKey      func() (*generatedSSHKey, error)
+}
+
+type generatedSSHKey struct {
+	PrivateKey  string
+	PublicKey   string
+	Fingerprint string
 }
 
 // loadVault prints migration status when needed, then loads the vault.

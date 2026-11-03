@@ -15,7 +15,7 @@ import (
 	"fyne.io/fyne/v2/test"
 	"fyne.io/fyne/v2/theme"
 	"github.com/stretchr/testify/require"
-	"go.lucor.dev/paw/internal/paw"
+	"go.lucor.dev/paw/internal/model"
 	"go.lucor.dev/paw/internal/ui/assets/icons"
 )
 
@@ -101,7 +101,7 @@ func TestEntryDetailUsesFaviconPreview(t *testing.T) {
 	require.Equal(t, faviconPreviewBackground, preview.background.FillColor)
 }
 
-func darkFaviconFixture() *paw.Favicon {
+func darkFaviconFixture() *model.Favicon {
 	const size = 32
 	imageData := image.NewNRGBA(image.Rect(0, 0, size, size))
 	black := color.NRGBA{A: 255}
@@ -123,5 +123,5 @@ func darkFaviconFixture() *paw.Favicon {
 	}
 	var encoded bytes.Buffer
 	_ = png.Encode(&encoded, imageData)
-	return paw.NewFavicon("github.com", encoded.Bytes(), "png")
+	return model.NewFavicon("github.com", encoded.Bytes(), "png")
 }

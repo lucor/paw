@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.lucor.dev/cxf"
 
+	"go.lucor.dev/paw/internal/legacy"
 	"go.lucor.dev/paw/internal/migration"
 	"go.lucor.dev/paw/internal/otp"
 	"go.lucor.dev/paw/internal/paw"
@@ -51,7 +52,7 @@ func TestMigrateTOTPMapsAlgorithms(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			legacy := &paw.TOTP{
+			legacy := &legacy.TOTP{
 				Hash: test.hash, Secret: base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString([]byte(test.secret)),
 				Interval: 30, Digits: 8,
 			}
@@ -78,7 +79,7 @@ func TestMigrateTOTPMapsAlgorithms(t *testing.T) {
 
 // TestMigrateTOTPWithoutSecret checks unconfigured settings do not create a credential.
 func TestMigrateTOTPWithoutSecret(t *testing.T) {
-	for _, legacy := range []*paw.TOTP{
+	for _, legacy := range []*legacy.TOTP{
 		nil,
 		{},
 		{Hash: paw.SHA512, Interval: -1, Digits: 0},
@@ -96,16 +97,16 @@ func TestMigrateTOTPRejectsInvalidData(t *testing.T) {
 	validSecret := base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString([]byte("test secret"))
 	tests := []struct {
 		name string
-		old  *paw.TOTP
+		old  *legacy.TOTP
 	}{
-		{name: "invalid algorithm", old: &paw.TOTP{Hash: "invalid", Secret: validSecret, Interval: 30, Digits: 6}},
-		{name: "zero period", old: &paw.TOTP{Hash: paw.SHA1, Secret: validSecret, Interval: 0, Digits: 6}},
-		{name: "negative period", old: &paw.TOTP{Hash: paw.SHA1, Secret: validSecret, Interval: -1, Digits: 6}},
-		{name: "period overflow", old: &paw.TOTP{Hash: paw.SHA1, Secret: validSecret, Interval: 1 << 16, Digits: 6}},
-		{name: "zero digits", old: &paw.TOTP{Hash: paw.SHA1, Secret: validSecret, Interval: 30, Digits: 0}},
-		{name: "negative digits", old: &paw.TOTP{Hash: paw.SHA1, Secret: validSecret, Interval: 30, Digits: -1}},
-		{name: "digits overflow", old: &paw.TOTP{Hash: paw.SHA1, Secret: validSecret, Interval: 30, Digits: 1 << 16}},
-		{name: "invalid secret", old: &paw.TOTP{Hash: paw.SHA1, Secret: secret, Interval: 30, Digits: 6}},
+		{name: "invalid algorithm", old: &legacy.TOTP{Hash: "invalid", Secret: validSecret, Interval: 30, Digits: 6}},
+		{name: "zero period", old: &legacy.TOTP{Hash: paw.SHA1, Secret: validSecret, Interval: 0, Digits: 6}},
+		{name: "negative period", old: &legacy.TOTP{Hash: paw.SHA1, Secret: validSecret, Interval: -1, Digits: 6}},
+		{name: "period overflow", old: &legacy.TOTP{Hash: paw.SHA1, Secret: validSecret, Interval: 1 << 16, Digits: 6}},
+		{name: "zero digits", old: &legacy.TOTP{Hash: paw.SHA1, Secret: validSecret, Interval: 30, Digits: 0}},
+		{name: "negative digits", old: &legacy.TOTP{Hash: paw.SHA1, Secret: validSecret, Interval: 30, Digits: -1}},
+		{name: "digits overflow", old: &legacy.TOTP{Hash: paw.SHA1, Secret: validSecret, Interval: 30, Digits: 1 << 16}},
+		{name: "invalid secret", old: &legacy.TOTP{Hash: paw.SHA1, Secret: secret, Interval: 30, Digits: 6}},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

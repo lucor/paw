@@ -13,6 +13,7 @@ import (
 	"fyne.io/fyne/v2/test"
 	"github.com/stretchr/testify/require"
 
+	"go.lucor.dev/paw/internal/legacy"
 	"go.lucor.dev/paw/internal/paw"
 )
 
@@ -30,8 +31,8 @@ func TestLegacyReadersAuthenticateWholeFile(t *testing.T) {
 	fyneBackend := fyneStorage.(*FyneStorage)
 	key, err := paw.MakeOneTimeKey()
 	require.NoError(t, err)
-	vault := paw.NewVault(key, "Personal")
-	note := paw.NewNote()
+	vault := legacy.NewVault(key, "Personal")
+	note := legacy.NewNote()
 	note.Name, note.Value = "Note", "Synthetic note"
 	require.NoError(t, vault.AddItem(note))
 	require.NoError(t, os.Mkdir(legacyVaultRootPath(osStorage, vault.Name), 0700))
@@ -52,11 +53,11 @@ func TestLegacyReadersAuthenticateWholeFile(t *testing.T) {
 		require.NoError(t, os.WriteFile(file.path, ciphertext.Bytes()[:ciphertext.Len()-1], 0600))
 	}
 	for _, backend := range []struct {
-		vault func() (*paw.Vault, error)
-		item  func() (paw.Item, error)
+		vault func() (*legacy.Vault, error)
+		item  func() (legacy.Item, error)
 	}{
-		{vault: func() (*paw.Vault, error) { return osStorage.loadLegacyVault(vault.Name, key) }, item: func() (paw.Item, error) { return osStorage.loadLegacyItem(vault, note.Metadata) }},
-		{vault: func() (*paw.Vault, error) { return fyneBackend.loadLegacyVault(vault.Name, key) }, item: func() (paw.Item, error) { return fyneBackend.loadLegacyItem(vault, note.Metadata) }},
+		{vault: func() (*legacy.Vault, error) { return osStorage.loadLegacyVault(vault.Name, key) }, item: func() (legacy.Item, error) { return osStorage.loadLegacyItem(vault, note.Metadata) }},
+		{vault: func() (*legacy.Vault, error) { return fyneBackend.loadLegacyVault(vault.Name, key) }, item: func() (legacy.Item, error) { return fyneBackend.loadLegacyItem(vault, note.Metadata) }},
 	} {
 		loadedVault, err := backend.vault()
 		require.Error(t, err)

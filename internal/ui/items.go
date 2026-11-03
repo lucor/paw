@@ -5,10 +5,10 @@ package ui
 
 import (
 	"encoding/json"
+
 	"fyne.io/fyne/v2"
 	"go.lucor.dev/cxf"
 	"go.lucor.dev/paw/internal/model"
-	"go.lucor.dev/paw/internal/paw"
 	"go.lucor.dev/paw/internal/ui/assets/icons"
 )
 
@@ -18,11 +18,11 @@ func summaryIcon(item *cxf.Item) fyne.Resource {
 	if err != nil {
 		return icons.Vault
 	}
-	if kind == paw.LoginItemType {
+	if kind == model.LoginItemType {
 		for _, raw := range item.Extensions {
 			var extension struct {
-				Name    string       `json:"name"`
-				Favicon *paw.Favicon `json:"favicon"`
+				Name    string         `json:"name"`
+				Favicon *model.Favicon `json:"favicon"`
 			}
 			if json.Unmarshal(raw, &extension) == nil && extension.Name == "paw.pm/item" && extension.Favicon != nil && len(extension.Favicon.Data) > 0 {
 				return extension.Favicon
@@ -30,13 +30,13 @@ func summaryIcon(item *cxf.Item) fyne.Resource {
 		}
 	}
 	switch kind {
-	case paw.NoteItemType:
+	case model.NoteItemType:
 		return icons.Note
-	case paw.LoginItemType:
+	case model.LoginItemType:
 		return icons.Login
-	case paw.PasswordItemType:
+	case model.PasswordItemType:
 		return icons.Password
-	case paw.SSHKeyItemType:
+	case model.SSHKeyItemType:
 		return icons.SSH
 	}
 	return icons.Vault

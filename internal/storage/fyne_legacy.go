@@ -8,16 +8,17 @@ import (
 
 	fynestorage "fyne.io/fyne/v2/storage"
 
+	"go.lucor.dev/paw/internal/legacy"
 	"go.lucor.dev/paw/internal/paw"
 )
 
 // loadLegacyVault reads a vault using the legacy Paw format.
-func (s *FyneStorage) loadLegacyVault(vaultID string, key *paw.Key) (*paw.Vault, error) {
+func (s *FyneStorage) loadLegacyVault(vaultID string, key *paw.Key) (*legacy.Vault, error) {
 	data, err := s.readLegacyVaultData(vaultID, key)
 	if err != nil {
 		return nil, err
 	}
-	return paw.DecodeVault(data, key)
+	return legacy.DecodeVault(data, key)
 }
 
 // readLegacyVaultData reads and decrypts the index at its legacy path.
@@ -36,7 +37,7 @@ func (s *FyneStorage) readLegacyVaultData(vaultID string, key *paw.Key) ([]byte,
 }
 
 // loadLegacyItem reads an item using the legacy Paw format.
-func (s *FyneStorage) loadLegacyItem(vault *paw.Vault, itemMetadata *paw.Metadata) (paw.Item, error) {
+func (s *FyneStorage) loadLegacyItem(vault *legacy.Vault, itemMetadata *legacy.Metadata) (legacy.Item, error) {
 	r, err := fynestorage.Reader(fynestorage.NewFileURI(legacyItemPath(s, vault.Name, itemMetadata.ID())))
 	if err != nil {
 		return nil, fmt.Errorf("could not create reader: %w", err)
@@ -47,5 +48,5 @@ func (s *FyneStorage) loadLegacyItem(vault *paw.Vault, itemMetadata *paw.Metadat
 	if err != nil {
 		return nil, fmt.Errorf("could not read and decrypt the item: %w", err)
 	}
-	return paw.DecodeItem(data, itemMetadata.Type)
+	return legacy.DecodeItem(data, itemMetadata.Type)
 }

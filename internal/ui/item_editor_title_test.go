@@ -16,7 +16,7 @@ import (
 
 func TestItemEditorsRequireTitleBeforeSave(t *testing.T) {
 	test.NewTempApp(t)
-	settings := paw.NewDefaultSettings()
+	settings := model.NewDefaultSettings()
 	settings.FaviconDownloader.Disabled = true
 	passwordSettings := model.PasswordSettings{Mode: paw.CustomPassword}
 	login, err := model.NewLogin("Existing login", "name@example.com", "secret", passwordSettings)
@@ -30,32 +30,32 @@ func TestItemEditorsRequireTitleBeforeSave(t *testing.T) {
 
 	editors := []struct {
 		name   string
-		typeID paw.ItemType
+		typeID model.ItemType
 		item   *model.Item
 		new    func(*model.Item, bool) (*EditorTitleState, error)
 	}{
-		{name: "login", typeID: paw.LoginItemType, item: login, new: func(item *model.Item, isNew bool) (*EditorTitleState, error) {
+		{name: "login", typeID: model.LoginItemType, item: login, new: func(item *model.Item, isNew bool) (*EditorTitleState, error) {
 			e, err := NewLoginEditor(context.Background(), item, settings.FaviconDownloader, isNew)
 			if err != nil {
 				return nil, err
 			}
 			return &EditorTitleState{e.Title, e.SaveButton, e.UpdatedItem}, nil
 		}},
-		{name: "password", typeID: paw.PasswordItemType, item: password, new: func(item *model.Item, isNew bool) (*EditorTitleState, error) {
+		{name: "password", typeID: model.PasswordItemType, item: password, new: func(item *model.Item, isNew bool) (*EditorTitleState, error) {
 			e, err := NewPasswordEditor(item, isNew)
 			if err != nil {
 				return nil, err
 			}
 			return &EditorTitleState{e.Title, e.SaveButton, e.UpdatedItem}, nil
 		}},
-		{name: "note", typeID: paw.NoteItemType, item: note, new: func(item *model.Item, isNew bool) (*EditorTitleState, error) {
+		{name: "note", typeID: model.NoteItemType, item: note, new: func(item *model.Item, isNew bool) (*EditorTitleState, error) {
 			e, err := NewNoteEditor(item, isNew)
 			if err != nil {
 				return nil, err
 			}
 			return &EditorTitleState{e.Title, e.SaveButton, e.UpdatedItem}, nil
 		}},
-		{name: "ssh", typeID: paw.SSHKeyItemType, item: ssh, new: func(item *model.Item, isNew bool) (*EditorTitleState, error) {
+		{name: "ssh", typeID: model.SSHKeyItemType, item: ssh, new: func(item *model.Item, isNew bool) (*EditorTitleState, error) {
 			e, err := NewSSHKeyEditor(item, isNew)
 			if err != nil {
 				return nil, err
@@ -92,7 +92,7 @@ func TestNewItemEditorStartsWithTitleFocused(t *testing.T) {
 	t.Cleanup(driver.Quit)
 	window := driver.NewWindow("Paw")
 	t.Cleanup(window.Close)
-	item, err := newItemTemplate(paw.NoteItemType)
+	item, err := newItemTemplate(model.NoteItemType)
 	require.NoError(t, err)
 	a := &app{win: window}
 	a.showEditItemView(item, true)

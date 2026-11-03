@@ -61,13 +61,13 @@ func (cmd *EditCmd) Run(ctx context.Context) error {
 		return err
 	}
 	switch cmd.itemType {
-	case paw.LoginItemType:
+	case model.LoginItemType:
 		err = cmd.editLogin(item, key)
-	case paw.PasswordItemType:
+	case model.PasswordItemType:
 		err = cmd.editPassword(item, key)
-	case paw.NoteItemType:
+	case model.NoteItemType:
 		err = cmd.editNote(item)
-	case paw.SSHKeyItemType:
+	case model.SSHKeyItemType:
 		err = cmd.editSSHKey(item)
 	default:
 		return fmt.Errorf("unsupported item type: %q", cmd.itemType)
@@ -183,6 +183,6 @@ func (cmd *EditCmd) editSSHKey(item *model.Item) error {
 }
 
 // generatePassword prompts for a password using the supported generators.
-func (cmd *EditCmd) generatePassword(key *paw.Key, defaultMode paw.PasswordMode) (*paw.Password, error) {
+func (cmd *EditCmd) generatePassword(key *paw.Key, defaultMode paw.PasswordMode) (*paw.PasswordSpec, error) {
 	return (&PwGenCmd{command: cmd.command}).Pwgen(key, []paw.PasswordMode{paw.CustomPassword, paw.RandomPassword, paw.PassphrasePassword, paw.PinPassword}, defaultMode)
 }

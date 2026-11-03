@@ -13,6 +13,7 @@ import (
 	"fyne.io/fyne/v2/test"
 	"fyne.io/fyne/v2/widget"
 	"github.com/stretchr/testify/require"
+	"go.lucor.dev/paw/internal/model"
 	"go.lucor.dev/paw/internal/paw"
 	"go.lucor.dev/paw/internal/ui/assets/icons"
 )
@@ -25,7 +26,7 @@ func TestPasswordGeneratorUsesGeneratedPassword(t *testing.T) {
 	require.NoError(t, err)
 	value := binding.NewString()
 	settings := paw.NewCustomPassword()
-	NewPasswordGenerator(key, paw.NewDefaultSettings().Password).ShowPasswordGenerator(value, settings, window)
+	NewPasswordGenerator(key, model.NewDefaultSettings().Password).ShowPasswordGenerator(value, settings, window)
 	popup := window.Canvas().Overlays().Top()
 	require.NotNil(t, popup)
 	result := passwordGeneratorEntry(t, popup)
@@ -54,8 +55,8 @@ func TestPasswordGeneratorModesUseTheirDefaults(t *testing.T) {
 	window.Resize(fyne.NewSize(440, 800))
 	key, err := paw.MakeOneTimeKey()
 	require.NoError(t, err)
-	settings := paw.NewDefaultSettings().Password
-	password := &paw.Password{Mode: paw.CustomPassword}
+	settings := model.NewDefaultSettings().Password
+	password := &paw.PasswordSpec{Mode: paw.CustomPassword}
 	value := binding.NewString()
 	require.NoError(t, value.Set("existing value"))
 	NewPasswordGenerator(key, settings).ShowPasswordGenerator(value, password, window)
@@ -108,8 +109,8 @@ func TestPasswordGeneratorDialogKeepsSizeWhenOpenedInEachMode(t *testing.T) {
 			window.Resize(fyne.NewSize(440, 800))
 			key, err := paw.MakeOneTimeKey()
 			require.NoError(t, err)
-			settings := paw.NewDefaultSettings().Password
-			password := &paw.Password{Mode: mode}
+			settings := model.NewDefaultSettings().Password
+			password := &paw.PasswordSpec{Mode: mode}
 			switch mode {
 			case paw.RandomPassword:
 				password.Length = settings.Random.DefaultLength
@@ -139,8 +140,8 @@ func TestPasswordGeneratorDialogFitsNarrowWindow(t *testing.T) {
 	window.Resize(fyne.NewSize(320, 540))
 	key, err := paw.MakeOneTimeKey()
 	require.NoError(t, err)
-	settings := paw.NewDefaultSettings().Password
-	password := &paw.Password{Mode: paw.CustomPassword}
+	settings := model.NewDefaultSettings().Password
+	password := &paw.PasswordSpec{Mode: paw.CustomPassword}
 	NewPasswordGenerator(key, settings).ShowPasswordGenerator(binding.NewString(), password, window)
 	popup := window.Canvas().Overlays().Top()
 	test.LaidOutObjects(popup)
@@ -158,11 +159,11 @@ func TestPasswordGeneratorStepperHonorsEachTypeBounds(t *testing.T) {
 	window := test.NewTempWindow(t, nil)
 	key, err := paw.MakeOneTimeKey()
 	require.NoError(t, err)
-	settings := paw.NewDefaultSettings().Password
+	settings := model.NewDefaultSettings().Password
 	settings.Random.MinLength, settings.Random.DefaultLength, settings.Random.MaxLength = 15, 15, 16
 	settings.Passphrase.MinLength, settings.Passphrase.DefaultLength, settings.Passphrase.MaxLength = 3, 3, 4
 	settings.Pin.MinLength, settings.Pin.DefaultLength, settings.Pin.MaxLength = 5, 5, 6
-	password := &paw.Password{Mode: paw.RandomPassword, Length: settings.Random.DefaultLength, Format: settings.Random.DefaultFormat}
+	password := &paw.PasswordSpec{Mode: paw.RandomPassword, Length: settings.Random.DefaultLength, Format: settings.Random.DefaultFormat}
 	generator := NewPasswordGenerator(key, settings)
 	generator.ShowPasswordGenerator(binding.NewString(), password, window)
 	popup := window.Canvas().Overlays().Top()
@@ -193,8 +194,8 @@ func TestPasswordGeneratorCancelDoesNotChangeEditorAndUseAppliesResult(t *testin
 	window := test.NewTempWindow(t, nil)
 	key, err := paw.MakeOneTimeKey()
 	require.NoError(t, err)
-	settings := paw.NewDefaultSettings().Password
-	password := &paw.Password{Mode: paw.RandomPassword, Length: settings.Random.DefaultLength, Format: settings.Random.DefaultFormat}
+	settings := model.NewDefaultSettings().Password
+	password := &paw.PasswordSpec{Mode: paw.RandomPassword, Length: settings.Random.DefaultLength, Format: settings.Random.DefaultFormat}
 	original := *password
 	value := binding.NewString()
 	require.NoError(t, value.Set("existing value"))
@@ -235,8 +236,8 @@ func TestPasswordGeneratorKeepsAtLeastOneCharacterSetSelected(t *testing.T) {
 	window := test.NewTempWindow(t, nil)
 	key, err := paw.MakeOneTimeKey()
 	require.NoError(t, err)
-	settings := paw.NewDefaultSettings().Password
-	password := &paw.Password{Mode: paw.RandomPassword, Length: settings.Random.DefaultLength, Format: settings.Random.DefaultFormat}
+	settings := model.NewDefaultSettings().Password
+	password := &paw.PasswordSpec{Mode: paw.RandomPassword, Length: settings.Random.DefaultLength, Format: settings.Random.DefaultFormat}
 	NewPasswordGenerator(key, settings).ShowPasswordGenerator(binding.NewString(), password, window)
 	popup := window.Canvas().Overlays().Top()
 	checks := passwordGeneratorChecks(popup)

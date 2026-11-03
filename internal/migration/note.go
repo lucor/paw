@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"unicode/utf8"
 
+	"go.lucor.dev/paw/internal/legacy"
 	"go.lucor.dev/paw/internal/model"
-	"go.lucor.dev/paw/internal/paw"
 )
 
 const itemExtensionName = "paw.pm/item"
@@ -17,12 +17,12 @@ type noteExtension struct {
 	// Name identifies the Paw extension.
 	Name string `json:"name"`
 	// Type identifies the original Paw item type.
-	Type paw.ItemType `json:"type"`
+	Type model.ItemType `json:"type"`
 }
 
 // MigrateNote converts a legacy Paw note to a CXF-backed Paw item.
-func MigrateNote(note *paw.Note) (*model.Item, error) {
-	if note == nil || note.Metadata == nil || note.Type != paw.NoteItemType {
+func MigrateNote(note *legacy.Note) (*model.Item, error) {
+	if note == nil || note.Metadata == nil || note.Type != model.NoteItemType {
 		return nil, fmt.Errorf("cannot migrate note: invalid metadata")
 	}
 	if !utf8.ValidString(note.Subtitle) {
@@ -34,7 +34,7 @@ func MigrateNote(note *paw.Note) (*model.Item, error) {
 	}
 	extension, err := json.Marshal(noteExtension{
 		Name: itemExtensionName,
-		Type: paw.NoteItemType,
+		Type: model.NoteItemType,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("cannot encode note metadata")

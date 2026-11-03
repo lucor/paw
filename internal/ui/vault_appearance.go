@@ -10,7 +10,7 @@ import (
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
-	"go.lucor.dev/paw/internal/storage"
+	"go.lucor.dev/paw/internal/model"
 	"go.lucor.dev/paw/internal/ui/assets/icons"
 )
 
@@ -42,8 +42,8 @@ var vaultIcons = []struct {
 	{id: "laptop", resource: icons.Laptop},
 }
 
-func newVaultAppearanceView(name string, appearance storage.VaultAppearance, changed func(storage.VaultAppearance), back func()) fyne.CanvasObject {
-	appearance = storage.NormalizeVaultAppearance(appearance)
+func newVaultAppearanceView(name string, appearance model.VaultAppearance, changed func(model.VaultAppearance), back func()) fyne.CanvasObject {
+	appearance = model.NormalizeVaultAppearance(appearance)
 	previewIcon := newVaultIcon(appearance, vaultIconMedium)
 	previewName := newText(name, titleStyle)
 	previewCaption := newText("Vault preview", captionStyle)
@@ -112,7 +112,7 @@ func newVaultAppearanceView(name string, appearance storage.VaultAppearance, cha
 
 	var iconGrid, colorRow *fyne.Container
 	refreshPreview = func() {
-		appearance = storage.NormalizeVaultAppearance(appearance)
+		appearance = model.NormalizeVaultAppearance(appearance)
 		previewIcon = newVaultIcon(appearance, vaultIconMedium)
 		previewRow.Objects[0] = previewIcon
 		previewName.SetText(name)

@@ -12,7 +12,7 @@ import (
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
-	"go.lucor.dev/paw/internal/storage"
+	"go.lucor.dev/paw/internal/model"
 	"go.lucor.dev/paw/internal/ui/assets/icons"
 )
 
@@ -30,7 +30,7 @@ const (
 )
 
 // newEditableVaultPreview adds the shared edit badge to a clickable large preview.
-func newEditableVaultPreview(appearance storage.VaultAppearance, button *widget.Button) fyne.CanvasObject {
+func newEditableVaultPreview(appearance model.VaultAppearance, button *widget.Button) fyne.CanvasObject {
 	background := canvas.NewCircle(theme.Color(theme.ColorNameBackground))
 	icon := container.NewCenter(container.NewGridWrap(fyne.NewSquareSize(vaultPencilIconSize), widget.NewIcon(icons.Pencil)))
 	pencil := container.NewGridWrap(fyne.NewSquareSize(vaultPencilBadgeSize), container.NewStack(background, icon))
@@ -53,12 +53,12 @@ func (s vaultIconSize) dimensions() (containerSize, iconSize float32) {
 
 type vaultIcon struct {
 	widget.BaseWidget
-	appearance storage.VaultAppearance
+	appearance model.VaultAppearance
 	size       vaultIconSize
 }
 
-func newVaultIcon(appearance storage.VaultAppearance, size vaultIconSize) *vaultIcon {
-	icon := &vaultIcon{appearance: storage.NormalizeVaultAppearance(appearance), size: size}
+func newVaultIcon(appearance model.VaultAppearance, size vaultIconSize) *vaultIcon {
+	icon := &vaultIcon{appearance: model.NormalizeVaultAppearance(appearance), size: size}
 	icon.ExtendBaseWidget(icon)
 	return icon
 }

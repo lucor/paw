@@ -28,30 +28,14 @@ const (
 	TOTPDigitsMaximum   = 10
 )
 
-type TOTP struct {
-	Digits   int      `json:"digits,omitempty"`
-	Hash     TOTPHash `json:"hash,omitempty"`
-	Interval int      `json:"interval,omitempty"`
-	Secret   string   `json:"secret,omitempty"`
-}
-
-// Hasher returns the hash function for the TOTP
-func (t *TOTP) Hasher() func() hash.Hash {
-	switch t.Hash {
+// Hasher returns the hash function for an authenticator algorithm.
+func (algorithm TOTPHash) Hasher() func() hash.Hash {
+	switch algorithm {
 	case SHA256:
 		return sha256.New
 	case SHA512:
 		return sha512.New
 	default:
 		return sha1.New
-	}
-}
-
-// NewDefaultTOTP returns the standard SHA1, 6-digit, 30-second TOTP settings.
-func NewDefaultTOTP() *TOTP {
-	return &TOTP{
-		Digits:   TOTPDigitsDefault,
-		Hash:     TOTPHashDefault,
-		Interval: TOTPIntervalDefault,
 	}
 }

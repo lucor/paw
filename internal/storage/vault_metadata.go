@@ -8,29 +8,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"strings"
 	"unicode/utf8"
-)
 
-// FindVaultInfo resolves an ID or an unambiguous display name.
-func FindVaultInfo(vaults []VaultInfo, value string) (VaultInfo, error) {
-	var match VaultInfo
-	for _, vault := range vaults {
-		if vault.ID == value {
-			return vault, nil
-		}
-		if strings.EqualFold(vault.Name, value) {
-			if match.ID != "" {
-				return VaultInfo{}, fmt.Errorf("vault name %q is ambiguous", value)
-			}
-			match = vault
-		}
-	}
-	if match.ID == "" {
-		return VaultInfo{}, fmt.Errorf("vault %q does not exist", value)
-	}
-	return match, nil
-}
+	"go.lucor.dev/paw/internal/model"
+)
 
 type vaultMetadata struct {
 	Name  string `json:"name"`
@@ -39,11 +20,11 @@ type vaultMetadata struct {
 }
 
 // encodeVaultMetadata encodes the public details used to list a CXF vault.
-func encodeVaultMetadata(name string, appearance VaultAppearance) ([]byte, error) {
+func encodeVaultMetadata(name string, appearance model.VaultAppearance) ([]byte, error) {
 	if name == "" || !utf8.ValidString(name) {
 		return nil, fmt.Errorf("vault name is empty or invalid UTF-8")
 	}
-	appearance = NormalizeVaultAppearance(appearance)
+	appearance = model.NormalizeVaultAppearance(appearance)
 	data, err := json.Marshal(vaultMetadata{Name: name, Icon: appearance.Icon, Color: appearance.Color})
 	if err != nil {
 		return nil, fmt.Errorf("could not encode vault metadata")
@@ -73,28 +54,28 @@ func isVaultID(value string) bool {
 }
 
 // vaultInfoFromFilesystemName decodes a vault directory name and its metadata.
-func vaultInfoFromFilesystemName(name string, data []byte) (VaultInfo, error) {
+func vaultInfoFromFilesystemName(name string, data []byte) (model.VaultInfo, error) {
 	id, ok := idFromFilesystemName(name)
 	if !ok {
-		return VaultInfo{}, fmt.Errorf("invalid vault directory ID")
+		return model.VaultInfo{}, fmt.Errorf("invalid vault directory ID")
 	}
 	return vaultInfoFromMetadata(id, data)
 }
 
 // vaultInfoFromMetadata decodes a CXF vault's listing metadata.
-func vaultInfoFromMetadata(id string, data []byte) (VaultInfo, error) {
+func vaultInfoFromMetadata(id string, data []byte) (model.VaultInfo, error) {
 	if !isVaultID(id) {
-		return VaultInfo{}, fmt.Errorf("invalid CXF vault ID")
+		return model.VaultInfo{}, fmt.Errorf("invalid CXF vault ID")
 	}
 	metadata, err := decodeVaultMetadata(data)
 	if err != nil {
-		return VaultInfo{}, err
+		return model.VaultInfo{}, err
 	}
-	return VaultInfo{ID: id, Name: metadata.Name, Appearance: NormalizeVaultAppearance(VaultAppearance{Icon: metadata.Icon, Color: metadata.Color})}, nil
+	return model.VaultInfo{ID: id, Name: metadata.Name, Appearance: model.NormalizeVaultAppearance(model.VaultAppearance{Icon: metadata.Icon, Color: metadata.Color})}, nil
 }
 
 // writeVaultMetadata writes a vault's public listing details.
-func writeVaultMetadata(w io.Writer, info VaultInfo) error {
+func writeVaultMetadata(w io.Writer, info model.VaultInfo) error {
 	if !isVaultID(info.ID) {
 		return fmt.Errorf("invalid CXF vault ID")
 	}
@@ -112,30 +93,30 @@ func writeVaultMetadata(w io.Writer, info VaultInfo) error {
 	return nil
 }
 
-func requestedVaultAppearance(appearances []VaultAppearance) VaultAppearance {
+func requestedVaultAppearance(appearances []model.VaultAppearance) model.VaultAppearance {
 	if len(appearances) == 0 {
-		return DefaultVaultAppearance()
+		return model.DefaultVaultAppearance()
 	}
-	return NormalizeVaultAppearance(appearances[0])
+	return model.NormalizeVaultAppearance(appearances[0])
 }
 
-func (s *OSStorage) vaultAppearance(id string) VaultAppearance {
+func (s *OSStorage) vaultAppearance(id string) model.VaultAppearance {
 	return vaultAppearance(s, id)
 }
 
-func (s *FyneStorage) vaultAppearance(id string) VaultAppearance {
+func (s *FyneStorage) vaultAppearance(id string) model.VaultAppearance {
 	return vaultAppearance(s, id)
 }
 
-func vaultAppearance(store VaultStorage, id string) VaultAppearance {
+func vaultAppearance(store VaultStorage, id string) model.VaultAppearance {
 	vaults, err := store.Vaults()
 	if err != nil {
-		return DefaultVaultAppearance()
+		return model.DefaultVaultAppearance()
 	}
 	for _, vault := range vaults {
 		if vault.ID == id {
 			return vault.Appearance
 		}
 	}
-	return DefaultVaultAppearance()
+	return model.DefaultVaultAppearance()
 }

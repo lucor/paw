@@ -10,13 +10,13 @@ import (
 
 	"go.lucor.dev/cxf"
 
+	"go.lucor.dev/paw/internal/legacy"
 	"go.lucor.dev/paw/internal/model"
-	"go.lucor.dev/paw/internal/paw"
 )
 
 // MigratePassword converts a legacy password to a CXF-backed Paw item.
-func MigratePassword(password *paw.Password) (*model.Item, error) {
-	if password == nil || password.Metadata == nil || password.Type != paw.PasswordItemType {
+func MigratePassword(password *legacy.Password) (*model.Item, error) {
+	if password == nil || password.Metadata == nil || password.Type != model.PasswordItemType {
 		return nil, fmt.Errorf("cannot migrate password: invalid metadata")
 	}
 	if !utf8.ValidString(password.Subtitle) {

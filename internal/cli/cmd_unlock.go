@@ -70,7 +70,7 @@ func (cmd *UnlockCmd) Run(ctx context.Context) error {
 
 // addSSHKeysToAgent loads configured SSH items and adds their keys to the agent.
 func (cmd *UnlockCmd) addSSHKeysToAgent(c agent.PawAgent, vault *model.Vault) error {
-	summaries, err := vault.FilterItems("", paw.SSHKeyItemType)
+	summaries, err := vault.FilterItems("", model.SSHKeyItemType)
 	if err != nil {
 		return err
 	}

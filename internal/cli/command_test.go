@@ -65,7 +65,7 @@ type commandFixture struct {
 	storage *storage.StorageMock
 	agent   *fakeAgent
 	vault   *model.Vault
-	state   *paw.AppState
+	state   *model.AppState
 	stored  []*model.Item
 	deleted []string
 	stamp   time.Time
@@ -79,7 +79,7 @@ func newCommandFixture(t *testing.T) *commandFixture {
 		storage: &storage.StorageMock{},
 		agent:   &fakeAgent{key: key},
 		vault:   func() *model.Vault { v, _ := model.NewVault(key, "personal"); return v }(),
-		state:   &paw.AppState{},
+		state:   &model.AppState{},
 		stamp:   time.Date(2026, 10, 22, 12, 0, 0, 0, time.FixedZone("test", 3600)),
 	}
 	s := f.storage
@@ -88,12 +88,12 @@ func newCommandFixture(t *testing.T) *commandFixture {
 		require.Equal(t, f.vault.Key(), key)
 		return f.vault, nil
 	}
-	s.OnLoadAppState = func() (*paw.AppState, error) { return f.state, nil }
-	s.OnStoreAppState = func(*paw.AppState) error { return nil }
+	s.OnLoadAppState = func() (*model.AppState, error) { return f.state, nil }
+	s.OnStoreAppState = func(*model.AppState) error { return nil }
 	s.OnStoreItem = func(v *model.Vault, item *model.Item) error { f.stored = append(f.stored, item); return nil }
 	s.OnDeleteItem = func(v *model.Vault, id string) error { f.deleted = append(f.deleted, id); return nil }
-	s.OnVaults = func() ([]storage.VaultInfo, error) {
-		return []storage.VaultInfo{{ID: "personal", Name: "personal"}}, nil
+	s.OnVaults = func() ([]model.VaultInfo, error) {
+		return []model.VaultInfo{{ID: "personal", Name: "personal"}}, nil
 	}
 	f.base = &command{storage: s}
 	f.base.agentClient = func(path string) (agent.PawAgent, error) {
@@ -354,11 +354,9 @@ func TestSSHKeyOperationsAreInjected(t *testing.T) {
 	generated := false
 	generatedKey, err := sshkey.GenerateKey()
 	require.NoError(t, err)
-	f.base.generateSSHKey = func() (*paw.SSHKey, error) {
+	f.base.generateSSHKey = func() (*generatedSSHKey, error) {
 		generated = true
-		item := paw.NewSSHKey()
-		item.PrivateKey, item.PublicKey, item.Fingerprint = string(generatedKey.MarshalPrivateKey()), string(generatedKey.MarshalPublicKey()), generatedKey.Fingerprint()
-		return item, nil
+		return &generatedSSHKey{PrivateKey: string(generatedKey.MarshalPrivateKey()), PublicKey: string(generatedKey.MarshalPublicKey()), Fingerprint: generatedKey.Fingerprint()}, nil
 	}
 	_, _, err = executeWithInput(t, []string{"add", "--session=test", "personal/ssh_key/key"}, newAddCommand(f.base), "n\n")
 	require.NoError(t, err)
@@ -451,8 +449,8 @@ func TestUnlockAndLockWithInjectedClient(t *testing.T) {
 // TestUnlockPrintsMigrationStatus checks CLI announces legacy vault migration.
 func TestUnlockPrintsMigrationStatus(t *testing.T) {
 	f := newCommandFixture(t)
-	f.storage.OnVaults = func() ([]storage.VaultInfo, error) {
-		return []storage.VaultInfo{{ID: "personal", Name: "personal", NeedsMigration: true}}, nil
+	f.storage.OnVaults = func() ([]model.VaultInfo, error) {
+		return []model.VaultInfo{{ID: "personal", Name: "personal", NeedsMigration: true}}, nil
 	}
 	out, _, err := executeWithInput(t, []string{"unlock", "personal"}, newUnlockCommand(f.base), "")
 	require.NoError(t, err)
@@ -502,7 +500,7 @@ func TestListReturnsSafeMigrationReport(t *testing.T) {
 		Failures: []storage.MigrationItemFailure{{
 			LegacyID: "legacy-item-id",
 			Title:    "Unsupported password",
-			ItemType: paw.PasswordItemType,
+			ItemType: model.PasswordItemType,
 			Phases:   []storage.MigrationPhase{storage.MigrationPhaseConvert},
 			Err:      errors.New("unsupported mode 4"),
 		}},
@@ -588,7 +586,7 @@ func TestKeyGenerationFailuresAreReturned(t *testing.T) {
 	f.base.oneTimeKey = func() (*paw.Key, error) { return nil, failure }
 	_, _, err := executeWithInput(t, []string{"pwgen"}, newPwGenCommand(f.base), "")
 	require.ErrorIs(t, err, failure)
-	f.base.generateSSHKey = func() (*paw.SSHKey, error) { return nil, failure }
+	f.base.generateSSHKey = func() (*generatedSSHKey, error) { return nil, failure }
 	_, _, err = executeWithInput(t, []string{"add", "--session=test", "personal/ssh_key/new"}, newAddCommand(f.base), "")
 	require.ErrorIs(t, err, failure)
 	require.Empty(t, f.stored)

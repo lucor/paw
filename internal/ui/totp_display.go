@@ -21,7 +21,7 @@ import (
 
 // TOTPDisplay keeps the shared code, countdown, and copy presentation.
 type TOTPDisplay struct {
-	settings  paw.TOTP
+	settings  cxf.TOTP
 	code      *widget.Label
 	progress  *widget.ProgressBar
 	copy      *iconButton
@@ -40,7 +40,7 @@ func newTOTPDisplay(credential cxf.TOTP) (*TOTPDisplay, bool) {
 		return nil, false
 	}
 	display := &TOTPDisplay{
-		settings: paw.TOTP{Secret: credential.Secret, Interval: int(credential.Period), Digits: int(credential.Digits), Hash: paw.TOTPHash(strings.ToUpper(credential.Algorithm))},
+		settings: credential,
 		code:     newText("", headingStyle),
 		progress: widget.NewProgressBar(),
 	}
@@ -67,7 +67,8 @@ func (d *TOTPDisplay) Update() bool {
 	if d.settings.Secret == "" {
 		return false
 	}
-	value, err := otp.TOTPFromBase32(d.settings.Hasher(), d.settings.Secret, time.Now().UTC(), d.settings.Interval, d.settings.Digits)
+	hasher := paw.TOTPHash(strings.ToUpper(d.settings.Algorithm)).Hasher()
+	value, err := otp.TOTPFromBase32(hasher, d.settings.Secret, time.Now().UTC(), int(d.settings.Period), int(d.settings.Digits))
 	if err != nil {
 		d.codeValue = ""
 		d.code.SetText("")
@@ -75,8 +76,8 @@ func (d *TOTPDisplay) Update() bool {
 	}
 	d.codeValue = value
 	d.code.SetText(formatTOTPCode(value))
-	d.remaining = d.settings.Interval - int(time.Now().Unix()%int64(d.settings.Interval))
-	d.progress.SetValue(float64(d.remaining) / float64(d.settings.Interval))
+	d.remaining = int(d.settings.Period) - int(time.Now().Unix()%int64(d.settings.Period))
+	d.progress.SetValue(float64(d.remaining) / float64(d.settings.Period))
 	d.progress.Refresh()
 	return true
 }

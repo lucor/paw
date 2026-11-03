@@ -11,13 +11,14 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.lucor.dev/cxf"
 
+	"go.lucor.dev/paw/internal/legacy"
 	"go.lucor.dev/paw/internal/model"
 	"go.lucor.dev/paw/internal/paw"
 )
 
 // TestMigrateLoginPreservesLoginData checks the fields mapped from a legacy login.
 func TestMigrateLoginPreservesLoginData(t *testing.T) {
-	login := paw.NewLogin()
+	login := legacy.NewLogin()
 	login.Name = "GitHub"
 	login.Metadata.Subtitle = "Saved subtitle"
 	login.Username = "jane@example.com"
@@ -26,27 +27,27 @@ func TestMigrateLoginPreservesLoginData(t *testing.T) {
 	login.Password.Length = 24
 	login.Password.Format = paw.LowercaseFormat | paw.DigitsFormat
 	login.Password.Note.Value = "ignored password note"
-	login.Password.Metadata.Favicon = &paw.Favicon{Host: "ignored.example"}
-	login.TOTP = &paw.TOTP{Secret: "JBSWY3DPEHPK3PXP", Digits: 6, Hash: paw.SHA256, Interval: 30}
+	login.Password.Metadata.Favicon = &model.Favicon{Host: "ignored.example"}
+	login.TOTP = &legacy.TOTP{Secret: "JBSWY3DPEHPK3PXP", Digits: 6, Hash: paw.SHA256, Interval: 30}
 	login.Note.Value = "login note"
 	login.URL = paw.NewLoginURL()
 	require.NoError(t, login.URL.Set("http://example.com/login"))
 	login.Metadata.Created = time.Unix(10, 123).UTC()
 	login.Metadata.Modified = time.Unix(20, 456).UTC()
-	login.Metadata.Favicon = &paw.Favicon{Host: "example.com", Data: []byte("icon"), Format: "png"}
+	login.Metadata.Favicon = &model.Favicon{Host: "example.com", Data: []byte("icon"), Format: "png"}
 
 	item, err := MigrateLogin(login)
 	require.NoError(t, err)
 	require.NotEmpty(t, item.ID)
 	require.NotEqual(t, login.ID(), item.ID)
-	require.Equal(t, paw.LoginItemType, item.Metadata.Type)
+	require.Equal(t, model.LoginItemType, item.Metadata.Type)
 	require.Equal(t, "GitHub", item.Title)
 	require.Equal(t, "Saved subtitle", *item.Subtitle)
 	require.Equal(t, uint64(10), *item.CreationAt)
 	require.Equal(t, uint64(20), *item.ModifiedAt)
 	require.Equal(t, []string{"http://example.com/login"}, item.Scope.URLs)
 	require.NotNil(t, item.Scope.AndroidApps)
-	require.Equal(t, &paw.Favicon{Host: "example.com", Data: []byte("icon"), Format: "png"}, item.Metadata.Favicon)
+	require.Equal(t, &model.Favicon{Host: "example.com", Data: []byte("icon"), Format: "png"}, item.Metadata.Favicon)
 	login.Metadata.Favicon.Data[0] = 'X'
 	require.Equal(t, []byte("icon"), item.Metadata.Favicon.Data)
 	require.Len(t, item.Credentials, 3)
@@ -94,12 +95,12 @@ func TestMigrateLoginPreservesLoginData(t *testing.T) {
 
 // TestMigrateLoginHandlesOptionalValues checks absent and empty legacy fields.
 func TestMigrateLoginHandlesOptionalValues(t *testing.T) {
-	login := paw.NewLogin()
+	login := legacy.NewLogin()
 	login.Name = "Empty"
 	login.Username = ""
 	login.Password = nil
-	login.TOTP = paw.NewDefaultTOTP()
-	login.Note = &paw.Note{}
+	login.TOTP = legacy.NewDefaultTOTP()
+	login.Note = &legacy.Note{}
 	login.URL = nil
 	login.Metadata.Favicon = nil
 	login.Metadata.Created = time.Time{}
@@ -123,18 +124,18 @@ func TestMigrateLoginHandlesOptionalValues(t *testing.T) {
 func TestMigrateLoginRejectsInvalidData(t *testing.T) {
 	for _, test := range []struct {
 		name  string
-		setup func(*paw.Login)
+		setup func(*legacy.Login)
 	}{
-		{name: "invalid metadata", setup: func(login *paw.Login) { login.Metadata = nil }},
-		{name: "invalid password mode", setup: func(login *paw.Login) {
+		{name: "invalid metadata", setup: func(login *legacy.Login) { login.Metadata = nil }},
+		{name: "invalid password mode", setup: func(login *legacy.Login) {
 			login.Password.Mode = paw.PasswordMode(4)
 			login.Password.Value = "do-not-report"
 		}},
-		{name: "invalid TOTP", setup: func(login *paw.Login) { login.TOTP.Secret = "invalid-secret" }},
-		{name: "invalid note UTF-8", setup: func(login *paw.Login) { login.Note.Value = "bad\xff" }},
+		{name: "invalid TOTP", setup: func(login *legacy.Login) { login.TOTP.Secret = "invalid-secret" }},
+		{name: "invalid note UTF-8", setup: func(login *legacy.Login) { login.Note.Value = "bad\xff" }},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			login := paw.NewLogin()
+			login := legacy.NewLogin()
 			login.Name = "Example"
 			test.setup(login)
 			item, err := MigrateLogin(login)

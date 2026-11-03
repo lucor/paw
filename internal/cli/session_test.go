@@ -87,9 +87,9 @@ func TestCommandsWithAgentSession(t *testing.T) {
 		require.Equal(t, item.ID, id)
 		return item, nil
 	}
-	s.OnLoadAppState = func() (*paw.AppState, error) { return &paw.AppState{}, nil }
-	s.OnVaults = func() ([]storage.VaultInfo, error) {
-		return []storage.VaultInfo{{ID: "personal", Name: "personal"}}, nil
+	s.OnLoadAppState = func() (*model.AppState, error) { return &model.AppState{}, nil }
+	s.OnVaults = func() ([]model.VaultInfo, error) {
+		return []model.VaultInfo{{ID: "personal", Name: "personal"}}, nil
 	}
 
 	t.Setenv(paw.ENV_SESSION, session)

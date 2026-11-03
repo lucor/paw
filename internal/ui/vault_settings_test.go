@@ -24,7 +24,7 @@ import (
 func TestVaultSettingsViewOpensIdentityEditorAndReturns(t *testing.T) {
 	test.NewTempApp(t)
 	editCalled, backCalled := false, false
-	view := NewVaultSettingsView("Personal", storage.DefaultVaultAppearance(), func() { editCalled = true }, func() {}, func() {}, func() { backCalled = true })
+	view := NewVaultSettingsView("Personal", model.DefaultVaultAppearance(), func() { editCalled = true }, func() {}, func() {}, func() { backCalled = true })
 	window := test.NewTempWindow(t, view)
 	window.Resize(fyne.NewSize(320, 540))
 	row := findVaultSettingsRow(t, view)
@@ -42,7 +42,7 @@ func TestVaultSettingsViewOpensIdentityEditorAndReturns(t *testing.T) {
 func TestVaultSettingsDeleteRowRequestsConfirmation(t *testing.T) {
 	test.NewTempApp(t)
 	deleteRequested := false
-	view := NewVaultSettingsView("Personal", storage.DefaultVaultAppearance(), func() {}, func() {}, func() { deleteRequested = true }, func() {})
+	view := NewVaultSettingsView("Personal", model.DefaultVaultAppearance(), func() {}, func() {}, func() { deleteRequested = true }, func() {})
 	test.Tap(findNavigationRowButton(t, view, "Delete vault"))
 	require.True(t, deleteRequested)
 }
@@ -117,7 +117,7 @@ func TestDeleteVaultConfirmationDismissalDoesNotDelete(t *testing.T) {
 }
 
 func TestDeleteVaultSuccessNavigatesToRemainingVaultSelector(t *testing.T) {
-	testDeleteVaultNavigation(t, []storage.VaultInfo{{ID: "work", Name: "Work"}}, nil, "Your vaults")
+	testDeleteVaultNavigation(t, []model.VaultInfo{{ID: "work", Name: "Work"}}, nil, "Your vaults")
 }
 
 func TestDeleteLastVaultSuccessNavigatesToAddVault(t *testing.T) {
@@ -134,8 +134,8 @@ func TestDeleteVaultFailureKeepsVaultAndShowsError(t *testing.T) {
 	failure := errors.New("storage unavailable")
 	store := &storage.StorageMock{
 		VaultStorageMock: storage.VaultStorageMock{
-			OnVaults: func() ([]storage.VaultInfo, error) {
-				return []storage.VaultInfo{{ID: "personal", Name: "Personal"}}, nil
+			OnVaults: func() ([]model.VaultInfo, error) {
+				return []model.VaultInfo{{ID: "personal", Name: "Personal"}}, nil
 			},
 			OnDeleteVault: func(string) error { return failure },
 		},
@@ -150,7 +150,7 @@ func TestDeleteVaultFailureKeepsVaultAndShowsError(t *testing.T) {
 	require.NotNil(t, window.Canvas().Overlays().Top(), "the existing error dialog should be shown")
 }
 
-func testDeleteVaultNavigation(t *testing.T, remaining []storage.VaultInfo, deletionErr error, expectedLabel string) {
+func testDeleteVaultNavigation(t *testing.T, remaining []model.VaultInfo, deletionErr error, expectedLabel string) {
 	t.Helper()
 	test.NewTempApp(t)
 	window := test.NewTempWindow(t, nil)
@@ -158,9 +158,9 @@ func testDeleteVaultNavigation(t *testing.T, remaining []storage.VaultInfo, dele
 	require.NoError(t, err)
 	vault, err := model.NewVault(key, "Personal")
 	require.NoError(t, err)
-	infos := []storage.VaultInfo{{ID: "personal", Name: "Personal"}}
+	infos := []model.VaultInfo{{ID: "personal", Name: "Personal"}}
 	store := &storage.StorageMock{}
-	store.OnVaults = func() ([]storage.VaultInfo, error) { return infos, nil }
+	store.OnVaults = func() ([]model.VaultInfo, error) { return infos, nil }
 	a := &app{win: window, main: container.NewVScroll(nil), storage: store, vault: vault, vaultID: "personal", settingsVaultID: "personal", unlockedVault: map[string]*model.Vault{"personal": vault}}
 	deleteCalls := 0
 	store.OnDeleteVault = func(string) error {
@@ -204,16 +204,16 @@ func TestVaultIdentitySaveUpdatesSelectorAndPreservesSection(t *testing.T) {
 	require.NoError(t, err)
 	vault, err := model.NewVault(key, "Personal")
 	require.NoError(t, err)
-	info := storage.VaultInfo{ID: "personal", Name: "Personal", Appearance: storage.DefaultVaultAppearance()}
+	info := model.VaultInfo{ID: "personal", Name: "Personal", Appearance: model.DefaultVaultAppearance()}
 	store := &storage.StorageMock{}
-	store.OnVaults = func() ([]storage.VaultInfo, error) { return []storage.VaultInfo{info}, nil }
-	store.OnUpdateVaultIdentity = func(got *model.Vault, name string, appearance storage.VaultAppearance) error {
+	store.OnVaults = func() ([]model.VaultInfo, error) { return []model.VaultInfo{info}, nil }
+	store.OnUpdateVaultIdentity = func(got *model.Vault, name string, appearance model.VaultAppearance) error {
 		require.Same(t, vault, got)
 		vault.Metadata.VaultName = name
 		info.Name, info.Appearance = name, appearance
 		return nil
 	}
-	a := &app{win: window, main: container.NewVScroll(nil), storage: store, vault: vault, vaultID: "personal", vaultSection: 1, unlockedVault: map[string]*model.Vault{"personal": vault}, filter: make(map[string]*paw.VaultFilterOptions)}
+	a := &app{win: window, main: container.NewVScroll(nil), storage: store, vault: vault, vaultID: "personal", vaultSection: 1, unlockedVault: map[string]*model.Vault{"personal": vault}, filter: make(map[string]*vaultFilterOptions)}
 	a.showVaultSettingsView()
 	settings := window.Content()
 	test.Tap(findVaultSettingsRow(t, settings))
@@ -245,7 +245,7 @@ func TestVaultSettingsCannotSwitchToAnotherVault(t *testing.T) {
 	current, err := model.NewVault(key, "Personal")
 	require.NoError(t, err)
 	a := &app{win: window, vault: current, vaultID: "personal", settingsVaultID: "personal", unlockedVault: map[string]*model.Vault{"personal": current}}
-	a.setVaultViewByInfo(storage.VaultInfo{ID: "work", Name: "Work"}, nil, nil)
+	a.setVaultViewByInfo(model.VaultInfo{ID: "work", Name: "Work"}, nil, nil)
 	require.Same(t, current, a.vault)
 	require.Equal(t, "personal", a.vaultID)
 }
@@ -256,8 +256,8 @@ func TestVaultIdentityEditorSavesSelectedAppearanceAndRejectsBlankName(t *testin
 			app := test.NewTempApp(t)
 			app.Settings().SetTheme(variantTheme{Theme: theme.DefaultTheme(), variant: variant})
 			var savedName string
-			var savedAppearance storage.VaultAppearance
-			view := NewVaultIdentityEditor("Personal", storage.DefaultVaultAppearance(), func(name string, appearance storage.VaultAppearance) error {
+			var savedAppearance model.VaultAppearance
+			view := NewVaultIdentityEditor("Personal", model.DefaultVaultAppearance(), func(name string, appearance model.VaultAppearance) error {
 				savedName, savedAppearance = name, appearance
 				return nil
 			}, func() {})
@@ -298,7 +298,7 @@ func TestVaultIdentityEditorSavesSelectedAppearanceAndRejectsBlankName(t *testin
 			require.Equal(t, "Work", findVaultIdentityName(t, identityView).Text)
 			test.Tap(findVaultIdentitySave(t, identityView))
 			require.Equal(t, "Work", savedName)
-			require.Equal(t, storage.VaultAppearance{Icon: "briefcase-business", Color: "green"}, savedAppearance)
+			require.Equal(t, model.VaultAppearance{Icon: "briefcase-business", Color: "green"}, savedAppearance)
 		})
 	}
 }

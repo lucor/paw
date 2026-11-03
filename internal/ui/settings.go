@@ -5,12 +5,12 @@ package ui
 
 import (
 	"fyne.io/fyne/v2"
-	"go.lucor.dev/paw/internal/paw"
+	"go.lucor.dev/paw/internal/model"
 )
 
 func (a *app) makeSettingsView() fyne.CanvasObject {
 	if a.state == nil {
-		a.state = &paw.AppState{Settings: paw.NewDefaultSettings()}
+		a.state = &model.AppState{Settings: model.NewDefaultSettings()}
 	}
 	view := NewSettingsView(a.state, a.storage, a.win)
 	view.configureAutoLock = a.configureAutoLock

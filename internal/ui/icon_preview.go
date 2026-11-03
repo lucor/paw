@@ -11,7 +11,7 @@ import (
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
-	"go.lucor.dev/paw/internal/paw"
+	"go.lucor.dev/paw/internal/model"
 	"go.lucor.dev/paw/internal/ui/assets/icons"
 )
 
@@ -63,7 +63,7 @@ func (f *iconPreview) SetResource(resource fyne.Resource) {
 	f.Refresh()
 }
 
-func (f *iconPreview) SetFavicon(favicon *paw.Favicon) {
+func (f *iconPreview) SetFavicon(favicon *model.Favicon) {
 	if favicon == nil || len(favicon.Data) == 0 {
 		f.SetResource(icons.Globe)
 		return
@@ -72,7 +72,7 @@ func (f *iconPreview) SetFavicon(favicon *paw.Favicon) {
 }
 
 func isDownloadedFavicon(resource fyne.Resource) bool {
-	favicon, ok := resource.(*paw.Favicon)
+	favicon, ok := resource.(*model.Favicon)
 	return ok && len(favicon.Data) > 0
 }
 

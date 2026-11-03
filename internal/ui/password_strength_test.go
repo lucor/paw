@@ -11,7 +11,7 @@ import (
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 	"github.com/stretchr/testify/require"
-	"go.lucor.dev/paw/internal/storage"
+	"go.lucor.dev/paw/internal/model"
 )
 
 func TestPasswordStrengthSegmentsAndTheme(t *testing.T) {
@@ -56,7 +56,7 @@ func TestPasswordStrengthSegmentsAndTheme(t *testing.T) {
 
 func TestCreateVaultUpdatesPasswordStrength(t *testing.T) {
 	test.NewTempApp(t)
-	view := NewCreateVault(func() {}, func(string, string, storage.VaultAppearance) error { return nil })
+	view := NewCreateVault(func() {}, func(string, string, model.VaultAppearance) error { return nil })
 	window := test.NewTempWindow(t, view)
 	window.Resize(fyne.NewSize(440, 650))
 	// The hidden indicator remains accessible through the form's items.

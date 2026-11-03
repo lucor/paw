@@ -6,45 +6,9 @@ package paw
 import (
 	"encoding/json"
 	"net/url"
-	"time"
 
 	"golang.org/x/net/publicsuffix"
 )
-
-// Declare conformity to Item interface
-var _ Item = (*Login)(nil)
-var _ MetadataSubtitler = (*Login)(nil)
-
-type Login struct {
-	*Password `json:"password,omitempty"`
-	*TOTP     `json:"totp,omitempty"`
-	*Note     `json:"note,omitempty"`
-	*Metadata `json:"metadata,omitempty"`
-
-	Username string    `json:"username,omitempty"`
-	URL      *LoginURL `json:"url,omitempty"`
-}
-
-// Subtitle implements MetadataSubtitler.
-func (l *Login) Subtitle() string {
-	return l.Username
-}
-
-func NewLogin() *Login {
-	now := time.Now().UTC()
-	return &Login{
-		Metadata: &Metadata{
-			Type:     LoginItemType,
-			Created:  now,
-			Modified: now,
-			Autofill: &Autofill{},
-		},
-		Note:     NewNote(),
-		Password: NewPassword(),
-		TOTP:     NewDefaultTOTP(),
-		URL:      NewLoginURL(),
-	}
-}
 
 func NewLoginURL() *LoginURL {
 	return &LoginURL{

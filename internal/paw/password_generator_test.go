@@ -17,7 +17,7 @@ func TestPasswordRejectsRemovedMode(t *testing.T) {
 		`{"mode":4,"length":16,"format":15}`,
 		`{"mode":99,"length":16,"format":15}`,
 	} {
-		var password Password
+		var password PasswordSpec
 		require.NoError(t, json.Unmarshal([]byte(data), &password))
 		value, err := password.Pwgen(nil)
 		require.ErrorContains(t, err, "unsupported password mode")
@@ -30,7 +30,7 @@ func TestPasswordRejectsRemovedMode(t *testing.T) {
 func TestPasswordGeneration(t *testing.T) {
 	key, err := MakeOneTimeKey()
 	require.NoError(t, err)
-	for _, password := range []*Password{NewRandomPassword(), NewPinPassword(), NewPassphrasePassword()} {
+	for _, password := range []*PasswordSpec{NewRandomPassword(), NewPinPassword(), NewPassphrasePassword()} {
 		t.Run(password.Mode.String(), func(t *testing.T) {
 			require.Nil(t, password.Salt())
 			value, err := password.Pwgen(key)

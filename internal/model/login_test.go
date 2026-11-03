@@ -25,7 +25,7 @@ func TestNewLoginBuildsBasicAuth(t *testing.T) {
 			settings := PasswordSettings{Mode: mode, Length: 24, Format: paw.LowercaseFormat | paw.DigitsFormat}
 			item, err := NewLogin("GitHub", "jane", "secret", settings)
 			require.NoError(t, err)
-			require.Equal(t, paw.LoginItemType, item.Metadata.Type)
+			require.Equal(t, LoginItemType, item.Metadata.Type)
 			require.Len(t, item.Credentials, 1)
 
 			var credential cxf.BasicAuth

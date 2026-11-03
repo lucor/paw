@@ -16,6 +16,7 @@ import (
 	"fyne.io/fyne/v2"
 	fynestorage "fyne.io/fyne/v2/storage"
 
+	"go.lucor.dev/paw/internal/legacy"
 	"go.lucor.dev/paw/internal/model"
 	"go.lucor.dev/paw/internal/paw"
 )
@@ -72,7 +73,7 @@ func (s *FyneStorage) LoadVaultKey(vaultID string, password string) (*paw.Key, e
 }
 
 // storeVaultInfo writes the public name used to list a CXF vault.
-func (s *FyneStorage) storeVaultInfo(info VaultInfo) error {
+func (s *FyneStorage) storeVaultInfo(info model.VaultInfo) error {
 	if !isVaultID(info.ID) {
 		return fmt.Errorf("invalid CXF vault ID")
 	}
@@ -89,9 +90,9 @@ func (s *FyneStorage) storeVaultInfo(info VaultInfo) error {
 }
 
 // Vaults returns vault IDs and display names, including unmigrated legacy vaults.
-func (s *FyneStorage) Vaults() ([]VaultInfo, error) {
+func (s *FyneStorage) Vaults() ([]model.VaultInfo, error) {
 	root := fynestorage.NewFileURI(storageRootPath(s))
-	vaults := []VaultInfo{}
+	vaults := []model.VaultInfo{}
 	dirEntries, err := fynestorage.List(root)
 	if err != nil {
 		return nil, err
@@ -107,7 +108,7 @@ func (s *FyneStorage) Vaults() ([]VaultInfo, error) {
 			continue
 		}
 		if !isFilesystemVaultID(dirEntry.Name()) {
-			vaults = append(vaults, VaultInfo{ID: dirEntry.Name(), Name: dirEntry.Name(), NeedsMigration: true})
+			vaults = append(vaults, model.VaultInfo{ID: dirEntry.Name(), Name: dirEntry.Name(), NeedsMigration: true})
 			continue
 		}
 		metadataPath := filepath.Join(storageRootPath(s), dirEntry.Name(), vaultMetadataFileName)
@@ -134,10 +135,10 @@ func (s *FyneStorage) Vaults() ([]VaultInfo, error) {
 }
 
 // LoadAppState load the configuration from the underlying storage
-func (s *FyneStorage) LoadAppState() (*paw.AppState, error) {
-	defaultAppState := &paw.AppState{
+func (s *FyneStorage) LoadAppState() (*model.AppState, error) {
+	defaultAppState := &model.AppState{
 		Modified: time.Now().UTC(),
-		Settings: paw.NewDefaultSettings(),
+		Settings: model.NewDefaultSettings(),
 	}
 	appStateFile := appStateFilePath(s)
 	r, err := fynestorage.Reader(fynestorage.NewFileURI(appStateFile))
@@ -145,7 +146,7 @@ func (s *FyneStorage) LoadAppState() (*paw.AppState, error) {
 		return defaultAppState, fmt.Errorf("could not read URI: %w", err)
 	}
 	defer r.Close()
-	appState := &paw.AppState{}
+	appState := &model.AppState{}
 	err = json.NewDecoder(r).Decode(appState)
 	if err != nil {
 		return defaultAppState, err
@@ -154,7 +155,7 @@ func (s *FyneStorage) LoadAppState() (*paw.AppState, error) {
 }
 
 // StoreAppState store the configuration into the underlying storage
-func (s *FyneStorage) StoreAppState(appState *paw.AppState) error {
+func (s *FyneStorage) StoreAppState(appState *model.AppState) error {
 	appStateFile := appStateFilePath(s)
 	w, err := s.createFile(appStateFile)
 	if err != nil {
@@ -193,7 +194,7 @@ func (s *FyneStorage) createFile(name string) (fyne.URIWriteCloser, error) {
 }
 
 // CreateVault saves a new CXF vault before publishing its catalog entry.
-func (s *FyneStorage) CreateVault(name, password string, appearances ...VaultAppearance) (*model.Vault, error) {
+func (s *FyneStorage) CreateVault(name, password string, appearances ...model.VaultAppearance) (*model.Vault, error) {
 	vault, keyData, err := prepareVault(name, password)
 	if err != nil {
 		return nil, err
@@ -213,7 +214,7 @@ func (s *FyneStorage) CreateVault(name, password string, appearances ...VaultApp
 	if err := s.storeEncrypted(vaultPath(s, id), vault.Key(), vault); err != nil {
 		return nil, fmt.Errorf("could not store vault: %w", err)
 	}
-	if err := s.publishVault(VaultInfo{ID: id, Name: name, Appearance: requestedVaultAppearance(appearances)}); err != nil {
+	if err := s.publishVault(model.VaultInfo{ID: id, Name: name, Appearance: requestedVaultAppearance(appearances)}); err != nil {
 		return nil, err
 	}
 	return vault, nil
@@ -230,11 +231,11 @@ func (s *FyneStorage) LoadVault(vaultID string, key *paw.Key) (*model.Vault, err
 			return nil, err
 		}
 		if isLegacyVault(data) {
-			legacy, err := paw.DecodeVault(data, key)
+			legacyVault, err := legacy.DecodeVault(data, key)
 			if err != nil {
 				return nil, err
 			}
-			return s.migrateVault(legacy)
+			return s.migrateVault(legacyVault)
 		}
 		vault, err := model.DecodeVault(data, key)
 		if err != nil {
@@ -255,11 +256,11 @@ func (s *FyneStorage) LoadVault(vaultID string, key *paw.Key) (*model.Vault, err
 		return nil, fmt.Errorf("could not decrypt vault: %w", err)
 	}
 	if isLegacyVault(data) {
-		legacy, err := paw.DecodeVault(data, key)
+		legacyVault, err := legacy.DecodeVault(data, key)
 		if err != nil {
 			return nil, err
 		}
-		return s.migrateVault(legacy)
+		return s.migrateVault(legacyVault)
 	}
 	vault, err := model.DecodeVault(data, key)
 	if err != nil {
@@ -272,8 +273,8 @@ func (s *FyneStorage) LoadVault(vaultID string, key *paw.Key) (*model.Vault, err
 }
 
 // migrateVault converts a legacy vault into a complete CXF vault before activation.
-func (s *FyneStorage) migrateVault(legacy *paw.Vault) (*model.Vault, error) {
-	keyReader, err := fynestorage.Reader(fynestorage.NewFileURI(legacyKeyPath(s, legacy.Name)))
+func (s *FyneStorage) migrateVault(legacyVault *legacy.Vault) (*model.Vault, error) {
+	keyReader, err := fynestorage.Reader(fynestorage.NewFileURI(legacyKeyPath(s, legacyVault.Name)))
 	if err != nil {
 		return nil, fmt.Errorf("could not read legacy vault key: %w", err)
 	}
@@ -282,13 +283,13 @@ func (s *FyneStorage) migrateVault(legacy *paw.Vault) (*model.Vault, error) {
 	if err := errors.Join(err, closeErr); err != nil {
 		return nil, fmt.Errorf("could not read legacy vault key: %w", err)
 	}
-	vault, err := s.findCompleteMigrationStage(legacy, keyData)
+	vault, err := s.findCompleteMigrationStage(legacyVault, keyData)
 	if err != nil {
 		return nil, err
 	}
 	createdStage := vault == nil
 	if createdStage {
-		vault, err = migrationVault(legacy)
+		vault, err = migrationVault(legacyVault)
 		if err != nil {
 			return nil, fmt.Errorf("could not prepare vault migration: %w", err)
 		}
@@ -318,30 +319,30 @@ func (s *FyneStorage) migrateVault(legacy *paw.Vault) (*model.Vault, error) {
 			return nil, fmt.Errorf("could not copy legacy vault key: %w", err)
 		}
 
-		report := &MigrationReport{TotalItems: legacy.Size()}
+		report := &MigrationReport{TotalItems: len(legacyVault.Items())}
 		converted := make([]*model.Item, 0, report.TotalItems)
-		for _, ref := range legacyItems(legacy) {
-			if ref.metadata == nil {
-				report.add(MigrationItemFailure{LegacyID: ref.id, Err: fmt.Errorf("legacy item metadata is missing")}, MigrationPhaseRead)
+		for _, ref := range legacyItems(legacyVault) {
+			if ref.Metadata == nil {
+				report.add(MigrationItemFailure{LegacyID: ref.ID, Err: fmt.Errorf("legacy item metadata is missing")}, MigrationPhaseRead)
 				continue
 			}
-			oldItem, err := s.loadLegacyItem(legacy, ref.metadata)
+			oldItem, err := s.loadLegacyItem(legacyVault, ref.Metadata)
 			if err != nil {
-				report.add(MigrationItemFailure{LegacyID: ref.id, Title: ref.metadata.Name, ItemType: ref.metadata.Type, Err: err}, MigrationPhaseRead)
+				report.add(MigrationItemFailure{LegacyID: ref.ID, Title: ref.Metadata.Name, ItemType: ref.Metadata.Type, Err: err}, MigrationPhaseRead)
 				continue
 			}
 			item, err := convertLegacyItem(oldItem)
 			if err != nil {
-				report.add(MigrationItemFailure{LegacyID: ref.id, Title: ref.metadata.Name, ItemType: ref.metadata.Type, Err: err}, MigrationPhaseConvert)
+				report.add(MigrationItemFailure{LegacyID: ref.ID, Title: ref.Metadata.Name, ItemType: ref.Metadata.Type, Err: err}, MigrationPhaseConvert)
 				continue
 			}
 			updated, err := prepareItemVault(vault, item)
 			if err != nil {
-				report.add(MigrationItemFailure{LegacyID: ref.id, Title: ref.metadata.Name, ItemType: ref.metadata.Type, Err: err}, MigrationPhaseValidate)
+				report.add(MigrationItemFailure{LegacyID: ref.ID, Title: ref.Metadata.Name, ItemType: ref.Metadata.Type, Err: err}, MigrationPhaseValidate)
 				continue
 			}
 			if err := s.storeEncrypted(itemPath(s, id, item.ID), vault.Key(), item); err != nil {
-				return nil, fmt.Errorf("could not write migrated item %q: %w", ref.metadata.Name, err)
+				return nil, fmt.Errorf("could not write migrated item %q: %w", ref.Metadata.Name, err)
 			}
 			vault = updated
 			converted = append(converted, item)
@@ -370,7 +371,7 @@ func (s *FyneStorage) migrateVault(legacy *paw.Vault) (*model.Vault, error) {
 
 	// Keep a complete stage if activation fails so the retry can reuse its IDs.
 	stageComplete = true
-	backup := filepath.Join(storageRootPath(s), legacy.Name+"."+time.Now().UTC().Format("060102_150405")+vaultBackupSuffix)
+	backup := filepath.Join(storageRootPath(s), legacyVault.Name+"."+time.Now().UTC().Format("060102_150405")+vaultBackupSuffix)
 	backupURI := fynestorage.NewFileURI(backup)
 	exists, err := fynestorage.Exists(backupURI)
 	if err != nil {
@@ -379,17 +380,17 @@ func (s *FyneStorage) migrateVault(legacy *paw.Vault) (*model.Vault, error) {
 	if exists {
 		return nil, fmt.Errorf("migration backup already exists: %s", backup)
 	}
-	if err := fynestorage.Move(fynestorage.NewFileURI(legacyVaultRootPath(s, legacy.Name)), backupURI); err != nil {
+	if err := fynestorage.Move(fynestorage.NewFileURI(legacyVaultRootPath(s, legacyVault.Name)), backupURI); err != nil {
 		return nil, fmt.Errorf("could not preserve legacy vault at %s: %w", backup, err)
 	}
-	if err := s.publishVault(VaultInfo{ID: id, Name: legacy.Name}); err != nil {
+	if err := s.publishVault(model.VaultInfo{ID: id, Name: legacyVault.Name}); err != nil {
 		return nil, fmt.Errorf("migration is complete but vault metadata could not be published; backup: %s, new vault: %s: %w", backup, vaultRootPath(s, id), err)
 	}
 	return verified, nil
 }
 
 // findCompleteMigrationStage reuses a valid unpublished stage for this vault.
-func (s *FyneStorage) findCompleteMigrationStage(legacy *paw.Vault, keyData []byte) (*model.Vault, error) {
+func (s *FyneStorage) findCompleteMigrationStage(legacyVault *legacy.Vault, keyData []byte) (*model.Vault, error) {
 	entries, err := fynestorage.List(fynestorage.NewFileURI(storageRootPath(s)))
 	if err != nil {
 		return nil, err
@@ -424,7 +425,7 @@ func (s *FyneStorage) findCompleteMigrationStage(legacy *paw.Vault, keyData []by
 			}
 			continue
 		}
-		data, readErr := readDecrypted(legacy.Key(), vaultReader)
+		data, readErr := readDecrypted(legacyVault.Key(), vaultReader)
 		closeErr = vaultReader.Close()
 		if err := errors.Join(readErr, closeErr); err != nil {
 			if removeErr := fynestorage.DeleteAll(fynestorage.NewFileURI(stageDir)); removeErr != nil {
@@ -432,8 +433,8 @@ func (s *FyneStorage) findCompleteMigrationStage(legacy *paw.Vault, keyData []by
 			}
 			continue
 		}
-		stage, err := model.DecodeVault(data, legacy.Key())
-		if err != nil || stage.Metadata.VaultName != legacy.Name || len(stage.Accounts[0].Items) != legacy.Size() {
+		stage, err := model.DecodeVault(data, legacyVault.Key())
+		if err != nil || stage.Metadata.VaultName != legacyVault.Name || len(stage.Accounts[0].Items) != len(legacyVault.Items()) {
 			if removeErr := fynestorage.DeleteAll(fynestorage.NewFileURI(stageDir)); removeErr != nil {
 				return nil, fmt.Errorf("could not remove incomplete migration stage: %w", removeErr)
 			}
@@ -453,7 +454,7 @@ func (s *FyneStorage) findCompleteMigrationStage(legacy *paw.Vault, keyData []by
 			continue
 		}
 		if complete != nil {
-			return nil, fmt.Errorf("multiple complete migration stages match vault %q", legacy.Name)
+			return nil, fmt.Errorf("multiple complete migration stages match vault %q", legacyVault.Name)
 		}
 		complete = stage
 	}
@@ -500,12 +501,12 @@ func (s *FyneStorage) RenameVault(vault *model.Vault, name string) error {
 }
 
 // UpdateVaultIdentity updates the encrypted name and public appearance metadata.
-func (s *FyneStorage) UpdateVaultIdentity(vault *model.Vault, name string, appearance VaultAppearance) error {
+func (s *FyneStorage) UpdateVaultIdentity(vault *model.Vault, name string, appearance model.VaultAppearance) error {
 	if strings.TrimSpace(name) == "" {
 		return fmt.Errorf("vault name is required")
 	}
 	if name == vault.Metadata.VaultName {
-		return s.storeVaultInfo(VaultInfo{ID: vault.Accounts[0].ID, Name: name, Appearance: NormalizeVaultAppearance(appearance)})
+		return s.storeVaultInfo(model.VaultInfo{ID: vault.Accounts[0].ID, Name: name, Appearance: model.NormalizeVaultAppearance(appearance)})
 	}
 	updated := *vault
 	updated.Metadata.VaultName = name
@@ -518,7 +519,7 @@ func (s *FyneStorage) UpdateVaultIdentity(vault *model.Vault, name string, appea
 	if err := s.storeEncrypted(vaultPath(s, id), vault.Key(), &updated); err != nil {
 		return fmt.Errorf("could not store renamed vault: %w", err)
 	}
-	if err := s.storeVaultInfo(VaultInfo{ID: id, Name: name, Appearance: NormalizeVaultAppearance(appearance)}); err != nil {
+	if err := s.storeVaultInfo(model.VaultInfo{ID: id, Name: name, Appearance: model.NormalizeVaultAppearance(appearance)}); err != nil {
 		return fmt.Errorf("could not update vault catalog: %w", err)
 	}
 	*vault = updated
@@ -571,7 +572,7 @@ func (s *FyneStorage) storeEncrypted(path string, key *paw.Key, value any) error
 }
 
 // publishVault removes an incomplete catalog entry when publication fails.
-func (s *FyneStorage) publishVault(info VaultInfo) error {
+func (s *FyneStorage) publishVault(info model.VaultInfo) error {
 	// Check before cleanup too: an invalid ID must never select a path to remove.
 	if !isVaultID(info.ID) {
 		return fmt.Errorf("could not publish vault metadata: invalid CXF vault ID")

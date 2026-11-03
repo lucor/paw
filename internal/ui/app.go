@@ -22,7 +22,6 @@ import (
 	"go.lucor.dev/paw/internal/agent"
 	"go.lucor.dev/paw/internal/icon"
 	"go.lucor.dev/paw/internal/model"
-	"go.lucor.dev/paw/internal/paw"
 	"go.lucor.dev/paw/internal/storage"
 	"golang.org/x/crypto/ssh"
 )
@@ -41,7 +40,7 @@ const (
 type app struct {
 	win     fyne.Window
 	main    *container.Scroll
-	state   *paw.AppState
+	state   *model.AppState
 	storage storage.Storage
 
 	unlockedVault map[string]*model.Vault
@@ -53,7 +52,7 @@ type app struct {
 	passwordChange  *masterPasswordView
 	deletingVault   bool
 
-	filter       map[string]*paw.VaultFilterOptions
+	filter       map[string]*vaultFilterOptions
 	audit        *PasswordAudit
 	detailCancel context.CancelFunc
 	codesCancel  context.CancelFunc
@@ -75,16 +74,16 @@ func MakeApp(s storage.Storage, w fyne.Window) fyne.CanvasObject {
 
 	a := &app{
 		state:         appState,
-		filter:        make(map[string]*paw.VaultFilterOptions),
+		filter:        make(map[string]*vaultFilterOptions),
 		storage:       s,
 		unlockedVault: make(map[string]*model.Vault),
 		win:           w,
 	}
 	if a.state == nil {
-		a.state = &paw.AppState{Settings: paw.NewDefaultSettings()}
+		a.state = &model.AppState{Settings: model.NewDefaultSettings()}
 	}
 	if a.state.Settings == nil {
-		a.state.Settings = paw.NewDefaultSettings()
+		a.state.Settings = model.NewDefaultSettings()
 	}
 	a.autoLock = newBackgroundAutoLock(a.lockAllVaults)
 	a.configureAutoLock(a.state.Settings.AutoLock)
@@ -149,8 +148,8 @@ func (a *app) makeApp() *container.Scroll {
 	case 1:
 		o = a.makeUnlockVaultView(vaults[0], nil, nil)
 	default:
-		if a.state != nil && a.state.Settings != nil && a.state.Settings.StartupVault == paw.StartupVaultLastUsed && a.state.Settings.LastVaultID != "" {
-			if info, err := storage.FindVaultInfo(vaults, a.state.Settings.LastVaultID); err == nil {
+		if a.state != nil && a.state.Settings != nil && a.state.Settings.StartupVault == model.StartupVaultLastUsed && a.state.Settings.LastVaultID != "" {
+			if info, err := model.FindVaultInfo(vaults, a.state.Settings.LastVaultID); err == nil {
 				o = a.makeUnlockVaultView(info, nil, chooseAnother)
 				break
 			}
@@ -161,7 +160,7 @@ func (a *app) makeApp() *container.Scroll {
 }
 
 // setVaultViewByInfo selects the unlocked vault or displays its unlock screen.
-func (a *app) setVaultViewByInfo(info storage.VaultInfo, back, chooseAnother func()) {
+func (a *app) setVaultViewByInfo(info model.VaultInfo, back, chooseAnother func()) {
 	if a.settingsVaultID != "" {
 		return
 	}
@@ -183,7 +182,7 @@ func (a *app) setVaultViewByInfo(info storage.VaultInfo, back, chooseAnother fun
 
 // addSSHKeyToAgent adds a configured SSH item to the agent.
 func (a *app) addSSHKeyToAgent(item *model.Item) error {
-	if item.Metadata.Type != paw.SSHKeyItemType || !item.Metadata.AddToAgent {
+	if item.Metadata.Type != model.SSHKeyItemType || !item.Metadata.AddToAgent {
 		return nil
 	}
 	credential, err := uiSSHCredential(item)
@@ -206,7 +205,7 @@ func (a *app) addSSHKeyToAgent(item *model.Item) error {
 
 // removeSSHKeyFromAgent removes an SSH item's public key from the agent.
 func (a *app) removeSSHKeyFromAgent(item *model.Item) error {
-	if item.Metadata.Type != paw.SSHKeyItemType {
+	if item.Metadata.Type != model.SSHKeyItemType {
 		return nil
 	}
 	credential, err := uiSSHCredential(item)
@@ -251,7 +250,7 @@ func uiSSHCredential(item *model.Item) (cxf.SSHKey, error) {
 
 // addSSHKeysToAgent adds configured SSH items from the current vault.
 func (a *app) addSSHKeysToAgent() {
-	summaries, err := a.vault.FilterItems("", paw.SSHKeyItemType)
+	summaries, err := a.vault.FilterItems("", model.SSHKeyItemType)
 	if err != nil {
 		log.Println(err)
 		return

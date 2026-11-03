@@ -51,12 +51,12 @@ func (*StorageMock) SocketAgentPath() string {
 
 // AppStateStorageMock implements AppStateStorage through callbacks.
 type AppStateStorageMock struct {
-	OnLoadAppState  func() (*paw.AppState, error)
-	OnStoreAppState func(s *paw.AppState) error
+	OnLoadAppState  func() (*model.AppState, error)
+	OnStoreAppState func(s *model.AppState) error
 }
 
 // LoadAppState loads app state through the configured callback.
-func (c *AppStateStorageMock) LoadAppState() (*paw.AppState, error) {
+func (c *AppStateStorageMock) LoadAppState() (*model.AppState, error) {
 	if c.OnLoadAppState == nil {
 		return nil, ErrCallbackRequired
 	}
@@ -64,7 +64,7 @@ func (c *AppStateStorageMock) LoadAppState() (*paw.AppState, error) {
 }
 
 // StoreAppState stores app state through the configured callback.
-func (c *AppStateStorageMock) StoreAppState(s *paw.AppState) error {
+func (c *AppStateStorageMock) StoreAppState(s *model.AppState) error {
 	if c.OnStoreAppState == nil {
 		return ErrCallbackRequired
 	}
@@ -79,8 +79,8 @@ type VaultStorageMock struct {
 	OnLoadVault            func(vaultID string, key *paw.Key) (*model.Vault, error)
 	OnLoadVaultKey         func(vaultID string, password string) (*paw.Key, error)
 	OnRenameVault          func(vault *model.Vault, name string) error
-	OnUpdateVaultIdentity  func(vault *model.Vault, name string, appearance VaultAppearance) error
-	OnVaults               func() ([]VaultInfo, error)
+	OnUpdateVaultIdentity  func(vault *model.Vault, name string, appearance model.VaultAppearance) error
+	OnVaults               func() ([]model.VaultInfo, error)
 }
 
 // ChangeMasterPassword runs the configured test operation.
@@ -92,7 +92,7 @@ func (c *VaultStorageMock) ChangeMasterPassword(ctx context.Context, id, current
 }
 
 // CreateVault creates a vault through the configured callback.
-func (c *VaultStorageMock) CreateVault(name, password string, _ ...VaultAppearance) (*model.Vault, error) {
+func (c *VaultStorageMock) CreateVault(name, password string, _ ...model.VaultAppearance) (*model.Vault, error) {
 	if c.OnCreateVault == nil {
 		return nil, ErrCallbackRequired
 	}
@@ -132,7 +132,7 @@ func (c *VaultStorageMock) RenameVault(vault *model.Vault, name string) error {
 }
 
 // UpdateVaultIdentity updates a vault through the configured callback.
-func (c *VaultStorageMock) UpdateVaultIdentity(vault *model.Vault, name string, appearance VaultAppearance) error {
+func (c *VaultStorageMock) UpdateVaultIdentity(vault *model.Vault, name string, appearance model.VaultAppearance) error {
 	if c.OnUpdateVaultIdentity == nil {
 		return ErrCallbackRequired
 	}
@@ -140,7 +140,7 @@ func (c *VaultStorageMock) UpdateVaultIdentity(vault *model.Vault, name string, 
 }
 
 // Vaults lists vaults through the configured callback.
-func (c *VaultStorageMock) Vaults() ([]VaultInfo, error) {
+func (c *VaultStorageMock) Vaults() ([]model.VaultInfo, error) {
 	if c.OnVaults == nil {
 		return nil, ErrCallbackRequired
 	}

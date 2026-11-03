@@ -142,9 +142,9 @@ func TestStorageInteroperability(t *testing.T) {
 			}
 			vaults, err := tt.reader.Vaults()
 			require.NoError(t, err)
-			require.Contains(t, vaults, VaultInfo{ID: id, Name: tt.name, Appearance: DefaultVaultAppearance()})
+			require.Contains(t, vaults, model.VaultInfo{ID: id, Name: tt.name, Appearance: model.DefaultVaultAppearance()})
 
-			state := &paw.AppState{Modified: time.Now().UTC(), Settings: paw.NewDefaultSettings()}
+			state := &model.AppState{Modified: time.Now().UTC(), Settings: model.NewDefaultSettings()}
 			state.Settings.FaviconDownloader.Disabled = true
 			state.Settings.Password.Random.DefaultLength = 24
 			require.NoError(t, tt.writer.StoreAppState(state))
@@ -205,7 +205,7 @@ func TestCreateCXFVaultFiles(t *testing.T) {
 
 			listed, err := osStorage.Vaults()
 			require.NoError(t, err)
-			require.Contains(t, listed, VaultInfo{ID: id, Name: "Personal " + name, Appearance: DefaultVaultAppearance()})
+			require.Contains(t, listed, model.VaultInfo{ID: id, Name: "Personal " + name, Appearance: model.DefaultVaultAppearance()})
 		})
 	}
 }
@@ -259,7 +259,7 @@ func TestCreateCXFVaultRemovesFailedMetadata(t *testing.T) {
 			storage, vault := newItemStoreVault(t)
 			backend := selectCXFTestBackend(t, storage, name)
 			id := vault.Accounts[0].ID
-			err := backend.publishVault(VaultInfo{ID: id, Name: ""})
+			err := backend.publishVault(model.VaultInfo{ID: id, Name: ""})
 			require.ErrorContains(t, err, "could not publish vault metadata")
 			require.FileExists(t, vaultPath(storage, id))
 			require.NoFileExists(t, vaultMetadataPath(storage, id))
@@ -280,7 +280,7 @@ func TestPublishVaultRejectsInvalidID(t *testing.T) {
 			require.NoError(t, os.Mkdir(directory, 0700))
 			sentinel := filepath.Join(directory, vaultMetadataFileName)
 			require.NoError(t, os.WriteFile(sentinel, []byte("Preserve this file"), 0600))
-			err := backend.publishVault(VaultInfo{ID: "../victim", Name: "Invalid"})
+			err := backend.publishVault(model.VaultInfo{ID: "../victim", Name: "Invalid"})
 			require.ErrorContains(t, err, "invalid CXF vault ID")
 			data, err := os.ReadFile(sentinel)
 			require.NoError(t, err)
@@ -292,8 +292,8 @@ func TestPublishVaultRejectsInvalidID(t *testing.T) {
 // cxfTestBackend exercises the prepared backend methods before the public API cutover.
 type cxfTestBackend interface {
 	Storage
-	publishVault(info VaultInfo) error
-	storeVaultInfo(info VaultInfo) error
+	publishVault(info model.VaultInfo) error
+	storeVaultInfo(info model.VaultInfo) error
 }
 
 // selectCXFTestBackend uses the selected backend on the same isolated local directory.
@@ -328,7 +328,7 @@ func TestVaultsExcludesBackups(t *testing.T) {
 	for _, backend := range []Storage{osStorage, fyneStorage} {
 		vaults, err := backend.Vaults()
 		require.NoError(t, err)
-		require.ElementsMatch(t, []VaultInfo{
+		require.ElementsMatch(t, []model.VaultInfo{
 			{ID: "Personal", Name: "Personal", NeedsMigration: true},
 			{ID: "Work", Name: "Work", NeedsMigration: true},
 		}, vaults)
@@ -346,7 +346,7 @@ func TestStoreVaultInfoListsCXFVaults(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	info := VaultInfo{ID: base64.RawURLEncoding.EncodeToString(make([]byte, 16)), Name: "Personal", Appearance: VaultAppearance{Icon: "briefcase-business", Color: "green"}}
+	info := model.VaultInfo{ID: base64.RawURLEncoding.EncodeToString(make([]byte, 16)), Name: "Personal", Appearance: model.VaultAppearance{Icon: "briefcase-business", Color: "green"}}
 	for _, backend := range []cxfTestBackend{osStorage.(*OSStorage), fyneStorage.(*FyneStorage)} {
 		require.NoError(t, backend.storeVaultInfo(info))
 		data, err := os.ReadFile(vaultMetadataPath(backend, info.ID))
@@ -363,13 +363,13 @@ func TestVaultMetadataAppearanceDefaultsAndValidation(t *testing.T) {
 	for _, testCase := range []struct {
 		name string
 		data string
-		want VaultAppearance
+		want model.VaultAppearance
 	}{
-		{name: "legacy metadata", data: `{"name":"Personal"}`, want: DefaultVaultAppearance()},
-		{name: "unsupported identifiers", data: `{"name":"Personal","icon":"upload","color":"pink"}`, want: DefaultVaultAppearance()},
-		{name: "supported identifiers", data: `{"name":"Personal","icon":"folder","color":"purple"}`, want: VaultAppearance{Icon: "folder", Color: "purple"}},
-		{name: "no color", data: `{"name":"Personal","icon":"paw","color":"none"}`, want: VaultAppearance{Icon: "paw", Color: "none"}},
-		{name: "preserve configured vault icon", data: `{"name":"Personal","icon":"vault","color":"red"}`, want: VaultAppearance{Icon: "vault", Color: "red"}},
+		{name: "legacy metadata", data: `{"name":"Personal"}`, want: model.DefaultVaultAppearance()},
+		{name: "unsupported identifiers", data: `{"name":"Personal","icon":"upload","color":"pink"}`, want: model.DefaultVaultAppearance()},
+		{name: "supported identifiers", data: `{"name":"Personal","icon":"folder","color":"purple"}`, want: model.VaultAppearance{Icon: "folder", Color: "purple"}},
+		{name: "no color", data: `{"name":"Personal","icon":"paw","color":"none"}`, want: model.VaultAppearance{Icon: "paw", Color: "none"}},
+		{name: "preserve configured vault icon", data: `{"name":"Personal","icon":"vault","color":"red"}`, want: model.VaultAppearance{Icon: "vault", Color: "red"}},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			info, err := vaultInfoFromMetadata(id, []byte(testCase.data))
@@ -388,13 +388,13 @@ func TestCreateVaultPersistsAppearance(t *testing.T) {
 		Storage: app.Storage(), root: fynestorage.NewFileURI(osStorage.Root()),
 	})
 	require.NoError(t, err)
-	want := VaultAppearance{Icon: "briefcase-business", Color: "green"}
+	want := model.VaultAppearance{Icon: "briefcase-business", Color: "green"}
 	for _, backend := range []Storage{osStorage, fyneStorage} {
 		vault, err := backend.CreateVault("Work", "test password", want)
 		require.NoError(t, err)
 		vaults, err := backend.Vaults()
 		require.NoError(t, err)
-		info, err := FindVaultInfo(vaults, vault.Accounts[0].ID)
+		info, err := model.FindVaultInfo(vaults, vault.Accounts[0].ID)
 		require.NoError(t, err)
 		require.Equal(t, want, info.Appearance)
 	}
@@ -403,12 +403,12 @@ func TestCreateVaultPersistsAppearance(t *testing.T) {
 func TestCreateVaultPersistsNoColorAppearance(t *testing.T) {
 	backend, err := NewOSStorageRooted(t.TempDir())
 	require.NoError(t, err)
-	want := DefaultVaultAppearance()
+	want := model.DefaultVaultAppearance()
 	vault, err := backend.CreateVault("Personal", "test password", want)
 	require.NoError(t, err)
 	vaults, err := backend.Vaults()
 	require.NoError(t, err)
-	info, err := FindVaultInfo(vaults, vault.Accounts[0].ID)
+	info, err := model.FindVaultInfo(vaults, vault.Accounts[0].ID)
 	require.NoError(t, err)
 	require.Equal(t, want, info.Appearance)
 }
@@ -416,17 +416,17 @@ func TestCreateVaultPersistsNoColorAppearance(t *testing.T) {
 func TestRenameVaultPreservesAppearance(t *testing.T) {
 	backend, err := NewOSStorageRooted(t.TempDir())
 	require.NoError(t, err)
-	want := VaultAppearance{Icon: "laptop", Color: "purple"}
+	want := model.VaultAppearance{Icon: "laptop", Color: "purple"}
 	vault, err := backend.CreateVault("Work", "test password", want)
 	require.NoError(t, err)
 	item, err := model.NewNote("Test", "note")
 	require.NoError(t, err)
 	require.NoError(t, backend.StoreItem(vault, item))
-	updatedAppearance := VaultAppearance{Icon: "house", Color: "orange"}
+	updatedAppearance := model.VaultAppearance{Icon: "house", Color: "orange"}
 	require.NoError(t, backend.UpdateVaultIdentity(vault, "Renamed work", updatedAppearance))
 	vaults, err := backend.Vaults()
 	require.NoError(t, err)
-	info, err := FindVaultInfo(vaults, vault.Accounts[0].ID)
+	info, err := model.FindVaultInfo(vaults, vault.Accounts[0].ID)
 	require.NoError(t, err)
 	require.Equal(t, "Renamed work", info.Name)
 	require.Equal(t, updatedAppearance, info.Appearance)
@@ -438,7 +438,7 @@ func TestRenameVaultPreservesAppearance(t *testing.T) {
 	require.NoError(t, backend.RenameVault(vault, "Renamed again"))
 	vaults, err = backend.Vaults()
 	require.NoError(t, err)
-	info, err = FindVaultInfo(vaults, vault.Accounts[0].ID)
+	info, err = model.FindVaultInfo(vaults, vault.Accounts[0].ID)
 	require.NoError(t, err)
 	require.Equal(t, "Renamed again", info.Name)
 	require.Equal(t, updatedAppearance, info.Appearance)
@@ -461,7 +461,7 @@ func TestRenameReopenedEmptyVault(t *testing.T) {
 			id := vault.Accounts[0].ID
 			vault, err = backend.LoadVault(id, vault.Key())
 			require.NoError(t, err)
-			require.NoError(t, backend.UpdateVaultIdentity(vault, "Work", DefaultVaultAppearance()))
+			require.NoError(t, backend.UpdateVaultIdentity(vault, "Work", model.DefaultVaultAppearance()))
 			vault, err = backend.LoadVault(id, vault.Key())
 			require.NoError(t, err)
 			require.Equal(t, "Work", vault.Metadata.VaultName)
@@ -480,7 +480,7 @@ func TestFyneStorageUpdatesVaultIdentity(t *testing.T) {
 		Storage: app.Storage(), root: fynestorage.NewFileURI(osStorage.Root()),
 	})
 	require.NoError(t, err)
-	wantAppearance := VaultAppearance{Icon: "laptop", Color: "purple"}
+	wantAppearance := model.VaultAppearance{Icon: "laptop", Color: "purple"}
 	vault, err := backend.CreateVault("Personal", "test password", wantAppearance)
 	require.NoError(t, err)
 	item, err := model.NewNote("Test", "note")
@@ -489,13 +489,13 @@ func TestFyneStorageUpdatesVaultIdentity(t *testing.T) {
 	keyString := vault.Key().String()
 	vaultID := vault.Accounts[0].ID
 
-	updatedAppearance := VaultAppearance{Icon: "house", Color: "orange"}
+	updatedAppearance := model.VaultAppearance{Icon: "house", Color: "orange"}
 	require.NoError(t, backend.UpdateVaultIdentity(vault, "Work", updatedAppearance))
 	require.Equal(t, vaultID, vault.Accounts[0].ID)
 	require.Equal(t, "Work", vault.Metadata.VaultName)
 	vaults, err := backend.Vaults()
 	require.NoError(t, err)
-	info, err := FindVaultInfo(vaults, vaultID)
+	info, err := model.FindVaultInfo(vaults, vaultID)
 	require.NoError(t, err)
 	require.Equal(t, "Work", info.Name)
 	require.Equal(t, updatedAppearance, info.Appearance)

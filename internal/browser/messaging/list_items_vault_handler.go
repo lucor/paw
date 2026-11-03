@@ -11,7 +11,6 @@ import (
 
 	"go.lucor.dev/paw/internal/agent"
 	"go.lucor.dev/paw/internal/model"
-	"go.lucor.dev/paw/internal/paw"
 	"go.lucor.dev/paw/internal/storage"
 	"golang.org/x/net/publicsuffix"
 )
@@ -40,13 +39,13 @@ type ListItemsVaultHandlerResponsePayload struct {
 }
 
 type browserItemMetadata struct {
-	Name     string        `json:"name,omitempty"`
-	Subtitle string        `json:"subtitle,omitempty"`
-	Type     paw.ItemType  `json:"type,omitempty"`
-	Modified time.Time     `json:"modified,omitempty"`
-	Created  time.Time     `json:"created,omitempty"`
-	Favicon  *paw.Favicon  `json:"favicon,omitempty"`
-	Autofill *paw.Autofill `json:"autofill,omitempty"`
+	Name     string          `json:"name,omitempty"`
+	Subtitle string          `json:"subtitle,omitempty"`
+	Type     model.ItemType  `json:"type,omitempty"`
+	Modified time.Time       `json:"modified,omitempty"`
+	Created  time.Time       `json:"created,omitempty"`
+	Favicon  *model.Favicon  `json:"favicon,omitempty"`
+	Autofill *model.Autofill `json:"autofill,omitempty"`
 }
 
 // Serve implements browser.Handler.
@@ -86,7 +85,7 @@ func (h *ListItemsVaultHandler) Serve(res *Response, req *Request) {
 		return
 	}
 
-	summaries, err := vault.FilterItems(v.FilterName, paw.ItemType(v.FilterType))
+	summaries, err := vault.FilterItems(v.FilterName, model.ItemType(v.FilterType))
 	if err != nil {
 		res.Error = err
 		return
@@ -109,7 +108,7 @@ func (h *ListItemsVaultHandler) Serve(res *Response, req *Request) {
 			metadata.Created = time.Unix(int64(*summary.CreationAt), 0).UTC()
 		}
 		var extension struct {
-			Favicon *paw.Favicon `json:"favicon"`
+			Favicon *model.Favicon `json:"favicon"`
 		}
 		for _, raw := range summary.Extensions {
 			var header struct {
@@ -123,12 +122,12 @@ func (h *ListItemsVaultHandler) Serve(res *Response, req *Request) {
 				metadata.Favicon = extension.Favicon
 			}
 		}
-		if itemType == paw.LoginItemType && summary.Scope != nil && len(summary.Scope.URLs) > 0 {
+		if itemType == model.LoginItemType && summary.Scope != nil && len(summary.Scope.URLs) > 0 {
 			website, err := url.Parse(summary.Scope.URLs[0])
 			if err == nil && website.Scheme == "https" && website.Hostname() != "" {
 				tldPlusOne, err := publicsuffix.EffectiveTLDPlusOne(website.Hostname())
 				if err == nil {
-					metadata.Autofill = &paw.Autofill{TLDPlusOne: tldPlusOne, URL: website}
+					metadata.Autofill = &model.Autofill{TLDPlusOne: tldPlusOne, URL: website}
 				}
 			}
 		}

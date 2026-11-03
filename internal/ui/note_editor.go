@@ -14,7 +14,6 @@ import (
 	"fyne.io/fyne/v2/widget"
 	"go.lucor.dev/cxf"
 	"go.lucor.dev/paw/internal/model"
-	"go.lucor.dev/paw/internal/paw"
 	"go.lucor.dev/paw/internal/ui/assets/icons"
 )
 
@@ -40,7 +39,7 @@ func NewNoteEditor(item *model.Item, isNew bool) (*NoteEditor, error) {
 	if err := item.Validate(); err != nil {
 		return nil, err
 	}
-	if item.Metadata.Type != paw.NoteItemType {
+	if item.Metadata.Type != model.NoteItemType {
 		return nil, errors.New("item is not a note")
 	}
 	decoded, err := decodeEntryDetailCredentials(item.Credentials)

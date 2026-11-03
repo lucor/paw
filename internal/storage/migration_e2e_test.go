@@ -24,6 +24,7 @@ import (
 	"go.lucor.dev/cxf"
 	"golang.org/x/crypto/ssh"
 
+	"go.lucor.dev/paw/internal/legacy"
 	"go.lucor.dev/paw/internal/migration"
 	"go.lucor.dev/paw/internal/model"
 	"go.lucor.dev/paw/internal/paw"
@@ -193,30 +194,30 @@ func TestLoadVaultKeyRejectsWrongPassword(t *testing.T) {
 			keyData := &bytes.Buffer{}
 			key, err := paw.MakeKey("correct password", keyData)
 			require.NoError(t, err)
-			legacy := paw.NewVault(key, "Personal")
-			note := paw.NewNote()
+			oldVault := legacy.NewVault(key, "Personal")
+			note := legacy.NewNote()
 			note.Name, note.Value = "Private note", "synthetic content"
-			require.NoError(t, legacy.AddItem(note))
-			legacyPath := legacyVaultRootPath(s, legacy.Name)
+			require.NoError(t, oldVault.AddItem(note))
+			legacyPath := legacyVaultRootPath(s, oldVault.Name)
 			require.NoError(t, os.MkdirAll(legacyPath, 0700))
-			require.NoError(t, os.WriteFile(legacyKeyPath(s, legacy.Name), keyData.Bytes(), 0600))
-			vaultJSON, err := json.Marshal(legacy)
+			require.NoError(t, os.WriteFile(legacyKeyPath(s, oldVault.Name), keyData.Bytes(), 0600))
+			vaultJSON, err := json.Marshal(oldVault)
 			require.NoError(t, err)
 			var encryptedVault bytes.Buffer
 			writeEncrypted(t, key, &encryptedVault, vaultJSON)
-			require.NoError(t, os.WriteFile(legacyVaultPath(s, legacy.Name), encryptedVault.Bytes(), 0600))
+			require.NoError(t, os.WriteFile(legacyVaultPath(s, oldVault.Name), encryptedVault.Bytes(), 0600))
 			noteJSON, err := json.Marshal(note)
 			require.NoError(t, err)
 			var encryptedNote bytes.Buffer
 			writeEncrypted(t, key, &encryptedNote, noteJSON)
-			require.NoError(t, os.WriteFile(legacyItemPath(s, legacy.Name, note.ID()), encryptedNote.Bytes(), 0600))
-			keyFileBefore := readTestFile(t, legacyKeyPath(s, legacy.Name))
-			vaultFileBefore := readTestFile(t, legacyVaultPath(s, legacy.Name))
+			require.NoError(t, os.WriteFile(legacyItemPath(s, oldVault.Name, note.ID()), encryptedNote.Bytes(), 0600))
+			keyFileBefore := readTestFile(t, legacyKeyPath(s, oldVault.Name))
+			vaultFileBefore := readTestFile(t, legacyVaultPath(s, oldVault.Name))
 
-			_, err = s.LoadVaultKey(legacy.Name, "wrong password")
+			_, err = s.LoadVaultKey(oldVault.Name, "wrong password")
 			require.Error(t, err)
-			require.Equal(t, keyFileBefore, readTestFile(t, legacyKeyPath(s, legacy.Name)))
-			require.Equal(t, vaultFileBefore, readTestFile(t, legacyVaultPath(s, legacy.Name)))
+			require.Equal(t, keyFileBefore, readTestFile(t, legacyKeyPath(s, oldVault.Name)))
+			require.Equal(t, vaultFileBefore, readTestFile(t, legacyVaultPath(s, oldVault.Name)))
 			require.DirExists(t, legacyPath)
 			entries, err := os.ReadDir(storageRootPath(s))
 			require.NoError(t, err)
@@ -365,7 +366,7 @@ func TestLoadVaultMigrationFailureKeepsLegacyVault(t *testing.T) {
 			failure := report.Failures[0]
 			require.Equal(t, note.ID(), failure.LegacyID)
 			require.Equal(t, "Private note", failure.Title)
-			require.Equal(t, paw.NoteItemType, failure.ItemType)
+			require.Equal(t, model.NoteItemType, failure.ItemType)
 			require.Equal(t, []MigrationPhase{MigrationPhaseRead}, failure.Phases)
 			require.Contains(t, failure.Err.Error(), "could not create reader")
 
@@ -399,7 +400,7 @@ func TestLoadVaultMigrationConversionFailureKeepsLegacyVault(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			s := testCase.backend(t, t.TempDir())
 			secret := "SYNTHETIC_MIGRATION_SECRET"
-			password := paw.NewPassword()
+			password := legacy.NewPassword()
 			password.Name = "Unsupported password"
 			password.Value = secret
 			password.Mode = paw.PasswordMode(4)
@@ -464,9 +465,9 @@ func TestLoadVaultReportsMetadataPublicationFailure(t *testing.T) {
 
 // TestVerifyMigratedItemRejectsChangedData checks verification fails on a changed item.
 func TestVerifyMigratedItemRejectsChangedData(t *testing.T) {
-	legacy := paw.NewNote()
-	legacy.Name, legacy.Value = "Expected", "synthetic content"
-	expected, err := migration.MigrateNote(legacy)
+	legacyNote := legacy.NewNote()
+	legacyNote.Name, legacyNote.Value = "Expected", "synthetic content"
+	expected, err := migration.MigrateNote(legacyNote)
 	require.NoError(t, err)
 	actual := *expected
 	actual.Title = "Changed"
@@ -564,7 +565,7 @@ func TestLoadVaultRebuildsInvalidMigrationStage(t *testing.T) {
 }
 
 // createCompleteMigrationStage writes a converted item without publishing vault metadata.
-func createCompleteMigrationStage(t *testing.T, s Storage, legacy *paw.Vault, note *paw.Note, keyData []byte) (string, string) {
+func createCompleteMigrationStage(t *testing.T, s Storage, legacy *legacy.Vault, note *legacy.Note, keyData []byte) (string, string) {
 	t.Helper()
 	stage, err := migrationVault(legacy)
 	require.NoError(t, err)
@@ -578,9 +579,9 @@ func createCompleteMigrationStage(t *testing.T, s Storage, legacy *paw.Vault, no
 }
 
 // seedLegacyMigrationVault writes a legacy vault with an optional item file.
-func seedLegacyMigrationVault(t *testing.T, s Storage, saveItem bool) (*paw.Key, *paw.Vault, *paw.Note, []byte, []byte) {
+func seedLegacyMigrationVault(t *testing.T, s Storage, saveItem bool) (*paw.Key, *legacy.Vault, *legacy.Note, []byte, []byte) {
 	t.Helper()
-	note := paw.NewNote()
+	note := legacy.NewNote()
 	note.Name, note.Value = "Private note", "keep this content"
 	key, legacy, _, keyData, vaultData := seedLegacyMigrationVaultWithItems(t, s, note)
 	if !saveItem {
@@ -591,19 +592,19 @@ func seedLegacyMigrationVault(t *testing.T, s Storage, saveItem bool) (*paw.Key,
 }
 
 // seedLegacyMigrationVaultWithItems writes an encrypted Paw vault and its item files.
-func seedLegacyMigrationVaultWithItems(t *testing.T, s Storage, items ...paw.Item) (*paw.Key, *paw.Vault, []paw.Item, []byte, []byte) {
+func seedLegacyMigrationVaultWithItems(t *testing.T, s Storage, items ...legacy.Item) (*paw.Key, *legacy.Vault, []legacy.Item, []byte, []byte) {
 	t.Helper()
 	key, err := paw.MakeOneTimeKey()
 	require.NoError(t, err)
-	legacy := paw.NewVault(key, "Personal")
+	legacyVault := legacy.NewVault(key, "Personal")
 	for _, item := range items {
-		require.NoError(t, legacy.AddItem(item))
+		require.NoError(t, legacyVault.AddItem(item))
 	}
-	legacyID := legacy.Name
+	legacyID := legacyVault.Name
 	require.NoError(t, os.MkdirAll(legacyVaultRootPath(s, legacyID), 0700))
 	keyData := []byte("unchanged encrypted key file")
 	require.NoError(t, os.WriteFile(legacyKeyPath(s, legacyID), keyData, 0600))
-	vaultJSON, err := json.Marshal(legacy)
+	vaultJSON, err := json.Marshal(legacyVault)
 	require.NoError(t, err)
 	var encryptedVault bytes.Buffer
 	writeEncrypted(t, key, &encryptedVault, vaultJSON)
@@ -616,7 +617,7 @@ func seedLegacyMigrationVaultWithItems(t *testing.T, s Storage, items ...paw.Ite
 		writeEncrypted(t, key, &encryptedItem, itemJSON)
 		require.NoError(t, os.WriteFile(legacyItemPath(s, legacyID, item.ID()), encryptedItem.Bytes(), 0600))
 	}
-	return key, legacy, items, keyData, vaultData
+	return key, legacyVault, items, keyData, vaultData
 }
 
 // migrationBackends returns the storage implementations exercised by migration end-to-end tests.
@@ -651,24 +652,24 @@ func migrationBackends(t *testing.T, app fyne.App) []struct {
 }
 
 // supportedLegacyItems returns synthetic Paw items for every supported legacy type.
-func supportedLegacyItems(t *testing.T) []paw.Item {
+func supportedLegacyItems(t *testing.T) []legacy.Item {
 	t.Helper()
-	note := paw.NewNote()
+	note := legacy.NewNote()
 	note.Name, note.Value = "Legacy note", "synthetic note content"
 	note.Metadata.Subtitle = "note subtitle"
 	note.Metadata.Created = time.Unix(100, 0).UTC()
 	note.Metadata.Modified = time.Unix(200, 0).UTC()
 
-	password := paw.NewPassword()
+	password := legacy.NewPassword()
 	password.Name, password.Value = "Legacy password", "synthetic saved password"
 	password.Mode, password.Length, password.Format = paw.RandomPassword, 24, paw.LowercaseFormat|paw.DigitsFormat
 	password.Metadata.Created = time.Unix(300, 0).UTC()
 	password.Metadata.Modified = time.Unix(400, 0).UTC()
 
-	login := paw.NewLogin()
+	login := legacy.NewLogin()
 	login.Name, login.Username, login.Password.Value = "Legacy login", "user@example.com", "synthetic login password"
 	login.Password.Mode, login.Password.Length = paw.PassphrasePassword, 5
-	login.TOTP = &paw.TOTP{Secret: "JBSWY3DPEHPK3PXP", Digits: 6, Hash: paw.SHA256, Interval: 30}
+	login.TOTP = &legacy.TOTP{Secret: "JBSWY3DPEHPK3PXP", Digits: 6, Hash: paw.SHA256, Interval: 30}
 	login.Note.Value = "synthetic login note"
 	require.NoError(t, login.URL.Set("https://example.com/login"))
 	login.Metadata.Created = time.Unix(500, 0).UTC()
@@ -680,30 +681,30 @@ func supportedLegacyItems(t *testing.T) []paw.Item {
 	require.NoError(t, err)
 	signer, err := ssh.NewSignerFromKey(privateKey)
 	require.NoError(t, err)
-	sshKey := paw.NewSSHKey()
+	sshKey := legacy.NewSSHKey()
 	sshKey.Name, sshKey.Comment = "Legacy SSH key", "synthetic@example.com"
 	sshKey.PrivateKey = string(pem.EncodeToMemory(block))
 	sshKey.PublicKey = string(ssh.MarshalAuthorizedKey(signer.PublicKey()))
 	sshKey.Fingerprint = ssh.FingerprintSHA256(signer.PublicKey())
-	sshKey.Passphrase = &paw.Password{Value: "synthetic passphrase", Mode: paw.CustomPassword}
+	sshKey.Passphrase = &legacy.Password{Value: "synthetic passphrase", Mode: paw.CustomPassword}
 	sshKey.Note.Value = "synthetic SSH note"
 	sshKey.AddToAgent = true
 	sshKey.Metadata.Created = time.Unix(700, 0).UTC()
 	sshKey.Metadata.Modified = time.Unix(800, 0).UTC()
 
-	return []paw.Item{note, password, login, sshKey}
+	return []legacy.Item{note, password, login, sshKey}
 }
 
 // migrateTestItem converts one fixture with the same converter used by storage migration.
-func migrateTestItem(item paw.Item) (*model.Item, error) {
+func migrateTestItem(item legacy.Item) (*model.Item, error) {
 	switch value := item.(type) {
-	case *paw.Note:
+	case *legacy.Note:
 		return migration.MigrateNote(value)
-	case *paw.Password:
+	case *legacy.Password:
 		return migration.MigratePassword(value)
-	case *paw.Login:
+	case *legacy.Login:
 		return migration.MigrateLogin(value)
-	case *paw.SSHKey:
+	case *legacy.SSHKey:
 		return migration.MigrateSSHKey(value)
 	default:
 		return nil, fmt.Errorf("unsupported test item type")

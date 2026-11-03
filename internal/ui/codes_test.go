@@ -202,7 +202,7 @@ func TestCodesViewUsesActiveVaultAndLockClearsSecrets(t *testing.T) {
 	test.NewTempApp(t)
 	window := test.NewTempWindow(t, nil)
 	firstLogin := codeLoginFixture(t, "GitHub", true)
-	firstLogin.Metadata.Favicon = &paw.Favicon{Host: "github.com"}
+	firstLogin.Metadata.Favicon = &model.Favicon{Host: "github.com"}
 	secondLogin := codeLoginFixture(t, "Other login", false)
 	firstVault := codeVaultFixture(t, "Personal", firstLogin, secondLogin)
 	workLogin := codeLoginFixture(t, "Work Git", true)
@@ -210,11 +210,11 @@ func TestCodesViewUsesActiveVaultAndLockClearsSecrets(t *testing.T) {
 	items := map[string]*model.Item{firstLogin.ID: firstLogin, secondLogin.ID: secondLogin, workLogin.ID: workLogin}
 	store := &storage.StorageMock{
 		ItemStorageMock: storage.ItemStorageMock{OnLoadItem: func(_ *model.Vault, id string) (*model.Item, error) { return items[id], nil }},
-		VaultStorageMock: storage.VaultStorageMock{OnVaults: func() ([]storage.VaultInfo, error) {
-			return []storage.VaultInfo{{ID: "personal", Name: "Personal"}, {ID: "work", Name: "Work"}}, nil
+		VaultStorageMock: storage.VaultStorageMock{OnVaults: func() ([]model.VaultInfo, error) {
+			return []model.VaultInfo{{ID: "personal", Name: "Personal"}, {ID: "work", Name: "Work"}}, nil
 		}},
 	}
-	application := &app{win: window, main: container.NewVScroll(container.NewVBox()), storage: store, filter: make(map[string]*paw.VaultFilterOptions), unlockedVault: map[string]*model.Vault{}}
+	application := &app{win: window, main: container.NewVScroll(container.NewVBox()), storage: store, filter: make(map[string]*vaultFilterOptions), unlockedVault: map[string]*model.Vault{}}
 	application.setVaultView(firstVault, "personal")
 	firstCodes := application.codesView
 	require.Len(t, firstCodes.displays, 1, "entries without TOTP are excluded")

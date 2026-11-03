@@ -120,7 +120,7 @@ func (vault *Vault) CreationAt() (*uint64, error) {
 }
 
 // FilterItems returns summaries matching title text and item type.
-func (vault *Vault) FilterItems(name string, itemType paw.ItemType) ([]cxf.Item, error) {
+func (vault *Vault) FilterItems(name string, itemType ItemType) ([]cxf.Item, error) {
 	if err := vault.Validate(); err != nil {
 		return nil, err
 	}

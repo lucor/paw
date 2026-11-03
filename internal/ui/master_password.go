@@ -11,6 +11,7 @@ import (
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/widget"
+	"go.lucor.dev/paw/internal/model"
 	"go.lucor.dev/paw/internal/storage"
 	"go.lucor.dev/paw/internal/ui/assets/icons"
 )
@@ -106,7 +107,7 @@ func (a *app) showChangeMasterPassword() {
 		dialog.ShowError(err, a.win)
 		return
 	}
-	info := storage.VaultInfo{ID: id, Name: name}
+	info := model.VaultInfo{ID: id, Name: name}
 	for _, value := range infos {
 		if value.ID == id {
 			info = value

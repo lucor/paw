@@ -10,7 +10,6 @@ import (
 	"go.lucor.dev/cxf"
 
 	"go.lucor.dev/paw/internal/model"
-	"go.lucor.dev/paw/internal/paw"
 )
 
 // TestNewNote checks new notes use valid CXF types and independent identities.
@@ -28,15 +27,15 @@ func TestNewNote(t *testing.T) {
 			item, err := model.NewNote(tt.title, tt.value)
 			require.NoError(t, err)
 			require.NoError(t, item.Validate())
-			require.Equal(t, paw.NoteItemType, item.Metadata.Type)
+			require.Equal(t, model.NoteItemType, item.Metadata.Type)
 			require.Len(t, item.Extensions, 1)
 			var metadata struct {
-				Name string       `json:"name"`
-				Type paw.ItemType `json:"type"`
+				Name string         `json:"name"`
+				Type model.ItemType `json:"type"`
 			}
 			require.NoError(t, json.Unmarshal(item.Extensions[0], &metadata))
 			require.Equal(t, "paw.pm/item", metadata.Name)
-			require.Equal(t, paw.NoteItemType, metadata.Type)
+			require.Equal(t, model.NoteItemType, metadata.Type)
 			require.Equal(t, tt.title, item.Title)
 			id, err := base64.RawURLEncoding.Strict().DecodeString(item.ID)
 			require.NoError(t, err)

@@ -10,8 +10,6 @@ import (
 	"unicode/utf8"
 
 	"go.lucor.dev/cxf"
-
-	"go.lucor.dev/paw/internal/paw"
 )
 
 // NewLogin creates a Paw login item with a new ID and current dates.
@@ -40,7 +38,7 @@ func NewLogin(title, username, password string, settings PasswordSettings) (*Ite
 	}
 	created := uint64(time.Now().Unix())
 	modified := created
-	metadata := ItemMetadata{Type: paw.LoginItemType}
+	metadata := ItemMetadata{Type: LoginItemType}
 	extension, err := encodeItemExtension(nil, metadata)
 	if err != nil {
 		return nil, fmt.Errorf("cannot encode login metadata: %w", err)

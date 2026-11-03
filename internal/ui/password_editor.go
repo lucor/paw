@@ -25,7 +25,7 @@ type PasswordEditor struct {
 	GenerateButton *iconButton
 	Title          *widget.Entry
 	Password       *PasswordField
-	PasswordSpec   *paw.Password
+	PasswordSpec   *paw.PasswordSpec
 
 	item           *model.Item
 	initialTitle   string
@@ -45,7 +45,7 @@ func NewPasswordEditor(item *model.Item, isNew bool) (*PasswordEditor, error) {
 	if err := item.Validate(); err != nil {
 		return nil, err
 	}
-	if item.Metadata.Type != paw.PasswordItemType {
+	if item.Metadata.Type != model.PasswordItemType {
 		return nil, errors.New("item is not a password")
 	}
 	decoded, err := decodeEntryDetailCredentials(item.Credentials)

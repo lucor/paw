@@ -6,16 +6,12 @@ package paw
 import (
 	"fmt"
 	"strings"
-	"time"
 
 	"go.lucor.dev/paw/internal/age"
 )
 
-// Declare conformity to Item interface
-var _ Item = (*Password)(nil)
-
 // Declare conformity to Seeder interface
-var _ Seeder = (*Password)(nil)
+var _ Seeder = (*PasswordSpec)(nil)
 
 const (
 	RandomPasswordDefaultLength     = 16
@@ -54,53 +50,39 @@ func (pm PasswordMode) String() string {
 	return fmt.Sprintf("Unknown password mode (%d)", pm)
 }
 
-type Password struct {
+// PasswordSpec holds temporary generator settings and its generated value.
+type PasswordSpec struct {
 	Value  string       `json:"value,omitempty"`
 	Format Format       `json:"format,omitempty"`
 	Length int          `json:"length,omitempty"`
 	Mode   PasswordMode `json:"mode,omitempty"`
-
-	*Metadata `json:"metadata,omitempty"`
-	*Note     `json:"note,omitempty"`
 }
 
-func NewPassword() *Password {
-	now := time.Now().UTC()
-	return &Password{
-		Metadata: &Metadata{
-			Type:     PasswordItemType,
-			Created:  now,
-			Modified: now,
-		},
-		Note: NewNote(),
-	}
-}
-
-func NewRandomPassword() *Password {
-	password := NewPassword()
+func NewRandomPassword() *PasswordSpec {
+	password := &PasswordSpec{}
 	password.Mode = RandomPassword
 	password.Format = RandomPasswordDefaultFormat
 	password.Length = RandomPasswordDefaultLength
 	return password
 }
 
-func NewPinPassword() *Password {
-	password := NewPassword()
+func NewPinPassword() *PasswordSpec {
+	password := &PasswordSpec{}
 	password.Mode = PinPassword
 	password.Format = PinPasswordDefaultFormat
 	password.Length = PinPasswordDefaultLength
 	return password
 }
 
-func NewPassphrasePassword() *Password {
-	password := NewPassword()
+func NewPassphrasePassword() *PasswordSpec {
+	password := &PasswordSpec{}
 	password.Mode = PassphrasePassword
 	password.Length = PassphrasePasswordDefaultLength
 	return password
 }
 
-func NewCustomPassword() *Password {
-	password := NewPassword()
+func NewCustomPassword() *PasswordSpec {
+	password := &PasswordSpec{}
 	password.Mode = CustomPassword
 	return password
 }
@@ -108,15 +90,15 @@ func NewCustomPassword() *Password {
 // Implemets Seeder interface
 
 // Salt returns nil so each generated password uses fresh randomness.
-func (p *Password) Salt() []byte {
+func (p *PasswordSpec) Salt() []byte {
 	return nil
 }
 
-func (p *Password) Info() []byte {
+func (p *PasswordSpec) Info() []byte {
 	return nil
 }
 
-func (p *Password) Template() (string, error) {
+func (p *PasswordSpec) Template() (string, error) {
 	ruler, err := NewRule(p.Length, p.Format)
 	if err != nil {
 		return "", err
@@ -124,12 +106,12 @@ func (p *Password) Template() (string, error) {
 	return ruler.Template()
 }
 
-func (p *Password) Len() int {
+func (p *PasswordSpec) Len() int {
 	return p.Length
 }
 
 // Pwgen generates a password using a supported mode.
-func (p *Password) Pwgen(key *Key) (string, error) {
+func (p *PasswordSpec) Pwgen(key *Key) (string, error) {
 	switch p.Mode {
 	case CustomPassword, RandomPassword, PassphrasePassword, PinPassword:
 	default:

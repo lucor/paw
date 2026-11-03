@@ -99,7 +99,7 @@ func TestAuditIsDiscardedOnLockAndVaultSwitch(t *testing.T) {
 			if action == "lock" {
 				a.makeVaultActions()[4].Action()
 			} else {
-				a.setVaultViewByInfo(storage.VaultInfo{ID: "work", Name: "Work"}, nil, nil)
+				a.setVaultViewByInfo(model.VaultInfo{ID: "work", Name: "Work"}, nil, nil)
 			}
 			require.Nil(t, a.audit)
 			require.ErrorIs(t, detailContext.Err(), context.Canceled)
@@ -163,7 +163,7 @@ func TestLoginEditUsesV2EditorWithoutTypeOrNavigation(t *testing.T) {
 	require.False(t, navigationFound, "Login editor should hide bottom navigation")
 
 	a.closeItemDetail()
-	newLogin, err := newItemTemplate(paw.LoginItemType)
+	newLogin, err := newItemTemplate(model.LoginItemType)
 	require.NoError(t, err)
 	newView := a.makeEditItemView(newLogin, true)
 	for _, object := range test.LaidOutObjects(newView) {
@@ -376,8 +376,8 @@ func TestVaultEntryListWiring(t *testing.T) {
 	require.NoError(t, err)
 	vault.Accounts[0].Items = []cxf.Item{{ID: "item-id", Title: "Example"}}
 	store := &storage.StorageMock{}
-	store.OnVaults = func() ([]storage.VaultInfo, error) {
-		return []storage.VaultInfo{{ID: "vault-id", Name: "Personal"}}, nil
+	store.OnVaults = func() ([]model.VaultInfo, error) {
+		return []model.VaultInfo{{ID: "vault-id", Name: "Personal"}}, nil
 	}
 	loaded := ""
 	store.OnLoadItem = func(gotVault *model.Vault, id string) (*model.Item, error) {
@@ -385,7 +385,7 @@ func TestVaultEntryListWiring(t *testing.T) {
 		loaded = id
 		return nil, errors.New("example load failure")
 	}
-	a := &app{win: window, storage: store, vault: vault, vaultID: "vault-id", unlockedVault: map[string]*model.Vault{"vault-id": vault}, filter: map[string]*paw.VaultFilterOptions{}}
+	a := &app{win: window, storage: store, vault: vault, vaultID: "vault-id", unlockedVault: map[string]*model.Vault{"vault-id": vault}, filter: map[string]*vaultFilterOptions{}}
 	view := a.makeCurrentVaultView()
 	a.main = container.NewVScroll(view)
 	window.SetContent(a.main)
@@ -406,14 +406,14 @@ func TestVaultEntryListWiring(t *testing.T) {
 func TestSelectVaultKeepsIDAndDisplayName(t *testing.T) {
 	appDriver := test.NewApp()
 	t.Cleanup(appDriver.Quit)
-	info := storage.VaultInfo{ID: "cxf-vault-id", Name: "Personal"}
+	info := model.VaultInfo{ID: "cxf-vault-id", Name: "Personal"}
 	a := &app{
 		main:          container.NewVScroll(nil),
 		win:           appDriver.NewWindow("Paw"),
 		unlockedVault: make(map[string]*model.Vault),
 	}
 
-	view := a.makeSelectVaultView([]storage.VaultInfo{info})
+	view := a.makeSelectVaultView([]model.VaultInfo{info})
 	a.win.SetContent(view)
 	a.win.Show()
 	for _, object := range test.LaidOutObjects(view) {
@@ -442,7 +442,7 @@ func TestUnlockShowsMigrationFailure(t *testing.T) {
 		Failures: []storage.MigrationItemFailure{{
 			LegacyID: "legacy-item-id",
 			Title:    "Unsupported password",
-			ItemType: paw.PasswordItemType,
+			ItemType: model.PasswordItemType,
 			Phases:   []storage.MigrationPhase{storage.MigrationPhaseConvert},
 			Err:      errors.New("unsupported mode 4"),
 		}},
@@ -458,7 +458,7 @@ func TestUnlockShowsMigrationFailure(t *testing.T) {
 	store.OnLoadVault = func(vaultID string, loadedKey *paw.Key) (*model.Vault, error) {
 		return nil, report
 	}
-	info := storage.VaultInfo{ID: "legacy-vault-id", Name: "Personal", NeedsMigration: true}
+	info := model.VaultInfo{ID: "legacy-vault-id", Name: "Personal", NeedsMigration: true}
 	opened := false
 	unlocker := NewUnlockVault(info, store, func(*model.Vault) { opened = true }, nil, nil, nil)
 	window.SetContent(unlocker)
@@ -518,8 +518,8 @@ func TestSingleVaultUnlockControls(t *testing.T) {
 	window := driver.NewWindow("Paw")
 	t.Cleanup(window.Close)
 	store := &storage.StorageMock{}
-	store.OnVaults = func() ([]storage.VaultInfo, error) {
-		return []storage.VaultInfo{{ID: "personal", Name: "Personal"}}, nil
+	store.OnVaults = func() ([]model.VaultInfo, error) {
+		return []model.VaultInfo{{ID: "personal", Name: "Personal"}}, nil
 	}
 	a := &app{win: window, storage: store}
 	a.main = a.makeApp()
@@ -571,8 +571,8 @@ func TestUnlockAddVaultOptions(t *testing.T) {
 	window := driver.NewWindow("Paw")
 	t.Cleanup(window.Close)
 	store := &storage.StorageMock{}
-	store.OnVaults = func() ([]storage.VaultInfo, error) {
-		return []storage.VaultInfo{{ID: "personal", Name: "Personal"}}, nil
+	store.OnVaults = func() ([]model.VaultInfo, error) {
+		return []model.VaultInfo{{ID: "personal", Name: "Personal"}}, nil
 	}
 	a := &app{win: window, storage: store}
 	a.main = a.makeApp()
@@ -650,8 +650,8 @@ func TestSelectedVaultUnlockReturnsToList(t *testing.T) {
 	window := driver.NewWindow("Paw")
 	t.Cleanup(window.Close)
 	store := &storage.StorageMock{}
-	store.OnVaults = func() ([]storage.VaultInfo, error) {
-		return []storage.VaultInfo{{ID: "personal", Name: "Personal"}, {ID: "work", Name: "Work"}}, nil
+	store.OnVaults = func() ([]model.VaultInfo, error) {
+		return []model.VaultInfo{{ID: "personal", Name: "Personal"}, {ID: "work", Name: "Work"}}, nil
 	}
 	a := &app{win: window, storage: store}
 	a.main = a.makeApp()

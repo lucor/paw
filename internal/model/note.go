@@ -7,8 +7,6 @@ import (
 	"unicode/utf8"
 
 	"go.lucor.dev/cxf"
-
-	"go.lucor.dev/paw/internal/paw"
 )
 
 // NewNote creates a Paw note item with a new ID and current dates.
@@ -32,7 +30,7 @@ func NewNote(title, content string) (*Item, error) {
 	}
 	created := uint64(time.Now().Unix())
 	modified := created
-	metadata := ItemMetadata{Type: paw.NoteItemType}
+	metadata := ItemMetadata{Type: NoteItemType}
 	extension, err := encodeItemExtension(nil, metadata)
 	if err != nil {
 		return nil, fmt.Errorf("cannot encode note metadata: %w", err)

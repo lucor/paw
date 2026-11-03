@@ -13,7 +13,7 @@ import (
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
-	"go.lucor.dev/paw/internal/storage"
+	"go.lucor.dev/paw/internal/model"
 	"go.lucor.dev/paw/internal/ui/assets/icons"
 )
 
@@ -43,7 +43,7 @@ const (
 // EntryListOptions connects the list to vault navigation and saved filters.
 type EntryListOptions struct {
 	VaultName        string
-	VaultAppearance  storage.VaultAppearance
+	VaultAppearance  model.VaultAppearance
 	Vaults           []VaultChoice
 	VaultActions     []*fyne.MenuItem
 	Entries          []EntryRow

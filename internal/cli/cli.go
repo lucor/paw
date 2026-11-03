@@ -15,6 +15,7 @@ import (
 	urfave "github.com/urfave/cli/v3"
 
 	"go.lucor.dev/paw/internal/agent"
+	"go.lucor.dev/paw/internal/model"
 	"go.lucor.dev/paw/internal/paw"
 	"go.lucor.dev/paw/internal/sshkey"
 	"go.lucor.dev/paw/internal/storage"
@@ -56,16 +57,12 @@ func newCommand(storage storage.Storage) *urfave.Command {
 		getenv:     os.Getenv,
 		now:        time.Now,
 		oneTimeKey: paw.MakeOneTimeKey,
-		generateSSHKey: func() (*paw.SSHKey, error) {
+		generateSSHKey: func() (*generatedSSHKey, error) {
 			key, err := sshkey.GenerateKey()
 			if err != nil {
 				return nil, err
 			}
-			item := paw.NewSSHKey()
-			item.PrivateKey = string(key.MarshalPrivateKey())
-			item.PublicKey = string(key.MarshalPublicKey())
-			item.Fingerprint = key.Fingerprint()
-			return item, nil
+			return &generatedSSHKey{PrivateKey: string(key.MarshalPrivateKey()), PublicKey: string(key.MarshalPublicKey()), Fingerprint: key.Fingerprint()}, nil
 		},
 	}
 	return &urfave.Command{
@@ -113,7 +110,7 @@ func withArgs(min, max int, action urfave.ActionFunc) urfave.ActionFunc {
 
 type itemPath struct {
 	itemName  string
-	itemType  paw.ItemType
+	itemType  model.ItemType
 	vaultName string
 }
 
@@ -142,12 +139,12 @@ func parseItemPath(path string, opts itemPathOptions) (itemPath, error) {
 		case 0:
 			ip.vaultName = v
 		case 1:
-			var itemType paw.ItemType
+			var itemType model.ItemType
 			var err error
 			if opts.wildcard && v == "*" {
 				break
 			}
-			itemType, err = paw.ItemTypeFromString(v)
+			itemType, err = model.ItemTypeFromString(v)
 			if err != nil {
 				return ip, err
 			}
@@ -188,12 +185,12 @@ func (base *command) loadVaultKey(vaultName, sessionID string) (*paw.Key, error)
 }
 
 // resolveVaultInfo finds a vault by its display name or filesystem ID.
-func (base *command) resolveVaultInfo(value string) (storage.VaultInfo, error) {
+func (base *command) resolveVaultInfo(value string) (model.VaultInfo, error) {
 	vaults, err := base.storage.Vaults()
 	if err != nil {
-		return storage.VaultInfo{}, err
+		return model.VaultInfo{}, err
 	}
-	return storage.FindVaultInfo(vaults, value)
+	return model.FindVaultInfo(vaults, value)
 }
 
 func (base *command) loadVaultKeyWithSession(vaultName string, sessionID string) (*paw.Key, error) {

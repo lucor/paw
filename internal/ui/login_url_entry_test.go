@@ -9,18 +9,18 @@ import (
 
 	"fyne.io/fyne/v2/test"
 	"github.com/stretchr/testify/require"
-	"go.lucor.dev/paw/internal/paw"
+	"go.lucor.dev/paw/internal/model"
 )
 
 func TestLoginURLEntryFetchesOnFocusLossAndRejectsStaleFavicon(t *testing.T) {
 	test.NewTempApp(t)
-	settings := paw.FaviconDownloaderSettings{Disabled: true}
+	settings := model.FaviconDownloaderSettings{Disabled: true}
 	entry := NewLoginURLEntry(context.Background(), "https://old.example", settings)
-	var received []*paw.Favicon
-	entry.FaviconListener = func(icon *paw.Favicon) { received = append(received, icon) }
+	var received []*model.Favicon
+	entry.FaviconListener = func(icon *model.Favicon) { received = append(received, icon) }
 
 	entry.SetText("https://new.example")
-	entry.notifyFavicon(paw.NewFavicon("old.example", []byte("old"), "png"), "old.example")
+	entry.notifyFavicon(model.NewFavicon("old.example", []byte("old"), "png"), "old.example")
 	require.Empty(t, received, "an older host response must not update the preview")
 
 	entry.FocusLost()

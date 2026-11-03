@@ -19,7 +19,7 @@ import (
 )
 
 // findVaultItem finds one summary by its title and Paw item category.
-func findVaultItem(vault *model.Vault, title string, itemType paw.ItemType) (*cxf.Item, error) {
+func findVaultItem(vault *model.Vault, title string, itemType model.ItemType) (*cxf.Item, error) {
 	var found *cxf.Item
 	for index := range vault.Accounts[0].Items {
 		candidate := &vault.Accounts[0].Items[index]

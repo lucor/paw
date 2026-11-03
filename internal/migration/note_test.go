@@ -11,9 +11,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.lucor.dev/cxf"
 
+	"go.lucor.dev/paw/internal/legacy"
 	"go.lucor.dev/paw/internal/migration"
 	"go.lucor.dev/paw/internal/model"
-	"go.lucor.dev/paw/internal/paw"
 )
 
 // TestMigrateNote checks note content is preserved and dates become Unix seconds.
@@ -22,22 +22,22 @@ func TestMigrateNote(t *testing.T) {
 	require.NoError(t, err)
 	tests := []struct {
 		name string
-		note *paw.Note
+		note *legacy.Note
 	}{
 		{
 			name: "all metadata",
-			note: &paw.Note{
+			note: &legacy.Note{
 				Value: "First line\nUnicode: café 🔐\n",
-				Metadata: &paw.Metadata{
+				Metadata: &legacy.Metadata{
 					Name:     "Example note",
 					Subtitle: "Example subtitle",
-					Type:     paw.NoteItemType,
+					Type:     model.NoteItemType,
 					Created:  time.Date(2020, 2, 3, 4, 5, 6, 123456789, time.FixedZone("", 19800)),
 					Modified: time.Date(2024, 7, 8, 9, 10, 11, 987654321, time.FixedZone("", -25200)),
-					Favicon: &paw.Favicon{
+					Favicon: &model.Favicon{
 						Host: "example.com", Data: []byte{0, 1, 2, 255}, Format: "png",
 					},
-					Autofill: &paw.Autofill{
+					Autofill: &model.Autofill{
 						AllowHTTP: true, TLDPlusOne: "example.com", URL: autofillURL,
 					},
 				},
@@ -45,22 +45,22 @@ func TestMigrateNote(t *testing.T) {
 		},
 		{
 			name: "empty note and unset dates",
-			note: &paw.Note{Metadata: &paw.Metadata{Type: paw.NoteItemType}},
+			note: &legacy.Note{Metadata: &legacy.Metadata{Type: model.NoteItemType}},
 		},
 		{
 			name: "epoch timestamp",
-			note: &paw.Note{Metadata: &paw.Metadata{Type: paw.NoteItemType, Created: time.Unix(0, 0).UTC()}},
+			note: &legacy.Note{Metadata: &legacy.Metadata{Type: model.NoteItemType, Created: time.Unix(0, 0).UTC()}},
 		},
 		{
 			name: "future timestamp",
-			note: &paw.Note{Metadata: &paw.Metadata{Type: paw.NoteItemType, Created: time.Date(10000, 1, 2, 3, 4, 5, 6, time.UTC)}},
+			note: &legacy.Note{Metadata: &legacy.Metadata{Type: model.NoteItemType, Created: time.Date(10000, 1, 2, 3, 4, 5, 6, time.UTC)}},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			item, err := migration.MigrateNote(tt.note)
 			require.NoError(t, err)
-			require.Equal(t, paw.NoteItemType, item.Metadata.Type)
+			require.Equal(t, model.NoteItemType, item.Metadata.Type)
 			require.Nil(t, item.Metadata.Favicon)
 			id, err := base64.RawURLEncoding.Strict().DecodeString(item.ID)
 			require.NoError(t, err)
@@ -110,16 +110,16 @@ func TestMigrateNote(t *testing.T) {
 
 			var extension struct {
 				Name     string          `json:"name"`
-				Type     paw.ItemType    `json:"type"`
+				Type     model.ItemType  `json:"type"`
 				Created  json.RawMessage `json:"created"`
 				Modified json.RawMessage `json:"modified"`
-				Favicon  *paw.Favicon    `json:"favicon,omitempty"`
-				Autofill *paw.Autofill   `json:"autofill,omitempty"`
+				Favicon  *model.Favicon  `json:"favicon,omitempty"`
+				Autofill *model.Autofill `json:"autofill,omitempty"`
 			}
 			require.Len(t, migrated.Extensions, 1)
 			require.NoError(t, json.Unmarshal(migrated.Extensions[0], &extension))
 			require.Equal(t, "paw.pm/item", extension.Name)
-			require.Equal(t, paw.NoteItemType, extension.Type)
+			require.Equal(t, model.NoteItemType, extension.Type)
 			require.Empty(t, extension.Created)
 			require.Empty(t, extension.Modified)
 			require.Nil(t, extension.Favicon)
@@ -133,7 +133,7 @@ func TestNewAndMigratedNotes(t *testing.T) {
 	newNote, err := model.NewNote("New note", "New content")
 	require.NoError(t, err)
 
-	legacy := paw.NewNote()
+	legacy := legacy.NewNote()
 	legacy.Name = "Legacy note"
 	legacy.Value = "Legacy content"
 	migrated, err := migration.MigrateNote(legacy)
@@ -178,7 +178,7 @@ func TestNewAndMigratedNotes(t *testing.T) {
 
 // TestMigrateNoteGeneratesNewID checks migrations create new item identities.
 func TestMigrateNoteGeneratesNewID(t *testing.T) {
-	note := paw.NewNote()
+	note := legacy.NewNote()
 	note.Name = "Original name"
 	first, err := migration.MigrateNote(note)
 	require.NoError(t, err)
@@ -196,15 +196,15 @@ func TestMigrateNoteGeneratesNewID(t *testing.T) {
 func TestMigrateNoteInvalidInput(t *testing.T) {
 	tests := []struct {
 		name string
-		note *paw.Note
+		note *legacy.Note
 	}{
 		{name: "nil note"},
-		{name: "missing metadata", note: &paw.Note{Value: "private note"}},
-		{name: "wrong type", note: &paw.Note{Value: "private note", Metadata: &paw.Metadata{Type: paw.LoginItemType}}},
-		{name: "invalid text", note: &paw.Note{Value: "private note\xff", Metadata: &paw.Metadata{Type: paw.NoteItemType}}},
-		{name: "invalid title", note: &paw.Note{Metadata: &paw.Metadata{Type: paw.NoteItemType, Name: "private note\xff"}}},
-		{name: "pre-epoch creation", note: &paw.Note{Metadata: &paw.Metadata{Type: paw.NoteItemType, Created: time.Unix(-1, 0)}}},
-		{name: "pre-epoch modification", note: &paw.Note{Metadata: &paw.Metadata{Type: paw.NoteItemType, Modified: time.Unix(-1, 0)}}},
+		{name: "missing metadata", note: &legacy.Note{Value: "private note"}},
+		{name: "wrong type", note: &legacy.Note{Value: "private note", Metadata: &legacy.Metadata{Type: model.LoginItemType}}},
+		{name: "invalid text", note: &legacy.Note{Value: "private note\xff", Metadata: &legacy.Metadata{Type: model.NoteItemType}}},
+		{name: "invalid title", note: &legacy.Note{Metadata: &legacy.Metadata{Type: model.NoteItemType, Name: "private note\xff"}}},
+		{name: "pre-epoch creation", note: &legacy.Note{Metadata: &legacy.Metadata{Type: model.NoteItemType, Created: time.Unix(-1, 0)}}},
+		{name: "pre-epoch modification", note: &legacy.Note{Metadata: &legacy.Metadata{Type: model.NoteItemType, Modified: time.Unix(-1, 0)}}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

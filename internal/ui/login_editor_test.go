@@ -32,7 +32,7 @@ func loginEditorFixture(t *testing.T) *model.Item {
 
 func newTestLoginEditor(t *testing.T, item *model.Item, isNew bool) *LoginEditor {
 	t.Helper()
-	settings := paw.NewDefaultSettings()
+	settings := model.NewDefaultSettings()
 	settings.FaviconDownloader.Disabled = true
 	editor, err := NewLoginEditor(context.Background(), item, settings.FaviconDownloader, isNew)
 	require.NoError(t, err)
@@ -90,7 +90,7 @@ func TestFaviconPreviewUsesGlobeForMissingFavicon(t *testing.T) {
 	editor := newTestLoginEditor(t, loginEditorFixture(t), false)
 	editor.Website.FaviconListener(nil)
 	require.Equal(t, icons.Globe.Name(), editor.favicon.icon.Resource.Name())
-	editor.Website.FaviconListener(&paw.Favicon{Host: "example.com"})
+	editor.Website.FaviconListener(&model.Favicon{Host: "example.com"})
 	require.Equal(t, icons.Globe.Name(), editor.favicon.icon.Resource.Name())
 }
 
@@ -143,7 +143,7 @@ func TestLoginEditorAddsTOTPUsingStandardDefaults(t *testing.T) {
 	test.NewTempApp(t)
 	item, err := model.NewLogin("GitHub", "dev@example.com", "password", model.PasswordSettings{Mode: paw.CustomPassword})
 	require.NoError(t, err)
-	settings := paw.NewDefaultSettings()
+	settings := model.NewDefaultSettings()
 	settings.FaviconDownloader.Disabled = true
 	editor, err := NewLoginEditor(context.Background(), item, settings.FaviconDownloader, true)
 	require.NoError(t, err)
@@ -173,7 +173,7 @@ func TestLoginEditorAddsTOTPUsingStandardDefaults(t *testing.T) {
 
 func TestLegacyTOTPPreferencesDoNotAffectNewAuthenticatorDefaults(t *testing.T) {
 	test.NewTempApp(t)
-	var state paw.AppState
+	var state model.AppState
 	require.NoError(t, json.Unmarshal([]byte(`{"settings":{"totp":{"hash":"SHA256","digits":8,"interval":45}}}`), &state))
 	require.NotNil(t, state.Settings)
 	item, err := model.NewLogin("GitHub", "dev@example.com", "password", model.PasswordSettings{Mode: paw.CustomPassword})
@@ -219,7 +219,7 @@ func TestTOTPSettingsDialogUsesStandardDefaultsAndAppliesOnlyOnApply(t *testing.
 	window := test.NewTempWindow(t, nil)
 	item, err := model.NewLogin("GitHub", "dev@example.com", "password", model.PasswordSettings{Mode: paw.CustomPassword})
 	require.NoError(t, err)
-	editor, err := NewLoginEditor(context.Background(), item, paw.NewDefaultSettings().FaviconDownloader, true)
+	editor, err := NewLoginEditor(context.Background(), item, model.NewDefaultSettings().FaviconDownloader, true)
 	require.NoError(t, err)
 	require.Equal(t, strings.ToLower(string(paw.TOTPHashDefault)), editor.totpSettings.Algorithm)
 	require.Equal(t, uint16(paw.TOTPDigitsDefault), editor.totpSettings.Digits)
@@ -276,7 +276,7 @@ func TestTOTPSettingsDialogLoadsStoredParametersAndPreservesNonFiveInterval(t *t
 	require.NoError(t, json.Unmarshal(item.Credentials[2], &stored))
 	stored.Algorithm, stored.Digits, stored.Period = "sha512", 9, 47
 	item.Credentials[2], _ = json.Marshal(stored)
-	editor, err := NewLoginEditor(context.Background(), item, paw.NewDefaultSettings().FaviconDownloader, false)
+	editor, err := NewLoginEditor(context.Background(), item, model.NewDefaultSettings().FaviconDownloader, false)
 	require.NoError(t, err)
 	require.Equal(t, stored, editor.totpSettings, "editing uses the stored parameters, not current defaults")
 	updatedItem, err := editor.UpdatedItem()
