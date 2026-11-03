@@ -17,7 +17,7 @@ type variantTheme struct {
 }
 
 func (t variantTheme) Color(name fyne.ThemeColorName, _ fyne.ThemeVariant) color.Color {
-	return t.Theme.Color(name, t.variant)
+	return (&pawTheme{Theme: t.Theme, variant: t.variant, variantPinned: true}).Color(name, t.variant)
 }
 
 func findIcon(t *testing.T, objects []fyne.CanvasObject, name string) *widget.Icon {

@@ -44,7 +44,7 @@ func runUIE2EScreenshotGallery(t *testing.T, outputDir string, variant fyne.Them
 	t.Helper()
 	driver := test.NewApp()
 	t.Cleanup(driver.Quit)
-	driver.Settings().SetTheme(variantTheme{Theme: theme.DefaultTheme(), variant: variant})
+	driver.Settings().SetTheme(variantTheme{Theme: newPawTheme(), variant: variant})
 	window := driver.NewWindow("Paw UI gallery")
 	t.Cleanup(window.Close)
 	window.Resize(fyne.NewSize(440, 800))

@@ -4,6 +4,8 @@
 package ui
 
 import (
+	"image/color"
+	"math"
 	"testing"
 
 	"fyne.io/fyne/v2"
@@ -15,6 +17,87 @@ import (
 	"go.lucor.dev/paw/internal/model"
 )
 
+func TestPawThemeSemanticColors(t *testing.T) {
+	cases := []struct {
+		name  fyne.ThemeColorName
+		light color.NRGBA
+		dark  color.NRGBA
+	}{
+		{theme.ColorNameForeground, color.NRGBA{R: 0x25, G: 0x28, B: 0x2E, A: 0xFF}, color.NRGBA{R: 0xF1, G: 0xF2, B: 0xF4, A: 0xFF}},
+		{theme.ColorNameDisabled, color.NRGBA{R: 0x68, G: 0x70, B: 0x7A, A: 0xFF}, color.NRGBA{R: 0xA9, G: 0xAD, B: 0xB5, A: 0xFF}},
+		{theme.ColorNamePlaceHolder, color.NRGBA{R: 0x73, G: 0x7A, B: 0x84, A: 0xFF}, color.NRGBA{R: 0x92, G: 0x98, B: 0xA3, A: 0xFF}},
+		{theme.ColorNameInputBorder, color.NRGBA{R: 0x85, G: 0x8B, B: 0x95, A: 0xFF}, color.NRGBA{R: 0x76, G: 0x7D, B: 0x89, A: 0xFF}},
+		{theme.ColorNameDisabledButton, color.NRGBA{R: 0xE6, G: 0xE9, B: 0xED, A: 0xFF}, color.NRGBA{R: 0x33, G: 0x36, B: 0x3D, A: 0xFF}},
+		{theme.ColorNameError, color.NRGBA{R: 0xB4, G: 0x23, B: 0x18, A: 0xFF}, color.NRGBA{R: 0xFF, G: 0x85, B: 0x85, A: 0xFF}},
+	}
+	pawTheme := newPawTheme()
+	for _, item := range cases {
+		t.Run(string(item.name), func(t *testing.T) {
+			require.Equal(t, item.light, pawTheme.Color(item.name, theme.VariantLight))
+			require.Equal(t, item.dark, pawTheme.Color(item.name, theme.VariantDark))
+		})
+	}
+}
+
+func TestPawThemeDelegatesUnspecifiedColors(t *testing.T) {
+	base := theme.DefaultTheme()
+	pawTheme := newPawTheme()
+	for _, variant := range []fyne.ThemeVariant{theme.VariantLight, theme.VariantDark} {
+		for _, name := range []fyne.ThemeColorName{theme.ColorNameBackground, theme.ColorNamePrimary, theme.ColorNameSeparator} {
+			require.Equal(t, base.Color(name, variant), pawTheme.Color(name, variant), string(name))
+		}
+	}
+}
+
+func TestPawThemeInstallationAndAppearanceChanges(t *testing.T) {
+	app := test.NewApp()
+	t.Cleanup(app.Quit)
+	installPawTheme(model.ThemeSystem)
+	installed, ok := app.Settings().Theme().(*pawTheme)
+	require.True(t, ok)
+
+	applySettingsTheme(model.ThemeDark)
+	require.Same(t, installed, app.Settings().Theme())
+	require.Equal(t, color.NRGBA{R: 0xF1, G: 0xF2, B: 0xF4, A: 0xFF}, app.Settings().Theme().Color(theme.ColorNameForeground, theme.VariantLight))
+	applySettingsTheme(model.ThemeLight)
+	require.Same(t, installed, app.Settings().Theme())
+	require.Equal(t, color.NRGBA{R: 0x25, G: 0x28, B: 0x2E, A: 0xFF}, app.Settings().Theme().Color(theme.ColorNameForeground, theme.VariantDark))
+	applySettingsTheme(model.ThemeSystem)
+	require.Same(t, installed, app.Settings().Theme())
+	require.Equal(t, color.NRGBA{R: 0x25, G: 0x28, B: 0x2E, A: 0xFF}, app.Settings().Theme().Color(theme.ColorNameForeground, theme.VariantLight))
+	require.Equal(t, color.NRGBA{R: 0xF1, G: 0xF2, B: 0xF4, A: 0xFF}, app.Settings().Theme().Color(theme.ColorNameForeground, theme.VariantDark))
+}
+
+func TestPawThemeTextAndControlContrast(t *testing.T) {
+	pawTheme := newPawTheme()
+	for _, variant := range []fyne.ThemeVariant{theme.VariantLight, theme.VariantDark} {
+		background := pawTheme.Theme.Color(theme.ColorNameBackground, variant)
+		inputBackground := pawTheme.Theme.Color(theme.ColorNameInputBackground, variant)
+		require.GreaterOrEqual(t, contrastRatio(pawTheme.Color(theme.ColorNameForeground, variant), background), 4.5, "foreground on background")
+		require.GreaterOrEqual(t, contrastRatio(pawTheme.Color(theme.ColorNameDisabled, variant), background), 4.5, "secondary text on background")
+		require.GreaterOrEqual(t, contrastRatio(pawTheme.Color(theme.ColorNameError, variant), background), 4.5, "error on background")
+		require.GreaterOrEqual(t, contrastRatio(pawTheme.Color(theme.ColorNameInputBorder, variant), inputBackground), 3.0, "input border")
+		// The approved light placeholder color is below 4.5:1 on Fyne's input surface.
+		require.GreaterOrEqual(t, contrastRatio(pawTheme.Color(theme.ColorNamePlaceHolder, variant), inputBackground), 3.0, "placeholder on input background")
+	}
+}
+
+func contrastRatio(first, second color.Color) float64 {
+	return (max(relativeLuminance(first), relativeLuminance(second)) + 0.05) / (min(relativeLuminance(first), relativeLuminance(second)) + 0.05)
+}
+
+func relativeLuminance(value color.Color) float64 {
+	r, g, b, _ := value.RGBA()
+	linear := func(component uint32) float64 {
+		channel := float64(component) / 65535
+		if channel <= 0.04045 {
+			return channel / 12.92
+		}
+		return math.Pow((channel+0.055)/1.055, 2.4)
+	}
+	return 0.2126*linear(r) + 0.7152*linear(g) + 0.0722*linear(b)
+}
+
 func TestCompactTextColorsFollowApplicationTheme(t *testing.T) {
 	app := test.NewApp()
 	t.Cleanup(app.Quit)
@@ -25,6 +108,40 @@ func TestCompactTextColorsFollowApplicationTheme(t *testing.T) {
 		variant := app.Settings().ThemeVariant()
 		require.Equal(t, app.Settings().Theme().Color(theme.ColorNameForeground, variant), compact.Color(theme.ColorNameForeground, variant), selection)
 	}
+}
+
+func TestVaultItemListRefreshesWhenThemeChanges(t *testing.T) {
+	app := test.NewApp()
+	t.Cleanup(app.Quit)
+	installPawTheme(model.ThemeDark)
+	window := app.NewWindow("Vault")
+	t.Cleanup(window.Close)
+	window.SetContent(NewEntryList(EntryListOptions{
+		VaultName: "Personal",
+		Entries:   []EntryRow{{Title: "GitHub", Subtitle: "dev@example.com", Category: "login", Icon: theme.InfoIcon()}},
+	}))
+	window.Resize(fyne.NewSize(440, 650))
+	window.Show()
+
+	assertEntryTitleColor := func(expected color.Color) {
+		t.Helper()
+		var got color.Color
+		fyne.DoAndWait(func() {
+			for _, object := range test.LaidOutObjects(window.Content()) {
+				if text, ok := object.(*canvas.Text); ok && text.Text == "GitHub" {
+					got = text.Color
+					break
+				}
+			}
+		})
+		require.Equal(t, expected, got)
+	}
+
+	assertEntryTitleColor(color.NRGBA{R: 0xF1, G: 0xF2, B: 0xF4, A: 0xFF})
+	applySettingsTheme(model.ThemeLight)
+	assertEntryTitleColor(color.NRGBA{R: 0x25, G: 0x28, B: 0x2E, A: 0xFF})
+	applySettingsTheme(model.ThemeDark)
+	assertEntryTitleColor(color.NRGBA{R: 0xF1, G: 0xF2, B: 0xF4, A: 0xFF})
 }
 
 // TestTypographyFollowsTheme checks rendered roles keep their hierarchy across theme changes.

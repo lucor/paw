@@ -89,7 +89,7 @@ func MakeApp(s storage.Storage, w fyne.Window) fyne.CanvasObject {
 
 	a.win.SetMainMenu(a.makeMainMenu())
 	if a.state != nil && a.state.Settings != nil {
-		applySettingsTheme(a.state.Settings.Theme)
+		installPawTheme(a.state.Settings.Theme)
 	}
 
 	a.main = a.makeApp()

@@ -4,8 +4,6 @@
 package ui
 
 import (
-	"image/color"
-
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
@@ -123,25 +121,32 @@ func settingsSection(title string, rows ...fyne.CanvasObject) fyne.CanvasObject 
 	return container.NewVBox(widget.NewSeparator(), container.New(layout.NewCustomPaddedVBoxLayout(theme.Size(theme.SizeNameInnerPadding)), objects...))
 }
 
-// settingsTheme keeps the native theme while selecting its color variant.
-type settingsTheme struct {
-	fyne.Theme
-	variant fyne.ThemeVariant
-}
-
-func (t settingsTheme) Color(name fyne.ThemeColorName, _ fyne.ThemeVariant) color.Color {
-	return t.Theme.Color(name, t.variant)
+func installPawTheme(value string) {
+	selected := newPawTheme()
+	setPawThemeVariant(selected, value)
+	fyne.CurrentApp().Settings().SetTheme(selected)
 }
 
 func applySettingsTheme(value string) {
-	var selected fyne.Theme = theme.DefaultTheme()
+	settings := fyne.CurrentApp().Settings()
+	selected, ok := settings.Theme().(*pawTheme)
+	if !ok {
+		selected = newPawTheme()
+	}
+	setPawThemeVariant(selected, value)
+	settings.SetTheme(selected)
+}
+
+func setPawThemeVariant(selected *pawTheme, value string) {
 	if value == model.ThemeLight || value == settingsThemeLightLabel {
-		selected = settingsTheme{selected, theme.VariantLight}
+		selected.setVariant(theme.VariantLight, true)
+		return
 	}
 	if value == model.ThemeDark || value == settingsThemeDarkLabel {
-		selected = settingsTheme{selected, theme.VariantDark}
+		selected.setVariant(theme.VariantDark, true)
+		return
 	}
-	fyne.CurrentApp().Settings().SetTheme(selected)
+	selected.setVariant(theme.VariantLight, false)
 }
 
 func (e *SettingsView) save() {

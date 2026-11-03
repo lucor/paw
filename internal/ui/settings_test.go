@@ -139,7 +139,7 @@ func TestSettingsViewPersistsCanonicalAutoLockKey(t *testing.T) {
 func TestSettingsTypographyFollowsSelectedTheme(t *testing.T) {
 	app := test.NewApp()
 	t.Cleanup(app.Quit)
-	app.Settings().SetTheme(settingsTheme{Theme: theme.DefaultTheme(), variant: theme.VariantLight})
+	installPawTheme(model.ThemeLight)
 	window := app.NewWindow("Settings")
 	t.Cleanup(window.Close)
 	state := &model.AppState{Settings: model.NewDefaultSettings()}

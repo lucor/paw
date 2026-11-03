@@ -106,13 +106,7 @@ func TestUnlockVaultViewReportsPasswordErrorAndOpensVault(t *testing.T) {
 	}
 	require.True(t, view.activity.Visible(), "show the activity indicator while unlocking")
 	close(releaseWrongPassword)
-	require.Eventually(t, func() bool {
-		var visible bool
-		fyne.DoAndWait(func() {
-			visible = view.passwordError.Visible()
-		})
-		return visible
-	}, time.Second, 10*time.Millisecond)
+	waitForUnlock(t, view)
 	require.False(t, view.activity.Visible(), "hide the activity indicator after an error")
 	require.Nil(t, window.Canvas().Overlays().Top(), "unlock feedback stays in the view")
 	require.Equal(t, incorrectMasterPasswordMessage, view.passwordError.Text)
@@ -141,6 +135,7 @@ func TestUnlockVaultViewReportsPasswordErrorAndOpensVault(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("vault was not opened")
 	}
+	waitForUnlock(t, view)
 	require.Empty(t, password.Text, "leaving Unlock clears the password")
 }
 
@@ -174,13 +169,19 @@ func TestUnlockVaultUnrelatedFailureDoesNotShowIncorrectPassword(t *testing.T) {
 	window.Show()
 	view.password.SetText("master password")
 	test.Tap(view.button)
-	require.Eventually(t, func() bool {
-		var text string
-		fyne.DoAndWait(func() { text = unlockViewText(t, view) })
-		return strings.Contains(text, "vault I/O failed")
-	}, time.Second, 10*time.Millisecond)
+	waitForUnlock(t, view)
+	require.Contains(t, unlockViewText(t, view), "vault I/O failed")
 	require.False(t, view.passwordError.Visible())
 	require.Empty(t, view.password.Text, "unrelated failures keep the existing clear-on-error behavior")
+}
+
+func waitForUnlock(t *testing.T, view *UnlockVault) {
+	t.Helper()
+	select {
+	case <-view.unlockDone:
+	case <-time.After(time.Second):
+		t.Fatal("unlock UI update did not complete")
+	}
 }
 
 func TestUnlockVaultContentStaysAboveViewportCenter(t *testing.T) {

@@ -476,13 +476,8 @@ func TestUnlockShowsMigrationFailure(t *testing.T) {
 	require.Contains(t, unlockViewText(t, unlocker), "Migrating vault…")
 	close(continueLoading)
 
-	var message string
-	require.Eventually(t, func() bool {
-		fyne.DoAndWait(func() {
-			message = unlockViewText(t, unlocker)
-		})
-		return strings.Contains(message, "migration failed: 1/1 items")
-	}, time.Second, 10*time.Millisecond)
+	waitForUnlock(t, unlocker)
+	message := unlockViewText(t, unlocker)
 	require.Contains(t, message, "migration failed: 1/1 items")
 	require.Contains(t, message, "Unsupported password")
 	require.Contains(t, message, "unsupported mode 4")

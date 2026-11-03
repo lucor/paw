@@ -31,6 +31,7 @@ type UnlockVault struct {
 	activity          *widget.Activity
 	message           *widget.Label
 	content           fyne.CanvasObject
+	unlockDone        chan struct{}
 }
 
 const incorrectMasterPasswordMessage = "Incorrect master password. Try again."
@@ -127,23 +128,26 @@ func (u *UnlockVault) unlock() {
 	u.message.Show()
 	u.Refresh()
 
+	u.unlockDone = make(chan struct{})
+	done := u.unlockDone
 	go func() {
+		defer close(done)
 		key, err := u.store.LoadVaultKey(u.info.ID, password)
 		if err != nil {
 			var invalidPassword *age.NoIdentityMatchError
 			if errors.As(err, &invalidPassword) {
-				fyne.Do(u.showIncorrectPassword)
+				fyne.DoAndWait(u.showIncorrectPassword)
 				return
 			}
-			fyne.Do(func() { u.showError(err) })
+			fyne.DoAndWait(func() { u.showError(err) })
 			return
 		}
 		vault, err := u.store.LoadVault(u.info.ID, key)
 		if err != nil {
-			fyne.Do(func() { u.showError(err) })
+			fyne.DoAndWait(func() { u.showError(err) })
 			return
 		}
-		fyne.Do(func() {
+		fyne.DoAndWait(func() {
 			u.activity.Stop()
 			u.activity.Hide()
 			u.ClearPassword()

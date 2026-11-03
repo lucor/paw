@@ -11,6 +11,66 @@ import (
 	"fyne.io/fyne/v2/widget"
 )
 
+// pawTheme preserves Fyne defaults and overrides Paw's shared semantic colors.
+type pawTheme struct {
+	fyne.Theme
+	variant       fyne.ThemeVariant
+	variantPinned bool
+}
+
+// newPawTheme returns Paw's minimal semantic color theme.
+func newPawTheme() *pawTheme {
+	return &pawTheme{Theme: theme.DefaultTheme()}
+}
+
+func (t *pawTheme) setVariant(variant fyne.ThemeVariant, pinned bool) {
+	t.variant = variant
+	t.variantPinned = pinned
+}
+
+// Color overrides Paw's semantic palette and delegates all other colors.
+func (t *pawTheme) Color(name fyne.ThemeColorName, variant fyne.ThemeVariant) color.Color {
+	if t.variantPinned {
+		variant = t.variant
+	}
+
+	dark := variant == theme.VariantDark
+	switch name {
+	case theme.ColorNameForeground:
+		if dark {
+			return color.NRGBA{R: 0xF1, G: 0xF2, B: 0xF4, A: 0xFF}
+		}
+		return color.NRGBA{R: 0x25, G: 0x28, B: 0x2E, A: 0xFF}
+	case theme.ColorNameDisabled:
+		if dark {
+			return color.NRGBA{R: 0xA9, G: 0xAD, B: 0xB5, A: 0xFF}
+		}
+		return color.NRGBA{R: 0x68, G: 0x70, B: 0x7A, A: 0xFF}
+	case theme.ColorNamePlaceHolder:
+		if dark {
+			return color.NRGBA{R: 0x92, G: 0x98, B: 0xA3, A: 0xFF}
+		}
+		return color.NRGBA{R: 0x73, G: 0x7A, B: 0x84, A: 0xFF}
+	case theme.ColorNameInputBorder:
+		if dark {
+			return color.NRGBA{R: 0x76, G: 0x7D, B: 0x89, A: 0xFF}
+		}
+		return color.NRGBA{R: 0x85, G: 0x8B, B: 0x95, A: 0xFF}
+	case theme.ColorNameDisabledButton:
+		if dark {
+			return color.NRGBA{R: 0x33, G: 0x36, B: 0x3D, A: 0xFF}
+		}
+		return color.NRGBA{R: 0xE6, G: 0xE9, B: 0xED, A: 0xFF}
+	case theme.ColorNameError:
+		if dark {
+			return color.NRGBA{R: 0xFF, G: 0x85, B: 0x85, A: 0xFF}
+		}
+		return color.NRGBA{R: 0xB4, G: 0x23, B: 0x18, A: 0xFF}
+	default:
+		return t.Theme.Color(name, variant)
+	}
+}
+
 // passwordStrengthColor returns the fixed color for a score in the active theme.
 func passwordStrengthColor(score int, variant fyne.ThemeVariant) color.Color {
 	light := [...]color.NRGBA{{R: 198, G: 40, B: 40, A: 255}, {R: 217, G: 95, B: 2, A: 255}, {R: 184, G: 134, B: 0, A: 255}, {R: 56, G: 142, B: 60, A: 255}, {R: 27, G: 94, B: 32, A: 255}}
