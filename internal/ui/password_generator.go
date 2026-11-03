@@ -4,7 +4,6 @@
 package ui
 
 import (
-	"fmt"
 	"log"
 
 	"fyne.io/fyne/v2"
@@ -51,13 +50,11 @@ type RandomPasswordOptions struct {
 }
 
 type pwgenDialog struct {
-	key     *paw.Key
 	options pwgenOptions
 }
 
-func NewPasswordGenerator(key *paw.Key, ps model.PasswordGeneratorSettings) *pwgenDialog {
+func NewPasswordGenerator(ps model.PasswordGeneratorSettings) *pwgenDialog {
 	return &pwgenDialog{
-		key: key,
 		options: pwgenOptions{
 			RandomPasswordOptions: RandomPasswordOptions{
 				DefaultFormat: ps.Random.DefaultFormat,
@@ -101,7 +98,7 @@ func (pd *pwgenDialog) ShowPasswordGenerator(bind binding.String, password *paw.
 	passwordEntry := widget.NewEntryWithData(passwordBind)
 	passwordEntry.Validator = nil
 	regenerate := func() {
-		secret, err := pwgen(pd.key, &working)
+		secret, err := working.Pwgen()
 		if err != nil {
 			log.Println(err)
 			return
@@ -277,15 +274,4 @@ func passwordModeFromLabel(label string) (paw.PasswordMode, bool) {
 		}
 	}
 	return paw.CustomPassword, false
-}
-
-func pwgen(key *paw.Key, password *paw.PasswordSpec) (string, error) {
-	if password.Mode == paw.PassphrasePassword {
-		return key.Passphrase(password.Length)
-	}
-	secret, err := key.Secret(password)
-	if err != nil {
-		return "", fmt.Errorf("could not generate password: %w", err)
-	}
-	return secret, nil
 }

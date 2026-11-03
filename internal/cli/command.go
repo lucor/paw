@@ -32,7 +32,6 @@ type command struct {
 	readFile            func(string) ([]byte, error)
 	getenv              func(string) string
 	now                 func() time.Time
-	oneTimeKey          func() (*paw.Key, error)
 	generateSSHKey      func() (*generatedSSHKey, error)
 }
 

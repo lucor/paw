@@ -62,9 +62,9 @@ func (cmd *EditCmd) Run(ctx context.Context) error {
 	}
 	switch cmd.itemType {
 	case model.LoginItemType:
-		err = cmd.editLogin(item, key)
+		err = cmd.editLogin(item)
 	case model.PasswordItemType:
-		err = cmd.editPassword(item, key)
+		err = cmd.editPassword(item)
 	case model.NoteItemType:
 		err = cmd.editNote(item)
 	case model.SSHKeyItemType:
@@ -89,7 +89,7 @@ func (cmd *EditCmd) Run(ctx context.Context) error {
 }
 
 // editLogin prompts for the fields stored in a CXF Login item.
-func (cmd *EditCmd) editLogin(item *model.Item, key *paw.Key) error {
+func (cmd *EditCmd) editLogin(item *model.Item) error {
 	if item.Scope == nil {
 		item.Scope = &cxf.CredentialScope{URLs: []string{}, AndroidApps: []cxf.AndroidAppID{}}
 	}
@@ -111,7 +111,7 @@ func (cmd *EditCmd) editLogin(item *model.Item, key *paw.Key) error {
 	if err != nil {
 		return err
 	}
-	password, err := cmd.generatePassword(key, model.PasswordSettingsFromField(credential.Password).Mode)
+	password, err := cmd.generatePassword(model.PasswordSettingsFromField(credential.Password).Mode)
 	if err != nil {
 		return err
 	}
@@ -145,12 +145,12 @@ func (cmd *EditCmd) editLogin(item *model.Item, key *paw.Key) error {
 }
 
 // editPassword prompts for a replacement password.
-func (cmd *EditCmd) editPassword(item *model.Item, key *paw.Key) error {
+func (cmd *EditCmd) editPassword(item *model.Item) error {
 	credential, index, err := item.BasicAuth()
 	if err != nil {
 		return err
 	}
-	password, err := cmd.generatePassword(key, model.PasswordSettingsFromField(credential.Password).Mode)
+	password, err := cmd.generatePassword(model.PasswordSettingsFromField(credential.Password).Mode)
 	if err != nil {
 		return err
 	}
@@ -189,6 +189,6 @@ func (cmd *EditCmd) editSSHKey(item *model.Item) error {
 }
 
 // generatePassword prompts for a password using the supported generators.
-func (cmd *EditCmd) generatePassword(key *paw.Key, defaultMode paw.PasswordMode) (*paw.PasswordSpec, error) {
-	return (&PwGenCmd{command: cmd.command}).Pwgen(key, []paw.PasswordMode{paw.CustomPassword, paw.RandomPassword, paw.PassphrasePassword, paw.PinPassword}, defaultMode)
+func (cmd *EditCmd) generatePassword(defaultMode paw.PasswordMode) (*paw.PasswordSpec, error) {
+	return (&PwGenCmd{command: cmd.command}).Pwgen([]paw.PasswordMode{paw.CustomPassword, paw.RandomPassword, paw.PassphrasePassword, paw.PinPassword}, defaultMode)
 }

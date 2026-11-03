@@ -388,7 +388,7 @@ func runUIE2EScreenshotGallery(t *testing.T, outputDir string, variant fyne.Them
 	require.NoError(t, err)
 	window.SetContent(passwordEditor.View)
 	passwordSettings := model.NewDefaultSettings().Password
-	generator := NewPasswordGenerator(key, passwordSettings)
+	generator := NewPasswordGenerator(passwordSettings)
 	for _, mode := range []paw.PasswordMode{paw.RandomPassword, paw.PassphrasePassword, paw.PinPassword} {
 		password := &paw.PasswordSpec{Mode: mode}
 		switch mode {

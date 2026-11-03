@@ -4,7 +4,10 @@
 package paw
 
 import (
+	"bytes"
 	"encoding/json"
+	"errors"
+	"io"
 	"strings"
 	"testing"
 
@@ -19,7 +22,7 @@ func TestPasswordRejectsRemovedMode(t *testing.T) {
 	} {
 		var password PasswordSpec
 		require.NoError(t, json.Unmarshal([]byte(data), &password))
-		value, err := password.Pwgen(nil)
+		value, err := password.Pwgen()
 		require.ErrorContains(t, err, "unsupported password mode")
 		require.Empty(t, value)
 	}
@@ -28,12 +31,9 @@ func TestPasswordRejectsRemovedMode(t *testing.T) {
 
 // TestPasswordGeneration checks supported generators still produce usable passwords.
 func TestPasswordGeneration(t *testing.T) {
-	key, err := MakeOneTimeKey()
-	require.NoError(t, err)
 	for _, password := range []*PasswordSpec{NewRandomPassword(), NewPinPassword(), NewPassphrasePassword()} {
 		t.Run(password.Mode.String(), func(t *testing.T) {
-			require.Nil(t, password.Salt())
-			value, err := password.Pwgen(key)
+			value, err := password.Pwgen()
 			require.NoError(t, err)
 			if password.Mode == PassphrasePassword {
 				require.Len(t, strings.Split(value, "-"), password.Length)
@@ -47,4 +47,37 @@ func TestPasswordGeneration(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestRandomSecretUsesRejectionSamplingAndPreservesPINLeadingZero(t *testing.T) {
+	pin := &PasswordSpec{Mode: PinPassword, Format: DigitsFormat, Length: 3}
+	value, err := pin.randomSecret(bytes.NewReader([]byte{'x', '0', '1', '2'}))
+	require.NoError(t, err)
+	require.Equal(t, "012", value)
+}
+
+func TestRandomSecretRejectsEmptyAlphabetBeforeReading(t *testing.T) {
+	reader := &failingRandomReader{}
+	password := &PasswordSpec{Mode: RandomPassword, Length: 8}
+	value, err := password.randomSecret(reader)
+	require.ErrorContains(t, err, "character set cannot be empty")
+	require.Empty(t, value)
+	require.Zero(t, reader.reads)
+}
+
+func TestRandomSecretReadFailureDoesNotReturnPartialPassword(t *testing.T) {
+	password := &PasswordSpec{Mode: RandomPassword, Format: LowercaseFormat, Length: 2}
+	reader := io.MultiReader(bytes.NewReader([]byte{'a'}), &failingRandomReader{})
+	value, err := password.randomSecret(reader)
+	require.ErrorContains(t, err, "random password data")
+	require.Empty(t, value)
+}
+
+type failingRandomReader struct {
+	reads int
+}
+
+func (r *failingRandomReader) Read([]byte) (int, error) {
+	r.reads++
+	return 0, errors.New("random source unavailable")
 }

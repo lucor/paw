@@ -77,7 +77,7 @@ func (cmd *AddCmd) Run(ctx context.Context) error {
 		}
 		item = created
 	case model.PasswordItemType:
-		password, err := cmd.generatePassword(key, paw.CustomPassword)
+		password, err := cmd.generatePassword(paw.CustomPassword)
 		if err != nil {
 			return err
 		}
@@ -87,7 +87,7 @@ func (cmd *AddCmd) Run(ctx context.Context) error {
 		}
 		item = created
 	case model.LoginItemType:
-		item, err = cmd.newLogin(key)
+		item, err = cmd.newLogin()
 	case model.SSHKeyItemType:
 		item, err = cmd.newSSHKey()
 	default:
@@ -108,7 +108,7 @@ func (cmd *AddCmd) Run(ctx context.Context) error {
 }
 
 // newLogin prompts for login fields and builds a CXF item.
-func (cmd *AddCmd) newLogin(key *paw.Key) (*model.Item, error) {
+func (cmd *AddCmd) newLogin() (*model.Item, error) {
 	url, err := cmd.prompter.ask("URL")
 	if err != nil {
 		return nil, err
@@ -117,7 +117,7 @@ func (cmd *AddCmd) newLogin(key *paw.Key) (*model.Item, error) {
 	if err != nil {
 		return nil, err
 	}
-	password, err := cmd.generatePassword(key, paw.CustomPassword)
+	password, err := cmd.generatePassword(paw.CustomPassword)
 	if err != nil {
 		return nil, err
 	}
@@ -203,6 +203,6 @@ func (cmd *AddCmd) newSSHKey() (*model.Item, error) {
 }
 
 // generatePassword prompts for a password using the supported generators.
-func (cmd *AddCmd) generatePassword(key *paw.Key, defaultMode paw.PasswordMode) (*paw.PasswordSpec, error) {
-	return (&PwGenCmd{command: cmd.command}).Pwgen(key, []paw.PasswordMode{paw.CustomPassword, paw.RandomPassword, paw.PassphrasePassword, paw.PinPassword}, defaultMode)
+func (cmd *AddCmd) generatePassword(defaultMode paw.PasswordMode) (*paw.PasswordSpec, error) {
+	return (&PwGenCmd{command: cmd.command}).Pwgen([]paw.PasswordMode{paw.CustomPassword, paw.RandomPassword, paw.PassphrasePassword, paw.PinPassword}, defaultMode)
 }

@@ -6,21 +6,14 @@ package paw
 
 import (
 	"bytes"
-	"crypto/rand"
-	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"io"
 	"runtime/debug"
-	"strings"
 	"time"
 
 	"filippo.io/age"
 	"filippo.io/age/armor"
-	"golang.org/x/crypto/hkdf"
-
-	agepaw "go.lucor.dev/paw/internal/age"
-	"go.lucor.dev/paw/internal/age/bech32"
 )
 
 const (
@@ -35,29 +28,12 @@ var (
 	BuildVersion string
 )
 
-type Ruler interface {
-	Template() (string, error)
-	Len() int
-}
-
-type Seeder interface {
-	Ruler
-	// Salt returns the salt used to generate the secret
-	Salt() []byte
-	// Info holds the info used to generate the secret
-	Info() []byte
-}
-
-type SecretMaker interface {
-	Secret(seeder Seeder) (string, error)
-}
-
 type Key struct {
 	ageIdentity *age.X25519Identity
 }
 
 // MakeOneTimeKey generates a one time age secret key.
-// The key can be used to generate random passwords
+// The key can be used to encrypt and decrypt vault data.
 func MakeOneTimeKey() (key *Key, err error) {
 	wrapErr := func(err error) error {
 		return fmt.Errorf("paw: makekey error: %w", err)
@@ -173,63 +149,6 @@ func LoadKey(password string, r io.Reader) (key *Key, err error) {
 		ageIdentity: ageIdentity,
 	}
 	return
-}
-
-func (k *Key) Passphrase(numWords int) (string, error) {
-	var words []string
-	for i := 0; i < numWords; i++ {
-		words = append(words, agepaw.RandomWord())
-	}
-	return strings.Join(words, "-"), nil
-}
-
-// Secret derives a secret from the seeder
-func (k *Key) Secret(seeder Seeder) (string, error) {
-
-	// Underlying hash function for HMAC.
-	hash := sha256.New
-	salt := seeder.Salt()
-	if salt == nil {
-		salt = make([]byte, hash().Size())
-		if _, err := rand.Read(salt); err != nil {
-			panic(err)
-		}
-	}
-
-	// decode the age identity to be used as secret for HKDF function
-	_, data, err := bech32.Decode(k.ageIdentity.String())
-	if err != nil {
-		panic(fmt.Sprintf("could not decode the age identity %s", err))
-	}
-
-	// reader to derive a key
-	reader := hkdf.New(sha256.New, data, salt, seeder.Info())
-	template, err := seeder.Template()
-	if err != nil {
-		return "", err
-	}
-
-	chars := []byte(template)
-
-	var secret bytes.Buffer
-	for {
-		buf := make([]byte, 1) // TODO define max len attempts
-		_, err := io.ReadFull(reader, buf)
-		if err != nil {
-			return "", err
-		}
-
-		if !bytes.Contains(chars, buf) {
-			continue
-		}
-
-		secret.WriteByte(buf[0])
-		if secret.Len() == seeder.Len() {
-			break
-		}
-	}
-
-	return secret.String(), nil
 }
 
 // Decrypt decrypts the message

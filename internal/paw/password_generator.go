@@ -4,14 +4,14 @@
 package paw
 
 import (
+	"bytes"
+	"crypto/rand"
 	"fmt"
+	"io"
 	"strings"
 
 	"go.lucor.dev/paw/internal/age"
 )
-
-// Declare conformity to Seeder interface
-var _ Seeder = (*PasswordSpec)(nil)
 
 const (
 	RandomPasswordDefaultLength     = 16
@@ -87,17 +87,6 @@ func NewCustomPassword() *PasswordSpec {
 	return password
 }
 
-// Implemets Seeder interface
-
-// Salt returns nil so each generated password uses fresh randomness.
-func (p *PasswordSpec) Salt() []byte {
-	return nil
-}
-
-func (p *PasswordSpec) Info() []byte {
-	return nil
-}
-
 func (p *PasswordSpec) Template() (string, error) {
 	ruler, err := NewRule(p.Length, p.Format)
 	if err != nil {
@@ -106,16 +95,15 @@ func (p *PasswordSpec) Template() (string, error) {
 	return ruler.Template()
 }
 
-func (p *PasswordSpec) Len() int {
-	return p.Length
-}
-
 // Pwgen generates a password using a supported mode.
-func (p *PasswordSpec) Pwgen(key *Key) (string, error) {
+func (p *PasswordSpec) Pwgen() (string, error) {
 	switch p.Mode {
 	case CustomPassword, RandomPassword, PassphrasePassword, PinPassword:
 	default:
 		return "", fmt.Errorf("unsupported password mode %d", p.Mode)
+	}
+	if p.Mode == CustomPassword {
+		return p.Value, nil
 	}
 	if p.Mode == PassphrasePassword {
 		var words []string
@@ -124,9 +112,30 @@ func (p *PasswordSpec) Pwgen(key *Key) (string, error) {
 		}
 		return strings.Join(words, "-"), nil
 	}
-	secret, err := key.Secret(p)
-	if err != nil {
-		return "", fmt.Errorf("could not generate password: %w", err)
+	return p.randomSecret(rand.Reader)
+}
+
+func (p *PasswordSpec) randomSecret(reader io.Reader) (string, error) {
+	if p.Length <= 0 {
+		return "", fmt.Errorf("password length must be greater than zero")
 	}
-	return secret, nil
+	chars, err := p.Template()
+	if err != nil {
+		return "", fmt.Errorf("could not create password character set: %w", err)
+	}
+	if len(chars) == 0 {
+		return "", fmt.Errorf("password character set cannot be empty")
+	}
+	alphabet := []byte(chars)
+	secret := make([]byte, 0, p.Length)
+	var candidate [1]byte
+	for len(secret) < p.Length {
+		if _, err := io.ReadFull(reader, candidate[:]); err != nil {
+			return "", fmt.Errorf("could not read random password data: %w", err)
+		}
+		if bytes.Contains(alphabet, candidate[:]) {
+			secret = append(secret, candidate[0])
+		}
+	}
+	return string(secret), nil
 }

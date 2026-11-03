@@ -54,10 +54,9 @@ func newCommand(storage storage.Storage) *urfave.Command {
 			}
 			return writeToClipboard(ctx, data)
 		},
-		readFile:   os.ReadFile,
-		getenv:     os.Getenv,
-		now:        time.Now,
-		oneTimeKey: paw.MakeOneTimeKey,
+		readFile: os.ReadFile,
+		getenv:   os.Getenv,
+		now:      time.Now,
 		generateSSHKey: func() (*generatedSSHKey, error) {
 			key, err := sshkey.GenerateKey()
 			if err != nil {

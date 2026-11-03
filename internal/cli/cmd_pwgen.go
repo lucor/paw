@@ -34,7 +34,7 @@ func (cmd *PwGenCmd) Run(ctx context.Context) error {
 		paw.PassphrasePassword,
 		paw.PinPassword,
 	}
-	password, err := cmd.Pwgen(nil, modes, paw.RandomPassword)
+	password, err := cmd.Pwgen(modes, paw.RandomPassword)
 	if err != nil {
 		return err
 	}
@@ -43,17 +43,7 @@ func (cmd *PwGenCmd) Run(ctx context.Context) error {
 	return nil
 }
 
-func (cmd *PwGenCmd) Pwgen(key *paw.Key, modes []paw.PasswordMode, defaultMode paw.PasswordMode) (*paw.PasswordSpec, error) {
-
-	var err error
-
-	if key == nil {
-		key, err = cmd.oneTimeKey()
-		if err != nil {
-			return nil, err
-		}
-	}
-
+func (cmd *PwGenCmd) Pwgen(modes []paw.PasswordMode, defaultMode paw.PasswordMode) (*paw.PasswordSpec, error) {
 	choice, err := cmd.prompter.askPasswordMode("Password type", modes, defaultMode)
 	if err != nil {
 		return nil, err
@@ -63,17 +53,17 @@ func (cmd *PwGenCmd) Pwgen(key *paw.Key, modes []paw.PasswordMode, defaultMode p
 	case paw.CustomPassword:
 		return cmd.makeCustomPassword()
 	case paw.RandomPassword:
-		return cmd.makeRandomPassword(key)
+		return cmd.makeRandomPassword()
 	case paw.PassphrasePassword:
-		return cmd.makePassphrasePassword(key)
+		return cmd.makePassphrasePassword()
 	case paw.PinPassword:
-		return cmd.makePinPassword(key)
+		return cmd.makePinPassword()
 	}
 	return nil, fmt.Errorf("unsupported password type: %q", choice)
 }
 
 // Parse parses the arguments and set the usage for the command
-func (cmd *PwGenCmd) makeRandomPassword(key *paw.Key) (*paw.PasswordSpec, error) {
+func (cmd *PwGenCmd) makeRandomPassword() (*paw.PasswordSpec, error) {
 	p := paw.NewRandomPassword()
 	length, err := cmd.prompter.askIntWithDefaultAndRange("Password length", p.Length, 6, 64)
 	if err != nil {
@@ -89,7 +79,7 @@ func (cmd *PwGenCmd) makeRandomPassword(key *paw.Key) (*paw.PasswordSpec, error)
 	if wantSymbols {
 		p.Format |= paw.SymbolsFormat
 	}
-	v, err := key.Secret(p)
+	v, err := p.Pwgen()
 	if err != nil {
 		return nil, err
 	}
@@ -107,13 +97,14 @@ func (cmd *PwGenCmd) makeCustomPassword() (*paw.PasswordSpec, error) {
 	return p, nil
 }
 
-func (cmd *PwGenCmd) makePassphrasePassword(key *paw.Key) (*paw.PasswordSpec, error) {
+func (cmd *PwGenCmd) makePassphrasePassword() (*paw.PasswordSpec, error) {
 	p := paw.NewPassphrasePassword()
 	length, err := cmd.prompter.askIntWithDefaultAndRange("Passphrase words", p.Length, 2, 12)
 	if err != nil {
 		return nil, err
 	}
-	v, err := key.Passphrase(length)
+	p.Length = length
+	v, err := p.Pwgen()
 	if err != nil {
 		return nil, err
 	}
@@ -121,7 +112,7 @@ func (cmd *PwGenCmd) makePassphrasePassword(key *paw.Key) (*paw.PasswordSpec, er
 	return p, nil
 }
 
-func (cmd *PwGenCmd) makePinPassword(key *paw.Key) (*paw.PasswordSpec, error) {
+func (cmd *PwGenCmd) makePinPassword() (*paw.PasswordSpec, error) {
 	p := paw.NewPinPassword()
 	length, err := cmd.prompter.askIntWithDefaultAndRange("Pin length", p.Length, 4, 10)
 	if err != nil {
@@ -129,7 +120,7 @@ func (cmd *PwGenCmd) makePinPassword(key *paw.Key) (*paw.PasswordSpec, error) {
 	}
 	p.Length = length
 	p.Format = paw.DigitsFormat
-	v, err := key.Secret(p)
+	v, err := p.Pwgen()
 	if err != nil {
 		return nil, err
 	}

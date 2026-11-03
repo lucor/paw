@@ -78,7 +78,7 @@ func (a *app) makeSSHKeyEditView(original *model.Item, isNew bool) fyne.CanvasOb
 			editor.Passphrase.SetText(value)
 			editor.PasswordSpec.Value = value
 		}))
-		NewPasswordGenerator(a.vault.Key(), settings.Password).ShowPasswordGenerator(password, editor.PasswordSpec, a.win)
+		NewPasswordGenerator(settings.Password).ShowPasswordGenerator(password, editor.PasswordSpec, a.win)
 	}
 	return editor.View
 }
@@ -124,7 +124,7 @@ func (a *app) makeLoginEditView(original *model.Item, isNew bool) fyne.CanvasObj
 			value, _ := password.Get()
 			editor.Password.Entry.SetText(value)
 		}))
-		NewPasswordGenerator(a.vault.Key(), settings.Password).ShowPasswordGenerator(password, editor.PasswordSpec, a.win)
+		NewPasswordGenerator(settings.Password).ShowPasswordGenerator(password, editor.PasswordSpec, a.win)
 	}
 	return editor.View
 }
@@ -163,7 +163,7 @@ func (a *app) makePasswordEditView(original *model.Item, isNew bool) fyne.Canvas
 			value, _ := password.Get()
 			editor.Password.Entry.SetText(value)
 		}))
-		NewPasswordGenerator(a.vault.Key(), settings.Password).ShowPasswordGenerator(password, editor.PasswordSpec, a.win)
+		NewPasswordGenerator(settings.Password).ShowPasswordGenerator(password, editor.PasswordSpec, a.win)
 	}
 	return editor.View
 }

@@ -105,7 +105,6 @@ func newCommandFixture(t *testing.T) *commandFixture {
 		return "environment-session"
 	}
 	f.base.now = func() time.Time { return f.stamp }
-	f.base.oneTimeKey = func() (*paw.Key, error) { return key, nil }
 	return f
 }
 
@@ -311,23 +310,30 @@ func TestPasswordGeneratorUsesCommandStreams(t *testing.T) {
 	require.NotContains(t, out, "Password type")
 }
 
-func TestPasswordGeneratorSupportsRandomPassphraseAndCustomModes(t *testing.T) {
+func TestPasswordGeneratorSupportsRandomPINPassphraseAndCustomModes(t *testing.T) {
 	f := newCommandFixture(t)
-	key := f.vault.Key()
 	modes := []paw.PasswordMode{paw.CustomPassword, paw.RandomPassword, paw.PassphrasePassword, paw.PinPassword}
 
 	t.Run("random", func(t *testing.T) {
 		f.base.prompter = newPrompter(strings.NewReader("1\n8\ny\n"), io.Discard)
-		password, err := (&PwGenCmd{command: f.base}).Pwgen(key, modes, paw.RandomPassword)
+		password, err := (&PwGenCmd{command: f.base}).Pwgen(modes, paw.RandomPassword)
 		require.NoError(t, err)
 		require.Equal(t, paw.RandomPassword, password.Mode)
 		require.Len(t, password.Value, 8)
 		require.NotZero(t, password.Format&paw.SymbolsFormat)
 	})
+	t.Run("pin", func(t *testing.T) {
+		f.base.prompter = newPrompter(strings.NewReader("3\n4\n"), io.Discard)
+		password, err := (&PwGenCmd{command: f.base}).Pwgen(modes, paw.RandomPassword)
+		require.NoError(t, err)
+		require.Equal(t, paw.PinPassword, password.Mode)
+		require.Len(t, password.Value, 4)
+		require.Regexp(t, `^\d{4}$`, password.Value)
+	})
 
 	t.Run("passphrase", func(t *testing.T) {
 		f.base.prompter = newPrompter(strings.NewReader("2\n3\n"), io.Discard)
-		password, err := (&PwGenCmd{command: f.base}).Pwgen(key, modes, paw.RandomPassword)
+		password, err := (&PwGenCmd{command: f.base}).Pwgen(modes, paw.RandomPassword)
 		require.NoError(t, err)
 		require.Equal(t, paw.PassphrasePassword, password.Mode)
 		require.Len(t, strings.Split(password.Value, "-"), 3)
@@ -342,7 +348,7 @@ func TestPasswordGeneratorSupportsRandomPassphraseAndCustomModes(t *testing.T) {
 			return secret, nil
 		}
 		f.base.prompter = p
-		password, err := (&PwGenCmd{command: f.base}).Pwgen(key, modes, paw.RandomPassword)
+		password, err := (&PwGenCmd{command: f.base}).Pwgen(modes, paw.RandomPassword)
 		require.NoError(t, err)
 		require.Equal(t, paw.CustomPassword, password.Mode)
 		require.Equal(t, "custom-secret", password.Value)
@@ -580,14 +586,11 @@ func TestSessionFailureFallsBackToInjectedPassword(t *testing.T) {
 	require.NotContains(t, out+diagnostics, "fallback-secret")
 }
 
-func TestKeyGenerationFailuresAreReturned(t *testing.T) {
+func TestSSHKeyGenerationFailuresAreReturned(t *testing.T) {
 	f := newCommandFixture(t)
 	failure := errors.New("key generation failed")
-	f.base.oneTimeKey = func() (*paw.Key, error) { return nil, failure }
-	_, _, err := executeWithInput(t, []string{"pwgen"}, newPwGenCommand(f.base), "")
-	require.ErrorIs(t, err, failure)
 	f.base.generateSSHKey = func() (*generatedSSHKey, error) { return nil, failure }
-	_, _, err = executeWithInput(t, []string{"add", "--session=test", "personal/ssh_key/new"}, newAddCommand(f.base), "")
+	_, _, err := executeWithInput(t, []string{"add", "--session=test", "personal/ssh_key/new"}, newAddCommand(f.base), "")
 	require.ErrorIs(t, err, failure)
 	require.Empty(t, f.stored)
 }
