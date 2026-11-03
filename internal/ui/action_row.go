@@ -138,9 +138,11 @@ func (r *ActionRow) SetTrailingText(text string) {
 		r.trailing.Objects = []fyne.CanvasObject{r.trailingArrow()}
 	} else {
 		r.count.SetText(text)
+		r.count.Alignment = fyne.TextAlignTrailing
+		r.count.TextStyle.Bold = true
 		r.count.Show()
 		r.trailing.Layout = layout.NewHBoxLayout()
-		r.trailing.Objects = []fyne.CanvasObject{r.count, r.trailingArrow()}
+		r.trailing.Objects = []fyne.CanvasObject{container.NewCenter(r.count), r.trailingArrow()}
 	}
 	if r.interactive || text != "" {
 		r.trailing.Show()

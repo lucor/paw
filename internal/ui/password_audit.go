@@ -157,7 +157,7 @@ func (a *PasswordAudit) resultOverview() fyne.CanvasObject {
 		content.Add(widget.NewSeparator())
 		content.Add(container.NewCenter(widget.NewIcon(icons.Audit)))
 		content.Add(centeredAuditText("No issues found", headingStyle))
-		content.Add(centeredAuditText(fmt.Sprintf("%s analyzed.\nNo exposed, weak or reused passwords were found.", passwordCount(r.Passwords)), bodyStyle))
+		content.Add(centeredAuditText(fmt.Sprintf("%s checked.\nNo exposed, weak or reused passwords were found.", passwordCount(r.Passwords)), bodyStyle))
 		return container.NewVScroll(content)
 	}
 
@@ -173,7 +173,7 @@ func (a *PasswordAudit) resultOverview() fyne.CanvasObject {
 	} else {
 		content.Add(newText("No confirmed findings in completed checks.", bodyStyle))
 	}
-	content.Add(newText(fmt.Sprintf("%s analyzed locally", passwordCount(r.Passwords)), bodyStyle))
+	content.Add(newText(fmt.Sprintf("%s checked", passwordCount(r.Passwords)), bodyStyle))
 	if !auditBreachChecksComplete(r) {
 		content.Add(newText(fmt.Sprintf("%d of %d passwords checked for breaches", r.ExposedChecked, r.Passwords), captionStyle))
 	}
@@ -260,9 +260,9 @@ func (a *PasswordAudit) categorySummary(category string) (string, string, bool) 
 			}
 		}
 	case "weak":
-		description = "Identified by zxcvbn"
+		description = auditCategories[1].description
 	case "reused":
-		description = "Shared between items"
+		description = auditCategories[2].description
 	}
 	if !complete && category == "exposed" && count == 0 {
 		return "—", description, false
@@ -278,8 +278,8 @@ var auditCategories = []struct {
 	icon                   fyne.Resource
 }{
 	{"exposed", "Exposed passwords", "Found in known data breaches", icons.Audit},
-	{"weak", "Weak passwords", "Identified by zxcvbn", icons.Password},
-	{"reused", "Reused passwords", "Same password in multiple items", icons.Password},
+	{"weak", "Weak passwords", "Easy to guess", icons.Password},
+	{"reused", "Reused passwords", "Used in multiple items", icons.Password},
 }
 
 func (a *PasswordAudit) start() {
@@ -421,6 +421,9 @@ func (a *PasswordAudit) showFindingRows(category string, rows []AuditFinding, ba
 	}
 	var list *widget.List
 	list = widget.NewList(func() int { return len(rows) }, func() fyne.CanvasObject {
+		if category == "exposed" || category == "weak" {
+			return container.NewStack(newNavigationRowWithSubtitle("Item", "Summary", navigationRowIcon(icons.Password), nil))
+		}
 		row := NewActionRow("Item", "Summary", icons.Password, nil)
 		row.SetFlat(true)
 		indicator := NewPasswordStrengthIndicator()
@@ -432,22 +435,24 @@ func (a *PasswordAudit) showFindingRows(category string, rows []AuditFinding, ba
 		return container.New(layout.NewCustomPaddedLayout(0, 0, theme.Size(theme.SizeNameInnerPadding), theme.Size(theme.SizeNameInnerPadding)), row)
 	}, func(id widget.ListItemID, object fyne.CanvasObject) {
 		finding := rows[id]
-		status := ""
-		if category == "exposed" {
-			status = "Seen " + formatAuditOccurrences(finding.ExposedCount) + " times"
-		}
 		if category == "weak" {
-			status = "Weak"
-			if finding.Score == 0 {
-				status = "Very weak"
-			}
+			indicator := NewPasswordStrengthIndicator()
+			indicator.SetCompact()
+			indicator.SetScore(finding.Score)
+			cell := object.(*fyne.Container)
+			cell.Objects = []fyne.CanvasObject{newNavigationRowWithContent(finding.Title, indicator, navigationRowIcon(finding.Icon), icons.Next, func() { list.Select(id) })}
+			cell.Refresh()
+			list.SetItemHeight(id, cell.MinSize().Height)
+			return
 		}
-		detail := status
-		if finding.Subtitle != "" {
-			detail = finding.Subtitle
-			if status != "" && category != "weak" {
-				detail += "\n" + status
-			}
+		detail := finding.Subtitle
+		if category == "exposed" {
+			detail = "Seen " + formatAuditOccurrences(finding.ExposedCount) + " times"
+			cell := object.(*fyne.Container)
+			cell.Objects = []fyne.CanvasObject{newNavigationRowWithSubtitle(finding.Title, detail, navigationRowIcon(finding.Icon), func() { list.Select(id) })}
+			cell.Refresh()
+			list.SetItemHeight(id, cell.MinSize().Height)
+			return
 		}
 		row := object.(*fyne.Container).Objects[0].(*ActionRow)
 		row.SetContent(finding.Title, detail, finding.Icon)
@@ -499,13 +504,6 @@ type auditReuseGroup struct {
 	members []AuditFinding
 }
 
-type auditReuseListRow struct {
-	groupIndex int
-	members    []AuditFinding
-	finding    AuditFinding
-	isGroup    bool
-}
-
 func sortedAuditReuseGroups(rows []AuditFinding) []auditReuseGroup {
 	byID := make(map[int][]AuditFinding)
 	for _, row := range rows {
@@ -527,39 +525,33 @@ func (a *PasswordAudit) showReusedFindings(rows []AuditFinding) {
 		return
 	}
 	groups := sortedAuditReuseGroups(rows)
-	listRows := make([]auditReuseListRow, 0, len(rows)+len(groups))
+	accordion := widget.NewAccordion()
+	accordion.MultiOpen = true
 	for index, group := range groups {
-		listRows = append(listRows, auditReuseListRow{groupIndex: index + 1, members: group.members, isGroup: true})
-		for _, finding := range group.members {
-			listRows = append(listRows, auditReuseListRow{finding: finding})
+		members := make([]fyne.CanvasObject, 0, len(group.members)*2-1)
+		for memberIndex, finding := range group.members {
+			row := newNavigationRow(finding.Title, navigationRowIcon(finding.Icon), func() {
+				if !a.closed {
+					a.open(finding.ID)
+				}
+			})
+			members = append(members, row)
+			if memberIndex < len(group.members)-1 {
+				members = append(members, widget.NewSeparator())
+			}
 		}
+		item := widget.NewAccordionItem(fmt.Sprintf("Group %d (%s)", index+1, itemCountLabel(len(group.members))), container.NewVBox(members...))
+		item.Open = true
+		accordion.Append(item)
 	}
-	var list *widget.List
-	list = widget.NewList(func() int { return len(listRows) }, func() fyne.CanvasObject {
-		row := NewActionRow("Item", "Summary", icons.Password, nil)
-		row.SetFlat(true)
-		return container.New(layout.NewCustomPaddedLayout(0, 0, theme.Size(theme.SizeNameInnerPadding), theme.Size(theme.SizeNameInnerPadding)), row)
-	}, func(id widget.ListItemID, object fyne.CanvasObject) {
-		item := listRows[id]
-		row := object.(*fyne.Container).Objects[0].(*ActionRow)
-		if item.isGroup {
-			row.SetContent(fmt.Sprintf("Group %d", item.groupIndex), itemCountLabel(len(item.members)), icons.Password)
-			row.SetInteractive(false)
-		} else {
-			row.SetInteractive(true)
-			row.SetContent(item.finding.Title, item.finding.Subtitle, item.finding.Icon)
-			row.SetTapped(func() { list.Select(id) })
-		}
-		list.SetItemHeight(id, row.MinSize().Height)
-	})
-	list.HideSeparators = false
 	groupCount := fmt.Sprintf("%d groups", len(groups))
 	if len(groups) == 1 {
 		groupCount = "1 group"
 	}
 	header := container.NewVBox(newText(fmt.Sprintf("%s · %s · %s vault", itemCountLabel(len(rows)), groupCount, a.name), bodyStyle), a.staleBanner())
 	banner := a.banner
-	page := auditPage("Reused passwords", func() { a.returnToFindings = nil; a.overview() }, container.NewBorder(header, nil, nil, nil, list))
+	groupsContent := container.NewVScroll(container.NewVBox(accordion, layout.NewSpacer()))
+	page := auditPage("Reused passwords", func() { a.returnToFindings = nil; a.overview() }, container.NewBorder(header, nil, nil, nil, groupsContent))
 	a.View.Objects = []fyne.CanvasObject{page}
 	a.View.Refresh()
 	var restore func()
@@ -577,13 +569,6 @@ func (a *PasswordAudit) showReusedFindings(rows []AuditFinding) {
 		a.show(a.View)
 	}
 	a.returnToFindings = restore
-	list.OnSelected = func(id widget.ListItemID) {
-		list.UnselectAll()
-		if a.closed || listRows[id].isGroup {
-			return
-		}
-		a.open(listRows[id].finding.ID)
-	}
 }
 
 // DetailBack returns the existing findings view with its list position intact.

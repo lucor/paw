@@ -65,6 +65,10 @@ func TestPasswordAuditGolden(t *testing.T) {
 						a.showFindings("exposed")
 					}
 					if state == "reused-findings" {
+						a.result.Findings = append(a.result.Findings,
+							AuditFinding{AuditEntry: AuditEntry{ID: "gitlab", Title: "GitLab", Subtitle: "dev@example.com", Icon: icons.Login}, ReuseCount: 2, ReuseGroup: 2},
+							AuditFinding{AuditEntry: AuditEntry{ID: "old-forum", Title: "Old forum", Subtitle: "user@example.com", Icon: icons.Login}, ReuseCount: 2, ReuseGroup: 2},
+						)
 						a.showFindings("reused")
 					}
 					return a.View
@@ -101,7 +105,7 @@ func TestPasswordAuditStates(t *testing.T) {
 	a.result = AuditResult{LocalComplete: true, Passwords: 1, ExposedChecked: 1}
 	a.overview()
 	require.Contains(t, auditTexts(a.View), "No issues found")
-	require.Contains(t, strings.Join(auditTexts(a.View), "\n"), "1 password analyzed.")
+	require.Contains(t, strings.Join(auditTexts(a.View), "\n"), "1 password checked.")
 	require.Contains(t, auditTexts(a.View), "Last checked: "+a.checkedAt.Local().Format("2 Jan 2006, 15:04"))
 
 	a.result = AuditResult{LocalComplete: true, Passwords: 3, ExposedFailed: true, Findings: []AuditFinding{
@@ -112,7 +116,7 @@ func TestPasswordAuditStates(t *testing.T) {
 	texts := auditTexts(a.View)
 	require.Contains(t, texts, "Audit partially completed")
 	require.Contains(t, texts, "1 item needs attention")
-	require.Contains(t, texts, "3 passwords analyzed locally")
+	require.Contains(t, texts, "3 passwords checked")
 	require.Contains(t, texts, "0 of 3 passwords checked for breaches")
 	require.NotContains(t, texts, "No issues found")
 	exposedCount, exposedDescription, exposedAction := a.categorySummary("exposed")
@@ -292,6 +296,7 @@ func TestAuditCategoryCountsAndActions(t *testing.T) {
 		}
 	}
 	visit(a.View)
+	var countRightEdges []float32
 	for _, row := range rows {
 		expected := "0"
 		interactive := false
@@ -307,19 +312,61 @@ func TestAuditCategoryCountsAndActions(t *testing.T) {
 		require.True(t, row.leading.Visible())
 		require.True(t, row.title.Visible())
 		require.True(t, row.detail.Visible())
+		if interactive {
+			countCenter := fyne.CurrentApp().Driver().AbsolutePositionForObject(row.count).Y + row.count.Size().Height/2
+			arrowCenter := fyne.CurrentApp().Driver().AbsolutePositionForObject(row.next).Y + row.next.Size().Height/2
+			require.InDelta(t, countCenter, arrowCenter, 0.5, "count and chevron are vertically centered")
+		}
+		countRightEdges = append(countRightEdges, row.count.Position().X+row.count.Size().Width)
 	}
 	require.Len(t, rows, 3)
+	require.InDelta(t, countRightEdges[0], countRightEdges[1], 0.5, "category counters share a trailing column")
+	require.InDelta(t, countRightEdges[1], countRightEdges[2], 0.5, "category counters share a trailing column")
 	texts := auditTexts(a.View)
 	require.Contains(t, texts, "Exposed passwords")
 	require.Contains(t, texts, "Weak passwords")
 	require.Contains(t, texts, "Reused passwords")
+	require.Contains(t, texts, "Found in known data breaches")
+	require.Contains(t, texts, "Easy to guess")
+	require.Contains(t, texts, "Used in multiple items")
+	require.NotContains(t, texts, "Identified by zxcvbn")
 	for _, row := range rows {
+		require.True(t, row.count.TextStyle.Bold, "category counts are emphasized without badges")
 		if row.title.Text == "Exposed passwords" {
 			row.button.OnTapped()
 			break
 		}
 	}
 	require.Equal(t, 1, auditList(t, a.View).Length(), "selecting a category opens its matching findings")
+}
+
+func TestAuditOverviewUsesApprovedSummaryCopy(t *testing.T) {
+	test.NewTempApp(t)
+	a := NewPasswordAudit("Personal", nil, func(fyne.CanvasObject) {}, func(string) {}, func() {})
+	a.hasResult = true
+	a.result = AuditResult{Passwords: 4, ExposedChecked: 4, LocalComplete: true, Findings: []AuditFinding{
+		{AuditEntry: AuditEntry{ID: "shared", Title: "Shared"}, Score: 1, ReuseCount: 2, ReuseGroup: 1, Exposed: true},
+	}}
+	a.overview()
+	texts := auditTexts(a.View)
+	require.Contains(t, texts, "4 passwords checked")
+	require.NotContains(t, texts, "passwords checked for breaches")
+	require.Contains(t, texts, "Found in known data breaches")
+	require.Contains(t, texts, "Easy to guess")
+	require.Contains(t, texts, "Used in multiple items")
+	require.Contains(t, texts, "An item may have multiple findings.")
+	require.NotContains(t, texts, "Identified by zxcvbn")
+	exposedCount, exposedDescription, exposedAction := a.categorySummary("exposed")
+	require.Equal(t, "1", exposedCount)
+	require.Equal(t, "Found in known data breaches", exposedDescription)
+	require.True(t, exposedAction)
+	a.result.ExposedChecked = 2
+	a.result.ExposedFailed = true
+	a.overview()
+	texts = auditTexts(a.View)
+	require.Contains(t, texts, "2 of 4 passwords checked for breaches")
+	_, exposedDescription, _ = a.categorySummary("exposed")
+	require.Equal(t, "Found in completed checks", exposedDescription)
 }
 
 func TestAuditFindingsOrderingAndExposureCount(t *testing.T) {
@@ -339,6 +386,21 @@ func TestAuditFindingsOrderingAndExposureCount(t *testing.T) {
 	require.Contains(t, auditTexts(a.View), "Seen 12,450 times")
 }
 
+func TestExposedFindingsUseNavigationRows(t *testing.T) {
+	test.NewTempApp(t)
+	window := test.NewTempWindow(t, nil)
+	opened := ""
+	a := NewPasswordAudit("Personal", nil, window.SetContent, func(id string) { opened = id }, func() {})
+	a.result = auditFixture()
+	a.showFindings("exposed")
+	window.SetContent(a.View)
+	window.Resize(fyne.NewSize(440, 650))
+	require.Contains(t, auditTexts(a.View), "Seen 12,450 times")
+	require.NotContains(t, auditTexts(a.View), "dev@example.com")
+	test.Tap(findNavigationRowButton(t, a.View, "GitHub"))
+	require.Equal(t, "github", opened)
+}
+
 func TestWeakFindingsUseSharedStrengthIndicatorAndOpenItems(t *testing.T) {
 	driver := test.NewApp()
 	t.Cleanup(driver.Quit)
@@ -349,7 +411,7 @@ func TestWeakFindingsUseSharedStrengthIndicatorAndOpenItems(t *testing.T) {
 	a.hasResult = true
 	a.result.Findings = []AuditFinding{
 		{AuditEntry: AuditEntry{ID: "weak", Title: "Weak", Subtitle: "very.long.username@example-company.test", Icon: icons.Login}, Score: 0},
-		{AuditEntry: AuditEntry{ID: "very-weak", Title: "Very weak", Icon: icons.Login}, Score: 1},
+		{AuditEntry: AuditEntry{ID: "very-weak", Title: "No username", Icon: icons.Login}, Score: 1},
 	}
 	a.showFindings("weak")
 	window.SetContent(a.View)
@@ -365,22 +427,11 @@ func TestWeakFindingsUseSharedStrengthIndicatorAndOpenItems(t *testing.T) {
 	}
 	require.NotNil(t, indicator, "weak findings render the shared strength indicator")
 	require.Equal(t, 0, indicator.score)
-	var weakRow *ActionRow
-	for _, object := range test.LaidOutObjects(a.View) {
-		if row, ok := object.(*ActionRow); ok && row.detail.Text == "very.long.username@example-company.test" {
-			weakRow = row
-		}
-	}
-	require.NotNil(t, weakRow)
-	require.Equal(t, fyne.TextTruncateEllipsis, weakRow.detail.Truncation, "long usernames truncate before the strength row or chevron")
-	textBlock := weakRow.text.Objects[0].(*fyne.Container)
-	detailBottom := textBlock.Position().Y + weakRow.detail.Position().Y + weakRow.detail.Size().Height
-	indicatorTop := indicator.Position().Y
-	require.GreaterOrEqual(t, indicatorTop, detailBottom+theme.Size(theme.SizeNameInnerPadding), "strength feedback has a visible gap below the username")
-	rowBottom := weakRow.text.Size().Height
-	indicatorBottom := indicatorTop + indicator.Size().Height
-	require.LessOrEqual(t, indicatorBottom, rowBottom, "strength feedback stays within the entry row")
-	list.Select(0)
+	require.Len(t, indicator.segments, 5)
+	require.NotContains(t, auditTexts(a.View), "very.long.username@example-company.test")
+	require.Equal(t, "Very weak", indicator.label.Text)
+	require.Equal(t, 2, list.Length())
+	test.Tap(findNavigationRowButton(t, a.View, "Weak"))
 	require.Equal(t, "weak", opened)
 }
 
@@ -464,7 +515,7 @@ func auditList(t *testing.T, view fyne.CanvasObject) *widget.List {
 	return nil
 }
 
-func TestReusedPasswordGroupsOpenAllMembers(t *testing.T) {
+func TestReusedPasswordGroupsUseOpenAccordionWithExistingRows(t *testing.T) {
 	test.NewTempApp(t)
 	window := test.NewTempWindow(t, nil)
 	var opened []string
@@ -477,19 +528,78 @@ func TestReusedPasswordGroupsOpenAllMembers(t *testing.T) {
 	a.showFindings("reused")
 	window.SetContent(a.View)
 	window.Resize(fyne.NewSize(440, 650))
-	groups := auditList(t, a.View)
-	require.Equal(t, 6, groups.Length(), "group headings and all member entries share one list")
+	groups := auditAccordion(t, a.View)
+	require.Len(t, groups.Items, 2)
+	require.True(t, groups.MultiOpen)
+	require.True(t, groups.Items[0].Open)
+	require.True(t, groups.Items[1].Open)
 	require.Contains(t, auditTexts(a.View), "4 items · 2 groups · Personal vault")
-	groups.Select(0)
-	require.Empty(t, opened, "group headings are not navigable")
-	groups.Select(4)
+	firstHeader := findAccordionHeader(t, groups, "Group 1 (2 items)")
+	secondHeader := findAccordionHeader(t, groups, "Group 2 (2 items)")
+	firstRow := findNavigationRowButton(t, groups.Items[0].Detail, "Fourth")
+	test.Tap(firstHeader)
+	require.False(t, groups.Items[0].Open)
+	test.Tap(firstHeader)
+	require.True(t, groups.Items[0].Open)
+	test.Tap(firstRow)
+	require.Equal(t, []string{"fourth"}, opened)
 	a.DetailBack()
-	require.Same(t, groups, auditList(t, a.View))
-	groups.Select(5)
+	require.Same(t, groups, auditAccordion(t, a.View))
+	secondRow := findNavigationRowButton(t, groups.Items[1].Detail, "GitHub")
+	require.NotContains(t, auditTexts(groups.Items[1].Detail), "dev@example.com")
+	test.Tap(secondRow)
 	a.DetailBack()
-	require.Equal(t, []string{"github", "forum"}, opened)
-	groups.Select(1)
-	a.DetailBack()
-	groups.Select(2)
-	require.Equal(t, []string{"github", "forum", "fourth", "third"}, opened)
+	require.Equal(t, []string{"fourth", "github"}, opened)
+	test.Tap(secondHeader)
+	require.False(t, groups.Items[1].Open)
+}
+
+func TestReusedPasswordAccordionFitsNarrowViewWithoutHorizontalScroll(t *testing.T) {
+	driver := test.NewApp()
+	t.Cleanup(driver.Quit)
+	window := driver.NewWindow("Audit")
+	t.Cleanup(window.Close)
+	a := NewPasswordAudit("Personal", nil, window.SetContent, func(string) {}, func() {})
+	a.result.Findings = []AuditFinding{
+		{AuditEntry: AuditEntry{ID: "first", Title: strings.Repeat("Long service title ", 5), Subtitle: strings.Repeat("long.username@example.test ", 4), Icon: icons.Login}, ReuseCount: 2, ReuseGroup: 1},
+		{AuditEntry: AuditEntry{ID: "second", Title: "Second", Subtitle: "user@example.test", Icon: icons.Login}, ReuseCount: 2, ReuseGroup: 1},
+	}
+	a.showFindings("reused")
+	window.SetContent(a.View)
+	window.Resize(fyne.NewSize(320, 540))
+	window.Show()
+
+	var scroll *container.Scroll
+	for _, object := range test.LaidOutObjects(a.View) {
+		if candidate, ok := object.(*container.Scroll); ok && candidate.Direction == container.ScrollVerticalOnly {
+			scroll = candidate
+		}
+	}
+	require.NotNil(t, scroll)
+	accordion := auditAccordion(t, a.View)
+	require.LessOrEqual(t, accordion.MinSize().Width, scroll.Size().Width, "the accordion must fit the viewport without horizontal overflow")
+	require.LessOrEqual(t, accordion.Size().Width, scroll.Size().Width, "the accordion remains constrained to the viewport")
+	require.InDelta(t, accordion.MinSize().Height, accordion.Size().Height, 0.5, "open groups keep their natural row height instead of stretching to fill the viewport")
+}
+
+func auditAccordion(t *testing.T, view fyne.CanvasObject) *widget.Accordion {
+	t.Helper()
+	for _, object := range test.LaidOutObjects(view) {
+		if accordion, ok := object.(*widget.Accordion); ok {
+			return accordion
+		}
+	}
+	t.Fatal("missing reused-password accordion")
+	return nil
+}
+
+func findAccordionHeader(t *testing.T, accordion *widget.Accordion, title string) *widget.Button {
+	t.Helper()
+	for _, object := range test.LaidOutObjects(accordion) {
+		if button, ok := object.(*widget.Button); ok && button.Text == title {
+			return button
+		}
+	}
+	t.Fatalf("missing accordion header %q", title)
+	return nil
 }

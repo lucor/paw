@@ -449,6 +449,10 @@ func newPilotAudit(state string) *PasswordAudit {
 	}
 	if state == "findings" {
 		audit.result.Findings[0].Subtitle = "very.long.username@example-company.test"
+		audit.result.Findings[1].Subtitle = ""
+		audit.result.Findings = append(audit.result.Findings, AuditFinding{
+			AuditEntry: AuditEntry{ID: "router", Title: "Home router", Icon: icons.Password}, Score: 1,
+		})
 		audit.showFindings("weak")
 	} else if state == "exposed-findings" {
 		audit.result.Findings = append(audit.result.Findings,
@@ -457,6 +461,10 @@ func newPilotAudit(state string) *PasswordAudit {
 		)
 		audit.showFindings("exposed")
 	} else if state == "reused-findings" {
+		audit.result.Findings = append(audit.result.Findings,
+			AuditFinding{AuditEntry: AuditEntry{ID: "gitlab", Title: "GitLab", Subtitle: "dev@example.com", Icon: icons.Login}, ReuseCount: 2, ReuseGroup: 2},
+			AuditFinding{AuditEntry: AuditEntry{ID: "old-forum", Title: "Old forum", Subtitle: "user@example.com", Icon: icons.Login}, ReuseCount: 2, ReuseGroup: 2},
+		)
 		audit.showFindings("reused")
 	}
 	return audit

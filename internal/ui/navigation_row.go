@@ -42,11 +42,20 @@ func newNavigationRowWithTrailingIcon(title string, leading fyne.CanvasObject, t
 }
 
 func newNavigationRowWithIcon(title, subtitle string, leading fyne.CanvasObject, trailing fyne.Resource, tapped func()) fyne.CanvasObject {
+	var secondary fyne.CanvasObject
+	if subtitle != "" {
+		secondary = newText(subtitle, captionStyle)
+	}
+	return newNavigationRowWithContent(title, secondary, leading, trailing, tapped)
+}
+
+// newNavigationRowWithContent reuses the row layout with a secondary component.
+func newNavigationRowWithContent(title string, secondary, leading fyne.CanvasObject, trailing fyne.Resource, tapped func()) fyne.CanvasObject {
 	label := newText(title, bodyStyle)
 	label.TextStyle.Bold = true
 	text := container.NewVBox(label)
-	if subtitle != "" {
-		text.Add(newText(subtitle, captionStyle))
+	if secondary != nil {
+		text.Add(secondary)
 	}
 	compact := container.NewThemeOverride(container.NewPadded(text), compactTextTheme{Theme: theme.Current()})
 	trailingIcon := container.NewCenter(container.NewGridWrap(fyne.NewSquareSize(navigationRowTrailingIconSize), widget.NewIcon(trailing)))
