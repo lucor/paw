@@ -1,5 +1,19 @@
 # Changelog - Paw
 
+## 0.30.0 - 03 Nov 2026
+
+- ui: rebuild vault navigation, item lists, details, and editors with a consistent Fyne interface
+- ui: add Codes for authenticator credentials and a password audit overview with findings
+- vault: add appearance settings, master password changes, and deletion controls
+- backup: add Paw CXF export and restore flows
+- settings: consolidate application preferences and add background auto-lock
+- password: use crypto/rand for random passwords and PINs, independent of the vault key
+- password: preserve manual edits to generated passwords as custom values
+- theme: improve semantic color contrast and support runtime appearance changes
+- assets: update the macOS app icon and remove unused Tabler icons
+- refactor: centralize credential models and shared operations
+- docs: update README features, backup details, and icon credits
+
 ## 0.29.0 - 27 Oct 2026
 
 - storage: migrate existing vaults to CXF automatically when they are unlocked, and keep the original vault as a backup
