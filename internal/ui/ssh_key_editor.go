@@ -74,32 +74,32 @@ func NewSSHKeyEditor(item *model.Item, isNew bool) (*SSHKeyEditor, error) {
 		return nil, errors.New("item is not an SSH key")
 	}
 	item = cloneItem(item)
-	decoded, err := decodeEntryDetailCredentials(item.Credentials)
+	decoded, err := model.DecodeCredentials(item.Credentials)
 	if err != nil {
 		return nil, err
 	}
-	if decoded.sshKey == nil || decoded.basicAuth == nil {
+	if decoded.SSHKey == nil || decoded.BasicAuth == nil {
 		return nil, errors.New("SSH key credentials are incomplete")
 	}
-	_, public, fingerprint, err := FormatSSHKey(*decoded.sshKey)
+	_, public, fingerprint, err := model.FormatSSHKey(*decoded.SSHKey)
 	if err != nil {
 		return nil, err
 	}
 	passphrase := ""
-	if decoded.basicAuth.Password != nil {
-		passphrase = decoded.basicAuth.Password.Value
+	if decoded.BasicAuth.Password != nil {
+		passphrase = decoded.BasicAuth.Password.Value
 	}
 	editor := &SSHKeyEditor{
-		item: item, sshKey: decoded.sshKey, basicAuth: decoded.basicAuth,
-		sshKeyIndex: decoded.sshKeyIndex, basicAuthIndex: decoded.basicAuthIndex,
+		item: item, sshKey: decoded.SSHKey, basicAuth: decoded.BasicAuth,
+		sshKeyIndex: decoded.SSHKeyIndex, basicAuthIndex: decoded.BasicAuthIndex,
 		Title: widget.NewEntry(), Passphrase: widget.NewPasswordEntry(),
 		AddToAgent:   widget.NewCheck("Add to SSH agent", nil),
-		PasswordSpec: passwordSpecFromField(decoded.basicAuth.Password),
+		PasswordSpec: passwordSpecFromField(decoded.BasicAuth.Password),
 		initialTitle: "", initialPass: passphrase, initialAgent: item.Metadata.AddToAgent,
-		initialKeyType: decoded.sshKey.KeyType, initialPrivate: decoded.sshKey.PrivateKey,
+		initialKeyType: decoded.SSHKey.KeyType, initialPrivate: decoded.SSHKey.PrivateKey,
 		publicText: public, fingerprint: fingerprint,
 		fingerprintLabel: newText(fingerprint, bodyStyle),
-		keyType:          newText(strings.ToUpper(strings.TrimPrefix(decoded.sshKey.KeyType, "ssh-")), bodyStyle),
+		keyType:          newText(strings.ToUpper(strings.TrimPrefix(decoded.SSHKey.KeyType, "ssh-")), bodyStyle),
 		publicPreview:    newText(compactSSHPreview(public), bodyStyle),
 		privateBox:       container.NewVBox(), titleError: newErrorText(""),
 	}
@@ -214,7 +214,7 @@ func (e *SSHKeyEditor) togglePassphrase() {
 
 // SetCredential updates the displayed key and passphrase after generation or import.
 func (e *SSHKeyEditor) SetCredential(credential cxf.SSHKey, passphrase string) error {
-	_, public, fingerprint, err := FormatSSHKey(credential)
+	_, public, fingerprint, err := model.FormatSSHKey(credential)
 	if err != nil {
 		return err
 	}
@@ -235,7 +235,7 @@ func (e *SSHKeyEditor) RevealPrivateKey() error {
 	if e.sshKey == nil {
 		return errors.New("SSH key is no longer available")
 	}
-	private, _, _, err := FormatSSHKey(*e.sshKey)
+	private, _, _, err := model.FormatSSHKey(*e.sshKey)
 	if err != nil {
 		return err
 	}
@@ -277,7 +277,7 @@ func (e *SSHKeyEditor) PrivateKeyText() (string, error) {
 	if e.sshKey == nil {
 		return "", errors.New("SSH key is no longer available")
 	}
-	private, _, _, err := FormatSSHKey(*e.sshKey)
+	private, _, _, err := model.FormatSSHKey(*e.sshKey)
 	return private, err
 }
 
@@ -320,7 +320,7 @@ func (e *SSHKeyEditor) UpdatedItem() (*model.Item, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := putBasicAuthCredential(updated, e.basicAuthIndex, credential); err != nil {
+	if err := updated.SetBasicAuth(e.basicAuthIndex, credential); err != nil {
 		return nil, err
 	}
 	if err := updated.Validate(); err != nil {

@@ -61,7 +61,7 @@ func (cmd *ShowCmd) Run(ctx context.Context) error {
 		return err
 	}
 
-	summary, err := findVaultItem(vault, cmd.itemName, cmd.itemType)
+	summary, err := vault.FindItem(cmd.itemName, cmd.itemType)
 	if err != nil {
 		return err
 	}
@@ -77,7 +77,7 @@ func (cmd *ShowCmd) Run(ctx context.Context) error {
 		if item.Scope != nil && len(item.Scope.URLs) > 0 {
 			fmt.Fprintf(cmd.out, "URL: %s\n", item.Scope.URLs[0])
 		}
-		credential, _, err := basicAuth(item)
+		credential, _, err := item.BasicAuth()
 		if err != nil {
 			return err
 		}
@@ -88,7 +88,7 @@ func (cmd *ShowCmd) Run(ctx context.Context) error {
 			pclip = []byte(passwordValue(credential))
 			pclipMsg = "[✓] password copied to clipboard"
 		}
-		if note, _, err := noteCredential(item); err == nil && note.Content.Value != "" {
+		if note, _, err := item.Note(); err == nil && note.Content.Value != "" {
 			fmt.Fprintf(cmd.out, "Note: %s\n", note.Content.Value)
 		}
 		for _, raw := range item.Credentials {
@@ -102,7 +102,7 @@ func (cmd *ShowCmd) Run(ctx context.Context) error {
 			}
 		}
 	case model.PasswordItemType:
-		credential, _, err := basicAuth(item)
+		credential, _, err := item.BasicAuth()
 		if err != nil {
 			return err
 		}
@@ -126,7 +126,7 @@ func (cmd *ShowCmd) Run(ctx context.Context) error {
 				break
 			}
 		}
-		privateKey, publicKey, fingerprint, err := sshKeyFromCXF(credential)
+		privateKey, publicKey, fingerprint, err := model.FormatSSHKey(credential)
 		if err != nil {
 			return err
 		}
@@ -144,7 +144,7 @@ func (cmd *ShowCmd) Run(ctx context.Context) error {
 		}
 		fmt.Fprintf(cmd.out, "Add to agent: %s\n", addToAgent)
 	case model.NoteItemType:
-		note, _, err := noteCredential(item)
+		note, _, err := item.Note()
 		if err != nil {
 			return err
 		}

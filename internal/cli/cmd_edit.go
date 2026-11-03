@@ -52,7 +52,7 @@ func (cmd *EditCmd) Run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	summary, err := findVaultItem(vault, cmd.itemName, cmd.itemType)
+	summary, err := vault.FindItem(cmd.itemName, cmd.itemType)
 	if err != nil {
 		return err
 	}
@@ -102,7 +102,7 @@ func (cmd *EditCmd) editLogin(item *model.Item, key *paw.Key) error {
 		return err
 	}
 	item.Scope.URLs = []string{url}
-	credential, index, err := basicAuth(item)
+	credential, index, err := item.BasicAuth()
 	if err != nil {
 		return err
 	}
@@ -111,19 +111,19 @@ func (cmd *EditCmd) editLogin(item *model.Item, key *paw.Key) error {
 	if err != nil {
 		return err
 	}
-	password, err := cmd.generatePassword(key, passwordSettings(credential.Password).Mode)
+	password, err := cmd.generatePassword(key, model.PasswordSettingsFromField(credential.Password).Mode)
 	if err != nil {
 		return err
 	}
 	credential.Username = &cxf.EditableField{FieldType: cxf.FieldTypeString, Value: username}
-	credential.Password, err = makePasswordField(password.Value, model.PasswordSettings{Mode: password.Mode, Length: password.Length, Format: password.Format})
+	credential.Password, err = model.PasswordField(password.Value, model.PasswordSettings{Mode: password.Mode, Length: password.Length, Format: password.Format}, credential.Password)
 	if err != nil {
 		return err
 	}
-	if err := setBasicAuth(item, index, credential); err != nil {
+	if err := item.SetBasicAuth(index, credential); err != nil {
 		return err
 	}
-	note, noteIndex, err := noteCredential(item)
+	note, noteIndex, err := item.Note()
 	if err != nil {
 		return err
 	}
@@ -136,31 +136,34 @@ func (cmd *EditCmd) editLogin(item *model.Item, key *paw.Key) error {
 		return err
 	}
 	if value != "" || noteIndex >= 0 {
-		return setNoteCredential(item, noteIndex, value)
+		note.Type = cxf.CredentialTypeNote
+		note.Content.FieldType = cxf.FieldTypeString
+		note.Content.Value = value
+		return item.SetNote(noteIndex, note)
 	}
 	return nil
 }
 
 // editPassword prompts for a replacement password.
 func (cmd *EditCmd) editPassword(item *model.Item, key *paw.Key) error {
-	credential, index, err := basicAuth(item)
+	credential, index, err := item.BasicAuth()
 	if err != nil {
 		return err
 	}
-	password, err := cmd.generatePassword(key, passwordSettings(credential.Password).Mode)
+	password, err := cmd.generatePassword(key, model.PasswordSettingsFromField(credential.Password).Mode)
 	if err != nil {
 		return err
 	}
-	credential.Password, err = makePasswordField(password.Value, model.PasswordSettings{Mode: password.Mode, Length: password.Length, Format: password.Format})
+	credential.Password, err = model.PasswordField(password.Value, model.PasswordSettings{Mode: password.Mode, Length: password.Length, Format: password.Format}, credential.Password)
 	if err != nil {
 		return err
 	}
-	return setBasicAuth(item, index, credential)
+	return item.SetBasicAuth(index, credential)
 }
 
 // editNote prompts for replacement note content.
 func (cmd *EditCmd) editNote(item *model.Item) error {
-	note, index, err := noteCredential(item)
+	note, index, err := item.Note()
 	if err != nil {
 		return err
 	}
@@ -169,7 +172,10 @@ func (cmd *EditCmd) editNote(item *model.Item) error {
 	if err != nil {
 		return err
 	}
-	return setNoteCredential(item, index, value)
+	note.Type = cxf.CredentialTypeNote
+	note.Content.FieldType = cxf.FieldTypeString
+	note.Content.Value = value
+	return item.SetNote(index, note)
 }
 
 // editSSHKey updates whether the SSH key should be added to the agent.

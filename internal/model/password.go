@@ -73,26 +73,9 @@ func NewPassword(title, value string, settings PasswordSettings) (*Item, error) 
 	return item, nil
 }
 
-// newPasswordField creates a CXF password field with Paw's generation settings.
+// newPasswordField creates a concealed field using the shared update rules.
 func newPasswordField(value string, settings PasswordSettings) (*cxf.EditableField, error) {
-	if !utf8.ValidString(value) {
-		return nil, fmt.Errorf("invalid UTF-8")
-	}
-	if !validPasswordMode(settings.Mode) {
-		return nil, fmt.Errorf("unsupported mode %d", settings.Mode)
-	}
-	passwordSettings, err := json.Marshal(passwordExtension{
-		Name:             passwordExtensionName,
-		PasswordSettings: settings,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("cannot encode password settings")
-	}
-	return &cxf.EditableField{
-		FieldType:  cxf.FieldTypeConcealedString,
-		Value:      value,
-		Extensions: []json.RawMessage{passwordSettings},
-	}, nil
+	return PasswordField(value, settings, nil)
 }
 
 // validPasswordMode reports whether Paw can represent the generation mode.

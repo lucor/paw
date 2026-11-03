@@ -20,8 +20,6 @@ import (
 	"go.lucor.dev/paw/internal/ui/assets/icons"
 )
 
-const passwordExtensionName = "paw.pm/password"
-
 // LoginEditor provides a native form and an updated copy of its login item.
 type LoginEditor struct {
 	View           fyne.CanvasObject
@@ -63,22 +61,22 @@ func NewLoginEditor(ctx context.Context, item *model.Item, faviconSettings model
 	if item.Metadata.Type != model.LoginItemType {
 		return nil, fmt.Errorf("item is not a login")
 	}
-	decoded, err := decodeEntryDetailCredentials(item.Credentials)
+	decoded, err := model.DecodeCredentials(item.Credentials)
 	if err != nil {
 		return nil, err
 	}
-	if decoded.basicAuth == nil {
+	if decoded.BasicAuth == nil {
 		return nil, fmt.Errorf("login credential is missing")
 	}
 
 	editor := &LoginEditor{
 		item:           item,
-		basicAuth:      decoded.basicAuth,
-		basicAuthIndex: decoded.basicAuthIndex,
-		note:           decoded.note,
-		noteIndex:      decoded.noteIndex,
-		totp:           decoded.totp,
-		totpIndex:      decoded.totpIndex,
+		basicAuth:      decoded.BasicAuth,
+		basicAuthIndex: decoded.BasicAuthIndex,
+		note:           decoded.Note,
+		noteIndex:      decoded.NoteIndex,
+		totp:           decoded.TOTP,
+		totpIndex:      decoded.TOTPIndex,
 		totpSettings: cxf.TOTP{
 			Type: cxf.CredentialTypeTOTP, Algorithm: strings.ToLower(string(paw.TOTPHashDefault)),
 			Period: uint16(paw.TOTPIntervalDefault), Digits: uint16(paw.TOTPDigitsDefault),
@@ -95,34 +93,34 @@ func NewLoginEditor(ctx context.Context, item *model.Item, faviconSettings model
 		totpError:    newErrorText(""),
 	}
 	username, password := "", ""
-	if decoded.basicAuth.Username != nil {
-		username = decoded.basicAuth.Username.Value
+	if decoded.BasicAuth.Username != nil {
+		username = decoded.BasicAuth.Username.Value
 	}
-	if decoded.basicAuth.Password != nil {
-		password = decoded.basicAuth.Password.Value
+	if decoded.BasicAuth.Password != nil {
+		password = decoded.BasicAuth.Password.Value
 	}
 	website := ""
 	if item.Scope != nil && len(item.Scope.URLs) > 0 {
 		website = item.Scope.URLs[0]
 	}
 	notes := ""
-	if decoded.note != nil {
-		notes = decoded.note.Content.Value
+	if decoded.Note != nil {
+		notes = decoded.Note.Content.Value
 	}
 	if !isNew {
 		editor.Title.SetText(item.Title)
 	}
 	editor.Username.SetText(username)
 	editor.Password.Entry.SetText(password)
-	if decoded.totp != nil {
-		editor.TOTPSecret.SetText(decoded.totp.Secret)
+	if decoded.TOTP != nil {
+		editor.TOTPSecret.SetText(decoded.TOTP.Secret)
 		if !isNew {
-			editor.totpSettings = *decoded.totp
+			editor.totpSettings = *decoded.TOTP
 		}
 	}
 	editor.Website.SetText(website)
 	editor.Notes.SetText(notes)
-	editor.PasswordSpec = passwordSpecFromField(decoded.basicAuth.Password)
+	editor.PasswordSpec = passwordSpecFromField(decoded.BasicAuth.Password)
 	editor.Website.PlaceHolder = "https://example.com"
 	var previewFavicon *model.Favicon
 	if item.Metadata.Favicon != nil && len(item.Metadata.Favicon.Data) > 0 {
@@ -232,7 +230,7 @@ func (e *LoginEditor) UpdatedItem() (*model.Item, error) {
 		return nil, err
 	}
 	credential.Password = password
-	if err := putBasicAuthCredential(updated, e.basicAuthIndex, credential); err != nil {
+	if err := updated.SetBasicAuth(e.basicAuthIndex, credential); err != nil {
 		return nil, err
 	}
 	if e.note != nil || e.Notes.Text != "" {
@@ -242,7 +240,7 @@ func (e *LoginEditor) UpdatedItem() (*model.Item, error) {
 			note.Content.FieldType = cxf.FieldTypeString
 			note.Content.Value = e.Notes.Text
 		}
-		if err := putNoteCredential(updated, e.noteIndex, note); err != nil {
+		if err := updated.SetNote(e.noteIndex, note); err != nil {
 			return nil, err
 		}
 	}
@@ -379,93 +377,18 @@ type loginEditorValues struct {
 	passwordFormat                                  paw.Format
 }
 
+// passwordSpecFromField adapts saved settings to the generator's temporary state.
 func passwordSpecFromField(field *cxf.EditableField) *paw.PasswordSpec {
-	password := paw.NewCustomPassword()
-	if field == nil {
-		return password
-	}
-	password.Value = field.Value
-	for _, raw := range field.Extensions {
-		var extension struct {
-			Name   string           `json:"name"`
-			Mode   paw.PasswordMode `json:"mode"`
-			Length int              `json:"length"`
-			Format paw.Format       `json:"format"`
-		}
-		if json.Unmarshal(raw, &extension) == nil && extension.Name == passwordExtensionName {
-			password.Mode, password.Length, password.Format = extension.Mode, extension.Length, extension.Format
-			break
-		}
+	settings := model.PasswordSettingsFromField(field)
+	password := &paw.PasswordSpec{Mode: settings.Mode, Length: settings.Length, Format: settings.Format}
+	if field != nil {
+		password.Value = field.Value
 	}
 	return password
 }
 
 func passwordFieldWithSettings(value string, settings *paw.PasswordSpec, previous *cxf.EditableField) (*cxf.EditableField, error) {
-	encodedSettings, err := json.Marshal(struct {
-		Name   string           `json:"name"`
-		Mode   paw.PasswordMode `json:"mode"`
-		Length int              `json:"length"`
-		Format paw.Format       `json:"format"`
-	}{passwordExtensionName, settings.Mode, settings.Length, settings.Format})
-	if err != nil {
-		return nil, errors.New("cannot encode password settings")
-	}
-	field := cxf.EditableField{FieldType: cxf.FieldTypeConcealedString, Value: value}
-	if previous != nil {
-		field = *previous
-		field.FieldType = cxf.FieldTypeConcealedString
-		field.Value = value
-	}
-	field.Extensions = replacePasswordSettingsExtension(field.Extensions, encodedSettings)
-	return &field, nil
-}
-
-func replacePasswordSettingsExtension(extensions []json.RawMessage, updated json.RawMessage) []json.RawMessage {
-	result := make([]json.RawMessage, 0, len(extensions)+1)
-	replaced := false
-	for _, raw := range extensions {
-		var header struct {
-			Name string `json:"name"`
-		}
-		if json.Unmarshal(raw, &header) == nil && header.Name == passwordExtensionName {
-			if !replaced {
-				result = append(result, updated)
-				replaced = true
-			}
-			continue
-		}
-		result = append(result, raw)
-	}
-	if !replaced {
-		result = append(result, updated)
-	}
-	return result
-}
-
-func putBasicAuthCredential(item *model.Item, index int, credential cxf.BasicAuth) error {
-	encoded, err := json.Marshal(credential)
-	if err != nil {
-		return errors.New("cannot encode basic-auth credential")
-	}
-	if index < 0 {
-		item.Credentials = append(item.Credentials, encoded)
-	} else {
-		item.Credentials[index] = encoded
-	}
-	return nil
-}
-
-func putNoteCredential(item *model.Item, index int, note cxf.Note) error {
-	encoded, err := json.Marshal(note)
-	if err != nil {
-		return errors.New("cannot encode note credential")
-	}
-	if index < 0 {
-		item.Credentials = append(item.Credentials, encoded)
-	} else {
-		item.Credentials[index] = encoded
-	}
-	return nil
+	return model.PasswordField(value, model.PasswordSettings{Mode: settings.Mode, Length: settings.Length, Format: settings.Format}, previous)
 }
 
 func cloneItem(item *model.Item) *model.Item {

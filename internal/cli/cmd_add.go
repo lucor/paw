@@ -6,9 +6,6 @@ package cli
 import (
 	"context"
 	"crypto"
-	"crypto/ed25519"
-	"crypto/x509"
-	"encoding/base64"
 	"fmt"
 
 	urfave "github.com/urfave/cli/v3"
@@ -134,7 +131,8 @@ func (cmd *AddCmd) newLogin(key *paw.Key) (*model.Item, error) {
 		return nil, err
 	}
 	if note != "" {
-		if err := setNoteCredential(item, -1, note); err != nil {
+		credential := cxf.Note{Type: cxf.CredentialTypeNote, Content: cxf.EditableField{FieldType: cxf.FieldTypeString, Value: note}}
+		if err := item.SetNote(-1, credential); err != nil {
 			return nil, err
 		}
 	}
@@ -192,14 +190,10 @@ func (cmd *AddCmd) newSSHKey() (*model.Item, error) {
 	if err != nil {
 		return nil, err
 	}
-	if key, ok := privateKey.(*ed25519.PrivateKey); ok {
-		privateKey = *key
-	}
-	der, err := x509.MarshalPKCS8PrivateKey(privateKey)
+	credential, err := model.EncodeSSHKey(privateKey, publicKey.Type(), cmd.itemName)
 	if err != nil {
 		return nil, fmt.Errorf("cannot encode SSH private key")
 	}
-	credential := cxf.SSHKey{Type: cxf.CredentialTypeSSHKey, KeyType: publicKey.Type(), KeyComment: cmd.itemName, PrivateKey: base64.RawURLEncoding.EncodeToString(der)}
 	item, err := model.NewSSHKey(cmd.itemName, credential, passphrase, model.PasswordSettings{Mode: paw.CustomPassword})
 	if err != nil {
 		return nil, err

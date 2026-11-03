@@ -62,15 +62,15 @@ func sshDetailFixture(t *testing.T) (*model.Item, cxf.SSHKey) {
 }
 
 func TestEntryDetailUsesFirstCredentialOfEachType(t *testing.T) {
-	empty, err := decodeEntryDetailCredentials(nil)
+	empty, err := model.DecodeCredentials(nil)
 	require.NoError(t, err)
-	require.Nil(t, empty.basicAuth)
-	require.Equal(t, -1, empty.basicAuthIndex)
-	require.Nil(t, empty.note)
-	require.Equal(t, -1, empty.noteIndex)
-	require.Nil(t, empty.totp)
-	require.Nil(t, empty.sshKey)
-	require.Equal(t, -1, empty.sshKeyIndex)
+	require.Nil(t, empty.BasicAuth)
+	require.Equal(t, -1, empty.BasicAuthIndex)
+	require.Nil(t, empty.Note)
+	require.Equal(t, -1, empty.NoteIndex)
+	require.Nil(t, empty.TOTP)
+	require.Nil(t, empty.SSHKey)
+	require.Equal(t, -1, empty.SSHKeyIndex)
 	_, sshCredential := sshDetailFixture(t)
 	secondSSH := sshCredential
 	secondSSH.KeyComment = "Second key"
@@ -79,7 +79,7 @@ func TestEntryDetailUsesFirstCredentialOfEachType(t *testing.T) {
 	secondSSHRaw, err := json.Marshal(secondSSH)
 	require.NoError(t, err)
 
-	decoded, err := decodeEntryDetailCredentials([]json.RawMessage{
+	decoded, err := model.DecodeCredentials([]json.RawMessage{
 		json.RawMessage(`{"type":"basic-auth","username":{"fieldType":"string","value":"first"}}`),
 		json.RawMessage(`{"type":"basic-auth","username":{"fieldType":"string","value":"second"}}`),
 		json.RawMessage(`{"type":"note","content":{"fieldType":"string","value":"first note"}}`),
@@ -90,17 +90,17 @@ func TestEntryDetailUsesFirstCredentialOfEachType(t *testing.T) {
 		secondSSHRaw,
 	})
 	require.NoError(t, err)
-	require.NotNil(t, decoded.basicAuth)
-	require.Equal(t, "first", decoded.basicAuth.Username.Value)
-	require.Equal(t, 0, decoded.basicAuthIndex)
-	require.NotNil(t, decoded.note)
-	require.Equal(t, "first note", decoded.note.Content.Value)
-	require.Equal(t, 2, decoded.noteIndex)
-	require.NotNil(t, decoded.totp)
-	require.Equal(t, "sha256", decoded.totp.Algorithm)
-	require.NotNil(t, decoded.sshKey)
-	require.Equal(t, sshCredential.KeyComment, decoded.sshKey.KeyComment)
-	require.Equal(t, 6, decoded.sshKeyIndex)
+	require.NotNil(t, decoded.BasicAuth)
+	require.Equal(t, "first", decoded.BasicAuth.Username.Value)
+	require.Equal(t, 0, decoded.BasicAuthIndex)
+	require.NotNil(t, decoded.Note)
+	require.Equal(t, "first note", decoded.Note.Content.Value)
+	require.Equal(t, 2, decoded.NoteIndex)
+	require.NotNil(t, decoded.TOTP)
+	require.Equal(t, "sha256", decoded.TOTP.Algorithm)
+	require.NotNil(t, decoded.SSHKey)
+	require.Equal(t, sshCredential.KeyComment, decoded.SSHKey.KeyComment)
+	require.Equal(t, 6, decoded.SSHKeyIndex)
 }
 
 func TestEntryDetailSSHKeyDisclosureAndActions(t *testing.T) {
@@ -136,7 +136,7 @@ func TestEntryDetailSSHKeyDisclosureAndActions(t *testing.T) {
 		require.Contains(t, buttons, label)
 	}
 
-	_, publicKey, fingerprint, privateErr := FormatSSHKey(credential)
+	_, publicKey, fingerprint, privateErr := model.FormatSSHKey(credential)
 	require.NoError(t, privateErr)
 	test.Tap(buttons["Copy fingerprint"])
 	require.Equal(t, fingerprint, fyne.CurrentApp().Clipboard().Content())
@@ -591,10 +591,10 @@ func setDetailFixtureDates(item *model.Item) {
 
 func mustDecodeSSHKey(t *testing.T, item *model.Item) cxf.SSHKey {
 	t.Helper()
-	decoded, err := decodeEntryDetailCredentials(item.Credentials)
+	decoded, err := model.DecodeCredentials(item.Credentials)
 	require.NoError(t, err)
-	require.NotNil(t, decoded.sshKey)
-	return *decoded.sshKey
+	require.NotNil(t, decoded.SSHKey)
+	return *decoded.SSHKey
 }
 
 func TestEntryDetailGolden(t *testing.T) {

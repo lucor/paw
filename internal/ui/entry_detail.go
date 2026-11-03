@@ -5,7 +5,6 @@ package ui
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/url"
@@ -22,71 +21,6 @@ import (
 	"go.lucor.dev/paw/internal/model"
 	"go.lucor.dev/paw/internal/ui/assets/icons"
 )
-
-// entryDetailCredentials holds the supported credentials decoded for display.
-type entryDetailCredentials struct {
-	basicAuth      *cxf.BasicAuth
-	basicAuthIndex int
-	note           *cxf.Note
-	noteIndex      int
-	totp           *cxf.TOTP
-	totpIndex      int
-	sshKey         *cxf.SSHKey
-	sshKeyIndex    int
-}
-
-func decodeEntryDetailCredentials(raws []json.RawMessage) (entryDetailCredentials, error) {
-	decoded := entryDetailCredentials{basicAuthIndex: -1, noteIndex: -1, totpIndex: -1, sshKeyIndex: -1}
-	for index, raw := range raws {
-		typeName, err := cxf.CredentialTypeOf(raw)
-		if err != nil {
-			return decoded, err
-		}
-		switch typeName {
-		case cxf.CredentialTypeBasicAuth:
-			if decoded.basicAuth != nil {
-				continue
-			}
-			var credential cxf.BasicAuth
-			if err := json.Unmarshal(raw, &credential); err != nil {
-				return decoded, err
-			}
-			decoded.basicAuth = &credential
-			decoded.basicAuthIndex = index
-		case cxf.CredentialTypeNote:
-			if decoded.note != nil {
-				continue
-			}
-			var credential cxf.Note
-			if err := json.Unmarshal(raw, &credential); err != nil {
-				return decoded, err
-			}
-			decoded.note = &credential
-			decoded.noteIndex = index
-		case cxf.CredentialTypeTOTP:
-			if decoded.totp != nil {
-				continue
-			}
-			var credential cxf.TOTP
-			if err := json.Unmarshal(raw, &credential); err != nil {
-				return decoded, err
-			}
-			decoded.totp = &credential
-			decoded.totpIndex = index
-		case cxf.CredentialTypeSSHKey:
-			if decoded.sshKey != nil {
-				continue
-			}
-			var credential cxf.SSHKey
-			if err := json.Unmarshal(raw, &credential); err != nil {
-				return decoded, err
-			}
-			decoded.sshKey = &credential
-			decoded.sshKeyIndex = index
-		}
-	}
-	return decoded, nil
-}
 
 // NewEntryDetail displays the CXF credentials of a supported entry.
 func NewEntryDetail(ctx context.Context, item *model.Item, window fyne.Window, back, edit, deleteEntry func()) (fyne.CanvasObject, error) {
@@ -114,17 +48,17 @@ func newEntryDetailWithClear(ctx context.Context, item *model.Item, window fyne.
 	default:
 		return nil, nil, fmt.Errorf("unsupported entry category")
 	}
-	decoded, err := decodeEntryDetailCredentials(item.Credentials)
+	decoded, err := model.DecodeCredentials(item.Credentials)
 	if err != nil {
 		return nil, nil, err
 	}
 	var bodyObjects []fyne.CanvasObject
 	var clearSensitive []*detailSecret
 	if item.Metadata.Type == model.SSHKeyItemType {
-		if decoded.sshKey == nil {
+		if decoded.SSHKey == nil {
 			return nil, nil, fmt.Errorf("SSH key credential is missing")
 		}
-		sshDetails, secrets, err := detailSSHKey(window, item.Title, *decoded.sshKey, decoded.basicAuth)
+		sshDetails, secrets, err := detailSSHKey(window, item.Title, *decoded.SSHKey, decoded.BasicAuth)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -132,7 +66,7 @@ func newEntryDetailWithClear(ctx context.Context, item *model.Item, window fyne.
 		clearSensitive = append(clearSensitive, secrets...)
 	} else {
 		var credentialFields []fyne.CanvasObject
-		if auth := decoded.basicAuth; auth != nil {
+		if auth := decoded.BasicAuth; auth != nil {
 			if auth.Username != nil && auth.Username.Value != "" {
 				credentialFields = append(credentialFields, newDetailField("Username", newText(auth.Username.Value, bodyStyle), newIconButton("Copy Username", icons.Copy, func() { detailCopy("Username", auth.Username.Value) })))
 			}
@@ -154,10 +88,10 @@ func newEntryDetailWithClear(ctx context.Context, item *model.Item, window fyne.
 		if len(credentialFields) > 0 {
 			appendDetailSection(&bodyObjects, container.New(layout.NewCustomPaddedVBoxLayout(theme.Size(theme.SizeNamePadding)), credentialFields...))
 		}
-		if decoded.totp != nil {
-			appendDetailSection(&bodyObjects, detailTOTP(ctx, *decoded.totp))
+		if decoded.TOTP != nil {
+			appendDetailSection(&bodyObjects, detailTOTP(ctx, *decoded.TOTP))
 		}
-		if note := decoded.note; note != nil && note.Content.Value != "" {
+		if note := decoded.Note; note != nil && note.Content.Value != "" {
 			copyNotes := newIconButton("Copy Notes", icons.Copy, func() { detailCopy("Notes", note.Content.Value) })
 			noteValue := newText(preserveLineEdgeSpaces(note.Content.Value), bodyStyle)
 			noteValue.Wrapping = fyne.TextWrapBreak
@@ -214,7 +148,7 @@ func newEntryDetailWithClear(ctx context.Context, item *model.Item, window fyne.
 }
 
 func detailSSHKey(window fyne.Window, title string, credential cxf.SSHKey, passphrase *cxf.BasicAuth) ([]fyne.CanvasObject, []*detailSecret, error) {
-	privateText, publicText, fingerprint, err := FormatSSHKey(credential)
+	privateText, publicText, fingerprint, err := model.FormatSSHKey(credential)
 	if err != nil {
 		return nil, nil, err
 	}

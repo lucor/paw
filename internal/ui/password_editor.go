@@ -48,22 +48,22 @@ func NewPasswordEditor(item *model.Item, isNew bool) (*PasswordEditor, error) {
 	if item.Metadata.Type != model.PasswordItemType {
 		return nil, errors.New("item is not a password")
 	}
-	decoded, err := decodeEntryDetailCredentials(item.Credentials)
+	decoded, err := model.DecodeCredentials(item.Credentials)
 	if err != nil {
 		return nil, err
 	}
-	if decoded.basicAuth == nil {
+	if decoded.BasicAuth == nil {
 		return nil, errors.New("password credential is missing")
 	}
 
 	secret := ""
-	if decoded.basicAuth.Password != nil {
-		secret = decoded.basicAuth.Password.Value
+	if decoded.BasicAuth.Password != nil {
+		secret = decoded.BasicAuth.Password.Value
 	}
 	editor := &PasswordEditor{
 		item:           item,
-		basicAuth:      decoded.basicAuth,
-		basicAuthIndex: decoded.basicAuthIndex,
+		basicAuth:      decoded.BasicAuth,
+		basicAuthIndex: decoded.BasicAuthIndex,
 		Title:          widget.NewEntry(),
 		Password:       NewPasswordField(),
 		titleError:     newErrorText(""),
@@ -72,7 +72,7 @@ func NewPasswordEditor(item *model.Item, isNew bool) (*PasswordEditor, error) {
 		editor.Title.SetText(item.Title)
 	}
 	editor.Password.Entry.SetText(secret)
-	editor.PasswordSpec = passwordSpecFromField(decoded.basicAuth.Password)
+	editor.PasswordSpec = passwordSpecFromField(decoded.BasicAuth.Password)
 	editor.initialTitle = editor.Title.Text
 	editor.initialSecret = secret
 	editor.initialMode = editor.PasswordSpec.Mode
@@ -125,7 +125,7 @@ func (e *PasswordEditor) UpdatedItem() (*model.Item, error) {
 		return nil, err
 	}
 	credential.Password = password
-	if err := putBasicAuthCredential(updated, e.basicAuthIndex, credential); err != nil {
+	if err := updated.SetBasicAuth(e.basicAuthIndex, credential); err != nil {
 		return nil, err
 	}
 	if err := updated.Validate(); err != nil {

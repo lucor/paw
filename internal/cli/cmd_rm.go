@@ -53,7 +53,7 @@ func (cmd *RemoveCmd) Run(ctx context.Context) error {
 		return err
 	}
 
-	summary, err := findVaultItem(vault, cmd.itemName, cmd.itemType)
+	summary, err := vault.FindItem(cmd.itemName, cmd.itemType)
 	if err != nil {
 		return err
 	}

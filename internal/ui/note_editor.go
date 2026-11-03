@@ -42,18 +42,18 @@ func NewNoteEditor(item *model.Item, isNew bool) (*NoteEditor, error) {
 	if item.Metadata.Type != model.NoteItemType {
 		return nil, errors.New("item is not a note")
 	}
-	decoded, err := decodeEntryDetailCredentials(item.Credentials)
+	decoded, err := model.DecodeCredentials(item.Credentials)
 	if err != nil {
 		return nil, err
 	}
-	if decoded.note == nil {
+	if decoded.Note == nil {
 		return nil, errors.New("note credential is missing")
 	}
 
 	editor := &NoteEditor{
 		item:       item,
-		note:       decoded.note,
-		noteIndex:  decoded.noteIndex,
+		note:       decoded.Note,
+		noteIndex:  decoded.NoteIndex,
 		Title:      widget.NewEntry(),
 		Notes:      widget.NewMultiLineEntry(),
 		titleError: newErrorText(""),
@@ -61,9 +61,9 @@ func NewNoteEditor(item *model.Item, isNew bool) (*NoteEditor, error) {
 	if !isNew {
 		editor.Title.SetText(item.Title)
 	}
-	editor.Notes.SetText(decoded.note.Content.Value)
+	editor.Notes.SetText(decoded.Note.Content.Value)
 	editor.initialTitle = editor.Title.Text
-	editor.initialNotes = decoded.note.Content.Value
+	editor.initialNotes = decoded.Note.Content.Value
 	editor.titleError.Hide()
 	editor.Title.OnChanged = func(value string) {
 		updateTitleSaveButton(editor.SaveButton, value)
@@ -104,7 +104,7 @@ func (e *NoteEditor) UpdatedItem() (*model.Item, error) {
 	note := *e.note
 	note.Content.FieldType = cxf.FieldTypeString
 	note.Content.Value = e.Notes.Text
-	if err := putNoteCredential(updated, e.noteIndex, note); err != nil {
+	if err := updated.SetNote(e.noteIndex, note); err != nil {
 		return nil, err
 	}
 	if err := updated.Validate(); err != nil {

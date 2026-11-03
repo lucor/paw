@@ -123,12 +123,12 @@ func TestLoginEditorUpdatesCredentialsAndPreservesTOTP(t *testing.T) {
 	require.Equal(t, "GitHub work", updated.Title)
 	require.Equal(t, "work@example.com", *updated.Subtitle)
 	require.Equal(t, []string{"https://example.org"}, updated.Scope.URLs)
-	decoded, err := decodeEntryDetailCredentials(updated.Credentials)
+	decoded, err := model.DecodeCredentials(updated.Credentials)
 	require.NoError(t, err)
-	require.Equal(t, "work@example.com", decoded.basicAuth.Username.Value)
-	require.Equal(t, "new-synthetic-secret", decoded.basicAuth.Password.Value)
-	require.Equal(t, "Updated private note", decoded.note.Content.Value)
-	require.Equal(t, "JBSWY3DPEHPK3PXP", decoded.totp.Secret)
+	require.Equal(t, "work@example.com", decoded.BasicAuth.Username.Value)
+	require.Equal(t, "new-synthetic-secret", decoded.BasicAuth.Password.Value)
+	require.Equal(t, "Updated private note", decoded.Note.Content.Value)
+	require.Equal(t, "JBSWY3DPEHPK3PXP", decoded.TOTP.Secret)
 	var oldTOTP cxf.TOTP
 	var newTOTP cxf.TOTP
 	require.NoError(t, json.Unmarshal(item.Credentials[2], &oldTOTP))
@@ -162,13 +162,13 @@ func TestLoginEditorAddsTOTPUsingStandardDefaults(t *testing.T) {
 
 	updated, err := editor.UpdatedItem()
 	require.NoError(t, err)
-	decoded, err := decodeEntryDetailCredentials(updated.Credentials)
+	decoded, err := model.DecodeCredentials(updated.Credentials)
 	require.NoError(t, err)
-	require.Equal(t, "JBSWY3DPEHPK3PXP", decoded.totp.Secret)
-	require.Equal(t, cxf.CredentialTypeTOTP, decoded.totp.Type)
-	require.Equal(t, strings.ToLower(string(paw.TOTPHashDefault)), decoded.totp.Algorithm)
-	require.Equal(t, uint16(paw.TOTPIntervalDefault), decoded.totp.Period)
-	require.Equal(t, uint16(paw.TOTPDigitsDefault), decoded.totp.Digits)
+	require.Equal(t, "JBSWY3DPEHPK3PXP", decoded.TOTP.Secret)
+	require.Equal(t, cxf.CredentialTypeTOTP, decoded.TOTP.Type)
+	require.Equal(t, strings.ToLower(string(paw.TOTPHashDefault)), decoded.TOTP.Algorithm)
+	require.Equal(t, uint16(paw.TOTPIntervalDefault), decoded.TOTP.Period)
+	require.Equal(t, uint16(paw.TOTPDigitsDefault), decoded.TOTP.Digits)
 }
 
 func TestLegacyTOTPPreferencesDoNotAffectNewAuthenticatorDefaults(t *testing.T) {
@@ -184,11 +184,11 @@ func TestLegacyTOTPPreferencesDoNotAffectNewAuthenticatorDefaults(t *testing.T) 
 	editor.TOTPSecret.SetText("JBSWY3DPEHPK3PXP")
 	updated, err := editor.UpdatedItem()
 	require.NoError(t, err)
-	decoded, err := decodeEntryDetailCredentials(updated.Credentials)
+	decoded, err := model.DecodeCredentials(updated.Credentials)
 	require.NoError(t, err)
-	require.Equal(t, strings.ToLower(string(paw.TOTPHashDefault)), decoded.totp.Algorithm)
-	require.Equal(t, uint16(paw.TOTPDigitsDefault), decoded.totp.Digits)
-	require.Equal(t, uint16(paw.TOTPIntervalDefault), decoded.totp.Period)
+	require.Equal(t, strings.ToLower(string(paw.TOTPHashDefault)), decoded.TOTP.Algorithm)
+	require.Equal(t, uint16(paw.TOTPDigitsDefault), decoded.TOTP.Digits)
+	require.Equal(t, uint16(paw.TOTPIntervalDefault), decoded.TOTP.Period)
 }
 
 func TestTOTPSecretNormalizationPreservesInvalidCharacters(t *testing.T) {
@@ -281,9 +281,9 @@ func TestTOTPSettingsDialogLoadsStoredParametersAndPreservesNonFiveInterval(t *t
 	require.Equal(t, stored, editor.totpSettings, "editing uses the stored parameters, not current defaults")
 	updatedItem, err := editor.UpdatedItem()
 	require.NoError(t, err)
-	updatedCredentials, err := decodeEntryDetailCredentials(updatedItem.Credentials)
+	updatedCredentials, err := model.DecodeCredentials(updatedItem.Credentials)
 	require.NoError(t, err)
-	require.Equal(t, stored, *updatedCredentials.totp, "saving without changes preserves imported per-item parameters")
+	require.Equal(t, stored, *updatedCredentials.TOTP, "saving without changes preserves imported per-item parameters")
 
 	showTOTPSettingsDialog(editor, window)
 	popup := totpDialogOverlay(window)
@@ -304,11 +304,11 @@ func TestTOTPSettingsDialogLoadsStoredParametersAndPreservesNonFiveInterval(t *t
 	test.Tap(totpDialogAction(t, popup, "Apply"))
 	updated, err := editor.UpdatedItem()
 	require.NoError(t, err)
-	decoded, err := decodeEntryDetailCredentials(updated.Credentials)
+	decoded, err := model.DecodeCredentials(updated.Credentials)
 	require.NoError(t, err)
-	require.Equal(t, "sha1", decoded.totp.Algorithm)
-	require.Equal(t, uint16(7), decoded.totp.Digits)
-	require.Equal(t, uint16(47), decoded.totp.Period, "Apply preserves valid intervals that are not a multiple of five")
+	require.Equal(t, "sha1", decoded.TOTP.Algorithm)
+	require.Equal(t, uint16(7), decoded.TOTP.Digits)
+	require.Equal(t, uint16(47), decoded.TOTP.Period, "Apply preserves valid intervals that are not a multiple of five")
 }
 
 func TestTOTPSettingsDialogRejectsUnsupportedParameters(t *testing.T) {
@@ -457,19 +457,19 @@ func TestLoginEditorUpdatesAndRemovesTOTP(t *testing.T) {
 	require.False(t, editor.totpError.Visible(), "a corrected secret clears the error immediately")
 	updated, err := editor.UpdatedItem()
 	require.NoError(t, err)
-	decoded, err := decodeEntryDetailCredentials(updated.Credentials)
+	decoded, err := model.DecodeCredentials(updated.Credentials)
 	require.NoError(t, err)
-	require.Equal(t, "MZXW6YTBOI======", decoded.totp.Secret)
-	require.Equal(t, "sha1", decoded.totp.Algorithm)
-	require.Equal(t, uint16(30), decoded.totp.Period)
-	require.Equal(t, uint16(6), decoded.totp.Digits)
+	require.Equal(t, "MZXW6YTBOI======", decoded.TOTP.Secret)
+	require.Equal(t, "sha1", decoded.TOTP.Algorithm)
+	require.Equal(t, uint16(30), decoded.TOTP.Period)
+	require.Equal(t, uint16(6), decoded.TOTP.Digits)
 
 	editor.TOTPSecret.SetText("")
 	updated, err = editor.UpdatedItem()
 	require.NoError(t, err)
-	decoded, err = decodeEntryDetailCredentials(updated.Credentials)
+	decoded, err = model.DecodeCredentials(updated.Credentials)
 	require.NoError(t, err)
-	require.Nil(t, decoded.totp, "clearing the optional secret removes the TOTP credential")
+	require.Nil(t, decoded.TOTP, "clearing the optional secret removes the TOTP credential")
 }
 
 func TestLoginEditorValidatesTitleAndWebsite(t *testing.T) {

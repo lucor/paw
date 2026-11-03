@@ -5,16 +5,13 @@ package ui
 
 import (
 	"crypto"
-	"crypto/ed25519"
-	"crypto/x509"
-	"encoding/base64"
-	"fmt"
 	"io"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/widget"
 	"go.lucor.dev/cxf"
+	"go.lucor.dev/paw/internal/model"
 	"go.lucor.dev/paw/internal/sshkey"
 	"golang.org/x/crypto/ssh"
 )
@@ -52,7 +49,7 @@ func (e *SSHKeyEditor) ConnectWindow(window fyne.Window) {
 }
 
 func (e *SSHKeyEditor) usePrivateKey(private crypto.PrivateKey, keyType, passphrase string, window fyne.Window) {
-	credential, err := encodeSSHKey(private, keyType, e.Title.Text)
+	credential, err := model.EncodeSSHKey(private, keyType, e.Title.Text)
 	if err == nil {
 		err = e.SetCredential(credential, passphrase)
 	}
@@ -67,18 +64,7 @@ func GenerateSSHKey() (cxf.SSHKey, error) {
 	if err != nil {
 		return cxf.SSHKey{}, err
 	}
-	return encodeSSHKey(key.PrivateKey(), key.PublicKey().Type(), "")
-}
-
-func encodeSSHKey(private crypto.PrivateKey, keyType, comment string) (cxf.SSHKey, error) {
-	if key, ok := private.(*ed25519.PrivateKey); ok {
-		private = *key
-	}
-	der, err := x509.MarshalPKCS8PrivateKey(private)
-	if err != nil {
-		return cxf.SSHKey{}, fmt.Errorf("cannot encode SSH private key")
-	}
-	return cxf.SSHKey{Type: cxf.CredentialTypeSSHKey, KeyType: keyType, KeyComment: comment, PrivateKey: base64.RawURLEncoding.EncodeToString(der)}, nil
+	return model.EncodeSSHKey(key.PrivateKey(), key.PublicKey().Type(), "")
 }
 
 func (e *SSHKeyEditor) importKey(window fyne.Window) {

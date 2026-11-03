@@ -5,9 +5,6 @@ package ui
 
 import (
 	"context"
-	"crypto/x509"
-	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"log"
 	"runtime"
@@ -17,13 +14,11 @@ import (
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/driver/desktop"
 	"github.com/godbus/dbus/v5"
-	"go.lucor.dev/cxf"
 
 	"go.lucor.dev/paw/internal/agent"
 	"go.lucor.dev/paw/internal/icon"
 	"go.lucor.dev/paw/internal/model"
 	"go.lucor.dev/paw/internal/storage"
-	"golang.org/x/crypto/ssh"
 )
 
 const (
@@ -185,17 +180,13 @@ func (a *app) addSSHKeyToAgent(item *model.Item) error {
 	if item.Metadata.Type != model.SSHKeyItemType || !item.Metadata.AddToAgent {
 		return nil
 	}
-	credential, err := uiSSHCredential(item)
+	credential, err := item.SSHKey()
 	if err != nil {
 		return err
 	}
-	der, err := base64.RawURLEncoding.DecodeString(credential.PrivateKey)
+	key, _, err := model.ParseSSHKey(credential)
 	if err != nil {
-		return fmt.Errorf("unable to decode SSH private key")
-	}
-	key, err := x509.ParsePKCS8PrivateKey(der)
-	if err != nil {
-		return fmt.Errorf("unable to parse SSH private key")
+		return err
 	}
 	if c := a.agentClient(); c != nil {
 		return c.AddSSHKey(key, credential.KeyComment)
@@ -208,44 +199,18 @@ func (a *app) removeSSHKeyFromAgent(item *model.Item) error {
 	if item.Metadata.Type != model.SSHKeyItemType {
 		return nil
 	}
-	credential, err := uiSSHCredential(item)
+	credential, err := item.SSHKey()
 	if err != nil {
 		return err
 	}
-	der, err := base64.RawURLEncoding.DecodeString(credential.PrivateKey)
+	_, publicKey, err := model.ParseSSHKey(credential)
 	if err != nil {
-		return fmt.Errorf("unable to decode SSH private key")
-	}
-	key, err := x509.ParsePKCS8PrivateKey(der)
-	if err != nil {
-		return fmt.Errorf("unable to parse SSH private key")
-	}
-	signer, err := ssh.NewSignerFromKey(key)
-	if err != nil {
-		return fmt.Errorf("unsupported SSH private key")
+		return err
 	}
 	if c := a.agentClient(); c != nil {
-		return c.RemoveSSHKey(signer.PublicKey())
+		return c.RemoveSSHKey(publicKey)
 	}
 	return nil
-}
-
-// uiSSHCredential reads the SSH key credential from an item.
-func uiSSHCredential(item *model.Item) (cxf.SSHKey, error) {
-	for _, raw := range item.Credentials {
-		typeName, err := cxf.CredentialTypeOf(raw)
-		if err != nil {
-			return cxf.SSHKey{}, err
-		}
-		if typeName == cxf.CredentialTypeSSHKey {
-			var credential cxf.SSHKey
-			if err := json.Unmarshal(raw, &credential); err != nil {
-				return cxf.SSHKey{}, err
-			}
-			return credential, nil
-		}
-	}
-	return cxf.SSHKey{}, fmt.Errorf("SSH key credential is missing")
 }
 
 // addSSHKeysToAgent adds configured SSH items from the current vault.

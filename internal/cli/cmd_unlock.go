@@ -82,11 +82,11 @@ func (cmd *UnlockCmd) addSSHKeysToAgent(c agent.PawAgent, vault *model.Vault) er
 		if !item.Metadata.AddToAgent {
 			continue
 		}
-		credential, err := sshCredential(item)
+		credential, err := item.SSHKey()
 		if err != nil {
 			return err
 		}
-		privateKey, publicKey, err := sshAgentKey(credential)
+		privateKey, publicKey, err := model.ParseSSHKey(credential)
 		if err != nil {
 			return err
 		}

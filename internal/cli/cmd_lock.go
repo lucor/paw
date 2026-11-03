@@ -81,11 +81,11 @@ func (cmd *LockCmd) removeSSHKeysFromAgent(c agent.PawAgent) error {
 		if !item.Metadata.AddToAgent {
 			continue
 		}
-		credential, err := sshCredential(item)
+		credential, err := item.SSHKey()
 		if err != nil {
 			return err
 		}
-		_, publicKey, err := sshAgentKey(credential)
+		_, publicKey, err := model.ParseSSHKey(credential)
 		if err != nil {
 			return err
 		}

@@ -157,15 +157,15 @@ func (a *app) makeCurrentVaultView() fyne.CanvasObject {
 				log.Printf("unable to load login TOTP for %q: %v", summary.Title, err)
 				continue
 			}
-			credentials, err := decodeEntryDetailCredentials(loaded.Credentials)
-			if err != nil || credentials.totp == nil {
+			credentials, err := model.DecodeCredentials(loaded.Credentials)
+			if err != nil || credentials.TOTP == nil {
 				continue
 			}
-			username := credentials.totp.Username
+			username := credentials.TOTP.Username
 			if username == "" {
 				username = subtitle
 			}
-			codeEntries = append(codeEntries, codesEntry{Title: summary.Title, Username: username, ItemID: summary.ID, Icon: summaryIcon(&summary), Credential: *credentials.totp})
+			codeEntries = append(codeEntries, codesEntry{Title: summary.Title, Username: username, ItemID: summary.ID, Icon: summaryIcon(&summary), Credential: *credentials.TOTP})
 		}
 	}
 	codesContext, codesCancel := context.WithCancel(context.Background())

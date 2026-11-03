@@ -186,7 +186,7 @@ func TestAddPasswordUsesGeneratorAndStoresNote(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, f.stored, 1)
 	item := f.stored[0]
-	require.Equal(t, paw.PinPassword, passwordSettings(fixtureBasicAuth(t, item).Password).Mode)
+	require.Equal(t, paw.PinPassword, model.PasswordSettingsFromField(fixtureBasicAuth(t, item).Password).Mode)
 	require.Len(t, fixtureBasicAuth(t, item).Password.Value, paw.PinPasswordDefaultLength)
 	require.Contains(t, out, "added")
 }
@@ -221,7 +221,7 @@ func TestEditLoginPasswordAndSSHKey(t *testing.T) {
 		require.Equal(t, "https://new.example.com", updated.Scope.URLs[0])
 		auth := fixtureBasicAuth(t, updated)
 		require.Equal(t, "alice-new", auth.Username.Value)
-		require.Equal(t, paw.PinPassword, passwordSettings(auth.Password).Mode)
+		require.Equal(t, paw.PinPassword, model.PasswordSettingsFromField(auth.Password).Mode)
 		require.Equal(t, "updated note", fixtureNote(t, updated).Content.Value)
 		require.Len(t, f.stored, 1)
 	})
@@ -235,7 +235,7 @@ func TestEditLoginPasswordAndSSHKey(t *testing.T) {
 			[]string{"edit", "--session=test", "personal/password/account"}, newEditCommand(f.base),
 			"3\n\n")
 		require.NoError(t, err)
-		require.Equal(t, paw.PinPassword, passwordSettings(fixtureBasicAuth(t, f.stored[0]).Password).Mode)
+		require.Equal(t, paw.PinPassword, model.PasswordSettingsFromField(fixtureBasicAuth(t, f.stored[0]).Password).Mode)
 		require.Len(t, fixtureBasicAuth(t, f.stored[0]).Password.Value, paw.PinPasswordDefaultLength)
 		require.Len(t, f.stored, 1)
 	})
@@ -362,9 +362,9 @@ func TestSSHKeyOperationsAreInjected(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, generated)
 	require.Len(t, f.stored, 1)
-	credential, err := sshCredential(f.stored[0])
+	credential, err := f.stored[0].SSHKey()
 	require.NoError(t, err)
-	_, _, fingerprint, err := sshKeyFromCXF(credential)
+	_, _, fingerprint, err := model.FormatSSHKey(credential)
 	require.NoError(t, err)
 	require.Equal(t, generatedKey.Fingerprint(), fingerprint)
 	failure := errors.New("file read failed")
