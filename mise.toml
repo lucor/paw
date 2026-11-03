@@ -18,6 +18,10 @@ resvg --width 1024 --height 1024 logo/paw-macos.svg logo/paw-macos.png
 oxipng --opt 2 --strip safe --nb --nc logo/paw-macos.png
 """
 
+[tasks.licenses]
+description = "Generate third-party license notices from the Go module"
+run = "go tool lian --dump --excluded github.com/fyne-io/gomobile-bridge@v0.1.0 -o THIRD_PARTY_LICENSES go.mod"
+
 [tasks.setup]
 description = "Download Go module dependencies"
 run = "go mod download"
