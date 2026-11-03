@@ -180,7 +180,9 @@ func runUIE2EScreenshotGallery(t *testing.T, outputDir string, variant fyne.Them
 	captureCurrent("edit-vault-customized", fyne.NewSize(440, 800))
 
 	listOptions := entryListFixture()
-	githubFavicon := darkFaviconFixture()
+	githubFaviconData, err := os.ReadFile("testdata/github-favicon.png")
+	require.NoError(t, err)
+	githubFavicon := model.NewFavicon("github.com", githubFaviconData, "png")
 	listOptions.Entries[0].Icon = githubFavicon
 	list := NewEntryList(listOptions)
 	capture("entry-list", list)

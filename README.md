@@ -2,15 +2,15 @@
     <img alt="Paw" src="logo/paw.png" height="128" />
 </div>
 
-# Simple, modern and privacy-focused Open Source password manager
+# Simple, modern and privacy-focused open-source password manager
 
-Paw is a password manager designed to offer a secure and user-friendly solution for managing your digital data across multiple platforms, featuring modern encryption, making it an ideal tool for both personal and professional use.
+Paw is an offline-first password manager for storing logins, passwords, secure notes, SSH keys, and authenticator codes.
 
-It is written in Go and uses [Fyne](https://github.com/fyne-io/fyne) as UI toolkit and [age](https://github.com/FiloSottile/age) as encryption library.
+Paw is written in Go, uses [Fyne](https://github.com/fyne-io/fyne) for its interface, and uses [age](https://github.com/FiloSottile/age) to encrypt vault data.
 
 ## Warning
 
-**This software is work in progress, and didn't went through a full security audit.**
+**This software is a work in progress and has not undergone a full security audit.**
 
 **Do not expect it to be bug free and do not rely on it for any type of security.**
 
@@ -23,21 +23,22 @@ It is written in Go and uses [Fyne](https://github.com/fyne-io/fyne) as UI toolk
 
 ## Main features
 
-* Cross platform application (linux, macOS, Windows, BSD ...) with a single codebase
-* Desktop, Mobile and CLI application with a single binary
-* Minimal direct dependencies
-* Agent to handle SSH keys and CLI sessions
-* Open source: code can be audited
-* Audit passwords against data breaches
-* TOTP support
-* Password import/export
+* Cross-platform desktop application for Linux, macOS, Windows, and FreeBSD
+* Desktop GUI and CLI modes from the same executable
+* SSH agent integration and browser extension support
+* Password audits for exposed, weak, and reused passwords
+* Authenticator code (TOTP) support
+* Native CXF-based credential storage
+* Paw backup export and restore, plus SSH key import and export
 
 ### Later goals
 
-* Automatically detect and use password rules for known web sites that require ones
-* Automatic backup / syncronization
-* Web application
-* Unicode password support
+* Synchronization between devices
+* Browser extension autofill
+* CXF import from other password managers
+* Support for more CXF credential types, including passkeys, credit cards, API keys, Wi-Fi credentials, and identity documents
+* Email masking support
+* Mobile app
 
 ## Installation
 
@@ -65,53 +66,36 @@ Download and run the `windows_amd64.exe` package.
 
 Download and extract the `.tar.xz` package for your architecture. Install GNU Make (`gmake`) if needed, then from the extracted directory containing the `Makefile`, run `gmake user-install` to install Paw for your user, or `sudo gmake install` to install it system-wide.
 
-## How it works - cryptography details
+## How vaults and passwords work
 
 ### Vault initialization
 
-One or more vaults can be initialized to store passwords and identities.
+Paw stores credentials in one or more local vaults.
 
-When the vault is initialized user will be prompt for a vault name and password.
-An [age](https://github.com/FiloSottile/age) key is generated and it is encrypted using an age Scrypt recipient with the provided password and saved on disk (key.age)
-The X25519 identity and its recipient from the key file are used to decrypt and encrypt the vault data.
-Each item is stored separately on disk so that the content can be decrypted manually using the age tool, if needed.
-All the items' metadata are encrypted and stored into the vault.age file so that no information are in clear text.
+When creating a vault, Paw generates an age X25519 key and protects it with the master password using age's scrypt-based password encryption. Paw uses that key to encrypt the vault index and individual items. The vault name and appearance are kept separately as local listing metadata.
 
-### Random password
+The protected key is stored in `key.age`, the encrypted vault index in `vault.age`, and each item in its own encrypted file. Item contents and their index summaries are encrypted; `metadata.json` contains the vault's unencrypted name, icon, and color so Paw can list locked vaults.
 
-Random password are derived reading byte-by-byte the block of randomness from a [HKDF](https://pkg.go.dev/golang.org/x/crypto/hkdf) cryptographic key derivation function that uses the age key as secret. Printable characters that match the desired password rule (uppercase, lowercase, symbols and digits) are then included in the generated password.
+### Password generation
 
-### Custom password
+Random passwords and PINs use Go's `crypto/rand` directly and do not depend on the vault key. Random passwords use the selected character sets: lowercase letters, uppercase letters, numbers, and symbols. Passphrases join randomly selected English words with hyphens.
 
-Where a generated password is not applicable a custom password can be specified.
+### Custom passwords
 
-### Vault structure
+You can enter a password manually or edit a generated password before saving. Paw stores the current password field value.
 
-Vault internally is organized hierarchically like:
+### Backups
 
-```
-- vault
-    ├── login
-    |    └── www.example.com
-    |    └── my.site.com
-    ├── password
-    |    └── mypassword
-    └── note
-         └── mysecretnote
-```
-
-where login, password and note are the Paw items, see the dedicated section for details.
+Paw exports complete vault backups as plaintext `.cxf` files or password-encrypted `.cxf.age` files. Restore accepts backups exported by Paw and creates a separate vault with a new master password and encryption key. It does not overwrite or merge existing vaults.
 
 ### Items
 
-Items are special templates aim to help the identity management.
+Paw supports these item types:
 
-Currently the following items are available:
-
-* login
-* note
-* password
-* ssh_key
+* Login: username, password, website, optional authenticator key, and notes
+* Password: a standalone password
+* Secure note: multiline text
+* SSH key: public and private key material, with an optional passphrase
 
 ## Threat model
 
@@ -131,7 +115,7 @@ See <https://lucor.dev/projects/#maintenance-policy>
 
 * [age](https://github.com/FiloSottile/age) for the encryption library
 * [Fyne](https://github.com/fyne-io/fyne) for the UI toolkit
-* [Tabler icons](https://tabler.io/icons) for the icons
+* [Lucide](https://lucide.dev/) for the current UI icon set
 
 Also thanks to these Open Source password managers that inspired Paw:
 
