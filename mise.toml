@@ -7,6 +7,15 @@ oxipng = "10.2.1"
 description = "Generate Lucide PNG icons for the interface"
 run = "bash internal/ui/assets/icons/generate-icons.sh"
 
+[tasks.generate-app-icon]
+description = "Render the high-resolution app icon from its SVG source"
+run = """
+set -eu
+resvg --width 1024 --height 1024 logo/paw.svg internal/icon/paw.png
+oxipng --opt 2 --strip safe --nb --nc internal/icon/paw.png
+cp internal/icon/paw.png logo/paw.png
+"""
+
 [tasks.setup]
 description = "Download Go module dependencies"
 run = "go mod download"
