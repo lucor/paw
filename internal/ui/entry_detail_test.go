@@ -210,7 +210,7 @@ func TestEntryDetailCredentialsAndActions(t *testing.T) {
 		}
 	}
 	require.NotContains(t, auditTexts(view), "synthetic-secret")
-	require.NotContains(t, buttons, "Copy Website")
+	require.Contains(t, buttons, "Copy Website")
 	require.Contains(t, buttons, "Copy Notes")
 	require.Contains(t, buttons, "Open website")
 	require.Contains(t, auditTexts(view), "dev@example.com")
@@ -223,6 +223,8 @@ func TestEntryDetailCredentialsAndActions(t *testing.T) {
 	require.NotContains(t, auditTexts(view), "synthetic-secret")
 	test.Tap(buttons["Copy Username"])
 	require.Equal(t, "dev@example.com", fyne.CurrentApp().Clipboard().Content())
+	test.Tap(buttons["Copy Website"])
+	require.Equal(t, "https://github.com", fyne.CurrentApp().Clipboard().Content())
 	test.Tap(buttons["Copy Notes"])
 	require.Equal(t, "Personal account for development.", fyne.CurrentApp().Clipboard().Content())
 	test.Tap(buttons["Entry actions"])
@@ -253,6 +255,23 @@ func TestEntryDetailCredentialsAndActions(t *testing.T) {
 	after, err := json.Marshal(item)
 	require.NoError(t, err)
 	require.JSONEq(t, string(before), string(after))
+}
+
+func TestDetailWebsiteCopiesUnopenableAddress(t *testing.T) {
+	test.NewTempApp(t)
+	const address = "ftp://example.com/archive"
+	view := detailWebsite(address)
+	test.NewTempWindow(t, view)
+	var copyButton *iconButton
+	for _, object := range test.LaidOutObjects(view) {
+		if button, ok := object.(*iconButton); ok && button.AccessibilityLabel() == "Copy Website" {
+			copyButton = button
+			break
+		}
+	}
+	require.NotNil(t, copyButton)
+	test.Tap(copyButton)
+	require.Equal(t, address, fyne.CurrentApp().Clipboard().Content())
 }
 
 func TestEntryDetailPasswordAndNote(t *testing.T) {

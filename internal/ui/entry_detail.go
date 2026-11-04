@@ -242,9 +242,10 @@ func detailWebsite(address string) fyne.CanvasObject {
 	if strings.TrimSpace(address) == "" {
 		return nil
 	}
+	copyWebsite := newIconButton("Copy Website", icons.Copy, func() { detailCopy("Website", address) })
 	parsed, err := url.Parse(address)
 	if err != nil || parsed.Host == "" || (parsed.Scheme != "https" && parsed.Scheme != "http") {
-		return newDetailField("Website", newText(address, bodyStyle))
+		return newDetailField("Website", newText(address, bodyStyle), copyWebsite)
 	}
 	link := widget.NewHyperlink(address, parsed)
 	link.SizeName = bodyStyle.size
@@ -254,7 +255,7 @@ func detailWebsite(address string) fyne.CanvasObject {
 			fyne.LogError("could not open website", err)
 		}
 	})
-	return newDetailField("Website", link, open)
+	return newDetailField("Website", link, open, copyWebsite)
 }
 
 // preserveLineEdgeSpaces keeps leading and trailing spaces visible in Fyne labels.
