@@ -22,8 +22,7 @@ const (
 // showDeleteConfirmation displays a text-only destructive confirmation.
 func showDeleteConfirmation(titleText, actionText, messageText string, confirm func(), parent fyne.Window) *dialog.CustomDialog {
 	titleIcon := container.NewCenter(container.NewGridWrap(fyne.NewSquareSize(deleteConfirmationIconSize), widget.NewIcon(icons.Delete)))
-	title := newText(titleText, bodyStyle)
-	title.TextStyle = fyne.TextStyle{Bold: true}
+	title := newText(titleText, itemTitleStyle)
 	message := newText(messageText, bodyStyle)
 	content := container.NewVBox(container.NewHBox(titleIcon, title), message)
 	d := dialog.NewCustom("", "", content, parent)

@@ -101,7 +101,7 @@ func NewCreateVault(back func(), create func(name, password string, appearance m
 	}
 	previewObject := preview()
 	fields := container.New(layout.NewCustomPaddedVBoxLayout(theme.Size(theme.SizeNameInnerPadding)),
-		container.New(layout.NewCustomPaddedLayout(24, 24, 0, 0), container.NewCenter(previewObject)),
+		container.New(layout.NewCustomPaddedLayout(pawSize(pawSizeNamePagePadding), pawSize(pawSizeNamePagePadding), 0, 0), container.NewCenter(previewObject)),
 		form,
 	)
 	formPage := newSecondaryPage(header, footer, container.NewVScroll(fields))
@@ -110,7 +110,7 @@ func NewCreateVault(back func(), create func(name, password string, appearance m
 		appearancePage := newVaultAppearanceView(name.Text, appearance, func(updated model.VaultAppearance) {
 			appearance = updated
 			previewObject = preview()
-			fields.Objects[0] = container.New(layout.NewCustomPaddedLayout(24, 24, 0, 0), container.NewCenter(previewObject))
+			fields.Objects[0] = container.New(layout.NewCustomPaddedLayout(pawSize(pawSizeNamePagePadding), pawSize(pawSizeNamePagePadding), 0, 0), container.NewCenter(previewObject))
 			fields.Refresh()
 			updateSubmit()
 		}, func() {

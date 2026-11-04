@@ -23,34 +23,37 @@ func TestFaviconPreviewBackgroundStaysLightAcrossThemes(t *testing.T) {
 	for _, variant := range []fyne.ThemeVariant{theme.VariantLight, theme.VariantDark} {
 		t.Run(variantName(variant), func(t *testing.T) {
 			app := test.NewTempApp(t)
-			app.Settings().SetTheme(variantTheme{Theme: theme.DefaultTheme(), variant: variant})
+			pawTheme := newPawTheme()
+			pawTheme.setVariant(variant, true)
+			app.Settings().SetTheme(pawTheme)
 			favicon := darkFaviconFixture()
 			preview := newIconPreview(favicon)
 			renderer := preview.CreateRenderer()
 			renderer.Refresh()
 
-			require.Equal(t, faviconPreviewBackground, preview.background.FillColor)
+			require.Equal(t, theme.Color(pawColorNameFaviconBackground), preview.background.FillColor)
 			require.Equal(t, favicon.Data, preview.icon.Resource.Content())
 
 			preview.SetResource(icons.Globe)
 			require.Equal(t, theme.Color(theme.ColorNameInputBackground), preview.background.FillColor)
-			require.NotEqual(t, faviconPreviewBackground, preview.background.FillColor)
+			require.NotEqual(t, theme.Color(pawColorNameFaviconBackground), preview.background.FillColor)
 			preview.SetFavicon(favicon)
-			require.Equal(t, faviconPreviewBackground, preview.background.FillColor)
+			require.Equal(t, theme.Color(pawColorNameFaviconBackground), preview.background.FillColor)
 
 			other := theme.VariantDark
 			if variant == theme.VariantDark {
 				other = theme.VariantLight
 			}
-			app.Settings().SetTheme(variantTheme{Theme: theme.DefaultTheme(), variant: other})
+			pawTheme.setVariant(other, true)
 			renderer.Refresh()
-			require.Equal(t, faviconPreviewBackground, preview.background.FillColor)
+			require.Equal(t, theme.Color(pawColorNameFaviconBackground), preview.background.FillColor)
 		})
 	}
 }
 
 func TestFaviconPreviewIsUsedInVaultListAndActionRows(t *testing.T) {
 	test.NewTempApp(t)
+	installPawTheme(model.ThemeSystem)
 	favicon := darkFaviconFixture()
 	options := entryListFixture()
 	options.Entries[0].Icon = favicon
@@ -61,7 +64,8 @@ func TestFaviconPreviewIsUsedInVaultListAndActionRows(t *testing.T) {
 		if preview, ok := object.(*iconPreview); ok {
 			listPreviews++
 			preview.CreateRenderer().Refresh()
-			require.Equal(t, faviconPreviewBackground, preview.background.FillColor)
+			require.Equal(t, pawSize(pawSizeNameListIcon), preview.iconSize)
+			require.Equal(t, theme.Color(pawColorNameFaviconBackground), preview.background.FillColor)
 		}
 	}
 	require.Positive(t, listPreviews)
@@ -74,15 +78,17 @@ func TestFaviconPreviewIsUsedInVaultListAndActionRows(t *testing.T) {
 		if preview, ok := object.(*iconPreview); ok {
 			codesPreview = preview
 			preview.CreateRenderer().Refresh()
+			require.Equal(t, pawSize(pawSizeNameListIcon), preview.iconSize)
 			break
 		}
 	}
 	require.NotNil(t, codesPreview)
-	require.Equal(t, faviconPreviewBackground, codesPreview.background.FillColor)
+	require.Equal(t, theme.Color(pawColorNameFaviconBackground), codesPreview.background.FillColor)
 }
 
 func TestEntryDetailUsesFaviconPreview(t *testing.T) {
 	test.NewTempApp(t)
+	installPawTheme(model.ThemeSystem)
 	item := detailFixture(t)
 	item.Metadata.Favicon = darkFaviconFixture()
 	window := test.NewTempWindow(t, nil)
@@ -98,7 +104,8 @@ func TestEntryDetailUsesFaviconPreview(t *testing.T) {
 		}
 	}
 	require.NotNil(t, preview)
-	require.Equal(t, faviconPreviewBackground, preview.background.FillColor)
+	require.Equal(t, pawSize(pawSizeNameDetailIcon), preview.iconSize)
+	require.Equal(t, theme.Color(pawColorNameFaviconBackground), preview.background.FillColor)
 }
 
 func darkFaviconFixture() *model.Favicon {

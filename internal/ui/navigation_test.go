@@ -26,7 +26,7 @@ func TestNavigationLayoutAndSelection(t *testing.T) {
 			require.InDelta(t, nav.buttons[0].Size().Width, button.Size().Width, 0.01)
 			require.GreaterOrEqual(t, button.button.Size().Height, float32(48))
 			renderer := test.WidgetRenderer(button).(*navigationButtonRenderer)
-			require.Equal(t, fyne.NewSquareSize(24), renderer.icon.Size())
+			require.Equal(t, fyne.NewSquareSize(pawSize(pawSizeNameDetailIcon)), renderer.icon.Size())
 			position := app.Driver().AbsolutePositionForObject(renderer.icon).Add(fyne.NewPos(12, 12))
 			test.TapCanvas(window.Canvas(), position)
 			require.Equal(t, i, nav.Selected)

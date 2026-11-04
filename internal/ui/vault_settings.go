@@ -25,14 +25,12 @@ func NewVaultSettingsView(name string, appearance model.VaultAppearance, edit, c
 	header := newPageHeader(backButton, newText("Vault settings", titleStyle), nil)
 
 	row := newNavigationRowWithSubtitle(name, "Change name, icon and color", newVaultIcon(appearance, vaultIconMedium), edit)
-	securityIcon := container.NewGridWrap(fyne.NewSquareSize(40), container.NewCenter(container.NewGridWrap(fyne.NewSquareSize(20), widget.NewIcon(icons.Password))))
-	dangerIcon := container.NewGridWrap(fyne.NewSquareSize(40), container.NewCenter(container.NewGridWrap(fyne.NewSquareSize(20), widget.NewIcon(icons.Delete))))
+	securityIcon := navigationRowIcon(icons.Password)
+	dangerIcon := navigationRowIcon(icons.Delete)
 	security := newNavigationRow("Change master password", securityIcon, changePassword)
 	danger := newNavigationRow("Delete vault", dangerIcon, deleteVault)
-	securityHeading := newText("Security", captionStyle)
-	securityHeading.TextStyle = fyne.TextStyle{Bold: true}
-	dangerHeading := newText("Danger zone", captionStyle)
-	dangerHeading.TextStyle = fyne.TextStyle{Bold: true}
+	securityHeading := newText("Security", sectionTitleStyle)
+	dangerHeading := newText("Danger zone", sectionTitleStyle)
 	content := container.NewVBox(row, widget.NewSeparator(),
 		container.New(layout.NewCustomPaddedVBoxLayout(0), securityHeading, security),
 		widget.NewSeparator(),

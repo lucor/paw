@@ -76,7 +76,7 @@ func (b *navigationButton) CreateRenderer() fyne.WidgetRenderer {
 	icon := widget.NewIcon(b.item.Icon)
 	indicator := canvas.NewRectangle(color.Transparent)
 	indicator.SetMinSize(fyne.NewSize(28, 2))
-	content := container.NewVBox(container.NewCenter(indicator), container.NewCenter(container.NewGridWrap(fyne.NewSquareSize(48), container.NewCenter(container.NewGridWrap(fyne.NewSquareSize(24), icon)))))
+	content := container.NewVBox(container.NewCenter(indicator), container.NewCenter(container.NewGridWrap(fyne.NewSquareSize(48), container.NewCenter(container.NewGridWrap(fyne.NewSquareSize(pawSize(pawSizeNameDetailIcon)), icon)))))
 	r := &navigationButtonRenderer{WidgetRenderer: widget.NewSimpleRenderer(container.NewStack(b.button, content)), button: b, icon: icon, indicator: indicator}
 	r.Refresh()
 	return r

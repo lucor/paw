@@ -11,6 +11,18 @@ import (
 	"fyne.io/fyne/v2/widget"
 )
 
+const (
+	pawColorNameFaviconBackground fyne.ThemeColorName = "pawFaviconBackground"
+
+	pawSizeNamePagePadding    fyne.ThemeSizeName = "pawPagePadding"
+	pawSizeNameFormSpacing    fyne.ThemeSizeName = "pawFormSpacing"
+	pawSizeNameListIcon       fyne.ThemeSizeName = "pawListIcon"
+	pawSizeNameListIconFrame  fyne.ThemeSizeName = "pawListIconFrame"
+	pawSizeNameListIconArea   fyne.ThemeSizeName = "pawListIconArea"
+	pawSizeNameDetailIcon     fyne.ThemeSizeName = "pawDetailIcon"
+	pawSizeNameDetailIconArea fyne.ThemeSizeName = "pawDetailIconArea"
+)
+
 // pawTheme preserves Fyne defaults and overrides Paw's shared semantic colors.
 type pawTheme struct {
 	fyne.Theme
@@ -30,6 +42,9 @@ func (t *pawTheme) setVariant(variant fyne.ThemeVariant, pinned bool) {
 
 // Color overrides Paw's semantic palette and delegates all other colors.
 func (t *pawTheme) Color(name fyne.ThemeColorName, variant fyne.ThemeVariant) color.Color {
+	if name == pawColorNameFaviconBackground {
+		return color.NRGBA{R: 0xF5, G: 0xF5, B: 0xF5, A: 0xFF}
+	}
 	if t.variantPinned {
 		variant = t.variant
 	}
@@ -71,6 +86,39 @@ func (t *pawTheme) Color(name fyne.ThemeColorName, variant fyne.ThemeVariant) co
 	}
 }
 
+// Size defines Paw's shared spacing and icon sizes from scalable Fyne values.
+func (t *pawTheme) Size(name fyne.ThemeSizeName) float32 {
+	padding := t.Theme.Size(theme.SizeNamePadding)
+	switch name {
+	case pawSizeNamePagePadding:
+		return padding * 6
+	case pawSizeNameFormSpacing:
+		return padding * 4
+	case pawSizeNameListIcon:
+		return padding * 4
+	case pawSizeNameListIconFrame:
+		return padding * 8
+	case pawSizeNameListIconArea:
+		return padding * 10
+	case pawSizeNameDetailIcon:
+		return padding * 6
+	case pawSizeNameDetailIconArea:
+		return padding * 8
+	default:
+		return t.Theme.Size(name)
+	}
+}
+
+// pawSize reads a Paw token from the active theme, with a fallback for unthemed test widgets.
+func pawSize(name fyne.ThemeSizeName) float32 {
+	if app := fyne.CurrentApp(); app != nil {
+		if _, ok := app.Settings().Theme().(*pawTheme); ok {
+			return theme.Size(name)
+		}
+	}
+	return newPawTheme().Size(name)
+}
+
 // passwordStrengthColor returns the fixed color for a score in the active theme.
 func passwordStrengthColor(score int, variant fyne.ThemeVariant) color.Color {
 	light := [...]color.NRGBA{{R: 198, G: 40, B: 40, A: 255}, {R: 217, G: 95, B: 2, A: 255}, {R: 184, G: 134, B: 0, A: 255}, {R: 56, G: 142, B: 60, A: 255}, {R: 27, G: 94, B: 32, A: 255}}
@@ -90,10 +138,14 @@ type textStyle struct {
 }
 
 var (
-	titleStyle   = textStyle{size: theme.SizeNameSubHeadingText, weight: fyne.TextStyle{Bold: true}}
-	bodyStyle    = textStyle{size: theme.SizeNameText, wrapping: fyne.TextWrapWord}
-	captionStyle = textStyle{size: theme.SizeNameCaptionText, wrapping: fyne.TextWrapWord}
-	headingStyle = textStyle{size: theme.SizeNameHeadingText, weight: fyne.TextStyle{Bold: true}}
+	titleStyle        = textStyle{size: theme.SizeNameSubHeadingText, weight: fyne.TextStyle{Bold: true}}
+	itemTitleStyle    = textStyle{size: theme.SizeNameText, weight: fyne.TextStyle{Bold: true}}
+	formLabelStyle    = itemTitleStyle
+	sectionTitleStyle = textStyle{size: theme.SizeNameCaptionText, weight: fyne.TextStyle{Bold: true}}
+	countStyle        = sectionTitleStyle
+	bodyStyle         = textStyle{size: theme.SizeNameText, wrapping: fyne.TextWrapWord}
+	captionStyle      = textStyle{size: theme.SizeNameCaptionText, wrapping: fyne.TextWrapWord}
+	headingStyle      = textStyle{size: theme.SizeNameHeadingText, weight: fyne.TextStyle{Bold: true}}
 )
 
 // newText applies a shared typography role to a native label.

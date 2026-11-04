@@ -224,7 +224,8 @@ func NewEntryList(options EntryListOptions) fyne.CanvasObject {
 	}
 	vaultHeader := container.NewBorder(nil, nil, nil, controls, vaultControl)
 	listHeader := container.NewVBox(container.NewBorder(nil, nil, widget.NewIcon(icons.Search), nil, input), container.NewBorder(nil, nil, categoryDisplay, count))
-	page := container.New(layout.NewCustomPaddedLayout(24, 24, 24, 24), container.NewBorder(listHeader, nil, nil, nil, container.NewStack(list, container.NewCenter(empty))))
+	pagePadding := pawSize(pawSizeNamePagePadding)
+	page := container.New(layout.NewCustomPaddedLayout(pagePadding, pagePadding, pagePadding, pagePadding), container.NewBorder(listHeader, nil, nil, nil, container.NewStack(list, container.NewCenter(empty))))
 	navigation := NewNavigation(NavigationItem{icons.Vault, icons.VaultActive}, NavigationItem{icons.Codes, icons.CodesActive}, NavigationItem{icons.Settings, icons.SettingsActive})
 	pages := []fyne.CanvasObject{page, options.Codes, options.Settings}
 	content := container.NewStack(page)

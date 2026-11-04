@@ -13,8 +13,10 @@ import (
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/test"
 	"fyne.io/fyne/v2/theme"
+	"fyne.io/fyne/v2/widget"
 	"github.com/stretchr/testify/require"
 	"go.lucor.dev/paw/internal/model"
+	"go.lucor.dev/paw/internal/ui/assets/icons"
 )
 
 func TestPawThemeSemanticColors(t *testing.T) {
@@ -37,6 +39,25 @@ func TestPawThemeSemanticColors(t *testing.T) {
 			require.Equal(t, item.dark, pawTheme.Color(item.name, theme.VariantDark))
 		})
 	}
+}
+
+func TestPawThemeSharedSizes(t *testing.T) {
+	app := test.NewTempApp(t)
+	pawTheme := newPawTheme()
+	app.Settings().SetTheme(pawTheme)
+	basePadding := pawTheme.Theme.Size(theme.SizeNamePadding)
+	for name, expected := range map[fyne.ThemeSizeName]float32{
+		pawSizeNamePagePadding:    basePadding * 6,
+		pawSizeNameFormSpacing:    basePadding * 4,
+		pawSizeNameListIcon:       basePadding * 4,
+		pawSizeNameListIconFrame:  basePadding * 8,
+		pawSizeNameListIconArea:   basePadding * 10,
+		pawSizeNameDetailIcon:     basePadding * 6,
+		pawSizeNameDetailIconArea: basePadding * 8,
+	} {
+		require.Equal(t, expected, pawTheme.Size(name), string(name))
+	}
+	require.Equal(t, pawTheme.Theme.Size(theme.SizeNameInputBorder), pawTheme.Size(theme.SizeNameInputBorder))
 }
 
 func TestPawThemeDelegatesUnspecifiedColors(t *testing.T) {
@@ -203,4 +224,39 @@ func TestTypographyFollowsTheme(t *testing.T) {
 		require.Equal(t, theme.Color(theme.ColorNameError), errorText.Color)
 		content.Remove(errorLabel)
 	}
+}
+
+func TestSharedRowsUseSameTitleAndSecondaryTypography(t *testing.T) {
+	app := test.NewTempApp(t)
+	installPawTheme(model.ThemeSystem)
+	window := app.NewWindow("Rows")
+	t.Cleanup(window.Close)
+	action := NewActionRow("Item", "Secondary", icons.Globe, nil)
+	navigation := newNavigationRowWithSubtitle("Item", "Secondary", navigationRowIcon(icons.Globe), nil)
+	window.SetContent(container.NewVBox(action, navigation))
+	window.Show()
+
+	var navigationLabels []*widget.Label
+	fyne.DoAndWait(func() {
+		for _, object := range test.LaidOutObjects(navigation) {
+			if label, ok := object.(*widget.Label); ok {
+				navigationLabels = append(navigationLabels, label)
+			}
+		}
+	})
+	var navTitle, navSecondary *widget.Label
+	for _, label := range navigationLabels {
+		switch label.Text {
+		case "Item":
+			navTitle = label
+		case "Secondary":
+			navSecondary = label
+		}
+	}
+	require.NotNil(t, navTitle)
+	require.NotNil(t, navSecondary)
+	require.Equal(t, action.title.SizeName, navTitle.SizeName)
+	require.Equal(t, action.title.TextStyle, navTitle.TextStyle)
+	require.Equal(t, action.detail.SizeName, navSecondary.SizeName)
+	require.Equal(t, action.detail.TextStyle, navSecondary.TextStyle)
 }

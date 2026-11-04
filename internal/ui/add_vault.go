@@ -21,8 +21,8 @@ func NewAddVault(back, create, restore func()) fyne.CanvasObject {
 		backButton = button
 	}
 	header := newPageHeader(backButton, newText("Add vault", titleStyle), nil)
-	createRow := newNavigationRowWithSubtitle("Create new vault", "Start with an empty encrypted vault", container.NewGridWrap(fyne.NewSquareSize(32), widget.NewIcon(icons.PlusCircle)), create)
-	restoreRow := newNavigationRowWithSubtitle("Restore from backup", "Create a vault from a backup file", container.NewGridWrap(fyne.NewSquareSize(32), widget.NewIcon(icons.ArchiveRestore)), restore)
+	createRow := newNavigationRowWithSubtitle("Create new vault", "Start with an empty encrypted vault", navigationRowIcon(icons.PlusCircle), create)
+	restoreRow := newNavigationRowWithSubtitle("Restore from backup", "Create a vault from a backup file", navigationRowIcon(icons.ArchiveRestore), restore)
 	choices := container.New(layout.NewVBoxLayout(), createRow, widget.NewSeparator(), restoreRow)
 	return newSecondaryPage(header, nil, container.NewVScroll(choices))
 }

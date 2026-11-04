@@ -82,12 +82,13 @@ func NewNoteEditor(item *model.Item, isNew bool) (*NoteEditor, error) {
 	}
 	editor.headerTitle = newText(title, titleStyle)
 	header := newPageHeader(editor.BackButton, editor.headerTitle, editor.SaveButton)
-	titleField := container.NewVBox(newText("Title", captionStyle), editor.Title, editor.titleError)
+	titleField := container.NewVBox(newText("Title", formLabelStyle), editor.Title, editor.titleError)
 	titleField = container.New(layout.NewCustomPaddedLayout(0, 0, theme.Size(theme.SizeNamePadding), 0), titleField)
-	notesLabel := container.New(layout.NewCustomPaddedLayout(0, 0, theme.Size(theme.SizeNamePadding), 0), newText("Notes", captionStyle))
+	notesLabel := container.New(layout.NewCustomPaddedLayout(0, 0, theme.Size(theme.SizeNamePadding), 0), newText("Notes", formLabelStyle))
 	notesField := container.NewBorder(notesLabel, nil, nil, nil, editor.Notes)
 	body := container.New(layout.NewBorderLayout(titleField, nil, nil, nil), titleField, notesField)
-	editor.View = container.New(layout.NewCustomPaddedLayout(16, 24, 24, 24), container.NewBorder(header, nil, nil, nil, body))
+	pagePadding := pawSize(pawSizeNamePagePadding)
+	editor.View = container.New(layout.NewCustomPaddedLayout(pawSize(pawSizeNameFormSpacing), pagePadding, pagePadding, pagePadding), container.NewBorder(header, nil, nil, nil, body))
 	return editor, nil
 }
 

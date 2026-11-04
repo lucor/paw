@@ -13,18 +13,15 @@ import (
 	"go.lucor.dev/paw/internal/ui/assets/icons"
 )
 
-const (
-	navigationRowIconAreaSize     = 40
-	navigationRowIconSize         = 20
-	navigationRowTrailingIconSize = 16
-)
-
 func navigationRowIcon(resource fyne.Resource) fyne.CanvasObject {
+	iconSize := pawSize(pawSizeNameListIcon)
+	frameSize := pawSize(pawSizeNameListIconFrame)
+	areaSize := pawSize(pawSizeNameListIconArea)
 	if favicon, ok := resource.(*model.Favicon); ok && len(favicon.Data) > 0 {
-		preview := container.NewGridWrap(fyne.NewSquareSize(navigationRowIconSize), newIconPreviewWithIconSize(favicon, smallFaviconIconSize))
-		return container.NewGridWrap(fyne.NewSquareSize(navigationRowIconAreaSize), container.NewCenter(preview))
+		preview := newIconPreviewWithIconSize(favicon, iconSize)
+		return container.NewGridWrap(fyne.NewSquareSize(areaSize), container.NewCenter(container.NewGridWrap(fyne.NewSquareSize(frameSize), preview)))
 	}
-	return container.NewGridWrap(fyne.NewSquareSize(navigationRowIconAreaSize), container.NewCenter(container.NewGridWrap(fyne.NewSquareSize(navigationRowIconSize), widget.NewIcon(resource))))
+	return container.NewGridWrap(fyne.NewSquareSize(areaSize), container.NewCenter(container.NewGridWrap(fyne.NewSquareSize(frameSize), container.NewCenter(container.NewGridWrap(fyne.NewSquareSize(iconSize), widget.NewIcon(resource))))))
 }
 
 // newNavigationRow creates a clickable row with one text line.
@@ -51,14 +48,13 @@ func newNavigationRowWithIcon(title, subtitle string, leading fyne.CanvasObject,
 
 // newNavigationRowWithContent reuses the row layout with a secondary component.
 func newNavigationRowWithContent(title string, secondary, leading fyne.CanvasObject, trailing fyne.Resource, tapped func()) fyne.CanvasObject {
-	label := newText(title, bodyStyle)
-	label.TextStyle.Bold = true
+	label := newText(title, itemTitleStyle)
 	text := container.NewVBox(label)
 	if secondary != nil {
 		text.Add(secondary)
 	}
 	compact := container.NewThemeOverride(container.NewPadded(text), compactTextTheme{Theme: theme.Current()})
-	trailingIcon := container.NewCenter(container.NewGridWrap(fyne.NewSquareSize(navigationRowTrailingIconSize), widget.NewIcon(trailing)))
+	trailingIcon := container.NewCenter(container.NewGridWrap(fyne.NewSquareSize(pawSize(pawSizeNameListIcon)), widget.NewIcon(trailing)))
 	content := container.NewPadded(container.NewBorder(nil, nil, container.NewCenter(leading), trailingIcon, container.NewVBox(layout.NewSpacer(), compact, layout.NewSpacer())))
 	button := widget.NewButton("", tapped)
 	button.Importance = widget.LowImportance

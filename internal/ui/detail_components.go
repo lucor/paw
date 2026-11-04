@@ -30,7 +30,8 @@ func newPageHeader(back, title, trailing fyne.CanvasObject) fyne.CanvasObject {
 // newSecondaryPage gives secondary views one shared header position and page margin.
 func newSecondaryPage(header, footer, content fyne.CanvasObject) fyne.CanvasObject {
 	page := container.NewBorder(header, footer, nil, nil, content)
-	return container.New(layout.NewCustomPaddedLayout(24, 24, 24, 24), page)
+	padding := pawSize(pawSizeNamePagePadding)
+	return container.New(layout.NewCustomPaddedLayout(padding, padding, padding, padding), page)
 }
 
 // newDetailField places a caption above a read-only value and its actions.
@@ -91,7 +92,7 @@ func newEntryIcon(resource fyne.Resource) fyne.CanvasObject {
 
 // newEntryIconPreview gives a mutable icon preview the standard themed size.
 func newEntryIconPreview(preview fyne.CanvasObject) fyne.CanvasObject {
-	size := theme.Size(theme.SizeNameInlineIcon) * 2
+	size := pawSize(pawSizeNameDetailIconArea)
 	return container.NewGridWrap(fyne.NewSquareSize(size), preview)
 }
 

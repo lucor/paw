@@ -114,8 +114,7 @@ func NewSettingsView(state *model.AppState, store storage.Storage, window fyne.W
 }
 
 func settingsSection(title string, rows ...fyne.CanvasObject) fyne.CanvasObject {
-	heading := newText(title, captionStyle)
-	heading.TextStyle.Bold = true
+	heading := newText(title, sectionTitleStyle)
 	objects := []fyne.CanvasObject{heading}
 	objects = append(objects, rows...)
 	return container.NewVBox(widget.NewSeparator(), container.New(layout.NewCustomPaddedVBoxLayout(theme.Size(theme.SizeNameInnerPadding)), objects...))
@@ -156,14 +155,13 @@ func (e *SettingsView) save() {
 }
 
 func (e *SettingsView) row(title, description string, icon fyne.Resource, control fyne.CanvasObject) fyne.CanvasObject {
-	label := newText(title, bodyStyle)
-	label.TextStyle.Bold = true
+	label := newText(title, itemTitleStyle)
 	textContent := container.New(layout.NewCustomPaddedVBoxLayout(0), label)
 	if description != "" {
 		textContent.Add(newText(description, captionStyle))
 	}
 	text := container.NewThemeOverride(textContent, compactTextTheme{Theme: theme.Current()})
-	leading := container.NewGridWrap(fyne.NewSquareSize(40), container.NewCenter(container.NewGridWrap(fyne.NewSquareSize(20), widget.NewIcon(icon))))
+	leading := navigationRowIcon(icon)
 	return container.NewBorder(nil, nil, leading, container.NewCenter(control), container.NewVBox(layout.NewSpacer(), text, layout.NewSpacer()))
 }
 

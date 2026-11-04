@@ -49,8 +49,7 @@ func newAboutPawView(back func(), openURL func(*url.URL)) fyne.CanvasObject {
 	header := newPageHeader(backButton, newText(aboutPageTitle, titleStyle), nil)
 
 	logo := container.NewCenter(container.NewGridWrap(fyne.NewSquareSize(64), widget.NewIcon(icons.Paw)))
-	name := newText("Paw", bodyStyle)
-	name.TextStyle.Bold = true
+	name := newText("Paw", itemTitleStyle)
 	name.Alignment = fyne.TextAlignCenter
 	version := newText("Version "+paw.Version(), captionStyle)
 	version.Alignment = fyne.TextAlignCenter
@@ -83,7 +82,7 @@ func aboutLinkRows(openURL func(*url.URL)) fyne.CanvasObject {
 			rows = append(rows, widget.NewSeparator())
 		}
 		target, _ := url.Parse(link.target)
-		leading := container.NewGridWrap(fyne.NewSquareSize(40), container.NewCenter(container.NewGridWrap(fyne.NewSquareSize(20), widget.NewIcon(link.icon))))
+		leading := navigationRowIcon(link.icon)
 		rows = append(rows, newNavigationRowWithTrailingIcon(link.label, leading, icons.External, func() { openURL(target) }))
 	}
 	return container.NewVBox(rows...)

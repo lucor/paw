@@ -40,16 +40,13 @@ func NewActionRow(title, detail string, resource fyne.Resource, tapped func()) *
 	row := &ActionRow{button: widget.NewButton("", tapped), interactive: true}
 	row.button.Importance = widget.LowImportance
 	row.leading = widget.NewIcon(resource)
-	row.title = newText(title, titleStyle)
-	row.detail = newText(detail, bodyStyle)
+	row.title = newText(title, itemTitleStyle)
+	row.detail = newText(detail, captionStyle)
 	row.text = container.New(layout.NewCustomPaddedVBoxLayout(0), row.title, row.detail)
 	text := container.NewThemeOverride(row.text, compactTextTheme{Theme: theme.Current()})
-	row.leadingArea = container.NewPadded(container.NewGridWrap(fyne.NewSquareSize(32), row.leading))
-	if favicon, ok := resource.(*model.Favicon); ok && len(favicon.Data) > 0 {
-		row.leadingArea.Objects[0] = container.NewGridWrap(fyne.NewSquareSize(32), newIconPreview(favicon))
-		row.customLeading = true
-	}
-	row.count = newText("", captionStyle)
+	row.leadingArea = container.NewPadded(container.NewGridWrap(fyne.NewSquareSize(pawSize(pawSizeNameListIconFrame)), container.NewCenter(container.NewGridWrap(fyne.NewSquareSize(pawSize(pawSizeNameListIcon)), row.leading))))
+	row.setLeadingResource(resource)
+	row.count = newText("", countStyle)
 	row.count.Wrapping = fyne.TextWrapOff
 	row.count.Hide()
 	row.next = widget.NewIcon(icons.Next)
@@ -75,11 +72,11 @@ func (r *ActionRow) SetLeadingObject(object fyne.CanvasObject) {
 func (r *ActionRow) setLeadingResource(resource fyne.Resource) {
 	r.leading.SetResource(resource)
 	if favicon, ok := resource.(*model.Favicon); ok && len(favicon.Data) > 0 {
-		r.SetLeadingObject(container.NewGridWrap(fyne.NewSquareSize(32), newIconPreview(favicon)))
+		r.SetLeadingObject(container.NewGridWrap(fyne.NewSquareSize(pawSize(pawSizeNameListIconFrame)), newIconPreviewWithIconSize(favicon, pawSize(pawSizeNameListIcon))))
 		return
 	}
 	if r.customLeading {
-		r.leadingArea.Objects[0] = container.NewGridWrap(fyne.NewSquareSize(32), r.leading)
+		r.leadingArea.Objects[0] = container.NewGridWrap(fyne.NewSquareSize(pawSize(pawSizeNameListIconFrame)), container.NewCenter(container.NewGridWrap(fyne.NewSquareSize(pawSize(pawSizeNameListIcon)), r.leading)))
 		r.customLeading = false
 		r.leadingArea.Refresh()
 	}
@@ -139,7 +136,6 @@ func (r *ActionRow) SetTrailingText(text string) {
 	} else {
 		r.count.SetText(text)
 		r.count.Alignment = fyne.TextAlignTrailing
-		r.count.TextStyle.Bold = true
 		r.count.Show()
 		r.trailing.Layout = layout.NewHBoxLayout()
 		r.trailing.Objects = []fyne.CanvasObject{container.NewCenter(r.count), r.trailingArrow()}

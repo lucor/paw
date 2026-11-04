@@ -35,8 +35,8 @@ func TestSettingsAboutNavigationReturnsToSameView(t *testing.T) {
 	settingsObjects := test.LaidOutObjects(settings)
 	info := findIcon(t, settingsObjects, icons.Info.Name())
 	chevron := findIcon(t, settingsObjects, icons.Next.Name())
-	require.Equal(t, fyne.NewSquareSize(navigationRowIconSize), info.Size())
-	require.Equal(t, fyne.NewSquareSize(navigationRowTrailingIconSize), chevron.Size())
+	require.Equal(t, fyne.NewSquareSize(pawSize(pawSizeNameListIcon)), info.Size())
+	require.Equal(t, fyne.NewSquareSize(pawSize(pawSizeNameListIcon)), chevron.Size())
 	test.Tap(findNavigationRowButton(t, settings, "About Paw"))
 	about := window.Content()
 	require.Contains(t, auditTexts(about), aboutPageTitle)
@@ -91,7 +91,7 @@ func TestAboutPawShowsLogoVersionAndExternalNavigationRows(t *testing.T) {
 	for _, link := range links {
 		row := findNavigationRowButton(t, view, link.label)
 		leading := findIcon(t, objects, link.icon.Name())
-		require.Equal(t, fyne.NewSquareSize(navigationRowIconSize), leading.Size(), link.label)
+		require.Equal(t, fyne.NewSquareSize(pawSize(pawSizeNameListIcon)), leading.Size(), link.label)
 		test.Tap(row)
 		require.Equal(t, link.target, opened)
 	}
@@ -100,7 +100,7 @@ func TestAboutPawShowsLogoVersionAndExternalNavigationRows(t *testing.T) {
 		icon, ok := object.(*widget.Icon)
 		if ok && icon.Resource == icons.External {
 			externalCount++
-			require.Equal(t, fyne.NewSquareSize(navigationRowTrailingIconSize), icon.Size())
+			require.Equal(t, fyne.NewSquareSize(pawSize(pawSizeNameListIcon)), icon.Size())
 		}
 	}
 	require.Equal(t, len(links), externalCount)

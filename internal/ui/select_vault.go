@@ -50,6 +50,7 @@ func NewSelectVault(vaults []VaultChoice, addVault func()) fyne.CanvasObject {
 		container.NewBorder(nil, nil, nil, newVaultOptions(addVault), newText("Your vaults", headingStyle)),
 		newText("Select a vault to open.", bodyStyle),
 	)
-	return container.New(layout.NewCustomPaddedLayout(24, 24, 24, 24),
+	pagePadding := pawSize(pawSizeNamePagePadding)
+	return container.New(layout.NewCustomPaddedLayout(pagePadding, pagePadding, pagePadding, pagePadding),
 		container.NewBorder(header, nil, nil, nil, list))
 }

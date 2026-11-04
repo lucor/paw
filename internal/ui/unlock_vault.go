@@ -213,7 +213,7 @@ func unlockVaultContent(info model.VaultInfo, password *widget.Entry, passwordEr
 		chooseAnotherAction = container.NewCenter(button)
 	}
 	fields := []fyne.CanvasObject{
-		container.New(layout.NewCustomPaddedLayout(24, 24, 0, 0), container.NewCenter(badge)),
+		container.New(layout.NewCustomPaddedLayout(pawSize(pawSizeNamePagePadding), pawSize(pawSizeNamePagePadding), 0, 0), container.NewCenter(badge)),
 		heading,
 		container.NewVBox(newText("Master password", captionStyle), password, container.NewThemeOverride(passwordError, compactTextTheme{Theme: theme.Current()})),
 		container.NewStack(unlock),

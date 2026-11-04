@@ -15,13 +15,6 @@ import (
 	"go.lucor.dev/paw/internal/ui/assets/icons"
 )
 
-var faviconPreviewBackground = color.NRGBA{R: 245, G: 245, B: 245, A: 255}
-
-const (
-	defaultFaviconIconSize = 24
-	smallFaviconIconSize   = 16
-)
-
 // iconPreview frames a favicon or entry icon with a theme-aware background.
 type iconPreview struct {
 	widget.BaseWidget
@@ -33,7 +26,7 @@ type iconPreview struct {
 }
 
 func newIconPreview(resource fyne.Resource) *iconPreview {
-	return newIconPreviewWithIconSize(resource, defaultFaviconIconSize)
+	return newIconPreviewWithIconSize(resource, pawSize(pawSizeNameDetailIcon))
 }
 
 func newIconPreviewWithIconSize(resource fyne.Resource, iconSize float32) *iconPreview {
@@ -82,10 +75,7 @@ func (f *iconPreview) CreateRenderer() fyne.WidgetRenderer {
 }
 
 func (f *iconPreview) iconObject() fyne.CanvasObject {
-	if f.favicon {
-		return container.NewCenter(container.NewGridWrap(fyne.NewSquareSize(f.iconSize), f.icon))
-	}
-	return container.NewCenter(f.icon)
+	return container.NewCenter(container.NewGridWrap(fyne.NewSquareSize(f.iconSize), f.icon))
 }
 
 type iconPreviewRenderer struct {
@@ -95,7 +85,7 @@ type iconPreviewRenderer struct {
 
 func (r *iconPreviewRenderer) Refresh() {
 	if r.preview.favicon {
-		r.preview.background.FillColor = faviconPreviewBackground
+		r.preview.background.FillColor = theme.Color(pawColorNameFaviconBackground)
 	} else {
 		r.preview.background.FillColor = theme.Color(theme.ColorNameInputBackground)
 	}

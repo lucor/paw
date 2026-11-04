@@ -20,6 +20,10 @@ func (t variantTheme) Color(name fyne.ThemeColorName, _ fyne.ThemeVariant) color
 	return (&pawTheme{Theme: t.Theme, variant: t.variant, variantPinned: true}).Color(name, t.variant)
 }
 
+func (t variantTheme) Size(name fyne.ThemeSizeName) float32 {
+	return (&pawTheme{Theme: t.Theme}).Size(name)
+}
+
 func findIcon(t *testing.T, objects []fyne.CanvasObject, name string) *widget.Icon {
 	t.Helper()
 	for _, object := range objects {
