@@ -6,11 +6,13 @@ package favicon
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"image"
 	"image/color"
 	"image/png"
+	"io"
 	"net/http"
-	"net/http/httptest"
+	"net/url"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -23,25 +25,34 @@ func TestDownloadResolvesRelativeFaviconURLs(t *testing.T) {
 	iconImage.Set(8, 8, color.RGBA{R: 0xff, A: 0xff})
 	require.NoError(t, png.Encode(&iconData, iconImage))
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
+	var requestedPaths []string
+	client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		requestedPaths = append(requestedPaths, request.URL.Path)
+		var body []byte
+		header := make(http.Header)
+		switch request.URL.Path {
 		case "/account/login":
-			w.Header().Set("Content-Type", "text/html")
-			_, _ = w.Write([]byte(`<html><head><link rel="icon" href="assets/favicon.png"></head></html>`))
+			header.Set("Content-Type", "text/html")
+			body = []byte(`<html><head><link rel="icon" href="assets/favicon.png"></head></html>`)
 		case "/account/assets/favicon.png":
-			w.Header().Set("Content-Type", "image/png")
-			_, _ = w.Write(iconData.Bytes())
+			header.Set("Content-Type", "image/png")
+			body = iconData.Bytes()
 		default:
-			http.NotFound(w, r)
+			return nil, fmt.Errorf("unexpected request path %q", request.URL.Path)
 		}
-	}))
-	defer server.Close()
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     header,
+			Body:       io.NopCloser(bytes.NewReader(body)),
+			Request:    request,
+		}, nil
+	})}
 
-	pageURL, err := http.NewRequest(http.MethodGet, server.URL+"/account/login", nil)
+	pageURL, err := url.Parse("https://example.test/account/login")
 	require.NoError(t, err)
-	parsedURL := pageURL.URL
-	data, format, err := Download(context.Background(), parsedURL, Options{Client: server.Client()})
+	data, format, err := Download(context.Background(), pageURL, Options{Client: client})
 	require.NoError(t, err)
+	require.Equal(t, []string{"/account/login", "/account/assets/favicon.png"}, requestedPaths)
 	require.Equal(t, "png", format)
 	require.NotEmpty(t, data)
 	_, err = png.Decode(bytes.NewReader(data))
@@ -49,4 +60,10 @@ func TestDownloadResolvesRelativeFaviconURLs(t *testing.T) {
 	config, _, err := image.DecodeConfig(bytes.NewReader(data))
 	require.NoError(t, err)
 	require.Equal(t, image.Pt(storedRasterSize, storedRasterSize), image.Pt(config.Width, config.Height))
+}
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (fn roundTripFunc) RoundTrip(request *http.Request) (*http.Response, error) {
+	return fn(request)
 }
