@@ -7,6 +7,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
@@ -91,7 +92,9 @@ func TestChangeMasterPasswordPreservesVaultAndItems(t *testing.T) {
 			}
 			info, err := os.Stat(keyPath(base, id))
 			require.NoError(t, err)
-			require.Equal(t, os.FileMode(0600), info.Mode().Perm())
+			if runtime.GOOS != "windows" {
+				require.Equal(t, os.FileMode(0600), info.Mode().Perm())
+			}
 			leftovers, err := filepath.Glob(filepath.Join(filepath.Dir(keyPath(base, id)), ".key-*"))
 			require.NoError(t, err)
 			require.Empty(t, leftovers)
