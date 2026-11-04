@@ -14,6 +14,8 @@
 - refactor: centralize credential models and shared operations
 - docs: update README features, backup details, and icon credits
 
+Note: This is the last release that automatically moves vaults from Fyne's deprecated data directory. To migrate manually when upgrading from this release, close Paw and move `vaults` from `<UserConfigDir>/fyne/dev.lucor.paw/vaults` to `<PAW_HOME>/.paw/storage` (or `~/.paw/storage` when `PAW_HOME` is unset). Back up the source first; if the destination already exists, do not merge the directories.
+
 ## 0.29.0 - 27 Oct 2026
 
 - storage: migrate existing vaults to CXF automatically when they are unlocked, and keep the original vault as a backup
