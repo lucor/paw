@@ -46,4 +46,7 @@ func TestDownloadResolvesRelativeFaviconURLs(t *testing.T) {
 	require.NotEmpty(t, data)
 	_, err = png.Decode(bytes.NewReader(data))
 	require.NoError(t, err)
+	config, _, err := image.DecodeConfig(bytes.NewReader(data))
+	require.NoError(t, err)
+	require.Equal(t, image.Pt(storedRasterSize, storedRasterSize), image.Pt(config.Width, config.Height))
 }

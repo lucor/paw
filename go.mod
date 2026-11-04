@@ -5,11 +5,11 @@ go 1.26.0
 require (
 	filippo.io/age v1.3.2
 	fyne.io/fyne/v2 v2.8.2
-	github.com/fyne-io/image v0.1.1
 	github.com/godbus/dbus/v5 v5.2.2
 	github.com/stretchr/testify v1.12.1
 	github.com/urfave/cli/v3 v3.14.0
 	go.lucor.dev/cxf v0.0.0-20261025171600-daa288fd4137
+	go.lucor.dev/favicon v0.1.0
 	go.lucor.dev/zxcvbn v0.0.0
 	golang.design/x/clipboard v0.11.0
 	golang.org/x/crypto v0.58.0
@@ -39,6 +39,7 @@ require (
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/fyne-io/gl-js v0.2.1-0.20260315212741-029c47fd27e8 // indirect
 	github.com/fyne-io/glfw-js v0.4.0 // indirect
+	github.com/fyne-io/image v0.1.1 // indirect
 	github.com/fyne-io/oksvg v0.2.1-0.20260918172519-a9af55fa95d9 // indirect
 	github.com/go-gl/gl v0.0.0-20260331235117-4566fea9a276 // indirect
 	github.com/go-gl/glfw/v3.4/glfw v0.1.0-pre.2 // indirect
