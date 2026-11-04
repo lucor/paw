@@ -1,6 +1,6 @@
 # Changelog - Paw
 
-## 0.30.0 - 03 Nov 2026
+## 0.30.0 - 04 Nov 2026
 
 - ui: rebuild vault navigation, item lists, details, and editors with a consistent Fyne interface
 - ui: add Codes for authenticator credentials and a password audit overview with findings
