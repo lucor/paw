@@ -20,7 +20,10 @@ import (
 	"go.lucor.dev/paw/internal/ui/assets/icons"
 )
 
-func TestUIPilotCreateVaultFlow(t *testing.T) {
+func TestCreateVaultEndToEnd(t *testing.T) {
+	if testing.Short() {
+		t.Skip("UI pilot flow is a long-running end-to-end test")
+	}
 	outputDir := os.Getenv("PAW_UI_SNAPSHOT_DIR")
 	if outputDir == "" {
 		outputDir = t.TempDir()

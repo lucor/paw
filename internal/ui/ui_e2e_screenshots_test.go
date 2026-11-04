@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: 2026 Luca Corbo, Paw contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+//go:build screnshots
+
 package ui
 
 import (
@@ -472,17 +474,6 @@ func newPilotAudit(state string) *PasswordAudit {
 	return audit
 }
 
-func findPilotIconButton(t *testing.T, view fyne.CanvasObject, label string) *iconButton {
-	t.Helper()
-	for _, object := range test.LaidOutObjects(view) {
-		if button, ok := object.(*iconButton); ok && button.AccessibilityLabel() == label {
-			return button
-		}
-	}
-	t.Fatalf("icon button %q is not rendered", label)
-	return nil
-}
-
 func findPilotLabel(t *testing.T, view fyne.CanvasObject, text string) *widget.Label {
 	t.Helper()
 	for _, object := range test.LaidOutObjects(view) {
@@ -502,31 +493,6 @@ func findPilotEntry(t *testing.T, view fyne.CanvasObject, placeholder string) fy
 		}
 	}
 	t.Fatalf("entry with placeholder %q is not rendered", placeholder)
-	return nil
-}
-
-func findPilotNavigation(t *testing.T, view fyne.CanvasObject) *Navigation {
-	t.Helper()
-	if navigation := findNavigationContainer(view); navigation != nil {
-		return navigation
-	}
-	t.Fatal("bottom navigation is not rendered")
-	return nil
-}
-
-func findNavigationContainer(view fyne.CanvasObject) *Navigation {
-	if navigation, ok := view.(*Navigation); ok {
-		return navigation
-	}
-	container, ok := view.(*fyne.Container)
-	if !ok {
-		return nil
-	}
-	for _, child := range container.Objects {
-		if navigation := findNavigationContainer(child); navigation != nil {
-			return navigation
-		}
-	}
 	return nil
 }
 

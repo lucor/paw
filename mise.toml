@@ -43,7 +43,11 @@ description = "Check Go dependencies and packages for known vulnerabilities"
 run = "go tool govulncheck ./..."
 
 [tasks.test]
-description = "Run unit tests"
+description = "Run the short test suite"
+run = "go test -short ./..."
+
+[tasks.test-long]
+description = "Run the full test suite, including long UI end-to-end tests"
 run = "go test ./..."
 
 [tasks.screenshots]
@@ -55,7 +59,7 @@ tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/paw-screenshots.XXXXXX")"
 archive_tmp="${TMPDIR:-/tmp}/paw-screenshots-archive-$$.zip"
 trap 'rm -rf "$tmp_dir" "$archive_tmp"' EXIT
 mkdir -p "$tmp_dir/gallery"
-PAW_UI_SNAPSHOT_DIR="$tmp_dir/gallery" go test ./internal/ui -run '^TestUIE2EScreenshotGallery$' -count=1
+PAW_UI_SNAPSHOT_DIR="$tmp_dir/gallery" go test -tags screnshots ./internal/ui -run '^TestUIE2EScreenshotGallery$' -count=1
 oxipng --opt 2 --strip safe --nb --nc --quiet --recursive "$tmp_dir/gallery"
 cd "$tmp_dir"
 zip -q -X -r "$archive_tmp" gallery
