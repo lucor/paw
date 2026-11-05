@@ -22,7 +22,7 @@ import (
 type UnlockVault struct {
 	widget.BaseWidget
 	info              model.VaultInfo
-	store             storage.VaultStorage
+	store             *storage.FileStorage
 	onUnlocked        func(*model.Vault)
 	password          *widget.Entry
 	passwordError     *widget.Label
@@ -37,7 +37,7 @@ type UnlockVault struct {
 const incorrectMasterPasswordMessage = "Incorrect master password. Try again."
 
 // NewUnlockVault creates a vault unlock view with navigation to Add vault.
-func NewUnlockVault(info model.VaultInfo, store storage.VaultStorage, onUnlocked func(*model.Vault), back, addVault, chooseAnother func()) *UnlockVault {
+func NewUnlockVault(info model.VaultInfo, store *storage.FileStorage, onUnlocked func(*model.Vault), back, addVault, chooseAnother func()) *UnlockVault {
 	u := &UnlockVault{info: info, store: store, onUnlocked: onUnlocked}
 	u.password = widget.NewPasswordEntry()
 	u.password.Validator = func(value string) error {
@@ -120,11 +120,7 @@ func (u *UnlockVault) unlock() {
 	u.activity.Show()
 	u.activity.Start()
 	u.message.Importance = widget.MediumImportance
-	if u.info.NeedsMigration {
-		u.message.SetText("Migrating vault…")
-	} else {
-		u.message.SetText("Unlocking vault…")
-	}
+	u.message.SetText("Unlocking vault…")
 	u.message.Show()
 	u.Refresh()
 

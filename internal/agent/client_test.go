@@ -15,7 +15,7 @@ import (
 
 func Test_Client(t *testing.T) {
 
-	s, err := storage.NewOSStorageRooted(t.TempDir())
+	s, err := storage.NewFileStorage(t.TempDir())
 	require.NoError(t, err)
 
 	server := agent.NewCLI()

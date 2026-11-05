@@ -13,84 +13,64 @@ import (
 	"testing"
 
 	"filippo.io/age"
-	fynestorage "fyne.io/fyne/v2/storage"
-	"fyne.io/fyne/v2/test"
 	"github.com/stretchr/testify/require"
 	"go.lucor.dev/cxf"
+	"go.lucor.dev/paw/internal/model"
+	"go.lucor.dev/paw/internal/paw"
 )
 
-func TestPawRestoreRoundTripAndCopies(t *testing.T) {
-	for _, encrypted := range []bool{false, true} {
-		for _, backend := range []string{"os", "fyne"} {
-			t.Run(backend+map[bool]string{false: "/plaintext", true: "/age"}[encrypted], func(t *testing.T) {
-				ctx := context.Background()
-				source, loader, item := exportFixture(t)
-				originalCreation := uint64(1234567890)
-				source.Metadata.CreationAt = &originalCreation
-				accountID := source.Accounts[0].ID
-				source.Accounts[0].Collections = []cxf.Collection{{ID: "Y29sbGVjdGlvbg", Title: "Personal", Items: []cxf.LinkedItem{{Item: item.ID, Account: &accountID}}}}
-				var plain, encoded bytes.Buffer
-				require.NoError(t, WriteCXF(ctx, &plain, loader, source))
-				password := ""
-				if encrypted {
-					password = "export-password"
-					require.NoError(t, WriteEncryptedCXF(ctx, &encoded, loader, source, password))
-				} else {
-					encoded.Write(plain.Bytes())
-				}
-				backup, err := ReadPawBackup(ctx, bytes.NewReader(encoded.Bytes()), password)
-				require.NoError(t, err)
-				require.Equal(t, "Personal", backup.Name)
-				require.Equal(t, 1, backup.Collections)
-				require.Equal(t, 1, backup.Credentials)
-				var store Storage
-				if backend == "os" {
-					store, err = NewOSStorageRooted(t.TempDir())
-				} else {
-					app := test.NewTempApp(t)
-					store, err = NewFyneStorage(rootedFyneStorage{Storage: app.Storage(), root: fynestorage.NewFileURI(t.TempDir())})
-				}
-				require.NoError(t, err)
-				collision, err := BackupCollision(store, backup)
-				require.NoError(t, err)
-				require.False(t, collision)
-				restored, err := RestorePawBackup(ctx, store, backup, "Personal", "new-master")
-				require.NoError(t, err)
-				require.Equal(t, accountID, restored.Accounts[0].ID)
-				require.Equal(t, source.Metadata.CreationAt, restored.Metadata.CreationAt)
-				key, err := store.LoadVaultKey(accountID, "new-master")
-				require.NoError(t, err)
-				_, err = store.LoadVaultKey(accountID, "export-password")
-				require.Error(t, err)
-				_, err = store.LoadVault(accountID, source.Key())
-				require.Error(t, err, "the original encryption key must not unlock the restored vault")
-				loaded, err := store.LoadVault(accountID, key)
-				require.NoError(t, err)
-				var actual bytes.Buffer
-				require.NoError(t, WriteCXF(ctx, &actual, store, loaded))
-				require.JSONEq(t, plain.String(), actual.String())
-				copy, err := RestorePawBackup(ctx, store, backup, "Personal copy", "copy-master")
-				require.NoError(t, err)
-				require.NotEqual(t, accountID, copy.Accounts[0].ID)
-				require.Greater(t, *copy.Metadata.CreationAt, originalCreation)
-				require.Equal(t, item.ID, copy.Accounts[0].Items[0].ID)
-				require.Equal(t, source.Accounts[0].Collections[0].ID, copy.Accounts[0].Collections[0].ID)
-				require.Equal(t, copy.Accounts[0].ID, *copy.Accounts[0].Collections[0].Items[0].Account)
-				originalItem, err := store.LoadItem(loaded, item.ID)
-				require.NoError(t, err)
-				copyItem, err := store.LoadItem(copy, item.ID)
-				require.NoError(t, err)
-				originalData, err := json.Marshal(originalItem)
-				require.NoError(t, err)
-				copyData, err := json.Marshal(copyItem)
-				require.NoError(t, err)
-				require.JSONEq(t, string(originalData), string(copyData))
-				vaults, err := store.Vaults()
-				require.NoError(t, err)
-				require.Len(t, vaults, 2)
-			})
-		}
-	}
+func TestRestorePreservesItemsAndCreatesCopy(t *testing.T) {
+	ctx := context.Background()
+	key, err := paw.MakeOneTimeKey()
+	require.NoError(t, err)
+	source, err := model.NewVault(key, "Personal")
+	require.NoError(t, err)
+	item, err := model.NewNote("Example", "Synthetic note content")
+	require.NoError(t, err)
+	itemData, err := json.Marshal(item)
+	require.NoError(t, err)
+	var exportedItem cxf.Item
+	require.NoError(t, json.Unmarshal(itemData, &exportedItem))
+	accountID := source.Accounts[0].ID
+	source.Accounts[0].Items = []cxf.Item{exportedItem}
+	source.Accounts[0].Collections = []cxf.Collection{{ID: "Y29sbGVjdGlvbg", Title: "Personal", Items: []cxf.LinkedItem{{Item: item.ID, Account: &accountID}}}}
+	var encoded bytes.Buffer
+	require.NoError(t, cxf.Encode(&encoded, &source.Header))
+	backup := &PawBackup{data: encoded.Bytes(), Name: "Personal", CreationAt: source.Metadata.CreationAt, Collections: 1, Credentials: 1, AccountID: accountID}
+	store := newTestFileStorage(t)
+	restored, err := store.Restore(ctx, backup, "Personal", "new-master")
+	require.NoError(t, err)
+	require.Equal(t, accountID, restored.Accounts[0].ID)
+	require.Equal(t, source.Metadata.CreationAt, restored.Metadata.CreationAt)
+	_, err = store.LoadVault(accountID, source.Key())
+	require.Error(t, err, "the original encryption key must not unlock the restored vault")
+	loaded, err := store.LoadVault(accountID, restored.Key())
+	require.NoError(t, err)
+	restoredItem, err := store.LoadItem(loaded, item.ID)
+	require.NoError(t, err)
+	restoredItemData, err := json.Marshal(restoredItem)
+	require.NoError(t, err)
+	expectedItemData, err := json.Marshal(item)
+	require.NoError(t, err)
+	require.JSONEq(t, string(expectedItemData), string(restoredItemData))
+	copy, err := store.Restore(ctx, backup, "Personal copy", "copy-master")
+	require.NoError(t, err)
+	require.NotEqual(t, accountID, copy.Accounts[0].ID)
+	unchanged, err := store.LoadVault(accountID, restored.Key())
+	require.NoError(t, err)
+	require.Equal(t, "Personal", unchanged.Metadata.VaultName)
+	require.Greater(t, *copy.Metadata.CreationAt, *source.Metadata.CreationAt)
+	require.Equal(t, item.ID, copy.Accounts[0].Items[0].ID)
+	require.Equal(t, source.Accounts[0].Collections[0].ID, copy.Accounts[0].Collections[0].ID)
+	require.Equal(t, copy.Accounts[0].ID, *copy.Accounts[0].Collections[0].Items[0].Account)
+	copyItem, err := store.LoadItem(copy, item.ID)
+	require.NoError(t, err)
+	copyData, err := json.Marshal(copyItem)
+	require.NoError(t, err)
+	require.JSONEq(t, string(expectedItemData), string(copyData))
+	vaults, err := store.Vaults()
+	require.NoError(t, err)
+	require.Len(t, vaults, 2)
 }
 
 type cancelReservedRestoreContext struct {
@@ -114,11 +94,10 @@ func TestRestoreCancellationRemovesUnpublishedVault(t *testing.T) {
 	require.NoError(t, WriteCXF(context.Background(), &data, loader, source))
 	backup, err := ReadPawBackup(context.Background(), &data, "")
 	require.NoError(t, err)
-	store, err := NewOSStorageRooted(t.TempDir())
-	require.NoError(t, err)
+	store := newTestFileStorage(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	_, err = RestorePawBackup(cancelReservedRestoreContext{ctx, cancel, storageRootPath(store)}, store, backup, "Restored", "master")
+	_, err = store.Restore(cancelReservedRestoreContext{ctx, cancel, storageRootPath(store)}, backup, "Restored", "master")
 	require.ErrorIs(t, err, context.Canceled)
 	entries, err := os.ReadDir(storageRootPath(store))
 	require.NoError(t, err)
@@ -152,7 +131,7 @@ func TestRestoreRejectsUnsupportedAndUnauthenticatedInput(t *testing.T) {
 	var plain, encrypted bytes.Buffer
 	ctx := context.Background()
 	require.NoError(t, WriteCXF(ctx, &plain, loader, source))
-	require.NoError(t, WriteEncryptedCXF(ctx, &encrypted, loader, source, "backup-secret"))
+	encrypted.Write(writeEncryptedBackup(t, plain.Bytes(), "backup-secret"))
 	_, err := ReadPawBackup(ctx, bytes.NewReader(encrypted.Bytes()), "")
 	require.ErrorIs(t, err, ErrBackupPasswordRequired)
 	_, err = ReadPawBackup(ctx, bytes.NewReader(encrypted.Bytes()), "wrong")
@@ -174,16 +153,15 @@ func TestRestoreRejectsUnsupportedAndUnauthenticatedInput(t *testing.T) {
 	require.ErrorIs(t, err, ErrUnsupportedBackup)
 	backup, err := ReadPawBackup(ctx, bytes.NewReader(plain.Bytes()), "")
 	require.NoError(t, err)
-	store, err := NewOSStorageRooted(t.TempDir())
-	require.NoError(t, err)
-	_, err = RestorePawBackup(ctx, store, backup, "Personal", "")
+	store := newTestFileStorage(t)
+	_, err = store.Restore(ctx, backup, "Personal", "")
 	require.Error(t, err)
 	canceled, cancel := context.WithCancel(ctx)
 	cancel()
-	_, err = RestorePawBackup(canceled, store, backup, "Personal", "master")
+	_, err = store.Restore(canceled, backup, "Personal", "master")
 	require.ErrorIs(t, err, context.Canceled)
 	backup.data = []byte("invalid")
-	_, err = RestorePawBackup(ctx, store, backup, "Personal", "master")
+	_, err = store.Restore(ctx, backup, "Personal", "master")
 	require.ErrorIs(t, err, ErrUnsupportedBackup)
 	vaults, err := store.Vaults()
 	require.NoError(t, err)
@@ -202,6 +180,7 @@ func TestRestoreDetectsLateAgeIntegrityFailure(t *testing.T) {
 	var encoded bytes.Buffer
 	recipient, err := age.NewScryptRecipient("secret")
 	require.NoError(t, err)
+	recipient.SetWorkFactor(1)
 	w, err := age.Encrypt(&encoded, recipient)
 	require.NoError(t, err)
 	_, err = io.Copy(w, bytes.NewReader(payload))
@@ -211,4 +190,19 @@ func TestRestoreDetectsLateAgeIntegrityFailure(t *testing.T) {
 	data[len(data)-1] ^= 1
 	_, err = ReadPawBackup(context.Background(), bytes.NewReader(data), "secret")
 	require.Error(t, err)
+}
+
+// writeEncryptedBackup creates a cheap age fixture for backup reader tests.
+func writeEncryptedBackup(t *testing.T, data []byte, password string) []byte {
+	t.Helper()
+	recipient, err := age.NewScryptRecipient(password)
+	require.NoError(t, err)
+	recipient.SetWorkFactor(1)
+	var encrypted bytes.Buffer
+	writer, err := age.Encrypt(&encrypted, recipient)
+	require.NoError(t, err)
+	_, err = writer.Write(data)
+	require.NoError(t, err)
+	require.NoError(t, writer.Close())
+	return encrypted.Bytes()
 }

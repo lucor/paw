@@ -25,7 +25,7 @@ func MessageFromExtension(args []string) bool {
 	return false
 }
 
-func HandleNativeMessage(s storage.Storage) {
+func HandleNativeMessage(s *storage.FileStorage) {
 	m := messaging.NewPawMux(
 		&messaging.CreateVaultHandler{Storage: s},
 		&messaging.ListVaultHandler{Storage: s},

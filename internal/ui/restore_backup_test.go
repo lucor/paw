@@ -23,10 +23,14 @@ func TestRestoreReviewShowsBackupMetadataAndValidatesNewVault(t *testing.T) {
 	t.Cleanup(app.Quit)
 	window := app.NewWindow("Restore")
 	t.Cleanup(window.Close)
-	store := &storage.StorageMock{}
-	store.OnVaults = func() ([]model.VaultInfo, error) {
-		return []model.VaultInfo{{Name: "Personal"}}, nil
-	}
+	store, err := storage.NewFileStorage(t.TempDir())
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, store.Close()) })
+	key, err := paw.MakeOneTimeKey()
+	require.NoError(t, err)
+	vault, err := model.NewVault(key, "Personal")
+	require.NoError(t, err)
+	require.NoError(t, store.UpdateVaultIdentity(vault, "Personal", model.DefaultVaultAppearance()))
 	flow := &restoreFlow{window: window, store: store, back: func() {}, restored: func(*model.Vault) {}}
 	created := uint64(1705055040)
 	exported := uint64(time.Date(2026, time.October, 30, 0, 0, 0, 0, time.UTC).Unix())
@@ -86,9 +90,10 @@ func TestRestoreReviewOmitsMissingMetadataAndFitsNarrowWindow(t *testing.T) {
 	window.Resize(fyne.NewSize(320, 540))
 	window.Show()
 
-	flow := &restoreFlow{window: window, store: &storage.StorageMock{VaultStorageMock: storage.VaultStorageMock{
-		OnVaults: func() ([]model.VaultInfo, error) { return nil, nil },
-	}}, back: func() {}, restored: func(*model.Vault) {}}
+	store, err := storage.NewFileStorage(t.TempDir())
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, store.Close()) })
+	flow := &restoreFlow{window: window, store: store, back: func() {}, restored: func(*model.Vault) {}}
 	flow.review(&storage.PawBackup{Collections: 0, Credentials: 0}, "")
 	texts := auditTexts(window.Content())
 	require.Contains(t, texts, "Collections")
@@ -113,7 +118,7 @@ func TestRestoreUnlockRequiresBackupPassword(t *testing.T) {
 	t.Cleanup(app.Quit)
 	window := app.NewWindow("Restore")
 	t.Cleanup(window.Close)
-	flow := &restoreFlow{window: window, store: &storage.StorageMock{}, back: func() {}, restored: func(*model.Vault) {}}
+	flow := &restoreFlow{window: window, back: func() {}, restored: func(*model.Vault) {}}
 	flow.unlock(nil, "")
 	window.Show()
 	var password *widget.Entry
@@ -154,7 +159,7 @@ func TestRestoreFilePickerOpensInListView(t *testing.T) {
 	window := app.NewWindow("Restore")
 	t.Cleanup(window.Close)
 	window.Resize(fyne.NewSize(DefaultWindowWidth, DefaultWindowHeight))
-	flow := &restoreFlow{window: window, store: &storage.StorageMock{}, back: func() {}, restored: func(*model.Vault) {}}
+	flow := &restoreFlow{window: window, back: func() {}, restored: func(*model.Vault) {}}
 	flow.selectFile("")
 	window.Show()
 	windowCount := len(app.Driver().AllWindows())
@@ -195,7 +200,7 @@ func TestRestoreCompleteShowsVaultNameAndOpensRestoredVault(t *testing.T) {
 	vault, err := model.NewVault(key, "Personal copy")
 	require.NoError(t, err)
 	var opened *model.Vault
-	flow := &restoreFlow{window: window, store: &storage.StorageMock{}, back: func() {}, restored: func(restored *model.Vault) { opened = restored }}
+	flow := &restoreFlow{window: window, back: func() {}, restored: func(restored *model.Vault) { opened = restored }}
 	flow.complete(vault)
 	window.Show()
 	require.Contains(t, auditTexts(window.Content()), "Vault restored")

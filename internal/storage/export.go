@@ -20,7 +20,7 @@ import (
 const PlaintextExportWarning = "The exported file will contain your credentials in plaintext. Anyone with access to this file can read them."
 
 // WriteCXF writes a complete CXF document without changing the source vault.
-func WriteCXF(ctx context.Context, w io.Writer, s Storage, vault *model.Vault) error {
+func WriteCXF(ctx context.Context, w io.Writer, s *FileStorage, vault *model.Vault) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -70,7 +70,7 @@ func WriteCXF(ctx context.Context, w io.Writer, s Storage, vault *model.Vault) e
 }
 
 // WriteEncryptedCXF streams CXF into a standard password-encrypted age file.
-func WriteEncryptedCXF(ctx context.Context, w io.Writer, s Storage, vault *model.Vault, password string) error {
+func WriteEncryptedCXF(ctx context.Context, w io.Writer, s *FileStorage, vault *model.Vault, password string) error {
 	if password == "" {
 		return fmt.Errorf("export password is required")
 	}
@@ -95,7 +95,7 @@ func WriteEncryptedCXF(ctx context.Context, w io.Writer, s Storage, vault *model
 }
 
 // WriteExport writes the selected CXF export format to the supplied stream.
-func WriteExport(ctx context.Context, w io.Writer, s Storage, vault *model.Vault, password string, plaintext bool) error {
+func WriteExport(ctx context.Context, w io.Writer, s *FileStorage, vault *model.Vault, password string, plaintext bool) error {
 	if plaintext {
 		return WriteCXF(ctx, w, s, vault)
 	}
@@ -104,7 +104,7 @@ func WriteExport(ctx context.Context, w io.Writer, s Storage, vault *model.Vault
 
 // ExportFile writes a private file and publishes it atomically without replacing existing files.
 // Callers must obtain explicit consent before selecting plaintext.
-func ExportFile(ctx context.Context, s Storage, vault *model.Vault, path, password string, plaintext bool) (err error) {
+func ExportFile(ctx context.Context, s *FileStorage, vault *model.Vault, path, password string, plaintext bool) (err error) {
 	if !plaintext && password == "" {
 		return fmt.Errorf("export password is required")
 	}
@@ -145,6 +145,7 @@ type exportWriter struct {
 	writer io.Writer
 }
 
+// Write checks for cancellation before writing export data.
 func (w exportWriter) Write(p []byte) (int, error) {
 	if err := w.ctx.Err(); err != nil {
 		return 0, err

@@ -1,5 +1,9 @@
 # Changelog - Paw
 
+## Unreleased
+
+- storage: no longer automatically imports vaults from the legacy Fyne configuration directory; users with vaults stored only there must move them to `PAW_HOME/.paw/storage` or `$HOME/.paw/storage` before upgrading
+
 ## 0.30.0 - 04 Nov 2026
 
 - ui: rebuild vault navigation, item lists, details, and editors with a consistent Fyne interface

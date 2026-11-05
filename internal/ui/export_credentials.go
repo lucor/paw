@@ -31,7 +31,7 @@ const (
 
 type exportCredentialsView struct {
 	window fyne.Window
-	store  storage.Storage
+	store  *storage.FileStorage
 	vault  *model.Vault
 	back   func()
 
@@ -64,11 +64,11 @@ func (e *exportConfirmEntry) FocusLost() {
 }
 
 // NewExportCredentialsView builds the dedicated export form for the active vault.
-func NewExportCredentialsView(window fyne.Window, store storage.Storage, vault *model.Vault, back func()) fyne.CanvasObject {
+func NewExportCredentialsView(window fyne.Window, store *storage.FileStorage, vault *model.Vault, back func()) fyne.CanvasObject {
 	return newExportCredentialsView(window, store, vault, vaultName(vault), back).View
 }
 
-func newExportCredentialsView(window fyne.Window, store storage.Storage, vault *model.Vault, vaultName string, back func()) *exportCredentialsView {
+func newExportCredentialsView(window fyne.Window, store *storage.FileStorage, vault *model.Vault, vaultName string, back func()) *exportCredentialsView {
 	v := &exportCredentialsView{
 		window:   window,
 		store:    store,

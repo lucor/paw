@@ -16,7 +16,7 @@ import (
 var _ Handler = (*GetAppStateHandler)(nil)
 
 type GetAppStateHandler struct {
-	Storage storage.Storage
+	Storage *storage.FileStorage
 }
 
 // Action implements browser.Handler.

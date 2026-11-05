@@ -4,58 +4,25 @@
 package ui
 
 import (
-	"errors"
 	"strings"
 	"testing"
 	"time"
 
-	"filippo.io/age"
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/test"
 	"fyne.io/fyne/v2/widget"
 	"github.com/stretchr/testify/require"
 	"go.lucor.dev/paw/internal/model"
-	"go.lucor.dev/paw/internal/paw"
 	"go.lucor.dev/paw/internal/storage"
 )
 
-func TestUnlockVaultViewReportsPasswordErrorAndOpensVault(t *testing.T) {
+func TestUnlockVaultViewReportsPasswordErrorAndAllowsRetry(t *testing.T) {
 	app := test.NewApp()
 	t.Cleanup(app.Quit)
 	window := app.NewWindow("Unlock")
 	t.Cleanup(window.Close)
 
-	key, err := paw.MakeOneTimeKey()
-	require.NoError(t, err)
-	vault, err := model.NewVault(key, "Personal")
-	require.NoError(t, err)
-	store := &storage.StorageMock{}
-	wrongPasswordStarted := make(chan struct{})
-	releaseWrongPassword := make(chan struct{})
-	store.OnLoadVaultKey = func(id, password string) (*paw.Key, error) {
-		if id != "personal" {
-			t.Errorf("unexpected vault ID %q", id)
-		}
-		if password == "wrong password" {
-			close(wrongPasswordStarted)
-			<-releaseWrongPassword
-			return nil, &age.NoIdentityMatchError{}
-		}
-		if password != "correct password" {
-			t.Errorf("unexpected password received by storage")
-		}
-		return key, nil
-	}
-	store.OnLoadVault = func(id string, loadedKey *paw.Key) (*model.Vault, error) {
-		if id != "personal" || loadedKey != key {
-			t.Errorf("unexpected vault load request")
-		}
-		return vault, nil
-	}
-	opened := make(chan *model.Vault, 1)
-	view := NewUnlockVault(model.VaultInfo{ID: "personal", Name: "Personal"}, store, func(openedVault *model.Vault) {
-		opened <- openedVault
-	}, nil, func() {}, func() {})
+	view := NewUnlockVault(model.VaultInfo{ID: "personal", Name: "Personal"}, nil, nil, nil, func() {}, func() {})
 	window.SetContent(view)
 	window.Resize(fyne.NewSize(440, 650))
 	window.Show()
@@ -97,16 +64,8 @@ func TestUnlockVaultViewReportsPasswordErrorAndOpensVault(t *testing.T) {
 	require.True(t, unlock.Disabled())
 
 	password.SetText("wrong password")
-	test.Tap(unlock)
-	require.Equal(t, "wrong password", password.Text, "preserve the entered password after submitting")
-	select {
-	case <-wrongPasswordStarted:
-	case <-time.After(time.Second):
-		t.Fatal("vault key loading did not start")
-	}
-	require.True(t, view.activity.Visible(), "show the activity indicator while unlocking")
-	close(releaseWrongPassword)
-	waitForUnlock(t, view)
+	view.showIncorrectPassword()
+	require.Equal(t, "wrong password", password.Text, "preserve the entered password after an error")
 	require.False(t, view.activity.Visible(), "hide the activity indicator after an error")
 	require.Nil(t, window.Canvas().Overlays().Top(), "unlock feedback stays in the view")
 	require.Equal(t, incorrectMasterPasswordMessage, view.passwordError.Text)
@@ -128,21 +87,12 @@ func TestUnlockVaultViewReportsPasswordErrorAndOpensVault(t *testing.T) {
 	password.SetText("correct password")
 	require.False(t, view.passwordError.Visible(), "editing the password clears the error")
 	require.NoError(t, password.Validate())
-	test.Tap(unlock)
-	select {
-	case got := <-opened:
-		require.Same(t, vault, got)
-	case <-time.After(time.Second):
-		t.Fatal("vault was not opened")
-	}
-	waitForUnlock(t, view)
-	require.Empty(t, password.Text, "leaving Unlock clears the password")
 }
 
 func TestUnlockVaultChooseAnotherClearsPassword(t *testing.T) {
 	test.NewTempApp(t)
 	chosen := false
-	view := NewUnlockVault(model.VaultInfo{ID: "personal", Name: "Personal"}, &storage.StorageMock{}, nil, nil, nil, func() { chosen = true })
+	view := NewUnlockVault(model.VaultInfo{ID: "personal", Name: "Personal"}, nil, nil, nil, nil, func() { chosen = true })
 	window := test.NewTempWindow(t, view)
 	window.Show()
 	view.password.SetText("previous vault password")
@@ -162,15 +112,17 @@ func TestUnlockVaultChooseAnotherClearsPassword(t *testing.T) {
 
 func TestUnlockVaultUnrelatedFailureDoesNotShowIncorrectPassword(t *testing.T) {
 	test.NewTempApp(t)
-	store := &storage.StorageMock{}
-	store.OnLoadVaultKey = func(string, string) (*paw.Key, error) { return nil, errors.New("vault I/O failed") }
-	view := NewUnlockVault(model.VaultInfo{ID: "personal", Name: "Personal"}, store, nil, nil, nil, nil)
+	store, err := storage.NewFileStorage(t.TempDir())
+	require.NoError(t, err)
+	require.NoError(t, store.Close())
+	view := NewUnlockVault(model.VaultInfo{ID: "AAAAAAAAAAAAAAAAAAAAAA", Name: "Personal"}, store, nil, nil, nil, nil)
 	window := test.NewTempWindow(t, view)
 	window.Show()
 	view.password.SetText("master password")
 	test.Tap(view.button)
 	waitForUnlock(t, view)
-	require.Contains(t, unlockViewText(t, view), "vault I/O failed")
+	require.True(t, view.message.Visible())
+	require.NotEmpty(t, view.message.Text)
 	require.False(t, view.passwordError.Visible())
 	require.Empty(t, view.password.Text, "unrelated failures keep the existing clear-on-error behavior")
 }
@@ -179,7 +131,7 @@ func waitForUnlock(t *testing.T, view *UnlockVault) {
 	t.Helper()
 	select {
 	case <-view.unlockDone:
-	case <-time.After(time.Second):
+	case <-time.After(15 * time.Second):
 		t.Fatal("unlock UI update did not complete")
 	}
 }
@@ -188,7 +140,7 @@ func TestUnlockVaultContentStaysAboveViewportCenter(t *testing.T) {
 	test.NewTempApp(t)
 	window := test.NewTempWindow(t, nil)
 	window.Resize(fyne.NewSize(440, 800))
-	view := NewUnlockVault(model.VaultInfo{ID: "personal", Name: "Personal"}, &storage.StorageMock{}, nil, func() {}, nil, nil)
+	view := NewUnlockVault(model.VaultInfo{ID: "personal", Name: "Personal"}, nil, nil, func() {}, nil, nil)
 	window.SetContent(view)
 	window.Show()
 

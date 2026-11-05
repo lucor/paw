@@ -5,11 +5,15 @@ package messaging
 
 import (
 	"bytes"
+	"encoding/base32"
 	"encoding/json"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"go.lucor.dev/paw/internal/model"
+	"github.com/stretchr/testify/require"
 	"go.lucor.dev/paw/internal/storage"
 )
 
@@ -28,10 +32,7 @@ func Test_PawMux(t *testing.T) {
 
 	t.Run("registered action", func(t *testing.T) {
 		req := &Request{Action: ListVaultAction}
-		s := &storage.StorageMock{}
-		s.OnVaults = func() ([]model.VaultInfo, error) {
-			return []model.VaultInfo{}, nil
-		}
+		s := newListingStorage(t)
 		mux := NewPawMux(&ListVaultHandler{Storage: s})
 		in := &bytes.Buffer{}
 		out := &bytes.Buffer{}
@@ -41,11 +42,7 @@ func Test_PawMux(t *testing.T) {
 	})
 
 	t.Run("list vaults", func(t *testing.T) {
-		vaults := []model.VaultInfo{{ID: "vault1", Name: "Vault One"}, {ID: "vault2", Name: "Vault Two"}}
-		s := &storage.StorageMock{}
-		s.OnVaults = func() ([]model.VaultInfo, error) {
-			return vaults, nil
-		}
+		s := newListingStorage(t, "Vault One", "Vault Two")
 
 		req := &Request{Action: ListVaultAction}
 		mux := NewPawMux(&ListVaultHandler{Storage: s})
@@ -63,4 +60,23 @@ func Test_PawMux(t *testing.T) {
 		assert.Nil(t, err)
 		assert.Equal(t, []string{"Vault One", "Vault Two"}, v.Vaults)
 	})
+}
+
+// newListingStorage creates only the public metadata needed by vault listing.
+func newListingStorage(t *testing.T, names ...string) *storage.FileStorage {
+	t.Helper()
+	s, err := storage.NewFileStorage(t.TempDir())
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = s.Close() })
+	for i, name := range names {
+		var id [16]byte
+		id[15] = byte(i)
+		directory := strings.ToLower(base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(id[:]))
+		path := filepath.Join(s.Root(), "storage", directory)
+		require.NoError(t, os.Mkdir(path, 0o700))
+		data, err := json.Marshal(map[string]string{"name": name})
+		require.NoError(t, err)
+		require.NoError(t, os.WriteFile(filepath.Join(path, "metadata.json"), data, 0o600))
+	}
+	return s
 }

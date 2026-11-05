@@ -13,8 +13,6 @@ type VaultInfo struct {
 	Name string
 	// Appearance contains the public icon and color identifiers.
 	Appearance VaultAppearance
-	// NeedsMigration reports whether the vault still uses the legacy format.
-	NeedsMigration bool
 }
 
 // VaultAppearance contains public stable identifiers for displaying a vault.

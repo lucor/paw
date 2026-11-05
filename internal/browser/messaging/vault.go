@@ -9,7 +9,7 @@ import (
 )
 
 // resolveVault finds a vault from a display name or filesystem ID.
-func resolveVault(s storage.Storage, value string) (model.VaultInfo, error) {
+func resolveVault(s *storage.FileStorage, value string) (model.VaultInfo, error) {
 	vaults, err := s.Vaults()
 	if err != nil {
 		return model.VaultInfo{}, err

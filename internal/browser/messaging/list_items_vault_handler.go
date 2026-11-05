@@ -19,7 +19,7 @@ import (
 var _ Handler = (*ListItemsVaultHandler)(nil)
 
 type ListItemsVaultHandler struct {
-	Storage storage.Storage
+	Storage *storage.FileStorage
 }
 
 // Action implements browser.Handler.

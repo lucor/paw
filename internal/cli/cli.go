@@ -24,7 +24,7 @@ import (
 
 // Run executes the CLI branch of the application's full argument list.
 // The caller handles error reporting and the process exit status.
-func Run(args []string, s storage.Storage) error {
+func Run(args []string, s *storage.FileStorage) error {
 	if len(args) < 2 || args[1] != "cli" {
 		return fmt.Errorf("expected paw cli arguments")
 	}
@@ -38,7 +38,7 @@ func Run(args []string, s storage.Storage) error {
 
 var errCanceled = errors.New("command canceled")
 
-func newCommand(storage storage.Storage) *urfave.Command {
+func newCommand(storage *storage.FileStorage) *urfave.Command {
 	base := &command{
 		storage:     storage,
 		agentClient: agent.NewClient,
@@ -168,7 +168,6 @@ func (base *command) loadVaultKey(vaultName, sessionID string) (*paw.Key, error)
 		return nil, err
 	}
 	base.vaultID = info.ID
-	base.vaultNeedsMigration = info.NeedsMigration
 	if sessionID != "" {
 		key, err := base.loadVaultKeyWithSession(info.ID, sessionID)
 		if err == nil {

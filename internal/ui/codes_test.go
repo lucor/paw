@@ -207,15 +207,17 @@ func TestCodesViewUsesActiveVaultAndLockClearsSecrets(t *testing.T) {
 	firstVault := codeVaultFixture(t, "Personal", firstLogin, secondLogin)
 	workLogin := codeLoginFixture(t, "Work Git", true)
 	secondVault := codeVaultFixture(t, "Work", workLogin)
-	items := map[string]*model.Item{firstLogin.ID: firstLogin, secondLogin.ID: secondLogin, workLogin.ID: workLogin}
-	store := &storage.StorageMock{
-		ItemStorageMock: storage.ItemStorageMock{OnLoadItem: func(_ *model.Vault, id string) (*model.Item, error) { return items[id], nil }},
-		VaultStorageMock: storage.VaultStorageMock{OnVaults: func() ([]model.VaultInfo, error) {
-			return []model.VaultInfo{{ID: "personal", Name: "Personal"}, {ID: "work", Name: "Work"}}, nil
-		}},
+	store, err := storage.NewFileStorage(t.TempDir())
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, store.Close()) })
+	for _, vault := range []*model.Vault{firstVault, secondVault} {
+		require.NoError(t, store.UpdateVaultIdentity(vault, vault.Metadata.VaultName, model.DefaultVaultAppearance()))
 	}
+	require.NoError(t, store.StoreItem(firstVault, firstLogin))
+	require.NoError(t, store.StoreItem(firstVault, secondLogin))
+	require.NoError(t, store.StoreItem(secondVault, workLogin))
 	application := &app{win: window, main: container.NewVScroll(container.NewVBox()), storage: store, filter: make(map[string]*vaultFilterOptions), unlockedVault: map[string]*model.Vault{}}
-	application.setVaultView(firstVault, "personal")
+	application.setVaultView(firstVault, firstVault.Accounts[0].ID)
 	firstCodes := application.codesView
 	require.Len(t, firstCodes.displays, 1, "entries without TOTP are excluded")
 	require.Contains(t, auditTexts(firstCodes.View), "1 code")
@@ -232,7 +234,7 @@ func TestCodesViewUsesActiveVaultAndLockClearsSecrets(t *testing.T) {
 	require.Same(t, firstCodes, application.codesView)
 	require.Equal(t, 1, navigation.Selected)
 
-	application.setVaultView(secondVault, "work")
+	application.setVaultView(secondVault, secondVault.Accounts[0].ID)
 	require.Empty(t, firstCodes.displays[0].settings.Secret, "switching vault clears the prior vault's TOTP")
 	require.Len(t, application.codesView.displays, 1)
 	require.Contains(t, auditTexts(application.codesView.View), "1 code")

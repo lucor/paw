@@ -28,6 +28,11 @@ import (
 	"go.lucor.dev/paw/internal/paw"
 )
 
+func newTestEntryDetail(ctx context.Context, item *model.Item, window fyne.Window) (fyne.CanvasObject, error) {
+	view, _, err := newEntryDetailWithClear(ctx, item, window, func() {}, func() {}, func() {})
+	return view, err
+}
+
 func detailFixture(t *testing.T) *model.Item {
 	t.Helper()
 	item, err := model.NewLogin("GitHub", "dev@example.com", "synthetic-secret", model.PasswordSettings{Mode: paw.CustomPassword})
@@ -364,7 +369,7 @@ func TestEntryDetailTOTPCopyUsesCXFParameters(t *testing.T) {
 	item.Credentials = append(item.Credentials, raw)
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
-	view, err := NewEntryDetail(ctx, item, window, func() {}, func() {}, func() {})
+	view, err := newTestEntryDetail(ctx, item, window)
 	require.NoError(t, err)
 	window.SetContent(view)
 	require.NotContains(t, auditTexts(view), credential.Secret)
@@ -392,7 +397,7 @@ func TestEntryDetailTOTPCodeAndProgressShareRow(t *testing.T) {
 			window := test.NewTempWindow(t, nil)
 			ctx, cancel := context.WithCancel(context.Background())
 			t.Cleanup(cancel)
-			view, err := NewEntryDetail(ctx, loginTOTPFixture(t), window, func() {}, func() {}, func() {})
+			view, err := newTestEntryDetail(ctx, loginTOTPFixture(t), window)
 			require.NoError(t, err)
 			window.SetContent(view)
 			window.Resize(fyne.NewSize(width, 926))
@@ -645,7 +650,7 @@ func TestEntryDetailLoginUsesLogicalSectionDividers(t *testing.T) {
 	window := test.NewTempWindow(t, nil)
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
-	view, err := NewEntryDetail(ctx, loginTOTPFixture(t), window, func() {}, func() {}, func() {})
+	view, err := newTestEntryDetail(ctx, loginTOTPFixture(t), window)
 	require.NoError(t, err)
 	window.SetContent(view)
 	window.Resize(fyne.NewSize(430, 926))
@@ -745,7 +750,7 @@ func TestEntryDetailMetadataStaysAtBottomForShortItems(t *testing.T) {
 				window := test.NewTempWindow(t, nil)
 				ctx, cancel := context.WithCancel(context.Background())
 				t.Cleanup(cancel)
-				view, err := NewEntryDetail(ctx, detailItemFixture(t, kind), window, func() {}, func() {}, func() {})
+				view, err := newTestEntryDetail(ctx, detailItemFixture(t, kind), window)
 				require.NoError(t, err)
 				window.SetContent(view)
 				for _, height := range []float32{926, 640} {

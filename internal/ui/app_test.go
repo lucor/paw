@@ -7,7 +7,6 @@ import (
 	"errors"
 	"testing"
 
-	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/test"
 	"fyne.io/fyne/v2/widget"
 	"github.com/stretchr/testify/require"
@@ -22,8 +21,9 @@ func TestFirstRunUsesAddVaultAndReturnsFromCreateAndRestore(t *testing.T) {
 	t.Cleanup(driver.Quit)
 	window := driver.NewWindow("Paw")
 	t.Cleanup(window.Close)
-	store := &storage.StorageMock{}
-	store.OnVaults = func() ([]model.VaultInfo, error) { return nil, nil }
+	store, err := storage.NewFileStorage(t.TempDir())
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, store.Close()) })
 	state := &model.AppState{Settings: model.NewDefaultSettings()}
 	state.Settings.StartupVault = model.StartupVaultLastUsed
 	state.Settings.LastVaultID = "previously-used"
@@ -79,11 +79,20 @@ func TestMakeAppUsesLastUsedVaultSetting(t *testing.T) {
 	t.Cleanup(driver.Quit)
 	window := driver.NewWindow("Paw")
 	t.Cleanup(window.Close)
-	store := &storage.StorageMock{}
-	vaults := []model.VaultInfo{{ID: "first", Name: "First"}, {ID: "last", Name: "Last"}}
-	store.OnVaults = func() ([]model.VaultInfo, error) { return vaults, nil }
+	store, err := storage.NewFileStorage(t.TempDir())
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, store.Close()) })
+	key, err := paw.MakeOneTimeKey()
+	require.NoError(t, err)
+	first, err := model.NewVault(key, "First")
+	require.NoError(t, err)
+	last, err := model.NewVault(key, "Last")
+	require.NoError(t, err)
+	for _, vault := range []*model.Vault{first, last} {
+		require.NoError(t, store.UpdateVaultIdentity(vault, vault.Metadata.VaultName, model.DefaultVaultAppearance()))
+	}
 	state := &model.AppState{Settings: model.NewDefaultSettings()}
-	state.Settings.LastVaultID = "last"
+	state.Settings.LastVaultID = last.Accounts[0].ID
 	application := &app{win: window, storage: store, state: state}
 	content := application.makeApp()
 
@@ -94,20 +103,11 @@ func TestMakeAppUsesLastUsedVaultSetting(t *testing.T) {
 		}
 	}
 	require.NotNil(t, unlock, "last used vault should open to its unlock screen")
-	require.Equal(t, "last", unlock.info.ID)
+	require.Equal(t, last.Accounts[0].ID, unlock.info.ID)
 
 	application.main = content
 	window.SetContent(application.main)
 	window.Show()
-	loadKeyCalls, loadVaultCalls := 0, 0
-	store.OnLoadVaultKey = func(string, string) (*paw.Key, error) {
-		loadKeyCalls++
-		return nil, nil
-	}
-	store.OnLoadVault = func(string, *paw.Key) (*model.Vault, error) {
-		loadVaultCalls++
-		return nil, nil
-	}
 	var chooseAnother *widget.Button
 	for _, object := range test.LaidOutObjects(unlock) {
 		if button, ok := object.(*widget.Button); ok && button.Text == "Choose another vault" {
@@ -117,11 +117,9 @@ func TestMakeAppUsesLastUsedVaultSetting(t *testing.T) {
 	}
 	require.NotNil(t, chooseAnother, "last-used startup unlock should offer the local vault selector")
 	test.Tap(chooseAnother)
-	require.Equal(t, "last", state.Settings.LastVaultID)
+	require.Equal(t, last.Accounts[0].ID, state.Settings.LastVaultID)
 	require.Nil(t, application.vault)
 	require.Empty(t, application.unlockedVault)
-	require.Zero(t, loadKeyCalls)
-	require.Zero(t, loadVaultCalls)
 
 	var selector *widget.List
 	for _, object := range test.LaidOutObjects(application.main) {
@@ -149,9 +147,7 @@ func TestMakeAppUsesLastUsedVaultSetting(t *testing.T) {
 		}
 	}
 	require.Equal(t, 1, selectorCount, "repeated selection should replace, not stack, the selector")
-	require.Equal(t, "last", state.Settings.LastVaultID)
-	require.Zero(t, loadKeyCalls)
-	require.Zero(t, loadVaultCalls)
+	require.Equal(t, last.Accounts[0].ID, state.Settings.LastVaultID)
 
 	state.Settings.LastVaultID = "missing"
 	content = application.makeApp()
@@ -164,20 +160,17 @@ func TestMakeAppUsesLastUsedVaultSetting(t *testing.T) {
 	require.True(t, selectorFound, "missing last used vault should fall back to selector")
 }
 
-// TestCreateVaultCallsStorage checks the form passes the name and password to storage.
-func TestCreateVaultCallsStorage(t *testing.T) {
+func TestCreateVaultReportsSaveFailure(t *testing.T) {
 	driver := test.NewApp()
 	t.Cleanup(driver.Quit)
 	window := driver.NewWindow("Paw")
 	t.Cleanup(window.Close)
-	store := &storage.StorageMock{}
 	var gotName, gotPassword string
-	store.OnCreateVault = func(name, password string) (*model.Vault, error) {
+	view := NewCreateVault(func() {}, func(name, password string, _ model.VaultAppearance) error {
 		gotName, gotPassword = name, password
-		return nil, errors.New("storage failure")
-	}
-	a := &app{win: window, main: container.NewVScroll(widget.NewLabel("Vaults")), storage: store}
-	a.showCreateVaultView()
+		return errors.New("storage failure")
+	})
+	window.SetContent(view)
 	window.Show()
 
 	var entries []*widget.Entry

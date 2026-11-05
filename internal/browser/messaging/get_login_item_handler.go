@@ -18,7 +18,7 @@ import (
 var _ Handler = (*GetLoginItemHandler)(nil)
 
 type GetLoginItemHandler struct {
-	Storage storage.Storage
+	Storage *storage.FileStorage
 }
 
 // Action implements browser.Handler.

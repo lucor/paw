@@ -24,13 +24,9 @@ func TestSettingsViewEditsAndPersistsSettings(t *testing.T) {
 	window := app.NewWindow("Settings")
 	t.Cleanup(window.Close)
 	state := &model.AppState{Settings: model.NewDefaultSettings()}
-	saved := 0
-	store := &storage.StorageMock{}
-	store.OnStoreAppState = func(got *model.AppState) error {
-		require.Same(t, state, got)
-		saved++
-		return nil
-	}
+	store, err := storage.NewFileStorage(t.TempDir())
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, store.Close()) })
 	view := NewSettingsView(state, store, window)
 	window.SetContent(view.View)
 	window.Resize(fyne.NewSize(430, 926))
@@ -65,7 +61,9 @@ func TestSettingsViewEditsAndPersistsSettings(t *testing.T) {
 	test.Tap(steppers[0])
 	require.Equal(t, model.StartupVaultChooseAtStartup, state.Settings.StartupVault)
 	require.Equal(t, paw.PassphrasePasswordDefaultLength+1, state.Settings.Password.Passphrase.DefaultLength)
-	require.Equal(t, 3, saved)
+	persisted, err := store.LoadAppState()
+	require.NoError(t, err)
+	require.Equal(t, state.Settings, persisted.Settings)
 
 	texts := auditTexts(view.View)
 	require.Contains(t, texts, "Settings")
@@ -82,8 +80,9 @@ func TestSettingsViewPersistsStableSelectionKeys(t *testing.T) {
 	state := &model.AppState{Settings: model.NewDefaultSettings()}
 	require.Equal(t, model.DefaultTheme, state.Settings.Theme)
 	require.Equal(t, model.DefaultStartupVault, state.Settings.StartupVault)
-	store := &storage.StorageMock{}
-	store.OnStoreAppState = func(*model.AppState) error { return nil }
+	store, err := storage.NewFileStorage(t.TempDir())
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, store.Close()) })
 	window := app.NewWindow("Settings")
 	t.Cleanup(window.Close)
 	view := NewSettingsView(state, store, window)
@@ -117,8 +116,9 @@ func TestSettingsViewPersistsCanonicalAutoLockKey(t *testing.T) {
 	app := test.NewApp()
 	t.Cleanup(app.Quit)
 	state := &model.AppState{Settings: model.NewDefaultSettings()}
-	store := &storage.StorageMock{}
-	store.OnStoreAppState = func(*model.AppState) error { return nil }
+	store, err := storage.NewFileStorage(t.TempDir())
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, store.Close()) })
 	window := app.NewWindow("Settings")
 	t.Cleanup(window.Close)
 	view := NewSettingsView(state, store, window)
@@ -143,8 +143,9 @@ func TestSettingsTypographyFollowsSelectedTheme(t *testing.T) {
 	window := app.NewWindow("Settings")
 	t.Cleanup(window.Close)
 	state := &model.AppState{Settings: model.NewDefaultSettings()}
-	store := &storage.StorageMock{}
-	store.OnStoreAppState = func(*model.AppState) error { return nil }
+	store, err := storage.NewFileStorage(t.TempDir())
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, store.Close()) })
 	view := NewSettingsView(state, store, window)
 	window.SetContent(view.View)
 	window.Resize(fyne.NewSize(430, 926))

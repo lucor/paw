@@ -30,14 +30,14 @@ type SettingsView struct {
 	View              fyne.CanvasObject
 	BackButton        *iconButton
 	state             *model.AppState
-	storage           storage.Storage
+	storage           *storage.FileStorage
 	window            fyne.Window
 	configureAutoLock func(string)
 	openAbout         func()
 }
 
 // NewSettingsView builds the application's Settings view.
-func NewSettingsView(state *model.AppState, store storage.Storage, window fyne.Window) *SettingsView {
+func NewSettingsView(state *model.AppState, store *storage.FileStorage, window fyne.Window) *SettingsView {
 	if state == nil {
 		state = &model.AppState{}
 	}

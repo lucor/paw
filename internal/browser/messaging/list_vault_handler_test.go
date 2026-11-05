@@ -7,8 +7,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"go.lucor.dev/paw/internal/model"
-	"go.lucor.dev/paw/internal/storage"
+	"github.com/stretchr/testify/require"
 )
 
 func TestListVaultHandler_Serve(t *testing.T) {
@@ -21,21 +20,15 @@ func TestListVaultHandler_Serve(t *testing.T) {
 		assert.ErrorAs(t, res.Error, &e)
 	})
 
-	t.Run("valid request", func(t *testing.T) {
-		vaults := []model.VaultInfo{{ID: "vault1", Name: "Vault One"}, {ID: "vault2", Name: "Vault Two"}}
-		s := &storage.StorageMock{}
-		s.OnVaults = func() ([]model.VaultInfo, error) {
-			return vaults, nil
-		}
+	t.Run("storage error", func(t *testing.T) {
+		s := newListingStorage(t)
+		require.NoError(t, s.Close())
 		req := &Request{Action: ListVaultAction}
 		res := &Response{}
 		h := &ListVaultHandler{Storage: s}
 		h.Serve(res, req)
 		assert.Equal(t, res.Action, req.Action)
-		assert.Nil(t, res.Error)
-
-		payload, ok := res.Payload.(*ListVaultHandlerResponsePayload)
-		assert.True(t, ok)
-		assert.Equal(t, []string{"Vault One", "Vault Two"}, payload.Vaults)
+		assert.Error(t, res.Error)
+		assert.Nil(t, res.Payload)
 	})
 }

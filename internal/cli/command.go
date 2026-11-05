@@ -5,7 +5,6 @@ package cli
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"time"
 
@@ -20,19 +19,18 @@ import (
 // command provides the shared runtime used by CLI command implementations.
 // Constructors capture it in closures; urfave owns argument parsing and streams.
 type command struct {
-	storage             storage.Storage
-	vaultID             string
-	vaultNeedsMigration bool
-	prompter            *prompter
-	out                 io.Writer
-	errOut              io.Writer
-	agentClient         func(string) (agent.PawAgent, error)
-	startAgent          func(string) error
-	clipboard           func(context.Context, []byte) error
-	readFile            func(string) ([]byte, error)
-	getenv              func(string) string
-	now                 func() time.Time
-	generateSSHKey      func() (*generatedSSHKey, error)
+	storage        *storage.FileStorage
+	vaultID        string
+	prompter       *prompter
+	out            io.Writer
+	errOut         io.Writer
+	agentClient    func(string) (agent.PawAgent, error)
+	startAgent     func(string) error
+	clipboard      func(context.Context, []byte) error
+	readFile       func(string) ([]byte, error)
+	getenv         func(string) string
+	now            func() time.Time
+	generateSSHKey func() (*generatedSSHKey, error)
 }
 
 type generatedSSHKey struct {
@@ -41,11 +39,8 @@ type generatedSSHKey struct {
 	Fingerprint string
 }
 
-// loadVault prints migration status when needed, then loads the vault.
+// loadVault loads the selected vault.
 func (base *command) loadVault(key *paw.Key) (*model.Vault, error) {
-	if base.vaultNeedsMigration && base.out != nil {
-		fmt.Fprintln(base.out, "Migrating vault...")
-	}
 	return base.storage.LoadVault(base.vaultID, key)
 }
 

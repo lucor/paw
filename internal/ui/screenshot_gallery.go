@@ -1,18 +1,24 @@
 // SPDX-FileCopyrightText: 2026 Luca Corbo, Paw contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//go:build screnshots
-
 package ui
 
 import (
 	"context"
+	"crypto/ed25519"
+	"crypto/x509"
+	_ "embed"
+	"encoding/base64"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"image/color"
+	"image/png"
 	"os"
+	"path/filepath"
 	"strings"
-	"testing"
 	"time"
 
-	"filippo.io/age"
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
@@ -21,50 +27,61 @@ import (
 	"fyne.io/fyne/v2/test"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
-	"github.com/stretchr/testify/require"
+	"go.lucor.dev/cxf"
 	"go.lucor.dev/paw/internal/model"
 	"go.lucor.dev/paw/internal/paw"
 	"go.lucor.dev/paw/internal/storage"
 	"go.lucor.dev/paw/internal/ui/assets/icons"
 )
 
-func TestUIE2EScreenshotGallery(t *testing.T) {
-	outputDir := os.Getenv("PAW_UI_SNAPSHOT_DIR")
+//go:embed testdata/github-favicon.png
+var screenshotFavicon []byte
+
+// GenerateScreenshotGallery captures the UI states used for visual review.
+func GenerateScreenshotGallery(outputDir string) error {
 	if outputDir == "" {
-		outputDir = t.TempDir()
+		return errors.New("screenshot output directory is required")
 	}
-	require.NoError(t, os.MkdirAll(outputDir, 0o755))
+	if err := os.MkdirAll(outputDir, 0o755); err != nil {
+		return err
+	}
 	for _, variant := range []fyne.ThemeVariant{theme.VariantLight, theme.VariantDark} {
-		t.Run(variantName(variant), func(t *testing.T) {
-			runUIE2EScreenshotGallery(t, outputDir, variant)
-		})
+		if err := captureScreenshotGallery(outputDir, variant); err != nil {
+			return err
+		}
 	}
-	t.Logf("UI screenshot gallery: %s", outputDir)
+	return nil
 }
 
-func runUIE2EScreenshotGallery(t *testing.T, outputDir string, variant fyne.ThemeVariant) {
-	t.Helper()
+type screenshotGallery struct {
+	outputDir string
+	err       error
+}
+
+// captureScreenshotGallery renders the sample screens in one theme variant.
+func captureScreenshotGallery(outputDir string, variant fyne.ThemeVariant) error {
 	driver := test.NewApp()
-	t.Cleanup(driver.Quit)
-	driver.Settings().SetTheme(variantTheme{Theme: newPawTheme(), variant: variant})
+	defer driver.Quit()
+	driver.Settings().SetTheme(screenshotTheme{Theme: newPawTheme(), variant: variant})
 	window := driver.NewWindow("Paw UI gallery")
-	t.Cleanup(window.Close)
+	defer window.Close()
 	window.Resize(fyne.NewSize(440, 800))
 	window.Show()
-	suffix := "-" + variantName(variant) + ".png"
+	gallery := &screenshotGallery{outputDir: outputDir}
+	suffix := "-" + screenshotVariantName(variant) + ".png"
 	capture := func(name string, view fyne.CanvasObject) {
 		window.SetContent(view)
 		window.Resize(fyne.NewSize(440, 800))
-		captureUIPilotScreen(t, window, outputDir, name+suffix)
+		gallery.capture(window, name+suffix)
 	}
 	captureAt := func(name string, view fyne.CanvasObject, size fyne.Size) {
 		window.SetContent(view)
 		window.Resize(size)
-		captureUIPilotScreen(t, window, outputDir, name+suffix)
+		gallery.capture(window, name+suffix)
 	}
 	captureCurrent := func(name string, size fyne.Size) {
 		window.Resize(size)
-		captureUIPilotScreen(t, window, outputDir, name+suffix)
+		gallery.capture(window, name+suffix)
 	}
 
 	addVault := NewAddVault(func() {}, func() {}, func() {})
@@ -92,7 +109,9 @@ func runUIE2EScreenshotGallery(t *testing.T, outputDir string, variant fyne.Them
 				break
 			}
 		}
-		require.NotNil(t, previewButton)
+		if previewButton == nil {
+			return errors.New("vault appearance preview button was not rendered")
+		}
 		previewPosition := driver.Driver().AbsolutePositionForObject(previewButton)
 		test.TapCanvas(window.Canvas(), previewPosition.Add(fyne.NewPos(8, 8)))
 		captureCurrent("vault-appearance-default", fyne.NewSize(440, 800))
@@ -122,19 +141,11 @@ func runUIE2EScreenshotGallery(t *testing.T, outputDir string, variant fyne.Them
 		createFields[2].SetText("example master password")
 		capture("create-vault-valid", createVault)
 	}
-	capture("unlock-vault", NewUnlockVault(model.VaultInfo{ID: "personal", Name: "Personal"}, &storage.StorageMock{}, nil, func() {}, func() {}, func() {}))
-	unlockFailureStore := &storage.StorageMock{}
-	unlockFailureStore.OnLoadVaultKey = func(string, string) (*paw.Key, error) { return nil, &age.NoIdentityMatchError{} }
-	unlockFailure := NewUnlockVault(model.VaultInfo{ID: "personal", Name: "Personal"}, unlockFailureStore, nil, nil, nil, func() {})
+	capture("unlock-vault", NewUnlockVault(model.VaultInfo{ID: "personal", Name: "Personal"}, nil, nil, func() {}, func() {}, func() {}))
+	unlockFailure := NewUnlockVault(model.VaultInfo{ID: "personal", Name: "Personal"}, nil, nil, nil, nil, func() {})
 	window.SetContent(unlockFailure)
 	window.Resize(fyne.NewSize(440, 800))
-	unlockFailure.password.SetText("incorrect password")
-	test.Tap(unlockFailure.button)
-	require.Eventually(t, func() bool {
-		var visible bool
-		fyne.DoAndWait(func() { visible = unlockFailure.passwordError.Visible() })
-		return visible
-	}, time.Second, 10*time.Millisecond)
+	unlockFailure.showIncorrectPassword()
 	captureCurrent("unlock-vault-error", fyne.NewSize(440, 800))
 	capture("vault-selector", NewSelectVault([]VaultChoice{
 		{Name: "Personal", Unlocked: true, Open: func() {}},
@@ -158,7 +169,11 @@ func runUIE2EScreenshotGallery(t *testing.T, outputDir string, variant fyne.Them
 	customizedEditor := NewVaultIdentityEditor("Work", model.DefaultVaultAppearance(), func(string, model.VaultAppearance) error { return nil }, func() {})
 	window.SetContent(customizedEditor)
 	window.Resize(fyne.NewSize(440, 800))
-	test.Tap(findVaultIdentityPreview(t, customizedEditor))
+	preview := screenshotFindVaultIdentityPreview(customizedEditor)
+	if preview == nil {
+		return errors.New("vault identity preview button was not rendered")
+	}
+	test.Tap(preview)
 	appearanceView := window.Content()
 	for _, object := range test.LaidOutObjects(appearanceView) {
 		if button, ok := object.(*widget.Button); ok && button.Icon != nil && strings.Contains(button.Icon.Name(), "briefcase-business") {
@@ -181,132 +196,183 @@ func runUIE2EScreenshotGallery(t *testing.T, outputDir string, variant fyne.Them
 	}
 	captureCurrent("edit-vault-customized", fyne.NewSize(440, 800))
 
-	listOptions := entryListFixture()
-	githubFaviconData, err := os.ReadFile("testdata/github-favicon.png")
-	require.NoError(t, err)
-	githubFavicon := model.NewFavicon("github.com", githubFaviconData, "png")
+	listOptions := screenshotEntryListFixture()
+	githubFavicon := model.NewFavicon("github.com", screenshotFavicon, "png")
 	listOptions.Entries[0].Icon = githubFavicon
 	list := NewEntryList(listOptions)
 	capture("entry-list", list)
 	captureAt("entry-list-narrow", list, fyne.NewSize(320, 540))
-	emptyVaultOptions := entryListFixture()
+	emptyVaultOptions := screenshotEntryListFixture()
 	emptyVaultOptions.Entries = nil
 	capture("entry-list-empty-vault", NewEntryList(emptyVaultOptions))
-	searchEmptyOptions := entryListFixture()
+	searchEmptyOptions := screenshotEntryListFixture()
 	searchEmptyOptions.Search = "not-found"
 	capture("entry-list-search-empty", NewEntryList(searchEmptyOptions))
-	categoryEmptyOptions := entryListFixture()
+	categoryEmptyOptions := screenshotEntryListFixture()
 	categoryEmptyOptions.Category = "password"
 	categoryEmptyOptions.Entries = []EntryRow{{Title: "GitHub", Category: "login", Icon: icons.Login, Open: func() {}}}
 	capture("entry-list-category-empty", NewEntryList(categoryEmptyOptions))
 	window.Resize(fyne.NewSize(320, 540))
-	captureUIPilotScreen(t, window, outputDir, "entry-list-short-window"+suffix)
+	gallery.capture(window, "entry-list-short-window"+suffix)
 	for _, menu := range []struct {
 		name  string
 		label string
 	}{{"vault-selector-menu-active", "Select vault"}, {"entry-add-menu", "Add entry"}, {"vault-actions-menu", "Vault actions"}} {
 		window.SetContent(list)
-		test.Tap(findPilotIconButton(t, list, menu.label))
+		button := screenshotFindPilotIconButton(list, menu.label)
+		if button == nil {
+			return fmt.Errorf("%s button was not rendered", menu.label)
+		}
+		test.Tap(button)
 		captureCurrent(menu.name, fyne.NewSize(320, 540))
-		closePilotOverlay(window)
+		screenshotCloseOverlay(window)
 	}
 
 	window.SetContent(list)
-	categoryLabel := findPilotLabel(t, list, "All items")
-	chooseEntryCategory(t, driver, window, categoryLabel, "Logins")
-	require.Equal(t, "Logins", findPilotLabel(t, list, "Logins").Text)
-	require.Equal(t, 2, findPilotList(t, list).Length())
-	selectedOptions := entryListFixture()
+	categoryLabel := screenshotFindPilotLabel(list, "All items")
+	if categoryLabel == nil {
+		return errors.New("All items category was not rendered")
+	}
+	screenshotChooseEntryCategory(driver, window, categoryLabel, "Logins")
+	selectedOptions := screenshotEntryListFixture()
 	selectedOptions.Category = "login"
 	selectedList := NewEntryList(selectedOptions)
 	capture("entry-list-category-selected", selectedList)
-	categoryLabel = findPilotLabel(t, selectedList, "Logins")
+	categoryLabel = screenshotFindPilotLabel(selectedList, "Logins")
+	if categoryLabel == nil {
+		return errors.New("Logins category was not rendered")
+	}
 	window.SetContent(selectedList)
 	position := driver.Driver().AbsolutePositionForObject(categoryLabel).Add(fyne.NewPos(categoryLabel.Size().Width/2, categoryLabel.Size().Height/2))
 	test.TapCanvas(window.Canvas(), position)
 	captureCurrent("entry-category-menu-selected", fyne.NewSize(440, 800))
-	closePilotOverlay(window)
-	findPilotEntry(t, list, "Search entries…").(*widget.Entry).SetText("github")
-	require.Equal(t, 1, findPilotList(t, list).Length())
-	searchOptions := entryListFixture()
+	screenshotCloseOverlay(window)
+	searchEntry, ok := screenshotFindPilotEntry(list, "Search entries…").(*widget.Entry)
+	if !ok {
+		return errors.New("entry search field was not rendered")
+	}
+	searchEntry.SetText("github")
+	searchOptions := screenshotEntryListFixture()
 	searchOptions.Category = "login"
 	searchOptions.Search = "github"
 	searchList := NewEntryList(searchOptions)
 	capture("entry-list-search", searchList)
 
-	navigation := findPilotNavigation(t, list)
+	navigation := screenshotFindPilotNavigation(list)
+	if navigation == nil {
+		return errors.New("bottom navigation was not rendered")
+	}
 	codeContext, cancelCodes := context.WithCancel(context.Background())
+	defer cancelCodes()
 	codesView := newCodesView(codeContext, []codesEntry{
-		{Title: "GitHub", Username: "dev@example.com", ItemID: "github", Icon: githubFavicon, Credential: testTOTPCredential()},
-		{Title: "Google", Username: "user@gmail.com", ItemID: "google", Icon: icons.Globe, Credential: testTOTPCredential()},
-		{Title: "GitLab", Username: "dev@example.com", ItemID: "gitlab", Icon: icons.Globe, Credential: testTOTPCredential()},
+		{Title: "GitHub", Username: "dev@example.com", ItemID: "github", Icon: githubFavicon, Credential: screenshotTOTPCredential()},
+		{Title: "Google", Username: "user@gmail.com", ItemID: "google", Icon: icons.Globe, Credential: screenshotTOTPCredential()},
+		{Title: "GitLab", Username: "dev@example.com", ItemID: "gitlab", Icon: icons.Globe, Credential: screenshotTOTPCredential()},
 	}, nil)
-	codesOptions := entryListFixture()
+	codesOptions := screenshotEntryListFixture()
 	codesOptions.Codes = codesView.View
 	codesList := NewEntryList(codesOptions)
 	window.SetContent(codesList)
 	window.Resize(fyne.NewSize(440, 800))
-	codesNavigation := findPilotNavigation(t, window.Content())
+	codesNavigation := screenshotFindPilotNavigation(window.Content())
+	if codesNavigation == nil {
+		return errors.New("Codes navigation was not rendered")
+	}
 	test.Tap(codesNavigation.buttons[1].button)
-	require.Equal(t, 1, codesNavigation.Selected)
-	captureUIPilotScreen(t, window, outputDir, "codes"+suffix)
+	gallery.capture(window, "codes"+suffix)
 	window.SetContent(codesList)
 	window.Resize(fyne.NewSize(320, 540))
-	codesNavigation = findPilotNavigation(t, window.Content())
+	codesNavigation = screenshotFindPilotNavigation(window.Content())
+	if codesNavigation == nil {
+		return errors.New("Codes navigation was not rendered")
+	}
 	codesNavigation.Select(0)
 	codesNavigation.Select(1)
-	captureUIPilotScreen(t, window, outputDir, "codes-list-narrow"+suffix)
-	test.Tap(findPilotIconButton(t, codesList, "Vault actions"))
+	gallery.capture(window, "codes-list-narrow"+suffix)
+	codeActions := screenshotFindPilotIconButton(codesList, "Vault actions")
+	if codeActions == nil {
+		return errors.New("vault actions button was not rendered in the Codes view")
+	}
+	test.Tap(codeActions)
 	captureCurrent("codes-actions-menu", fyne.NewSize(320, 540))
-	closePilotOverlay(window)
+	screenshotCloseOverlay(window)
 	emptyContext, cancelEmpty := context.WithCancel(context.Background())
+	defer cancelEmpty()
 	emptyCodes := newCodesView(emptyContext, nil, nil)
-	emptyOptions := entryListFixture()
+	emptyOptions := screenshotEntryListFixture()
 	emptyOptions.Codes = emptyCodes.View
 	emptyList := NewEntryList(emptyOptions)
 	window.SetContent(emptyList)
 	window.Resize(fyne.NewSize(440, 800))
-	emptyNavigation := findPilotNavigation(t, window.Content())
+	emptyNavigation := screenshotFindPilotNavigation(window.Content())
+	if emptyNavigation == nil {
+		return errors.New("empty Codes navigation was not rendered")
+	}
 	test.Tap(emptyNavigation.buttons[1].button)
-	captureUIPilotScreen(t, window, outputDir, "codes-empty"+suffix)
+	gallery.capture(window, "codes-empty"+suffix)
 	cancelEmpty()
 	cancelCodes()
 	navigation.Select(2)
 
-	login := loginEditorFixture(t)
+	login, err := screenshotLoginEditorFixture()
+	if err != nil {
+		return err
+	}
 	login.Metadata.Favicon = githubFavicon
 	password, err := model.NewPassword("Home Wi-Fi", "synthetic-password", model.PasswordSettings{Mode: paw.CustomPassword})
-	require.NoError(t, err)
+	if err != nil {
+		return err
+	}
 	note, err := model.NewNote("Recovery note", "Synthetic note for UI review.")
-	require.NoError(t, err)
-	sshItem, _ := sshDetailFixture(t)
+	if err != nil {
+		return err
+	}
+	sshItem, err := screenshotSSHDetailFixture()
+	if err != nil {
+		return err
+	}
 
 	for _, item := range []*model.Item{login, password, note, sshItem} {
 		ctx, cancel := context.WithCancel(context.Background())
-		view, err := NewEntryDetail(ctx, item, window, func() {}, func() {}, func() {})
-		require.NoError(t, err)
-		capture("entry-detail-"+pilotItemName(item), view)
+		defer cancel()
+		view, clear, err := newEntryDetailWithClear(ctx, item, window, func() {}, func() {}, func() {})
+		if err != nil {
+			return err
+		}
+		capture("entry-detail-"+screenshotPilotItemName(item), view)
 		if item == login {
 			captureAt("entry-detail-login-totp-narrow", view, fyne.NewSize(320, 640))
 			window.SetContent(view)
-			test.Tap(findPilotIconButton(t, view, "Entry actions"))
+			button := screenshotFindPilotIconButton(view, "Entry actions")
+			if button == nil {
+				return errors.New("entry actions button was not rendered")
+			}
+			test.Tap(button)
 			captureCurrent("entry-detail-actions-menu", fyne.NewSize(320, 540))
-			closePilotOverlay(window)
+			screenshotCloseOverlay(window)
 		}
 		if item == sshItem {
 			captureAt("entry-detail-ssh-key-narrow", view, fyne.NewSize(320, 640))
-			test.Tap(findPilotIconButton(t, view, "Show private key"))
+			button := screenshotFindPilotIconButton(view, "Show private key")
+			if button == nil {
+				return errors.New("private key reveal button was not rendered")
+			}
+			test.Tap(button)
 			captureCurrent("entry-detail-ssh-key-revealed", fyne.NewSize(320, 640))
 		}
 		cancel()
+		clear()
 	}
 
-	loginEditor := newTestLoginEditor(t, login, false)
+	loginEditor, err := NewLoginEditor(context.Background(), login, model.NewDefaultSettings().FaviconDownloader, false)
+	if err != nil {
+		return err
+	}
 	capture("edit-login", loginEditor.View)
 	window.SetContent(loginEditor.View)
 	showTOTPSettingsDialog(loginEditor, window)
 	captureCurrent("totp-settings-dialog", fyne.NewSize(440, 800))
-	popup := totpDialogOverlay(window)
+	popup := window.Canvas().Overlays().Top()
 	fyne.DoAndWait(func() {
 		for _, object := range test.LaidOutObjects(popup) {
 			if button, ok := object.(*widget.Button); ok && button.Text == "Cancel" {
@@ -316,20 +382,26 @@ func runUIE2EScreenshotGallery(t *testing.T, outputDir string, variant fyne.Them
 		}
 	})
 	passwordEditor, err := NewPasswordEditor(password, false)
-	require.NoError(t, err)
+	if err != nil {
+		return err
+	}
 	capture("edit-password", passwordEditor.View)
 	noteEditor, err := NewNoteEditor(note, false)
-	require.NoError(t, err)
+	if err != nil {
+		return err
+	}
 	capture("edit-note", noteEditor.View)
 	sshEditor, err := NewSSHKeyEditor(sshItem, false)
-	require.NoError(t, err)
+	if err != nil {
+		return err
+	}
 	captureAt("edit-ssh-key", sshEditor.View, fyne.NewSize(440, 926))
 	captureAt("edit-ssh-key-narrow", sshEditor.View, fyne.NewSize(320, 640))
 	test.Tap(sshEditor.RevealPrivateButton)
 	capture("edit-ssh-key-private-revealed", sshEditor.View)
 
 	appState := &model.AppState{Settings: model.NewDefaultSettings()}
-	settings := NewSettingsView(appState, &storage.StorageMock{}, window)
+	settings := NewSettingsView(appState, nil, window)
 	capture("settings", settings.View)
 	for _, object := range test.LaidOutObjects(settings.View) {
 		if scroll, ok := object.(*container.Scroll); ok {
@@ -356,8 +428,16 @@ func runUIE2EScreenshotGallery(t *testing.T, outputDir string, variant fyne.Them
 		audit.Close()
 	}
 
-	backupStore := &storage.StorageMock{}
-	backupStore.OnVaults = func() ([]model.VaultInfo, error) { return nil, nil }
+	backupRoot, err := os.MkdirTemp("", "paw-gallery-")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(backupRoot)
+	backupStore, err := storage.NewFileStorage(backupRoot)
+	if err != nil {
+		return err
+	}
+	defer backupStore.Close()
 	backupFlow := &restoreFlow{window: window, store: backupStore, back: func() {}, restored: func(*model.Vault) {}}
 	backupFlow.selectFile("")
 	captureCurrent("restore-select-file", fyne.NewSize(440, 800))
@@ -368,28 +448,36 @@ func runUIE2EScreenshotGallery(t *testing.T, outputDir string, variant fyne.Them
 	backupFlow.review(backup, "")
 	captureCurrent("restore-review", fyne.NewSize(440, 800))
 	captureAt("restore-review-narrow", window.Content(), fyne.NewSize(320, 540))
-	backupStore.OnVaults = func() ([]model.VaultInfo, error) {
-		return []model.VaultInfo{{Name: "Personal"}}, nil
+	key, err := paw.MakeOneTimeKey()
+	if err != nil {
+		return err
+	}
+	vault, err := model.NewVault(key, "Personal")
+	if err != nil {
+		return err
+	}
+	if err := backupStore.UpdateVaultIdentity(vault, "Personal", model.DefaultVaultAppearance()); err != nil {
+		return err
 	}
 	backupFlow.review(backup, "")
 	captureCurrent("restore-review-collision", fyne.NewSize(440, 800))
-	key, err := paw.MakeOneTimeKey()
-	require.NoError(t, err)
-	vault, err := model.NewVault(key, "Personal")
-	require.NoError(t, err)
 	backupFlow.complete(vault)
 	captureCurrent("restore-complete", fyne.NewSize(440, 800))
 
-	exportView := newExportCredentialsView(window, &storage.StorageMock{}, vault, "Personal", func() {})
+	exportView := newExportCredentialsView(window, nil, vault, "Personal", func() {})
 	window.SetContent(exportView.View)
 	captureCurrent("export-encrypted-default", fyne.NewSize(440, 800))
 	exportView.Mode.SetSelected(exportPlaintextLabel)
 	captureCurrent("export-plaintext-warning", fyne.NewSize(440, 800))
 
 	passwordItem, err := model.NewPassword("Example password", "", model.PasswordSettings{Mode: paw.CustomPassword})
-	require.NoError(t, err)
+	if err != nil {
+		return err
+	}
 	passwordEditor, err = NewPasswordEditor(passwordItem, true)
-	require.NoError(t, err)
+	if err != nil {
+		return err
+	}
 	window.SetContent(passwordEditor.View)
 	passwordSettings := model.NewDefaultSettings().Password
 	generator := NewPasswordGenerator(passwordSettings)
@@ -407,27 +495,19 @@ func runUIE2EScreenshotGallery(t *testing.T, outputDir string, variant fyne.Them
 		}
 		generator.ShowPasswordGenerator(binding.NewString(), password, window)
 		popup := window.Canvas().Overlays().Top()
-		result := passwordGeneratorEntry(t, popup).Text
-		if mode == paw.PassphrasePassword {
-			words := strings.Split(result, "-")
-			require.Len(t, words, passwordSettings.Passphrase.DefaultLength)
-			for _, word := range words {
-				require.NotEmpty(t, word)
-				require.Empty(t, strings.Trim(word, "abcdefghijklmnopqrstuvwxyz"))
-			}
-		} else if mode == paw.PinPassword {
-			require.Regexp(t, `^\d+$`, result)
-		} else {
-			require.Len(t, result, passwordSettings.Random.DefaultLength)
+		entry := screenshotPasswordGeneratorEntry(popup)
+		if entry == nil {
+			return errors.New("password generator field was not rendered")
 		}
-		captureCurrent("password-generator-"+pilotModeName(mode.String()), fyne.NewSize(440, 800))
-		closePilotOverlay(window)
+		captureCurrent("password-generator-"+screenshotPilotModeName(mode.String()), fyne.NewSize(440, 800))
+		screenshotCloseOverlay(window)
 	}
+	return gallery.err
 }
 
 func newPilotAudit(state string) *PasswordAudit {
 	audit := NewPasswordAudit("Personal", nil, func(fyne.CanvasObject) {}, func(string) {}, func() {})
-	audit.result = auditFixture()
+	audit.result = screenshotAuditFixture()
 	audit.hasResult = state != "idle"
 	audit.running = state == "running"
 	if state != "idle" && state != "running" && state != "no-passwords" {
@@ -474,46 +554,189 @@ func newPilotAudit(state string) *PasswordAudit {
 	return audit
 }
 
-func findPilotLabel(t *testing.T, view fyne.CanvasObject, text string) *widget.Label {
-	t.Helper()
+func (g *screenshotGallery) capture(window fyne.Window, name string) {
+	if g.err != nil {
+		return
+	}
+	test.LaidOutObjects(window.Content())
+	window.Canvas().Refresh(window.Content())
+	if overlay := window.Canvas().Overlays().Top(); overlay != nil {
+		test.LaidOutObjects(overlay)
+		window.Canvas().Refresh(overlay)
+	}
+	file, err := os.Create(filepath.Join(g.outputDir, name))
+	if err == nil {
+		err = png.Encode(file, window.Canvas().Capture())
+		closeErr := file.Close()
+		if err == nil {
+			err = closeErr
+		}
+	}
+	if err != nil {
+		g.err = fmt.Errorf("capture %s: %w", name, err)
+	}
+}
+
+type screenshotTheme struct {
+	fyne.Theme
+	variant fyne.ThemeVariant
+}
+
+func (t screenshotTheme) Color(name fyne.ThemeColorName, _ fyne.ThemeVariant) color.Color {
+	return (&pawTheme{Theme: t.Theme, variant: t.variant, variantPinned: true}).Color(name, t.variant)
+}
+
+func (t screenshotTheme) Size(name fyne.ThemeSizeName) float32 {
+	return (&pawTheme{Theme: t.Theme}).Size(name)
+}
+
+func screenshotVariantName(variant fyne.ThemeVariant) string {
+	if variant == theme.VariantDark {
+		return "dark"
+	}
+	return "light"
+}
+
+func screenshotEntryListFixture() EntryListOptions {
+	return EntryListOptions{
+		VaultName: "Personal", Codes: widget.NewLabel("Codes"), Settings: widget.NewLabel("Settings"),
+		VaultActions: NewVaultActions(func() {}, func() {}, func() {}, func() {}),
+		AddEntry:     func(EntryKind) {}, AddVault: func() {},
+		Categories: []EntryCategory{
+			{ID: "all", Label: "All items", Icon: icons.List}, {ID: "login", Label: "Logins", Icon: icons.Login},
+			{ID: "password", Label: "Passwords", Icon: icons.Password}, {ID: "note", Label: "Notes", Icon: icons.Note},
+			{ID: "ssh", Label: "SSH keys", Icon: icons.SSH},
+		},
+		Vaults: []VaultChoice{{Name: "Personal", Unlocked: true, Active: true, Open: func() {}}, {Name: "Work", Open: func() {}}},
+		Entries: []EntryRow{
+			{Title: "GitHub", Subtitle: "dev@example.com", Category: "login", Icon: icons.Login, Open: func() {}},
+			{Title: "Google", Subtitle: "user@gmail.com", Category: "login", Icon: icons.Login, Open: func() {}},
+			{Title: "Home WiFi", Category: "password", Icon: icons.Password, Open: func() {}},
+			{Title: "Production server", Subtitle: "deploy", Category: "ssh", Icon: icons.SSH, Open: func() {}},
+			{Title: "Recovery codes", Category: "note", Icon: icons.Note, Open: func() {}},
+		},
+	}
+}
+
+func screenshotTOTPCredential() cxf.TOTP {
+	return cxf.TOTP{Type: cxf.CredentialTypeTOTP, Secret: "JBSWY3DPEHPK3PXP", Algorithm: "sha1", Period: 30, Digits: 6}
+}
+
+func screenshotLoginEditorFixture() (*model.Item, error) {
+	item, err := model.NewLogin("GitHub", "dev@example.com", "synthetic-password", model.PasswordSettings{Mode: paw.CustomPassword})
+	if err != nil {
+		return nil, err
+	}
+	credential, err := json.Marshal(screenshotTOTPCredential())
+	if err != nil {
+		return nil, err
+	}
+	item.Credentials = append(item.Credentials, credential)
+	return item, nil
+}
+
+func screenshotSSHDetailFixture() (*model.Item, error) {
+	seed := make([]byte, ed25519.SeedSize)
+	for index := range seed {
+		seed[index] = byte(index)
+	}
+	privateKey := ed25519.NewKeyFromSeed(seed)
+	der, err := x509.MarshalPKCS8PrivateKey(privateKey)
+	if err != nil {
+		return nil, err
+	}
+	credential := cxf.SSHKey{Type: cxf.CredentialTypeSSHKey, KeyType: "ssh-ed25519", KeyComment: "Deploy key", PrivateKey: base64.RawURLEncoding.EncodeToString(der)}
+	return model.NewSSHKey("Production server", credential, "", model.PasswordSettings{Mode: paw.CustomPassword})
+}
+
+func screenshotAuditFixture() AuditResult {
+	return AuditResult{Passwords: 3, ExposedChecked: 3, LocalComplete: true, Findings: []AuditFinding{
+		{AuditEntry: AuditEntry{ID: "github", Title: "GitHub", Subtitle: "dev@example.com", Icon: icons.Login}, Score: 0, ReuseCount: 2, ReuseGroup: 1, Exposed: true, ExposedCount: 12450},
+		{AuditEntry: AuditEntry{ID: "forum", Title: "Old forum", Subtitle: "user@example.com", Icon: icons.Login}, Score: 1, ReuseCount: 2, ReuseGroup: 1},
+	}}
+}
+
+func screenshotFindPilotLabel(view fyne.CanvasObject, text string) *widget.Label {
 	for _, object := range test.LaidOutObjects(view) {
 		if label, ok := object.(*widget.Label); ok && label.Text == text {
 			return label
 		}
 	}
-	t.Fatalf("label %q is not rendered", text)
 	return nil
 }
 
-func findPilotEntry(t *testing.T, view fyne.CanvasObject, placeholder string) fyne.CanvasObject {
-	t.Helper()
+func screenshotFindPilotEntry(view fyne.CanvasObject, placeholder string) fyne.CanvasObject {
 	for _, object := range test.LaidOutObjects(view) {
 		if entry, ok := object.(*widget.Entry); ok && entry.PlaceHolder == placeholder {
 			return entry
 		}
 	}
-	t.Fatalf("entry with placeholder %q is not rendered", placeholder)
 	return nil
 }
 
-func findPilotList(t *testing.T, view fyne.CanvasObject) *widget.List {
-	t.Helper()
+func screenshotFindPilotIconButton(view fyne.CanvasObject, label string) *iconButton {
 	for _, object := range test.LaidOutObjects(view) {
-		if list, ok := object.(*widget.List); ok {
-			return list
+		if button, ok := object.(*iconButton); ok && button.AccessibilityLabel() == label {
+			return button
 		}
 	}
-	t.Fatal("list is not rendered")
 	return nil
 }
 
-func closePilotOverlay(window fyne.Window) {
+func screenshotFindPilotNavigation(view fyne.CanvasObject) *Navigation {
+	if navigation, ok := view.(*Navigation); ok {
+		return navigation
+	}
+	container, ok := view.(*fyne.Container)
+	if !ok {
+		return nil
+	}
+	for _, child := range container.Objects {
+		if navigation := screenshotFindPilotNavigation(child); navigation != nil {
+			return navigation
+		}
+	}
+	return nil
+}
+
+func screenshotFindVaultIdentityPreview(view fyne.CanvasObject) *widget.Button {
+	for _, object := range test.LaidOutObjects(view) {
+		if button, ok := object.(*widget.Button); ok && button.Text == "" && button.Icon == nil && button.Size().Width >= 80 {
+			return button
+		}
+	}
+	return nil
+}
+
+func screenshotPasswordGeneratorEntry(view fyne.CanvasObject) *widget.Entry {
+	for _, object := range test.LaidOutObjects(view) {
+		if entry, ok := object.(*widget.Entry); ok {
+			return entry
+		}
+	}
+	return nil
+}
+
+func screenshotChooseEntryCategory(app fyne.App, window fyne.Window, label *widget.Label, name string) {
+	position := app.Driver().AbsolutePositionForObject(label).Add(fyne.NewPos(label.Size().Width/2, label.Size().Height/2))
+	test.TapCanvas(window.Canvas(), position)
+	menu := window.Canvas().Overlays().Top()
+	for _, object := range test.LaidOutObjects(menu) {
+		if label, ok := object.(*widget.Label); ok && label.Text == name {
+			position := app.Driver().AbsolutePositionForObject(label).Add(fyne.NewPos(label.Size().Width/2, label.Size().Height/2))
+			test.TapCanvas(window.Canvas(), position)
+			return
+		}
+	}
+}
+
+func screenshotCloseOverlay(window fyne.Window) {
 	if overlay := window.Canvas().Overlays().Top(); overlay != nil {
 		window.Canvas().Overlays().Remove(overlay)
 	}
 }
 
-func pilotItemName(item *model.Item) string {
+func screenshotPilotItemName(item *model.Item) string {
 	switch item.Metadata.Type {
 	case model.LoginItemType:
 		return "login-totp"
@@ -528,7 +751,7 @@ func pilotItemName(item *model.Item) string {
 	}
 }
 
-func pilotModeName(mode string) string {
+func screenshotPilotModeName(mode string) string {
 	switch mode {
 	case paw.PassphrasePassword.String():
 		return "passphrase"

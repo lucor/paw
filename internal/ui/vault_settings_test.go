@@ -4,7 +4,6 @@
 package ui
 
 import (
-	"errors"
 	"strings"
 	"testing"
 
@@ -117,11 +116,11 @@ func TestDeleteVaultConfirmationDismissalDoesNotDelete(t *testing.T) {
 }
 
 func TestDeleteVaultSuccessNavigatesToRemainingVaultSelector(t *testing.T) {
-	testDeleteVaultNavigation(t, []model.VaultInfo{{ID: "work", Name: "Work"}}, nil, "Your vaults")
+	testDeleteVaultNavigation(t, true, "Your vaults")
 }
 
 func TestDeleteLastVaultSuccessNavigatesToAddVault(t *testing.T) {
-	testDeleteVaultNavigation(t, nil, nil, "Create new vault")
+	testDeleteVaultNavigation(t, false, "Create new vault")
 }
 
 func TestDeleteVaultFailureKeepsVaultAndShowsError(t *testing.T) {
@@ -131,26 +130,21 @@ func TestDeleteVaultFailureKeepsVaultAndShowsError(t *testing.T) {
 	require.NoError(t, err)
 	vault, err := model.NewVault(key, "Personal")
 	require.NoError(t, err)
-	failure := errors.New("storage unavailable")
-	store := &storage.StorageMock{
-		VaultStorageMock: storage.VaultStorageMock{
-			OnVaults: func() ([]model.VaultInfo, error) {
-				return []model.VaultInfo{{ID: "personal", Name: "Personal"}}, nil
-			},
-			OnDeleteVault: func(string) error { return failure },
-		},
-	}
-	a := &app{win: window, main: container.NewVScroll(nil), storage: store, vault: vault, vaultID: "personal", settingsVaultID: "personal", unlockedVault: map[string]*model.Vault{"personal": vault}}
-	a.confirmDeleteVault("personal", "Personal")
+	store, err := storage.NewFileStorage(t.TempDir())
+	require.NoError(t, err)
+	require.NoError(t, store.Close())
+	id := vault.Accounts[0].ID
+	a := &app{win: window, main: container.NewVScroll(nil), storage: store, vault: vault, vaultID: id, settingsVaultID: id, unlockedVault: map[string]*model.Vault{id: vault}}
+	a.confirmDeleteVault(id, "Personal")
 	deleteVaultConfirmationButton(t, window, "Delete vault")
 	require.Same(t, vault, a.vault)
-	require.Equal(t, "personal", a.vaultID)
-	require.Equal(t, "personal", a.settingsVaultID)
+	require.Equal(t, id, a.vaultID)
+	require.Equal(t, id, a.settingsVaultID)
 	require.False(t, a.deletingVault)
 	require.NotNil(t, window.Canvas().Overlays().Top(), "the existing error dialog should be shown")
 }
 
-func testDeleteVaultNavigation(t *testing.T, remaining []model.VaultInfo, deletionErr error, expectedLabel string) {
+func testDeleteVaultNavigation(t *testing.T, keepWork bool, expectedLabel string) {
 	t.Helper()
 	test.NewTempApp(t)
 	window := test.NewTempWindow(t, nil)
@@ -158,23 +152,33 @@ func testDeleteVaultNavigation(t *testing.T, remaining []model.VaultInfo, deleti
 	require.NoError(t, err)
 	vault, err := model.NewVault(key, "Personal")
 	require.NoError(t, err)
-	infos := []model.VaultInfo{{ID: "personal", Name: "Personal"}}
-	store := &storage.StorageMock{}
-	store.OnVaults = func() ([]model.VaultInfo, error) { return infos, nil }
-	a := &app{win: window, main: container.NewVScroll(nil), storage: store, vault: vault, vaultID: "personal", settingsVaultID: "personal", unlockedVault: map[string]*model.Vault{"personal": vault}}
-	deleteCalls := 0
-	store.OnDeleteVault = func(string) error {
-		deleteCalls++
-		a.confirmDeleteVault("personal", "Personal")
-		infos = remaining
-		return deletionErr
+	store, err := storage.NewFileStorage(t.TempDir())
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, store.Close()) })
+	require.NoError(t, store.UpdateVaultIdentity(vault, "Personal", model.DefaultVaultAppearance()))
+	if keepWork {
+		work, err := model.NewVault(key, "Work")
+		require.NoError(t, err)
+		require.NoError(t, store.UpdateVaultIdentity(work, "Work", model.DefaultVaultAppearance()))
 	}
-	a.confirmDeleteVault("personal", "Personal")
+	id := vault.Accounts[0].ID
+	a := &app{win: window, main: container.NewVScroll(nil), storage: store, vault: vault, vaultID: id, settingsVaultID: id, unlockedVault: map[string]*model.Vault{id: vault}}
+	a.confirmDeleteVault(id, "Personal")
 	deleteVaultConfirmationButton(t, window, "Delete vault")
-	require.Equal(t, 1, deleteCalls)
+	infos, err := store.Vaults()
+	require.NoError(t, err)
+	for _, info := range infos {
+		require.NotEqual(t, id, info.ID)
+	}
+	if keepWork {
+		require.Len(t, infos, 1)
+		require.Equal(t, "Work", infos[0].Name)
+	} else {
+		require.Empty(t, infos)
+	}
 	require.Nil(t, a.vault)
 	require.Empty(t, a.vaultID)
-	require.NotContains(t, a.unlockedVault, "personal")
+	require.NotContains(t, a.unlockedVault, id)
 	require.False(t, a.deletingVault)
 	var found bool
 	for _, object := range test.LaidOutObjects(a.main) {
@@ -204,16 +208,12 @@ func TestVaultIdentitySaveUpdatesSelectorAndPreservesSection(t *testing.T) {
 	require.NoError(t, err)
 	vault, err := model.NewVault(key, "Personal")
 	require.NoError(t, err)
-	info := model.VaultInfo{ID: "personal", Name: "Personal", Appearance: model.DefaultVaultAppearance()}
-	store := &storage.StorageMock{}
-	store.OnVaults = func() ([]model.VaultInfo, error) { return []model.VaultInfo{info}, nil }
-	store.OnUpdateVaultIdentity = func(got *model.Vault, name string, appearance model.VaultAppearance) error {
-		require.Same(t, vault, got)
-		vault.Metadata.VaultName = name
-		info.Name, info.Appearance = name, appearance
-		return nil
-	}
-	a := &app{win: window, main: container.NewVScroll(nil), storage: store, vault: vault, vaultID: "personal", vaultSection: 1, unlockedVault: map[string]*model.Vault{"personal": vault}, filter: make(map[string]*vaultFilterOptions)}
+	store, err := storage.NewFileStorage(t.TempDir())
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, store.Close()) })
+	require.NoError(t, store.UpdateVaultIdentity(vault, "Personal", model.DefaultVaultAppearance()))
+	id := vault.Accounts[0].ID
+	a := &app{win: window, main: container.NewVScroll(nil), storage: store, vault: vault, vaultID: id, vaultSection: 1, unlockedVault: map[string]*model.Vault{id: vault}, filter: make(map[string]*vaultFilterOptions)}
 	a.showVaultSettingsView()
 	settings := window.Content()
 	test.Tap(findVaultSettingsRow(t, settings))
@@ -221,7 +221,13 @@ func TestVaultIdentitySaveUpdatesSelectorAndPreservesSection(t *testing.T) {
 	findVaultIdentityName(t, editor).SetText("Work")
 	test.Tap(findVaultIdentitySave(t, editor))
 	require.Same(t, a.main, window.Content())
-	require.Equal(t, "Work", info.Name)
+	infos, err := store.Vaults()
+	require.NoError(t, err)
+	require.Len(t, infos, 1)
+	require.Equal(t, "Work", infos[0].Name)
+	stored, err := store.LoadVault(id, key)
+	require.NoError(t, err)
+	require.Equal(t, "Work", stored.Metadata.VaultName)
 	require.Equal(t, "Work", vault.Metadata.VaultName)
 	var selected int = -1
 	updatedHeader := false

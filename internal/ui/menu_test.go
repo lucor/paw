@@ -11,7 +11,6 @@ import (
 	"fyne.io/fyne/v2/test"
 	"fyne.io/fyne/v2/widget"
 	"github.com/stretchr/testify/require"
-	"go.lucor.dev/paw/internal/model"
 	"go.lucor.dev/paw/internal/storage"
 )
 
@@ -22,8 +21,9 @@ func TestMainMenuAboutOpensAboutPawView(t *testing.T) {
 	t.Cleanup(window.Close)
 	main := container.NewVScroll(widget.NewLabel("Vault list"))
 	window.SetContent(main)
-	store := &storage.StorageMock{}
-	store.OnVaults = func() ([]model.VaultInfo, error) { return nil, nil }
+	store, err := storage.NewFileStorage(t.TempDir())
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, store.Close()) })
 	a := &app{win: window, main: main, storage: store}
 
 	menu := a.makeMainMenu()

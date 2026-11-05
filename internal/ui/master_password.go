@@ -26,6 +26,7 @@ type masterPasswordView struct {
 	activity         *widget.Activity
 	progress         *fyne.Container
 	cancel           context.CancelFunc
+	operationDone    chan struct{}
 }
 
 func newMasterPasswordView(back func()) *masterPasswordView {
@@ -133,9 +134,12 @@ func (a *app) showChangeMasterPassword() {
 		v.progress.Show()
 		v.activity.Start()
 		v.submit.Hide()
+		v.operationDone = make(chan struct{})
+		done := v.operationDone
 		go func() {
 			err := a.storage.ChangeMasterPassword(ctx, id, current, next)
 			fyne.Do(func() {
+				defer close(done)
 				if err == nil && a.vault != nil && a.vaultID == id {
 					a.main.Content = a.makeUnlockVaultView(info, nil, nil)
 					a.lockVault()

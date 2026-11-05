@@ -84,10 +84,6 @@ func newCodesView(ctx context.Context, entries []codesEntry, opener codeEntryOpe
 	if len(view.displays) > 0 {
 		go view.run(ctx)
 	}
-	go func() {
-		<-ctx.Done()
-		fyne.DoAndWait(view.Clear)
-	}()
 	return view
 }
 

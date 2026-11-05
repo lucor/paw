@@ -9,7 +9,7 @@ import "go.lucor.dev/paw/internal/storage"
 var _ Handler = (*ListVaultHandler)(nil)
 
 type ListVaultHandler struct {
-	Storage storage.Storage
+	Storage *storage.FileStorage
 }
 
 // Action implements browser.Handler.

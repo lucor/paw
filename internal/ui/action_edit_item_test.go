@@ -4,7 +4,6 @@
 package ui
 
 import (
-	"errors"
 	"testing"
 
 	"fyne.io/fyne/v2/test"
@@ -25,14 +24,11 @@ func TestDeleteItemUsesSharedDestructiveConfirmation(t *testing.T) {
 	item, err := model.NewPassword("GitHub", "secret", model.PasswordSettings{Mode: paw.CustomPassword})
 	require.NoError(t, err)
 
-	deleteCalls := 0
-	store := &storage.StorageMock{}
-	store.OnDeleteItem = func(got *model.Vault, id string) error {
-		require.Same(t, vault, got)
-		require.Equal(t, item.ID, id)
-		deleteCalls++
-		return errors.New("storage unavailable")
-	}
+	store, err := storage.NewFileStorage(t.TempDir())
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = store.Close() })
+	require.NoError(t, store.UpdateVaultIdentity(vault, "Personal", model.DefaultVaultAppearance()))
+	require.NoError(t, store.StoreItem(vault, item))
 	a := &app{win: window, vault: vault, storage: store}
 
 	a.deleteItem(item)
@@ -54,10 +50,13 @@ func TestDeleteItemUsesSharedDestructiveConfirmation(t *testing.T) {
 	require.Nil(t, buttons["Cancel"].Icon)
 	require.Nil(t, buttons["Delete item"].Icon)
 	require.Equal(t, widget.DangerImportance, buttons["Delete item"].Importance)
-	require.Zero(t, deleteCalls, "opening the dialog must not delete the item")
+	_, err = store.LoadItem(vault, item.ID)
+	require.NoError(t, err, "opening the dialog must not delete the item")
 
 	test.Tap(buttons["Cancel"])
-	require.Zero(t, deleteCalls)
+	_, err = store.LoadItem(vault, item.ID)
+	require.NoError(t, err, "cancel must preserve the item")
+	require.NoError(t, store.Close())
 
 	a.deleteItem(item)
 	for _, object := range test.LaidOutObjects(window.Canvas().Overlays().Top()) {
@@ -66,6 +65,6 @@ func TestDeleteItemUsesSharedDestructiveConfirmation(t *testing.T) {
 			break
 		}
 	}
-	require.Equal(t, 1, deleteCalls)
+	require.Len(t, vault.Accounts[0].Items, 1, "failed deletion must preserve the item summary")
 	require.NotNil(t, window.Canvas().Overlays().Top(), "the storage error should be reported")
 }

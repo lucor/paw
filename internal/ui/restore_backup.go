@@ -26,7 +26,7 @@ import (
 
 type restoreFlow struct {
 	window   fyne.Window
-	store    storage.Storage
+	store    *storage.FileStorage
 	back     func()
 	restored func(*model.Vault)
 }
@@ -37,7 +37,7 @@ const (
 )
 
 // ShowRestoreBackup opens single-page navigation for selecting and restoring a backup.
-func ShowRestoreBackup(window fyne.Window, store storage.Storage, restored func(*model.Vault)) {
+func ShowRestoreBackup(window fyne.Window, store *storage.FileStorage, restored func(*model.Vault)) {
 	previous := window.Content()
 	f := &restoreFlow{window: window, store: store, restored: restored, back: func() { window.SetContent(previous) }}
 	f.selectFile("")
@@ -249,7 +249,7 @@ func (f *restoreFlow) review(backup *storage.PawBackup, message string) {
 		// Stay on this page until cancellation completes, so a committed restore is reported.
 		f.busy("Restoring vault", cancel)
 		go func() {
-			vault, err := storage.RestorePawBackup(ctx, f.store, backup, newName, secret)
+			vault, err := f.store.Restore(ctx, backup, newName, secret)
 			cancel()
 			fyne.Do(func() {
 				if errors.Is(err, context.Canceled) {

@@ -81,6 +81,7 @@ func ReadPawBackup(ctx context.Context, r io.Reader, password string) (*PawBacku
 	return backup, err
 }
 
+// readBackupBytes reads a size-limited backup while honoring cancellation.
 func readBackupBytes(ctx context.Context, r io.Reader) ([]byte, error) {
 	data, err := io.ReadAll(io.LimitReader(backupReader{ctx, r}, maxBackupBytes+1))
 	if err != nil {
@@ -97,6 +98,7 @@ type backupReader struct {
 	reader io.Reader
 }
 
+// Read checks for cancellation before reading backup data.
 func (r backupReader) Read(p []byte) (int, error) {
 	if err := r.ctx.Err(); err != nil {
 		return 0, err
@@ -104,6 +106,7 @@ func (r backupReader) Read(p []byte) (int, error) {
 	return r.reader.Read(p)
 }
 
+// validatePawBackup decodes and validates a Paw CXF backup and its items.
 func validatePawBackup(data []byte) (*PawBackup, *model.Vault, []*model.Item, error) {
 	document, err := cxf.Decode(bytes.NewReader(data))
 	if err != nil || len(document.Accounts) != 1 {
@@ -155,6 +158,7 @@ func validatePawBackup(data []byte) (*PawBackup, *model.Vault, []*model.Item, er
 	return backup, vault, items, nil
 }
 
+// checkBackupCollections validates collection links and counts nested collections.
 func checkBackupCollections(collections []cxf.Collection, account string, ids map[string]bool) (int, error) {
 	count := 0
 	for _, collection := range collections {
@@ -173,21 +177,9 @@ func checkBackupCollections(collections []cxf.Collection, account string, ids ma
 	return count, nil
 }
 
-// BackupCollision reports any existing directory using the backup's logical identity.
-func BackupCollision(s Storage, backup *PawBackup) (bool, error) {
-	if backup == nil || !isVaultID(backup.AccountID) {
-		return false, ErrUnsupportedBackup
-	}
-	_, err := os.Lstat(vaultRootPath(s, backup.AccountID))
-	if os.IsNotExist(err) {
-		return false, nil
-	}
-	return err == nil, err
-}
-
-// RestorePawBackup creates a private encrypted vault, publishing its catalog last.
+// Restore creates a private encrypted vault, publishing its catalog last.
 // Existing vaults are never changed; an occupied account ID creates an independent copy.
-func RestorePawBackup(ctx context.Context, s Storage, backup *PawBackup, name, password string) (result *model.Vault, err error) {
+func (s *FileStorage) Restore(ctx context.Context, backup *PawBackup, name, password string) (result *model.Vault, err error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -215,7 +207,7 @@ func RestorePawBackup(ctx context.Context, s Storage, backup *PawBackup, name, p
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		err = os.Mkdir(vaultRootPath(s, id), 0700)
+		err = s.root.Mkdir(vaultDirectory(id), 0700)
 		if err == nil {
 			break
 		}
@@ -227,13 +219,13 @@ func RestorePawBackup(ctx context.Context, s Storage, backup *PawBackup, name, p
 			return nil, fmt.Errorf("cannot reserve an independent vault identity")
 		}
 		// A newly generated identity collision is an error, never an overwrite.
-		if _, err := os.Lstat(vaultRootPath(s, id)); !os.IsNotExist(err) {
+		if _, err := s.root.Lstat(vaultDirectory(id)); !os.IsNotExist(err) {
 			return nil, fmt.Errorf("restored copy identity is already occupied")
 		}
 	}
 	defer func() {
 		if err != nil {
-			err = errors.Join(err, os.RemoveAll(vaultRootPath(s, id)))
+			err = errors.Join(err, s.root.RemoveAll(vaultDirectory(id)))
 		}
 	}()
 	if id != oldID {
@@ -251,26 +243,31 @@ func RestorePawBackup(ctx context.Context, s Storage, backup *PawBackup, name, p
 	if err != nil {
 		return nil, err
 	}
-	if err = os.WriteFile(keyPath(s, id), keyData, 0600); err != nil {
+	vaultRoot, openErr := s.openVaultRoot(id)
+	if openErr != nil {
+		return nil, openErr
+	}
+	defer vaultRoot.Close()
+	if err = atomicWrite(vaultRoot, keyFileName, func(w io.Writer) error {
+		_, writeErr := w.Write(keyData)
+		return errors.Join(writeErr, ctx.Err())
+	}); err != nil {
 		return nil, fmt.Errorf("write restored key: %w", err)
 	}
 	for _, item := range items {
 		if err = ctx.Err(); err != nil {
 			return nil, err
 		}
-		f, openErr := os.OpenFile(itemPath(s, id, item.ID), os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
-		if openErr != nil {
-			return nil, openErr
-		}
-		if err = encryptFile(fresh.Key(), f, item); err != nil {
+		itemName := filesystemID(item.ID) + ".age"
+		if err = atomicWrite(vaultRoot, itemName, func(w io.Writer) error {
+			return errors.Join(encrypt(fresh.Key(), w, item), ctx.Err())
+		}); err != nil {
 			return nil, fmt.Errorf("write restored item: %w", err)
 		}
 	}
-	f, err := os.OpenFile(vaultPath(s, id), os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
-	if err != nil {
-		return nil, err
-	}
-	if err = encryptFile(fresh.Key(), f, restored); err != nil {
+	if err = atomicWrite(vaultRoot, vaultFileName, func(w io.Writer) error {
+		return errors.Join(encrypt(fresh.Key(), w, restored), ctx.Err())
+	}); err != nil {
 		return nil, fmt.Errorf("write restored vault: %w", err)
 	}
 	if err = ctx.Err(); err != nil {
@@ -281,23 +278,19 @@ func RestorePawBackup(ctx context.Context, s Storage, backup *PawBackup, name, p
 		return nil, err
 	}
 	// The canonical directory stays invisible to Vaults until this atomic publication.
-	temp, err := os.CreateTemp(vaultRootPath(s, id), ".metadata-*")
-	if err != nil {
+	if err = ctx.Err(); err != nil {
 		return nil, err
 	}
-	defer os.Remove(temp.Name())
-	_, writeErr := temp.Write(metadata)
-	syncErr := temp.Sync()
-	closeErr := temp.Close()
-	if err = errors.Join(writeErr, syncErr, closeErr, ctx.Err()); err != nil {
-		return nil, err
-	}
-	if err = os.Rename(temp.Name(), vaultMetadataPath(s, id)); err != nil {
+	if err = atomicWrite(vaultRoot, vaultMetadataFileName, func(w io.Writer) error {
+		_, writeErr := w.Write(metadata)
+		return errors.Join(writeErr, ctx.Err())
+	}); err != nil {
 		return nil, err
 	}
 	return restored, nil
 }
 
+// remapBackupCollections updates collection links to the restored account ID.
 func remapBackupCollections(collections []cxf.Collection, oldID, newID string) {
 	for i := range collections {
 		for j := range collections[i].Items {

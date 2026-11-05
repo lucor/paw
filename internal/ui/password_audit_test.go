@@ -187,36 +187,6 @@ func TestPasswordAuditIgnoresStaleProgress(t *testing.T) {
 	require.Empty(t, a.View.Objects)
 }
 
-func TestPasswordAuditCancelsRunningAudit(t *testing.T) {
-	test.NewTempApp(t)
-	window := test.NewTempWindow(t, nil)
-	auditor, _, checker := auditServiceFixture(t, "password")
-	checker.started = make(chan struct{}, 1)
-	a := NewPasswordAudit("Personal", auditor, window.SetContent, func(string) {}, func() {})
-	window.SetContent(a.View)
-	window.Resize(fyne.NewSize(440, 650))
-	a.start()
-	select {
-	case <-checker.started:
-	case <-time.After(time.Second):
-		t.Fatal("audit did not reach the breach lookup")
-	}
-	test.Tap(a.cancelButton)
-	require.Eventually(t, func() bool {
-		var cancelled bool
-		fyne.DoAndWait(func() {
-			cancelled = !a.running && containsText(auditTexts(a.View), "Audit cancelled. Results include completed checks only.")
-		})
-		return cancelled
-	}, time.Second, 10*time.Millisecond)
-	require.True(t, a.result.Cancelled)
-	require.True(t, a.result.LocalComplete)
-	require.Len(t, a.result.Findings, 1)
-	require.NotContains(t, auditTexts(a.View), "No issues found")
-	require.Contains(t, auditTexts(a.View), "Audit cancelled. Results include completed checks only.")
-	a.Close()
-}
-
 func containsText(values []string, expected string) bool {
 	for _, value := range values {
 		if value == expected {

@@ -14,7 +14,6 @@ import (
 	"fyne.io/fyne/v2/widget"
 	"github.com/stretchr/testify/require"
 	"go.lucor.dev/paw/internal/model"
-	"go.lucor.dev/paw/internal/storage"
 	"go.lucor.dev/paw/internal/ui/assets/icons"
 )
 
@@ -28,7 +27,7 @@ func TestVaultAppearanceIsShownInVaultHeaderAndUnlock(t *testing.T) {
 	require.True(t, hasVaultAppearance(window.Content(), appearance))
 
 	info := model.VaultInfo{ID: "vault-id", Name: "Work", Appearance: appearance}
-	window.SetContent(NewUnlockVault(info, &storage.StorageMock{}, nil, func() {}, func() {}, nil))
+	window.SetContent(NewUnlockVault(info, nil, nil, func() {}, func() {}, nil))
 	require.True(t, hasVaultAppearance(window.Content(), appearance))
 }
 
@@ -135,7 +134,7 @@ func TestSecondaryViewsShareHeaderPosition(t *testing.T) {
 		{title: "Vault appearance", view: newVaultAppearanceView("Personal", model.DefaultVaultAppearance(), nil, func() {})},
 		{title: "Restore from backup", view: auditPage("Restore from backup", func() {}, container.NewVScroll(container.NewVBox()))},
 		{title: "Password Audit", view: auditPage("Password Audit", func() {}, container.NewVScroll(container.NewVBox()))},
-		{title: "Settings", view: NewSettingsView(nil, &storage.StorageMock{}, window).View},
+		{title: "Settings", view: NewSettingsView(nil, nil, window).View},
 	}
 	var expectedBack, expectedTitle fyne.Position
 	for index, page := range views {

@@ -37,7 +37,7 @@ type app struct {
 	win     fyne.Window
 	main    *container.Scroll
 	state   *model.AppState
-	storage storage.Storage
+	storage *storage.FileStorage
 
 	unlockedVault map[string]*model.Vault
 
@@ -62,7 +62,7 @@ type app struct {
 }
 
 // MakeApp builds Paw's main Fyne interface with the supplied storage and window.
-func MakeApp(s storage.Storage, w fyne.Window) fyne.CanvasObject {
+func MakeApp(s *storage.FileStorage, w fyne.Window) fyne.CanvasObject {
 	appState, err := s.LoadAppState()
 	if err != nil {
 		dialog.NewError(err, w)
@@ -360,6 +360,10 @@ func (a *app) closeCodesView() {
 
 // closeItemDetail stops updates when leaving an entry or locking its vault.
 func (a *app) closeItemDetail() {
+	if a.detailCancel != nil {
+		a.detailCancel()
+		a.detailCancel = nil
+	}
 	if a.detailClear != nil {
 		a.detailClear()
 		a.detailClear = nil
@@ -367,10 +371,6 @@ func (a *app) closeItemDetail() {
 	if a.sshEditor != nil {
 		a.sshEditor.ClearSensitive()
 		a.sshEditor = nil
-	}
-	if a.detailCancel != nil {
-		a.detailCancel()
-		a.detailCancel = nil
 	}
 }
 

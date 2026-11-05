@@ -46,13 +46,6 @@ func newRestoreCommand(base *command) *urfave.Command {
 		if backup.ExportedAt != 0 {
 			fmt.Fprintf(base.out, "CXF document date: %s\n", time.Unix(int64(backup.ExportedAt), 0).UTC().Format(time.RFC3339))
 		}
-		collision, err := storage.BackupCollision(base.storage, backup)
-		if err != nil {
-			return err
-		}
-		if collision {
-			fmt.Fprintln(base.out, "This vault already exists. An independent copy will be created.")
-		}
 		name := c.String("name")
 		if name == "" {
 			name, err = base.prompter.askWithDefault("New vault name", backup.Name)
@@ -78,12 +71,12 @@ func newRestoreCommand(base *command) *urfave.Command {
 		if password != confirm {
 			return fmt.Errorf("master passwords do not match")
 		}
-		vault, err := storage.RestorePawBackup(ctx, base.storage, backup, name, password)
+		vault, err := base.storage.Restore(ctx, backup, name, password)
 		if err != nil {
 			return err
 		}
-		if !collision && vault.Accounts[0].ID != backup.AccountID {
-			fmt.Fprintln(base.out, "The original identity became occupied. An independent copy was created.")
+		if vault.Accounts[0].ID != backup.AccountID {
+			fmt.Fprintln(base.out, "The original vault ID is already in use. An independent copy was created.")
 		}
 		_, err = fmt.Fprintf(base.out, "Vault restored successfully: %s (%s)\n", name, vault.Accounts[0].ID)
 		return err

@@ -12,14 +12,13 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.lucor.dev/paw/internal/model"
 	"go.lucor.dev/paw/internal/paw"
-	"go.lucor.dev/paw/internal/storage"
 )
 
 func TestExportCredentialsViewDefaultsAndValidation(t *testing.T) {
 	test.NewTempApp(t)
 	window := test.NewTempWindow(t, nil)
 	vault := testExportVault(t, "Personal")
-	view := newExportCredentialsView(window, &storage.StorageMock{}, vault, "Personal", func() {})
+	view := newExportCredentialsView(window, nil, vault, "Personal", func() {})
 	window.Resize(fyne.NewSize(400, 640))
 	window.SetContent(view.View)
 
@@ -60,7 +59,7 @@ func TestExportCredentialsSavePickerUsesVaultNameAndCancelKeepsForm(t *testing.T
 	test.NewTempApp(t)
 	window := test.NewTempWindow(t, nil)
 	vault := testExportVault(t, "Personal")
-	view := newExportCredentialsView(window, &storage.StorageMock{}, vault, "Personal", func() {})
+	view := newExportCredentialsView(window, nil, vault, "Personal", func() {})
 	window.Resize(fyne.NewSize(DefaultWindowWidth, DefaultWindowHeight))
 	window.SetContent(view.View)
 	view.Password.Entry.SetText("export password")
@@ -104,7 +103,7 @@ func TestExportCredentialsBackClearsPasswords(t *testing.T) {
 	window := test.NewTempWindow(t, nil)
 	vault := testExportVault(t, "Work")
 	backCalls := 0
-	view := newExportCredentialsView(window, &storage.StorageMock{}, vault, "Work", func() { backCalls++ })
+	view := newExportCredentialsView(window, nil, vault, "Work", func() { backCalls++ })
 	view.Password.Entry.SetText("temporary")
 	view.Confirm.SetText("temporary")
 
@@ -125,7 +124,7 @@ func TestExportVaultActionOpensSecondaryView(t *testing.T) {
 	test.NewTempApp(t)
 	window := test.NewTempWindow(t, nil)
 	vault := testExportVault(t, "Personal")
-	a := &app{win: window, vault: vault, storage: &storage.StorageMock{}}
+	a := &app{win: window, vault: vault}
 	a.exportToFile()
 
 	require.Contains(t, auditTexts(window.Content()), "Export credentials")

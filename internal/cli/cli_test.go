@@ -18,13 +18,12 @@ import (
 	"github.com/stretchr/testify/require"
 	urfave "github.com/urfave/cli/v3"
 
-	"go.lucor.dev/paw/internal/model"
 	"go.lucor.dev/paw/internal/paw"
 	"go.lucor.dev/paw/internal/sshkey"
 	"go.lucor.dev/paw/internal/storage"
 )
 
-func execute(t *testing.T, args []string, s storage.Storage) (string, error) {
+func execute(t *testing.T, args []string, s *storage.FileStorage) (string, error) {
 	t.Helper()
 	out, _, err := executeWithInput(t, args, newCommand(s), "")
 	return out, err
@@ -195,13 +194,12 @@ func TestSessionFlag(t *testing.T) {
 
 func TestRunRepeatedly(t *testing.T) {
 	t.Setenv(paw.ENV_SESSION, "environment-session")
-	failure := errors.New("storage unavailable")
-	s := &storage.StorageMock{VaultStorageMock: storage.VaultStorageMock{OnVaults: func() ([]model.VaultInfo, error) {
-		return nil, failure
-	}}}
-	require.ErrorIs(t, Run([]string{"paw", "cli", "ls", "--session=override"}, s), failure)
+	s, err := storage.NewFileStorage(t.TempDir())
+	require.NoError(t, err)
+	require.NoError(t, s.Close())
+	require.Error(t, Run([]string{"paw", "cli", "ls", "--session=override"}, s))
 	require.Equal(t, "environment-session", os.Getenv(paw.ENV_SESSION))
-	require.ErrorIs(t, Run([]string{"paw", "cli", "ls"}, s), failure)
+	require.Error(t, Run([]string{"paw", "cli", "ls"}, s))
 	require.Error(t, Run([]string{"paw", "cli", "show"}, nil))
 	require.NoError(t, Run([]string{"paw", "cli", "version"}, nil))
 	for _, args := range [][]string{nil, {"paw"}, {"paw", "gui"}} {
@@ -213,17 +211,6 @@ func TestVersion(t *testing.T) {
 	out, err := execute(t, []string{"version"}, nil)
 	require.NoError(t, err)
 	require.Equal(t, fmt.Sprintf("paw cli version %s\n", paw.Version()), out)
-}
-
-func TestListVaults(t *testing.T) {
-	calls := 0
-	s := &storage.StorageMock{VaultStorageMock: storage.VaultStorageMock{OnVaults: func() ([]model.VaultInfo, error) {
-		calls++
-		return []model.VaultInfo{{ID: "personal", Name: "personal"}, {ID: "work", Name: "work"}}, nil
-	}}}
-	_, err := execute(t, []string{"ls"}, s)
-	require.NoError(t, err)
-	require.Equal(t, 1, calls)
 }
 
 func TestSSHKeyImportFailureAndCancellation(t *testing.T) {

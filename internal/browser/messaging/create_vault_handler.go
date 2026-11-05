@@ -15,7 +15,7 @@ import (
 var _ Handler = (*CreateVaultHandler)(nil)
 
 type CreateVaultHandler struct {
-	Storage storage.Storage
+	Storage *storage.FileStorage
 }
 
 // Action implements browser.Handler.

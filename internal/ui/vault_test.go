@@ -6,11 +6,9 @@ package ui
 import (
 	"context"
 	"crypto/sha1"
-	"errors"
 	"strings"
 	"sync"
 	"testing"
-	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
@@ -18,7 +16,6 @@ import (
 	"fyne.io/fyne/v2/test"
 	"fyne.io/fyne/v2/widget"
 	"github.com/stretchr/testify/require"
-	"go.lucor.dev/cxf"
 
 	"go.lucor.dev/paw/internal/model"
 	"go.lucor.dev/paw/internal/paw"
@@ -39,24 +36,18 @@ func TestAuditReadsPasswordsFromCXFItems(t *testing.T) {
 	require.NoError(t, err)
 	note, err := model.NewNote("Note", "password")
 	require.NoError(t, err)
-	items := map[string]*model.Item{}
+	store, err := storage.NewFileStorage(t.TempDir())
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, store.Close()) })
+	require.NoError(t, store.UpdateVaultIdentity(vault, "Personal", model.DefaultVaultAppearance()))
 	for _, item := range []*model.Item{login, password, note} {
 		summary, err := item.Summary()
 		require.NoError(t, err)
 		require.Empty(t, summary.Credentials, "vault summaries do not contain passwords")
-		vault.Accounts[0].Items = append(vault.Accounts[0].Items, *summary)
-		items[item.ID] = item
-	}
-	var loaded []string
-	store := &storage.StorageMock{}
-	store.OnLoadItem = func(got *model.Vault, id string) (*model.Item, error) {
-		require.Same(t, vault, got)
-		loaded = append(loaded, id)
-		return items[id], nil
+		require.NoError(t, store.StoreItem(vault, item))
 	}
 	checker := &auditBreachClient{}
 	result := NewPasswordAuditor(vault, store, checker).Run(context.Background(), nil)
-	require.ElementsMatch(t, []string{login.ID, password.ID}, loaded)
 	hash := sha1.Sum([]byte("password"))
 	require.Equal(t, [][sha1.Size]byte{hash, hash}, checker.values)
 	require.Equal(t, 2, result.Passwords)
@@ -374,18 +365,15 @@ func TestVaultEntryListWiring(t *testing.T) {
 	require.NoError(t, err)
 	vault, err := model.NewVault(key, "Personal")
 	require.NoError(t, err)
-	vault.Accounts[0].Items = []cxf.Item{{ID: "item-id", Title: "Example"}}
-	store := &storage.StorageMock{}
-	store.OnVaults = func() ([]model.VaultInfo, error) {
-		return []model.VaultInfo{{ID: "vault-id", Name: "Personal"}}, nil
-	}
-	loaded := ""
-	store.OnLoadItem = func(gotVault *model.Vault, id string) (*model.Item, error) {
-		require.Same(t, vault, gotVault)
-		loaded = id
-		return nil, errors.New("example load failure")
-	}
-	a := &app{win: window, storage: store, vault: vault, vaultID: "vault-id", unlockedVault: map[string]*model.Vault{"vault-id": vault}, filter: map[string]*vaultFilterOptions{}}
+	store, err := storage.NewFileStorage(t.TempDir())
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, store.Close()) })
+	require.NoError(t, store.UpdateVaultIdentity(vault, "Personal", model.DefaultVaultAppearance()))
+	item, err := model.NewNote("Example", "requested note")
+	require.NoError(t, err)
+	require.NoError(t, store.StoreItem(vault, item))
+	id := vault.Accounts[0].ID
+	a := &app{win: window, storage: store, vault: vault, vaultID: id, unlockedVault: map[string]*model.Vault{id: vault}, filter: map[string]*vaultFilterOptions{}}
 	view := a.makeCurrentVaultView()
 	a.main = container.NewVScroll(view)
 	window.SetContent(a.main)
@@ -394,8 +382,8 @@ func TestVaultEntryListWiring(t *testing.T) {
 		if list, ok := object.(*widget.List); ok {
 			require.Equal(t, 1, list.Length())
 			list.Select(0)
-			require.Equal(t, "item-id", loaded)
-			require.NotNil(t, window.Canvas().Overlays().Top())
+			require.Contains(t, auditTexts(window.Content()), "requested note")
+			require.Nil(t, window.Canvas().Overlays().Top())
 			return
 		}
 	}
@@ -428,63 +416,6 @@ func TestSelectVaultKeepsIDAndDisplayName(t *testing.T) {
 	require.Contains(t, unlockViewText(t, unlocker), "Unlock Personal")
 }
 
-// TestUnlockShowsMigrationFailure checks a safe item report is shown after storage migration fails.
-func TestUnlockShowsMigrationFailure(t *testing.T) {
-	appDriver := test.NewApp()
-	t.Cleanup(appDriver.Quit)
-	window := appDriver.NewWindow("Paw")
-	t.Cleanup(window.Close)
-	key, err := paw.MakeOneTimeKey()
-	require.NoError(t, err)
-	const secret = "SYNTHETIC_MIGRATION_SECRET"
-	report := &storage.MigrationReport{
-		TotalItems: 1,
-		Failures: []storage.MigrationItemFailure{{
-			LegacyID: "legacy-item-id",
-			Title:    "Unsupported password",
-			ItemType: model.PasswordItemType,
-			Phases:   []storage.MigrationPhase{storage.MigrationPhaseConvert},
-			Err:      errors.New("unsupported mode 4"),
-		}},
-	}
-	store := &storage.StorageMock{}
-	keyLoading := make(chan struct{})
-	continueLoading := make(chan struct{})
-	store.OnLoadVaultKey = func(vaultID, password string) (*paw.Key, error) {
-		close(keyLoading)
-		<-continueLoading
-		return key, nil
-	}
-	store.OnLoadVault = func(vaultID string, loadedKey *paw.Key) (*model.Vault, error) {
-		return nil, report
-	}
-	info := model.VaultInfo{ID: "legacy-vault-id", Name: "Personal", NeedsMigration: true}
-	opened := false
-	unlocker := NewUnlockVault(info, store, func(*model.Vault) { opened = true }, nil, nil, nil)
-	window.SetContent(unlocker)
-	password, button := unlockControls(t, unlocker)
-	password.SetText("vault password")
-
-	test.Tap(button)
-	select {
-	case <-keyLoading:
-	case <-time.After(time.Second):
-		t.Fatal("vault loading did not start")
-	}
-
-	require.Nil(t, window.Canvas().Overlays().Top())
-	require.Contains(t, unlockViewText(t, unlocker), "Migrating vault…")
-	close(continueLoading)
-
-	waitForUnlock(t, unlocker)
-	message := unlockViewText(t, unlocker)
-	require.Contains(t, message, "migration failed: 1/1 items")
-	require.Contains(t, message, "Unsupported password")
-	require.Contains(t, message, "unsupported mode 4")
-	require.NotContains(t, message, secret)
-	require.False(t, opened)
-}
-
 func unlockControls(t *testing.T, view fyne.CanvasObject) (*widget.Entry, *widget.Button) {
 	t.Helper()
 	var password *widget.Entry
@@ -512,10 +443,14 @@ func TestSingleVaultUnlockControls(t *testing.T) {
 	t.Cleanup(driver.Quit)
 	window := driver.NewWindow("Paw")
 	t.Cleanup(window.Close)
-	store := &storage.StorageMock{}
-	store.OnVaults = func() ([]model.VaultInfo, error) {
-		return []model.VaultInfo{{ID: "personal", Name: "Personal"}}, nil
-	}
+	store, err := storage.NewFileStorage(t.TempDir())
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, store.Close()) })
+	key, err := paw.MakeOneTimeKey()
+	require.NoError(t, err)
+	vault, err := model.NewVault(key, "Personal")
+	require.NoError(t, err)
+	require.NoError(t, store.UpdateVaultIdentity(vault, "Personal", model.DefaultVaultAppearance()))
 	a := &app{win: window, storage: store}
 	a.main = a.makeApp()
 	window.SetContent(a.main)
@@ -565,10 +500,14 @@ func TestUnlockAddVaultOptions(t *testing.T) {
 	t.Cleanup(driver.Quit)
 	window := driver.NewWindow("Paw")
 	t.Cleanup(window.Close)
-	store := &storage.StorageMock{}
-	store.OnVaults = func() ([]model.VaultInfo, error) {
-		return []model.VaultInfo{{ID: "personal", Name: "Personal"}}, nil
-	}
+	store, err := storage.NewFileStorage(t.TempDir())
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, store.Close()) })
+	key, err := paw.MakeOneTimeKey()
+	require.NoError(t, err)
+	vault, err := model.NewVault(key, "Personal")
+	require.NoError(t, err)
+	require.NoError(t, store.UpdateVaultIdentity(vault, "Personal", model.DefaultVaultAppearance()))
 	a := &app{win: window, storage: store}
 	a.main = a.makeApp()
 	window.SetContent(a.main)
@@ -644,9 +583,16 @@ func TestSelectedVaultUnlockReturnsToList(t *testing.T) {
 	t.Cleanup(driver.Quit)
 	window := driver.NewWindow("Paw")
 	t.Cleanup(window.Close)
-	store := &storage.StorageMock{}
-	store.OnVaults = func() ([]model.VaultInfo, error) {
-		return []model.VaultInfo{{ID: "personal", Name: "Personal"}, {ID: "work", Name: "Work"}}, nil
+	store, err := storage.NewFileStorage(t.TempDir())
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, store.Close()) })
+	key, err := paw.MakeOneTimeKey()
+	require.NoError(t, err)
+	for i, name := range []string{"Personal", "Work"} {
+		vault, err := model.NewVault(key, name)
+		require.NoError(t, err)
+		vault.Accounts[0].ID = []string{"AAAAAAAAAAAAAAAAAAAAAA", "AAAAAAAAAAAAAAAAAAAAAQ"}[i]
+		require.NoError(t, store.UpdateVaultIdentity(vault, name, model.DefaultVaultAppearance()))
 	}
 	a := &app{win: window, storage: store}
 	a.main = a.makeApp()

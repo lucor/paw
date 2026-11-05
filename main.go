@@ -50,7 +50,6 @@ func (a *appType) IsWindowsOS() bool {
 }
 
 func main() {
-
 	at := &appType{args: os.Args}
 
 	// handle application start: CLI, GUI
@@ -72,6 +71,7 @@ func main() {
 		fmt.Println(err)
 		os.Exit(1)
 	}
+	defer s.Close()
 
 	// Write the native manifests to support browser native messaging for the current OS
 	// TODO: this should be once at installation time
@@ -122,11 +122,16 @@ func main() {
 }
 
 // makeStorage create the storage
-func makeStorage(at *appType, fyneApp fyne.App) (storage.Storage, error) {
-	if at.IsMobile() {
-		// Mobile app returns the Fyne storage
-		return storage.NewFyneStorage(fyneApp.Storage())
+func makeStorage(at *appType, fyneApp fyne.App) (*storage.FileStorage, error) {
+	root := ""
+	if !at.IsMobile() {
+		return storage.NewFileStorage(root)
 	}
-	// Otherwise returns the OS storage
-	return storage.NewOSStorage()
+	// Fyne selects the private application directory on mobile.
+	uri := fyneApp.Storage().RootURI()
+	if uri == nil || uri.Scheme() != "file" || uri.Authority() != "" || uri.Query() != "" || uri.Fragment() != "" {
+		return nil, fmt.Errorf("application storage must provide a local file URI")
+	}
+	root = uri.Path()
+	return storage.NewFileStorage(root)
 }

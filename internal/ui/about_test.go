@@ -23,8 +23,9 @@ func TestSettingsAboutNavigationReturnsToSameView(t *testing.T) {
 	t.Cleanup(driver.Quit)
 	window := driver.NewWindow("Settings")
 	t.Cleanup(window.Close)
-	store := &storage.StorageMock{}
-	store.OnStoreAppState = func(*model.AppState) error { return nil }
+	store, err := storage.NewFileStorage(t.TempDir())
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, store.Close()) })
 	state := &model.AppState{Settings: model.NewDefaultSettings()}
 	a := &app{win: window, main: container.NewVScroll(widget.NewLabel("Main")), state: state, storage: store}
 	settings := a.makeSettingsView()

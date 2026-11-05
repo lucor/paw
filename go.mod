@@ -6,6 +6,7 @@ require (
 	filippo.io/age v1.3.2
 	fyne.io/fyne/v2 v2.8.2
 	github.com/godbus/dbus/v5 v5.2.2
+	github.com/google/renameio/v2 v2.0.2
 	github.com/stretchr/testify v1.12.1
 	github.com/urfave/cli/v3 v3.14.0
 	go.lucor.dev/cxf v0.0.0-20261025171600-daa288fd4137

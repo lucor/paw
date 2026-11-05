@@ -24,7 +24,15 @@ import (
 
 // NewEntryDetail displays the CXF credentials of a supported entry.
 func NewEntryDetail(ctx context.Context, item *model.Item, window fyne.Window, back, edit, deleteEntry func()) (fyne.CanvasObject, error) {
-	view, _, err := newEntryDetailWithClear(ctx, item, window, back, edit, deleteEntry)
+	view, clear, err := newEntryDetailWithClear(ctx, item, window, back, edit, deleteEntry)
+	if err == nil {
+		if done := ctx.Done(); done != nil {
+			go func() {
+				<-done
+				fyne.DoAndWait(clear)
+			}()
+		}
+	}
 	return view, err
 }
 
@@ -54,6 +62,7 @@ func newEntryDetailWithClear(ctx context.Context, item *model.Item, window fyne.
 	}
 	var bodyObjects []fyne.CanvasObject
 	var clearSensitive []*detailSecret
+	var clearDisplays []*TOTPDisplay
 	if item.Metadata.Type == model.SSHKeyItemType {
 		if decoded.SSHKey == nil {
 			return nil, nil, fmt.Errorf("SSH key credential is missing")
@@ -89,7 +98,11 @@ func newEntryDetailWithClear(ctx context.Context, item *model.Item, window fyne.
 			appendDetailSection(&bodyObjects, container.New(layout.NewCustomPaddedVBoxLayout(theme.Size(theme.SizeNamePadding)), credentialFields...))
 		}
 		if decoded.TOTP != nil {
-			appendDetailSection(&bodyObjects, detailTOTP(ctx, *decoded.TOTP))
+			display, view := detailTOTP(ctx, *decoded.TOTP)
+			if display != nil {
+				clearDisplays = append(clearDisplays, display)
+			}
+			appendDetailSection(&bodyObjects, view)
 		}
 		if note := decoded.Note; note != nil && note.Content.Value != "" {
 			copyNotes := newIconButton("Copy Notes", icons.Copy, func() { detailCopy("Notes", note.Content.Value) })
@@ -101,7 +114,12 @@ func newEntryDetailWithClear(ctx context.Context, item *model.Item, window fyne.
 	}
 	var clearOnce sync.Once
 	clear := func() {
-		clearOnce.Do(func() { clearDetailSecrets(clearSensitive) })
+		clearOnce.Do(func() {
+			clearDetailSecrets(clearSensitive)
+			for _, display := range clearDisplays {
+				display.Clear()
+			}
+		})
 	}
 	more := newIconButton("Entry actions", icons.More, nil)
 	more.Importance = widget.LowImportance
@@ -138,12 +156,6 @@ func newEntryDetailWithClear(ctx context.Context, item *model.Item, window fyne.
 	body := newDetailScrollableContent(bodyObjects, metadata)
 	pagePadding := theme.Size(theme.SizeNamePadding) * 2
 	page := container.New(layout.NewCustomPaddedLayout(pagePadding, pagePadding, pagePadding, pagePadding), container.NewBorder(header, nil, nil, nil, container.NewVScroll(body)))
-	if done := ctx.Done(); done != nil {
-		go func() {
-			<-done
-			fyne.DoAndWait(clear)
-		}()
-	}
 	return page, clear, nil
 }
 
@@ -272,11 +284,11 @@ func preserveLineEdgeSpaces(value string) string {
 	return strings.Join(lines, "\n")
 }
 
-func detailTOTP(ctx context.Context, credential cxf.TOTP) fyne.CanvasObject {
+func detailTOTP(ctx context.Context, credential cxf.TOTP) (*TOTPDisplay, fyne.CanvasObject) {
 	display, ok := newTOTPDisplay(credential)
 	if !ok {
-		return nil
+		return nil, nil
 	}
 	go display.Run(ctx)
-	return container.NewVBox(newText("Verification code", captionStyle), display.View())
+	return display, container.NewVBox(newText("Verification code", captionStyle), display.View())
 }
