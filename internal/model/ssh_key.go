@@ -4,7 +4,8 @@
 package model
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
+	json "encoding/json/v2"
 	"fmt"
 	"time"
 	"unicode/utf8"
@@ -28,14 +29,14 @@ func NewSSHKey(title string, key cxf.SSHKey, passphrase string, settings Passwor
 	if err != nil {
 		return nil, fmt.Errorf("cannot generate SSH key ID: %w", err)
 	}
-	keyCredential, err := json.Marshal(key)
+	keyCredential, err := json.Marshal(key, json.Deterministic(true))
 	if err != nil {
 		return nil, fmt.Errorf("cannot encode SSH key credential")
 	}
 	passphraseCredential, err := json.Marshal(cxf.BasicAuth{
 		Type:     cxf.CredentialTypeBasicAuth,
 		Password: passphraseField,
-	})
+	}, json.Deterministic(true))
 	if err != nil {
 		return nil, fmt.Errorf("cannot encode SSH key passphrase")
 	}
@@ -52,8 +53,8 @@ func NewSSHKey(title string, key cxf.SSHKey, passphrase string, settings Passwor
 			Title:       title,
 			CreationAt:  &created,
 			ModifiedAt:  &modified,
-			Credentials: []json.RawMessage{keyCredential, passphraseCredential},
-			Extensions:  []json.RawMessage{extension},
+			Credentials: []jsontext.Value{keyCredential, passphraseCredential},
+			Extensions:  []jsontext.Value{extension},
 		},
 		Metadata: metadata,
 	}

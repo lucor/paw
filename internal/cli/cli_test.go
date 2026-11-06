@@ -43,7 +43,7 @@ func executeWithInput(t *testing.T, args []string, cmd *urfave.Command, input st
 }
 
 func TestHelp(t *testing.T) {
-	commands := []string{"agent", "add", "edit", "init", "ls", "lock", "pwgen", "rm", "show", "unlock", "version"}
+	commands := []string{"agent", "add", "edit", "history", "init", "ls", "lock", "pwgen", "rm", "show", "unlock", "version"}
 	for _, flag := range []string{"--help", "-h", "-help"} {
 		t.Run("root/"+flag, func(t *testing.T) {
 			out, err := execute(t, []string{flag}, nil)

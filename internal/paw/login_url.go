@@ -4,7 +4,7 @@
 package paw
 
 import (
-	"encoding/json"
+	json "encoding/json/v2"
 	"net/url"
 
 	"golang.org/x/net/publicsuffix"
@@ -65,10 +65,10 @@ func (u *LoginURL) Set(rawURL string) error {
 
 func (u *LoginURL) MarshalJSON() ([]byte, error) {
 	if u.url == nil {
-		return json.Marshal("")
+		return json.Marshal("", json.Deterministic(true))
 	}
 	rawURL := u.url.String()
-	return json.Marshal(rawURL)
+	return json.Marshal(rawURL, json.Deterministic(true))
 }
 
 func (u *LoginURL) UnmarshalJSON(data []byte) error {

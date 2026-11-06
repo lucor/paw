@@ -1,7 +1,8 @@
 package model
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
+	json "encoding/json/v2"
 	"errors"
 	"fmt"
 	"unicode/utf8"
@@ -33,7 +34,7 @@ func PasswordField(value string, settings PasswordSettings, previous *cxf.Editab
 	if !validPasswordMode(settings.Mode) {
 		return nil, fmt.Errorf("unsupported mode %d", settings.Mode)
 	}
-	encodedSettings, err := json.Marshal(passwordExtension{Name: passwordExtensionName, PasswordSettings: settings})
+	encodedSettings, err := json.Marshal(passwordExtension{Name: passwordExtensionName, PasswordSettings: settings}, json.Deterministic(true))
 	if err != nil {
 		return nil, errors.New("cannot encode password settings")
 	}
@@ -50,8 +51,8 @@ func PasswordField(value string, settings PasswordSettings, previous *cxf.Editab
 	return &field, nil
 }
 
-func replacePasswordSettingsExtension(extensions []json.RawMessage, updated json.RawMessage) ([]json.RawMessage, error) {
-	result := make([]json.RawMessage, 0, len(extensions)+1)
+func replacePasswordSettingsExtension(extensions []jsontext.Value, updated jsontext.Value) ([]jsontext.Value, error) {
+	result := make([]jsontext.Value, 0, len(extensions)+1)
 	replaced := false
 	for _, raw := range extensions {
 		var header struct {
@@ -60,7 +61,7 @@ func replacePasswordSettingsExtension(extensions []json.RawMessage, updated json
 		if json.Unmarshal(raw, &header) == nil && header.Name == passwordExtensionName {
 			if !replaced {
 				// Update Paw's known settings without dropping future extension members.
-				var fields, changes map[string]json.RawMessage
+				var fields, changes map[string]jsontext.Value
 				if err := json.Unmarshal(raw, &fields); err != nil {
 					return nil, errors.New("cannot decode password settings")
 				}
@@ -70,7 +71,7 @@ func replacePasswordSettingsExtension(extensions []json.RawMessage, updated json
 				for key, value := range changes {
 					fields[key] = value
 				}
-				merged, err := json.Marshal(fields)
+				merged, err := json.Marshal(fields, json.Deterministic(true))
 				if err != nil {
 					return nil, errors.New("cannot encode password settings")
 				}

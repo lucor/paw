@@ -5,7 +5,8 @@ package agent
 
 import (
 	"crypto/rand"
-	"encoding/json"
+	jsoncompat "encoding/json"
+	json "encoding/json/v2"
 	"fmt"
 	"time"
 
@@ -47,7 +48,7 @@ func (a *Agent) processSessionRequest(contents []byte) ([]byte, error) {
 	switch action {
 	case SessionActionKey:
 		request := &Session{}
-		err := json.Unmarshal(data, request)
+		err := json.Unmarshal(data, request, jsoncompat.FormatDurationAsNano(true))
 		if err != nil {
 			return nil, err
 		}
@@ -66,7 +67,7 @@ func (a *Agent) processSessionRequest(contents []byte) ([]byte, error) {
 		if session.vaultName != request.Vault {
 			return nil, fmt.Errorf("session invalid")
 		}
-		return json.Marshal(session.key)
+		return json.Marshal(session.key, json.Deterministic(true), jsoncompat.FormatDurationAsNano(true))
 	case SessionActionList:
 		sessions := []Session{}
 		a.mu.Lock()
@@ -81,7 +82,7 @@ func (a *Agent) processSessionRequest(contents []byte) ([]byte, error) {
 			}
 			sessions = append(sessions, v)
 		}
-		return json.Marshal(sessions)
+		return json.Marshal(sessions, json.Deterministic(true), jsoncompat.FormatDurationAsNano(true))
 	case SessionActionLock:
 		vaultName := string(data)
 		a.mu.Lock()
@@ -94,7 +95,7 @@ func (a *Agent) processSessionRequest(contents []byte) ([]byte, error) {
 		return nil, nil
 	case SessionActionUnlock:
 		request := &Session{}
-		err := json.Unmarshal(data, request)
+		err := json.Unmarshal(data, request, jsoncompat.FormatDurationAsNano(true))
 		if err != nil {
 			return nil, err
 		}

@@ -5,7 +5,7 @@ package storage
 
 import (
 	"context"
-	"encoding/json"
+	json "encoding/json/v2"
 	"fmt"
 	"io"
 	"os"
@@ -28,7 +28,7 @@ func WriteCXF(ctx context.Context, w io.Writer, s *FileStorage, vault *model.Vau
 		return fmt.Errorf("cannot export: no vault selected")
 	}
 	// Copy before marshaling: Paw's marshaler updates the vault extension slice.
-	data, err := json.Marshal(vault.Header)
+	data, err := json.Marshal(vault.Header, json.Deterministic(true))
 	if err != nil {
 		return fmt.Errorf("copy export document: %w", err)
 	}
@@ -37,7 +37,7 @@ func WriteCXF(ctx context.Context, w io.Writer, s *FileStorage, vault *model.Vau
 		return fmt.Errorf("copy export vault: %w", err)
 	}
 	copy.Metadata = vault.Metadata
-	data, err = json.Marshal(copy)
+	data, err = json.Marshal(copy, json.Deterministic(true))
 	if err != nil {
 		return fmt.Errorf("encode vault metadata: %w", err)
 	}
@@ -54,7 +54,7 @@ func WriteCXF(ctx context.Context, w io.Writer, s *FileStorage, vault *model.Vau
 			if err != nil {
 				return fmt.Errorf("load export item: %w", err)
 			}
-			data, err := json.Marshal(item)
+			data, err := json.Marshal(item, json.Deterministic(true))
 			if err != nil {
 				return fmt.Errorf("encode export item: %w", err)
 			}

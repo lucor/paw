@@ -6,7 +6,7 @@ package ui
 import (
 	"context"
 	"crypto/sha1"
-	"encoding/json"
+	json "encoding/json/v2"
 	"errors"
 	"testing"
 	"time"
@@ -89,7 +89,7 @@ func TestPasswordAuditorDistinctItems(t *testing.T) {
 		{Done: 2, Total: 3, Phase: AuditPhaseBreaches},
 		{Done: 3, Total: 3, Phase: AuditPhaseBreaches},
 	}, updates)
-	encoded, err := json.Marshal(result)
+	encoded, err := json.Marshal(result, json.Deterministic(true))
 	require.NoError(t, err)
 	require.NotContains(t, string(encoded), "password")
 	require.NotContains(t, string(encoded), strong)

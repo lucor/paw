@@ -5,7 +5,7 @@ package paw
 
 import (
 	"bytes"
-	"encoding/json"
+	json "encoding/json/v2"
 	"errors"
 	"io"
 	"strings"

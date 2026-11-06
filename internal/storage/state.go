@@ -4,7 +4,7 @@
 package storage
 
 import (
-	"encoding/json"
+	json "encoding/json/v2"
 	"fmt"
 	"io"
 	"os"
@@ -28,7 +28,7 @@ func (s *FileStorage) LoadAppState() (*model.AppState, error) {
 	}
 	defer r.Close()
 	appState := &model.AppState{}
-	err = json.NewDecoder(r).Decode(appState)
+	err = json.UnmarshalRead(r, appState)
 	if err != nil {
 		return defaultAppState, err
 	}
@@ -37,5 +37,7 @@ func (s *FileStorage) LoadAppState() (*model.AppState, error) {
 
 // StoreAppState store the configuration into the underlying storage
 func (s *FileStorage) StoreAppState(appState *model.AppState) error {
-	return atomicWrite(s.root, appStateFileName, func(w io.Writer) error { return json.NewEncoder(w).Encode(appState) })
+	return atomicWrite(s.root, appStateFileName, func(w io.Writer) error {
+		return json.MarshalWrite(w, appState, json.Deterministic(true), json.FormatNilSliceAsNull(true))
+	})
 }

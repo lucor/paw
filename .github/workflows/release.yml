@@ -72,7 +72,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: 1.26.10
+          go-version: 1.27.3
           check-latest: true
 
       - name: Install Linux graphics dependencies
@@ -126,7 +126,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: 1.26.10
+          go-version: 1.27.3
           check-latest: true
 
       - name: Check Windows C compiler
@@ -187,7 +187,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: 1.26.10
+          go-version: 1.27.3
           check-latest: true
 
       - name: Download Go dependencies
@@ -238,7 +238,7 @@ jobs:
       run:
         shell: bash
     env:
-      GO_VERSION: '1.26.9'
+      GO_VERSION: '1.27.3'
       FYNE_CROSS_IMAGES_VERSION: v1.3.2
       GOOS: freebsd
       GOARCH: ${{ matrix.go_arch }}

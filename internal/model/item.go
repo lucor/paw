@@ -1,7 +1,8 @@
 package model
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
+	json "encoding/json/v2"
 	"fmt"
 
 	"go.lucor.dev/cxf"
@@ -55,7 +56,6 @@ func (item *Item) Summary() (*cxf.Item, error) {
 	if err != nil {
 		return nil, fmt.Errorf("cannot encode item summary metadata: %w", err)
 	}
-
 	var creationAt, modifiedAt *uint64
 	if item.CreationAt != nil {
 		value := *item.CreationAt
@@ -87,8 +87,8 @@ func (item *Item) Summary() (*cxf.Item, error) {
 		Title:       item.Title,
 		Subtitle:    subtitle,
 		Scope:       scope,
-		Credentials: []json.RawMessage{},
-		Extensions:  []json.RawMessage{extension},
+		Credentials: []jsontext.Value{},
+		Extensions:  []jsontext.Value{extension},
 	}, nil
 }
 
@@ -106,6 +106,9 @@ func (item *Item) Validate() error {
 	if _, _, err := findItemExtension(item.Extensions); err != nil {
 		return err
 	}
+	if _, err := item.History(); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -114,7 +117,18 @@ func (item *Item) MarshalJSON() ([]byte, error) {
 	if err := item.Validate(); err != nil {
 		return nil, err
 	}
-	extensions := append([]json.RawMessage(nil), item.Extensions...)
+	extensions := make([]jsontext.Value, 0, len(item.Extensions))
+	for _, extension := range item.Extensions {
+		var header struct {
+			Name string `json:"name"`
+		}
+		if err := json.Unmarshal(extension, &header); err != nil {
+			return nil, fmt.Errorf("cannot decode item extension name")
+		}
+		if header.Name != itemHashExtensionName {
+			extensions = append(extensions, extension)
+		}
+	}
 	index, raw, err := findItemExtension(extensions)
 	if err != nil {
 		return nil, err
@@ -131,7 +145,7 @@ func (item *Item) MarshalJSON() ([]byte, error) {
 
 	document := item.Item
 	document.Extensions = extensions
-	return json.Marshal(document)
+	return json.Marshal(document, json.Deterministic(true))
 }
 
 // UnmarshalJSON decodes a CXF item and its Paw metadata atomically.
@@ -159,9 +173,9 @@ func (item *Item) UnmarshalJSON(data []byte) error {
 }
 
 // findItemExtension returns the Paw metadata extension and its position.
-func findItemExtension(extensions []json.RawMessage) (int, json.RawMessage, error) {
+func findItemExtension(extensions []jsontext.Value) (int, jsontext.Value, error) {
 	index := -1
-	var raw json.RawMessage
+	var raw jsontext.Value
 	for i, extension := range extensions {
 		var header struct {
 			Name string `json:"name"`
@@ -182,7 +196,7 @@ func findItemExtension(extensions []json.RawMessage) (int, json.RawMessage, erro
 }
 
 // decodeItemExtension reads the Paw fields from its extension.
-func decodeItemExtension(raw json.RawMessage) (ItemMetadata, error) {
+func decodeItemExtension(raw jsontext.Value) (ItemMetadata, error) {
 	var extension struct {
 		Name       string    `json:"name"`
 		Type       *ItemType `json:"type"`
@@ -199,25 +213,25 @@ func decodeItemExtension(raw json.RawMessage) (ItemMetadata, error) {
 }
 
 // encodeItemExtension updates known Paw fields and preserves unknown members.
-func encodeItemExtension(raw json.RawMessage, metadata ItemMetadata) (json.RawMessage, error) {
-	fields := make(map[string]json.RawMessage)
+func encodeItemExtension(raw jsontext.Value, metadata ItemMetadata) (jsontext.Value, error) {
+	fields := make(map[string]jsontext.Value)
 	if len(raw) != 0 {
 		if err := json.Unmarshal(raw, &fields); err != nil {
 			return nil, fmt.Errorf("cannot decode Paw item metadata")
 		}
 	}
-	name, err := json.Marshal(itemExtensionName)
+	name, err := json.Marshal(itemExtensionName, json.Deterministic(true))
 	if err != nil {
 		return nil, fmt.Errorf("cannot encode Paw item metadata")
 	}
-	typeValue, err := json.Marshal(metadata.Type)
+	typeValue, err := json.Marshal(metadata.Type, json.Deterministic(true))
 	if err != nil {
 		return nil, fmt.Errorf("cannot encode Paw item metadata")
 	}
 	fields["name"] = name
 	fields["type"] = typeValue
 	if metadata.AddToAgent {
-		fields["addToAgent"], err = json.Marshal(true)
+		fields["addToAgent"], err = json.Marshal(true, json.Deterministic(true))
 		if err != nil {
 			return nil, fmt.Errorf("cannot encode Paw item metadata")
 		}
@@ -233,7 +247,7 @@ func encodeItemExtension(raw json.RawMessage, metadata ItemMetadata) (json.RawMe
 		}
 		fields["favicon"] = favicon
 	}
-	encoded, err := json.Marshal(fields)
+	encoded, err := json.Marshal(fields, json.Deterministic(true))
 	if err != nil {
 		return nil, fmt.Errorf("cannot encode Paw item metadata")
 	}
@@ -241,21 +255,21 @@ func encodeItemExtension(raw json.RawMessage, metadata ItemMetadata) (json.RawMe
 }
 
 // encodeItemFavicon preserves unknown icon fields while updating Paw's fields.
-func encodeItemFavicon(raw json.RawMessage, favicon *Favicon) (json.RawMessage, error) {
-	fields := make(map[string]json.RawMessage)
+func encodeItemFavicon(raw jsontext.Value, favicon *Favicon) (jsontext.Value, error) {
+	fields := make(map[string]jsontext.Value)
 	if len(raw) != 0 {
 		if err := json.Unmarshal(raw, &fields); err != nil {
 			return nil, err
 		}
 	}
 	if fields == nil {
-		fields = make(map[string]json.RawMessage)
+		fields = make(map[string]jsontext.Value)
 	}
-	encoded, err := json.Marshal(favicon)
+	encoded, err := json.Marshal(favicon, json.Deterministic(true))
 	if err != nil {
 		return nil, err
 	}
-	var known map[string]json.RawMessage
+	var known map[string]jsontext.Value
 	if err := json.Unmarshal(encoded, &known); err != nil {
 		return nil, err
 	}
@@ -266,7 +280,7 @@ func encodeItemFavicon(raw json.RawMessage, favicon *Favicon) (json.RawMessage, 
 	for name, value := range known {
 		fields[name] = value
 	}
-	return json.Marshal(fields)
+	return json.Marshal(fields, json.Deterministic(true))
 }
 
 // validItemType reports whether itemType is a supported Paw item category.

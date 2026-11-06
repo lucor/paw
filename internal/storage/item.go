@@ -4,6 +4,7 @@
 package storage
 
 import (
+	json "encoding/json/v2"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -12,6 +13,11 @@ import (
 
 	"go.lucor.dev/cxf"
 	"go.lucor.dev/paw/internal/model"
+)
+
+const (
+	itemHashExtensionName = "paw.pm/item-hash"
+	itemHashAlgorithm     = "sha256"
 )
 
 // LoadItem reads and validates an encrypted CXF item by ID.
@@ -56,6 +62,42 @@ func (s *FileStorage) StoreItem(vault *model.Vault, item *model.Item) error {
 	return s.storeItem(vault, item)
 }
 
+// RestoreItem restores a history entry if it still matches the caller's selection.
+// It returns false when the selected version has no meaningful differences.
+// now is the UTC Unix timestamp used for capture and modification times.
+func (s *FileStorage) RestoreItem(
+	vault *model.Vault,
+	itemID string,
+	index int,
+	expected *model.HistoryEntry,
+	now uint64,
+) (*model.Item, bool, error) {
+	if vault == nil {
+		return nil, false, fmt.Errorf("cannot restore item: vault is required")
+	}
+	if err := vault.Validate(); err != nil {
+		return nil, false, fmt.Errorf("cannot restore item: invalid vault: %w", err)
+	}
+	if !vaultHasItem(vault, itemID) {
+		return nil, false, fmt.Errorf("cannot restore item: item is not in the vault")
+	}
+	current, err := s.LoadItem(vault, itemID)
+	if err != nil {
+		return nil, false, fmt.Errorf("cannot load current item for restore: %w", err)
+	}
+	restored, changed, err := model.PrepareItemRestore(current, index, expected, now)
+	if err != nil {
+		return nil, false, err
+	}
+	if !changed {
+		return current, false, nil
+	}
+	if err := s.StoreItem(vault, restored); err != nil {
+		return nil, false, fmt.Errorf("cannot persist restored item: %w", err)
+	}
+	return restored, true, nil
+}
+
 // DeleteItem removes a CXF item and its vault summary.
 func (s *FileStorage) DeleteItem(vault *model.Vault, itemID string) error {
 	return s.deleteItem(vault, itemID)
@@ -64,16 +106,26 @@ func (s *FileStorage) DeleteItem(vault *model.Vault, itemID string) error {
 // storeItem saves the full item before saving its summary and advancing the vault.
 // The two replacements are sequential, so a vault save failure can leave its summary stale.
 func (s *FileStorage) storeItem(vault *model.Vault, item *model.Item) error {
-	updated, err := prepareItemVault(vault, item)
-	if err != nil {
-		return err
+	if err := vault.Validate(); err != nil {
+		return fmt.Errorf("could not prepare vault: %w", err)
 	}
-	id := updated.Accounts[0].ID
+	if vault.Key() == nil {
+		return fmt.Errorf("could not store item: vault key is missing")
+	}
+	if err := item.Validate(); err != nil {
+		return fmt.Errorf("could not prepare item: %w", err)
+	}
+	id := vault.Accounts[0].ID
 	root, err := s.openVaultRoot(id)
 	if err != nil {
 		return fmt.Errorf("could not open vault: %w", err)
 	}
 	defer root.Close()
+
+	updated, err := prepareItemVault(vault, item)
+	if err != nil {
+		return err
+	}
 	if err := s.storeEncryptedInRoot(root, filepath.Base(itemPath(s, id, item.ID)), vault.Key(), item); err != nil {
 		return fmt.Errorf("could not store item: %w", err)
 	}
@@ -133,6 +185,23 @@ func prepareItemVault(vault *model.Vault, item *model.Item) (*model.Vault, error
 	if err != nil {
 		return nil, fmt.Errorf("could not prepare item summary: %w", err)
 	}
+	stateHash, err := item.StateHash()
+	if err != nil {
+		return nil, fmt.Errorf("could not calculate item state hash: %w", err)
+	}
+	hashExtension, err := json.Marshal(struct {
+		Name      string `json:"name"`
+		Algorithm string `json:"algorithm"`
+		Hash      string `json:"hash"`
+	}{
+		Name:      itemHashExtensionName,
+		Algorithm: itemHashAlgorithm,
+		Hash:      stateHash,
+	}, json.Deterministic(true))
+	if err != nil {
+		return nil, fmt.Errorf("could not encode item state hash: %w", err)
+	}
+	summary.Extensions = append(summary.Extensions, hashExtension)
 
 	updated := *vault
 	updated.Accounts = slices.Clone(vault.Accounts)

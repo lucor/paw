@@ -3,7 +3,8 @@ package model
 import (
 	"bytes"
 	"encoding/base64"
-	"encoding/json"
+	"encoding/json/jsontext"
+	json "encoding/json/v2"
 	"strings"
 	"testing"
 	"time"
@@ -47,7 +48,7 @@ func TestNewVault(t *testing.T) {
 	require.NotNil(t, creationAt)
 	require.Equal(t, vault.Timestamp, *creationAt)
 
-	encoded, err := json.Marshal(vault)
+	encoded, err := json.Marshal(vault, json.Deterministic(true))
 	require.NoError(t, err)
 	require.NotContains(t, string(encoded), key.String())
 	decoded, err := cxf.Decode(bytes.NewReader(encoded))
@@ -69,7 +70,7 @@ func TestVaultMetadataIsCachedAndMarshaled(t *testing.T) {
 	vault.Metadata.VaultName = "Work"
 	creationAt := uint64(42)
 	vault.Metadata.CreationAt = &creationAt
-	encoded, err := json.Marshal(vault)
+	encoded, err := json.Marshal(vault, json.Deterministic(true))
 	require.NoError(t, err)
 
 	var document cxf.Header
@@ -93,13 +94,13 @@ func TestDecodeVaultPreservesUnknownExtensions(t *testing.T) {
 	require.NotNil(t, creationAt)
 	require.Zero(t, *creationAt)
 
-	encoded, err := json.Marshal(vault)
+	encoded, err := json.Marshal(vault, json.Deterministic(true))
 	require.NoError(t, err)
-	var decoded map[string]json.RawMessage
+	var decoded map[string]jsontext.Value
 	require.NoError(t, json.Unmarshal(encoded, &decoded))
-	var accounts []map[string]json.RawMessage
+	var accounts []map[string]jsontext.Value
 	require.NoError(t, json.Unmarshal(decoded["accounts"], &accounts))
-	var extensions []json.RawMessage
+	var extensions []jsontext.Value
 	require.NoError(t, json.Unmarshal(accounts[0]["extensions"], &extensions))
 	require.Len(t, extensions, 2)
 	require.JSONEq(t, `{"name":"paw.pm/vault","schemaVersion":1,"vaultName":"Personal","creationAt":0}`, string(extensions[0]))

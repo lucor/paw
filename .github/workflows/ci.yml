@@ -56,12 +56,12 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - runner: ubuntu-latest
-            go-version: oldstable
-          - runner: macos-latest
-            go-version: oldstable
-          - runner: windows-latest
-            go-version: oldstable
+          # - runner: ubuntu-latest
+          #   go-version: oldstable
+          # - runner: macos-latest
+          #   go-version: oldstable
+          # - runner: windows-latest
+          #   go-version: oldstable
           - runner: ubuntu-latest
             go-version: stable
           - runner: macos-latest

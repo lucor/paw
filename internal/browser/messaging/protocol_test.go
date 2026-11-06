@@ -6,7 +6,7 @@ package messaging
 import (
 	"bytes"
 	"encoding/base32"
-	"encoding/json"
+	json "encoding/json/v2"
 	"os"
 	"path/filepath"
 	"strings"
@@ -74,7 +74,7 @@ func newListingStorage(t *testing.T, names ...string) *storage.FileStorage {
 		directory := strings.ToLower(base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(id[:]))
 		path := filepath.Join(s.Root(), "storage", directory)
 		require.NoError(t, os.Mkdir(path, 0o700))
-		data, err := json.Marshal(map[string]string{"name": name})
+		data, err := json.Marshal(map[string]string{"name": name}, json.Deterministic(true))
 		require.NoError(t, err)
 		require.NoError(t, os.WriteFile(filepath.Join(path, "metadata.json"), data, 0o600))
 	}

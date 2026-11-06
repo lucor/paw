@@ -4,7 +4,7 @@
 package storage
 
 import (
-	"encoding/json"
+	json "encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
@@ -30,7 +30,7 @@ func encrypt(key *paw.Key, w io.Writer, v any) error {
 		return fmt.Errorf("could not create encrypted writer for URI: %w", err)
 	}
 
-	encodeErr := json.NewEncoder(encWriter).Encode(v)
+	encodeErr := json.MarshalWrite(encWriter, v, json.Deterministic(true))
 	if encodeErr != nil {
 		encodeErr = fmt.Errorf("could not encode data for URI: %w", encodeErr)
 	}
@@ -98,7 +98,7 @@ func encodeVaultMetadata(name string, appearance model.VaultAppearance) ([]byte,
 		return nil, fmt.Errorf("vault name is empty or invalid UTF-8")
 	}
 	appearance = model.NormalizeVaultAppearance(appearance)
-	data, err := json.Marshal(vaultMetadata{Name: name, Icon: appearance.Icon, Color: appearance.Color})
+	data, err := json.Marshal(vaultMetadata{Name: name, Icon: appearance.Icon, Color: appearance.Color}, json.Deterministic(true))
 	if err != nil {
 		return nil, fmt.Errorf("could not encode vault metadata")
 	}

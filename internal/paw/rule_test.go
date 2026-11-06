@@ -5,7 +5,7 @@ package paw
 
 import (
 	"bytes"
-	"encoding/json"
+	json "encoding/json/v2"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -120,11 +120,11 @@ func TestRuleEncodeRoundTrip(t *testing.T) {
 			assert.Equal(t, tt.want, rule)
 
 			var buf bytes.Buffer
-			err = json.NewEncoder(&buf).Encode(rule)
+			err = json.MarshalWrite(&buf, rule, json.FormatNilSliceAsNull(true))
 			assert.Nil(t, err)
 
 			var ruleDec *Rule
-			err = json.NewDecoder(&buf).Decode(&ruleDec)
+			err = json.UnmarshalRead(&buf, &ruleDec)
 			assert.Nil(t, err)
 			assert.Equal(t, rule, ruleDec)
 		})

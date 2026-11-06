@@ -4,7 +4,7 @@
 package ui
 
 import (
-	"encoding/json"
+	json "encoding/json/v2"
 	"testing"
 
 	"fyne.io/fyne/v2"
@@ -21,7 +21,7 @@ func passwordEditorFixture(t *testing.T) *model.Item {
 	t.Helper()
 	item, err := model.NewPassword("Wi-Fi", "synthetic-secret", model.PasswordSettings{Mode: paw.CustomPassword})
 	require.NoError(t, err)
-	totp, err := json.Marshal(cxf.TOTP{Type: cxf.CredentialTypeTOTP, Secret: "JBSWY3DPEHPK3PXP", Algorithm: "sha1", Period: 30, Digits: 6})
+	totp, err := json.Marshal(cxf.TOTP{Type: cxf.CredentialTypeTOTP, Secret: "JBSWY3DPEHPK3PXP", Algorithm: "sha1", Period: 30, Digits: 6}, json.Deterministic(true))
 	require.NoError(t, err)
 	item.Credentials = append(item.Credentials, totp)
 	return item
@@ -55,7 +55,7 @@ func TestPasswordEditorControlsAndInteractions(t *testing.T) {
 func TestPasswordEditorUpdatesPasswordAndPreservesOtherCredentials(t *testing.T) {
 	test.NewTempApp(t)
 	item := passwordEditorFixture(t)
-	before, err := json.Marshal(item)
+	before, err := json.Marshal(item, json.Deterministic(true))
 	require.NoError(t, err)
 	editor, err := NewPasswordEditor(item, false)
 	require.NoError(t, err)
@@ -69,7 +69,7 @@ func TestPasswordEditorUpdatesPasswordAndPreservesOtherCredentials(t *testing.T)
 	require.NoError(t, err)
 	require.Equal(t, "another-synthetic-secret", decoded.BasicAuth.Password.Value)
 	require.Equal(t, "JBSWY3DPEHPK3PXP", decoded.TOTP.Secret)
-	after, err := json.Marshal(item)
+	after, err := json.Marshal(item, json.Deterministic(true))
 	require.NoError(t, err)
 	require.JSONEq(t, string(before), string(after))
 }

@@ -76,8 +76,19 @@ func (cmd *EditCmd) Run(ctx context.Context) error {
 		return err
 	}
 	now := uint64(cmd.now().UTC().Unix())
-	item.ModifiedAt = &now
-	if err := s.StoreItem(vault, item); err != nil {
+	previous, err := s.LoadItem(vault, item.ID)
+	if err != nil {
+		return err
+	}
+	updated, changed, err := model.PrepareItemEdit(previous, item, now, now)
+	if err != nil {
+		return err
+	}
+	if !changed {
+		fmt.Fprintf(cmd.out, "[✓] item %q unchanged\n", cmd.itemName)
+		return nil
+	}
+	if err := s.StoreItem(vault, updated); err != nil {
 		return err
 	}
 	appState.Modified = time.Unix(int64(now), 0).UTC()

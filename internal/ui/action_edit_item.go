@@ -222,7 +222,25 @@ func (a *app) saveEditedItem(original, item *model.Item, isNew bool) {
 		}
 	}
 	now := uint64(time.Now().UTC().Unix())
-	item.ModifiedAt = &now
+	if !isNew {
+		previous, err := a.storage.LoadItem(a.vault, item.ID)
+		if err != nil {
+			dialog.ShowError(err, a.win)
+			return
+		}
+		updated, changed, err := model.PrepareItemEdit(previous, item, now, now)
+		if err != nil {
+			dialog.ShowError(err, a.win)
+			return
+		}
+		if !changed {
+			a.showItemView(previous)
+			return
+		}
+		item = updated
+	} else {
+		item.ModifiedAt = &now
+	}
 	if !isNew {
 		_ = a.removeSSHKeyFromAgent(original)
 	}

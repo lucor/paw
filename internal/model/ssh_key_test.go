@@ -8,7 +8,7 @@ import (
 	"crypto/rand"
 	"crypto/x509"
 	"encoding/base64"
-	"encoding/json"
+	json "encoding/json/v2"
 	"testing"
 
 	"github.com/stretchr/testify/require"

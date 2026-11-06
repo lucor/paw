@@ -4,7 +4,7 @@
 package ui
 
 import (
-	"encoding/json"
+	json "encoding/json/v2"
 	"errors"
 	"fmt"
 	"strings"
@@ -310,7 +310,7 @@ func (e *SSHKeyEditor) UpdatedItem() (*model.Item, error) {
 	updated := cloneItem(e.item)
 	updated.Title = e.Title.Text
 	updated.Metadata.AddToAgent = e.AddToAgent.Checked
-	keyData, err := json.Marshal(e.sshKey)
+	keyData, err := json.Marshal(e.sshKey, json.Deterministic(true))
 	if err != nil {
 		return nil, fmt.Errorf("cannot encode SSH key: %w", err)
 	}

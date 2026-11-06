@@ -3,7 +3,8 @@ package model
 import (
 	"crypto/ed25519"
 	"crypto/rand"
-	"encoding/json"
+	"encoding/json/jsontext"
+	json "encoding/json/v2"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -17,7 +18,7 @@ func TestCredentialAccessAndUpdates(t *testing.T) {
 	require.NoError(t, err)
 	note := cxf.Note{Type: cxf.CredentialTypeNote, Content: cxf.EditableField{FieldType: cxf.FieldTypeString, Value: "original"}}
 	require.NoError(t, item.SetNote(-1, note))
-	firstNote := append(json.RawMessage(nil), item.Credentials[1]...)
+	firstNote := append(jsontext.Value(nil), item.Credentials[1]...)
 	require.NoError(t, item.SetNote(-1, cxf.Note{Type: cxf.CredentialTypeNote, Content: cxf.EditableField{FieldType: cxf.FieldTypeString, Value: "second"}}))
 	decoded, err := DecodeCredentials(item.Credentials)
 	require.NoError(t, err)
@@ -34,11 +35,11 @@ func TestCredentialAccessAndUpdates(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "original", note.Content.Value)
 	require.Equal(t, 1, index)
-	before, err := json.Marshal(item.Credentials)
+	before, err := json.Marshal(item.Credentials, json.Deterministic(true))
 	require.NoError(t, err)
 	require.Error(t, item.SetBasicAuth(5, auth))
 	require.Error(t, item.SetNote(-2, note))
-	after, err := json.Marshal(item.Credentials)
+	after, err := json.Marshal(item.Credentials, json.Deterministic(true))
 	require.NoError(t, err)
 	require.Equal(t, before, after)
 }
@@ -53,14 +54,14 @@ func TestCredentialMissingAndMalformed(t *testing.T) {
 	require.Equal(t, -1, index)
 	_, err = item.SSHKey()
 	require.ErrorContains(t, err, "missing")
-	_, err = DecodeCredentials([]json.RawMessage{json.RawMessage(`{`)})
+	_, err = DecodeCredentials([]jsontext.Value{jsontext.Value(`{`)})
 	require.Error(t, err)
 }
 
 func TestPasswordFieldPreservesOtherExtensions(t *testing.T) {
-	previous := &cxf.EditableField{FieldType: cxf.FieldTypeConcealedString, Value: "original", Extensions: []json.RawMessage{
-		json.RawMessage(`{"name":"example.org/field","value":"keep"}`),
-		json.RawMessage(`{"name":"paw.pm/password","mode":0,"future":"keep"}`),
+	previous := &cxf.EditableField{FieldType: cxf.FieldTypeConcealedString, Value: "original", Extensions: []jsontext.Value{
+		jsontext.Value(`{"name":"example.org/field","value":"keep"}`),
+		jsontext.Value(`{"name":"paw.pm/password","mode":0,"future":"keep"}`),
 	}}
 	settings := PasswordSettings{Mode: paw.RandomPassword, Length: 24, Format: paw.DigitsFormat}
 	updated, err := PasswordField("replacement", settings, previous)
@@ -68,7 +69,7 @@ func TestPasswordFieldPreservesOtherExtensions(t *testing.T) {
 	require.Equal(t, settings, PasswordSettingsFromField(updated))
 	require.Equal(t, previous.Extensions[0], updated.Extensions[0])
 	require.Len(t, updated.Extensions, 2)
-	var extension map[string]json.RawMessage
+	var extension map[string]jsontext.Value
 	require.NoError(t, json.Unmarshal(updated.Extensions[1], &extension))
 	require.JSONEq(t, `"keep"`, string(extension["future"]))
 	require.Equal(t, "original", previous.Value)

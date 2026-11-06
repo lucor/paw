@@ -1,7 +1,7 @@
 package model
 
 import (
-	"encoding/json"
+	json "encoding/json/v2"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -36,7 +36,7 @@ func TestSettingsCompatibility(t *testing.T) {
 	require.Equal(t, ThemeDark, state.Settings.Theme)
 	require.Equal(t, AutoLockOneMinute, state.Settings.AutoLock)
 	require.Equal(t, 27, state.Settings.Password.Random.DefaultLength)
-	data, err := json.Marshal(&state)
+	data, err := json.Marshal(&state, json.Deterministic(true))
 	require.NoError(t, err)
 	var restored AppState
 	require.NoError(t, json.Unmarshal(data, &restored))

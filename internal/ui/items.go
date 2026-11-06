@@ -4,7 +4,7 @@
 package ui
 
 import (
-	"encoding/json"
+	json "encoding/json/v2"
 
 	"fyne.io/fyne/v2"
 	"go.lucor.dev/cxf"

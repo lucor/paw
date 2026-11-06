@@ -37,6 +37,26 @@ func NewEntryDetail(ctx context.Context, item *model.Item, window fyne.Window, b
 }
 
 func newEntryDetailWithClear(ctx context.Context, item *model.Item, window fyne.Window, back, edit, deleteEntry func()) (fyne.CanvasObject, func(), error) {
+	return newEntryDetailWithActions(ctx, item, window, back, edit, deleteEntry, false, 0, nil, nil)
+}
+
+func newEntryDetailWithHistory(ctx context.Context, item *model.Item, window fyne.Window, back, edit, deleteEntry, openHistory func()) (fyne.CanvasObject, func(), error) {
+	return newEntryDetailWithActions(ctx, item, window, back, edit, deleteEntry, false, 0, openHistory, nil)
+}
+
+func newHistoricalEntryDetailWithClear(ctx context.Context, item *model.Item, window fyne.Window, capturedAt uint64, back, restore func()) (fyne.CanvasObject, func(), error) {
+	return newEntryDetailWithActions(ctx, item, window, back, nil, nil, true, capturedAt, nil, restore)
+}
+
+func newEntryDetailWithActions(
+	ctx context.Context,
+	item *model.Item,
+	window fyne.Window,
+	back, edit, deleteEntry func(),
+	historical bool,
+	capturedAt uint64,
+	openHistory, restore func(),
+) (fyne.CanvasObject, func(), error) {
 	if err := item.Validate(); err != nil {
 		return nil, nil, err
 	}
@@ -121,23 +141,39 @@ func newEntryDetailWithClear(ctx context.Context, item *model.Item, window fyne.
 			}
 		})
 	}
-	more := newIconButton("Entry actions", icons.More, nil)
-	more.Importance = widget.LowImportance
-	editItem := fyne.NewMenuItem("Edit entry", edit)
-	editItem.Icon = icons.Edit
-	deleteItem := fyne.NewMenuItem("Delete entry", deleteEntry)
-	deleteItem.Icon = icons.Delete
-	more.OnTapped = func() {
-		widget.ShowPopUpMenuAtRelativePosition(fyne.NewMenu("", editItem, fyne.NewMenuItemSeparator(), deleteItem), window.Canvas(), fyne.NewPos(0, more.Size().Height), more)
-	}
-	editItem.Action = func() { clear(); edit() }
-	deleteItem.Action = func() { clear(); deleteEntry() }
 	backButton := newIconButton("Back", icons.Back, func() { clear(); back() })
 	backButton.Importance = widget.LowImportance
 	title := newText(item.Title, titleStyle)
 	title.Truncation = fyne.TextTruncateEllipsis
 	headerTitle := container.NewBorder(nil, nil, container.NewPadded(newEntryIcon(resource)), nil, title)
-	header := newPageHeader(backButton, headerTitle, more)
+	var trailing fyne.CanvasObject
+	if historical {
+		restoreButton := widget.NewButton("Restore", restore)
+		restoreButton.Importance = widget.HighImportance
+		trailing = restoreButton
+	} else {
+		more := newIconButton("Entry actions", icons.More, nil)
+		more.Importance = widget.LowImportance
+		editItem := fyne.NewMenuItem("Edit entry", edit)
+		editItem.Icon = icons.Edit
+		deleteItem := fyne.NewMenuItem("Delete entry", deleteEntry)
+		deleteItem.Icon = icons.Delete
+		more.OnTapped = func() {
+			widget.ShowPopUpMenuAtRelativePosition(fyne.NewMenu("", editItem, fyne.NewMenuItemSeparator(), deleteItem), window.Canvas(), fyne.NewPos(0, more.Size().Height), more)
+		}
+		editItem.Action = func() { clear(); edit() }
+		deleteItem.Action = func() { clear(); deleteEntry() }
+		trailing = more
+	}
+	header := newPageHeader(backButton, headerTitle, trailing)
+	if historical {
+		historyContext := newText("History · "+formatDetailTimestamp(capturedAt), captionStyle)
+		historyContext.Alignment = fyne.TextAlignTrailing
+		header = container.NewVBox(
+			header,
+			historyContext,
+		)
+	}
 	dates := []string{}
 	for _, date := range []struct {
 		label string
@@ -152,6 +188,17 @@ func newEntryDetailWithClear(ctx context.Context, item *model.Item, window fyne.
 	var metadata fyne.CanvasObject
 	if len(dates) > 0 {
 		metadata = newDetailMetadata(dates)
+	}
+	var footerAction fyne.CanvasObject
+	if !historical {
+		if history, err := item.History(); err == nil && len(history.Entries) > 0 && openHistory != nil {
+			historyButton := widget.NewButtonWithIcon("History", theme.HistoryIcon(), openHistory)
+			historyButton.Importance = widget.LowImportance
+			footerAction = historyButton
+		}
+	}
+	if footerAction != nil {
+		metadata = container.NewBorder(nil, nil, nil, footerAction, metadata)
 	}
 	body := newDetailScrollableContent(bodyObjects, metadata)
 	pagePadding := theme.Size(theme.SizeNamePadding) * 2

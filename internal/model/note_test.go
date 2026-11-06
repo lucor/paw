@@ -2,7 +2,7 @@ package model_test
 
 import (
 	"encoding/base64"
-	"encoding/json"
+	json "encoding/json/v2"
 	"testing"
 	"time"
 

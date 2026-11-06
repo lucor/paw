@@ -1,7 +1,8 @@
 package model
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
+	json "encoding/json/v2"
 	"errors"
 	"fmt"
 
@@ -21,7 +22,7 @@ type Credentials struct {
 }
 
 // DecodeCredentials reads supported credentials once, keeping their original positions.
-func DecodeCredentials(raws []json.RawMessage) (Credentials, error) {
+func DecodeCredentials(raws []jsontext.Value) (Credentials, error) {
 	decoded := Credentials{BasicAuthIndex: -1, NoteIndex: -1, TOTPIndex: -1, SSHKeyIndex: -1}
 	for index, raw := range raws {
 		typeName, err := cxf.CredentialTypeOf(raw)
@@ -109,7 +110,7 @@ func (item *Item) SetBasicAuth(index int, credential cxf.BasicAuth) error {
 	if index < -1 || index >= len(item.Credentials) {
 		return errors.New("credential index out of range")
 	}
-	encoded, err := json.Marshal(credential)
+	encoded, err := json.Marshal(credential, json.Deterministic(true))
 	if err != nil {
 		return errors.New("cannot encode basic-auth credential")
 	}
@@ -126,7 +127,7 @@ func (item *Item) SetNote(index int, note cxf.Note) error {
 	if index < -1 || index >= len(item.Credentials) {
 		return errors.New("credential index out of range")
 	}
-	encoded, err := json.Marshal(note)
+	encoded, err := json.Marshal(note, json.Deterministic(true))
 	if err != nil {
 		return errors.New("cannot encode note credential")
 	}

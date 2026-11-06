@@ -1,7 +1,8 @@
 package model
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
+	json "encoding/json/v2"
 	"fmt"
 	"time"
 	"unicode/utf8"
@@ -24,7 +25,7 @@ func NewNote(title, content string) (*Item, error) {
 			FieldType: cxf.FieldTypeString,
 			Value:     content,
 		},
-	})
+	}, json.Deterministic(true))
 	if err != nil {
 		return nil, fmt.Errorf("cannot encode note credential")
 	}
@@ -41,8 +42,8 @@ func NewNote(title, content string) (*Item, error) {
 			Title:       title,
 			CreationAt:  &created,
 			ModifiedAt:  &modified,
-			Credentials: []json.RawMessage{credential},
-			Extensions:  []json.RawMessage{extension},
+			Credentials: []jsontext.Value{credential},
+			Extensions:  []jsontext.Value{extension},
 		},
 		Metadata: metadata,
 	}

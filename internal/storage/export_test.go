@@ -6,7 +6,8 @@ package storage
 import (
 	"bytes"
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
+	json "encoding/json/v2"
 	"io"
 	"os"
 	"path/filepath"
@@ -30,8 +31,8 @@ func exportFixture(t *testing.T) (*model.Vault, *FileStorage, *model.Item) {
 
 func TestExportCXFAndAgeDoNotExposeCredentials(t *testing.T) {
 	vault, store, item := exportFixture(t)
-	vault.Accounts[0].Collections = []cxf.Collection{{ID: "Y29sbGVjdGlvbg", Title: "Personal", Items: []cxf.LinkedItem{}, Extensions: []json.RawMessage{json.RawMessage(`{"name":"example.com/export","custom":"preserved"}`)}}}
-	before, err := json.Marshal(vault.Header)
+	vault.Accounts[0].Collections = []cxf.Collection{{ID: "Y29sbGVjdGlvbg", Title: "Personal", Items: []cxf.LinkedItem{}, Extensions: []jsontext.Value{jsontext.Value(`{"name":"example.com/export","custom":"preserved"}`)}}}
+	before, err := json.Marshal(vault.Header, json.Deterministic(true))
 	require.NoError(t, err)
 	var plain, encrypted bytes.Buffer
 	require.NoError(t, WriteCXF(context.Background(), &plain, store, vault))
@@ -44,16 +45,17 @@ func TestExportCXFAndAgeDoNotExposeCredentials(t *testing.T) {
 		require.JSONEq(t, string(extension), string(document.Accounts[0].Extensions[i]))
 	}
 	require.Equal(t, item.ID, document.Accounts[0].Items[0].ID)
-	encodedItem, err := json.Marshal(item)
+	encodedItem, err := json.Marshal(item, json.Deterministic(true))
 	require.NoError(t, err)
-	actualItem, err := json.Marshal(document.Accounts[0].Items[0])
+	actualItem, err := json.Marshal(document.Accounts[0].Items[0], json.Deterministic(true))
 	require.NoError(t, err)
 	require.JSONEq(t, string(encodedItem), string(actualItem))
+	require.NotContains(t, string(actualItem), "paw.pm/item-hash")
 	require.NoError(t, WriteEncryptedCXF(context.Background(), &encrypted, store, vault, "dedicated-export-password"))
 	require.True(t, bytes.HasPrefix(encrypted.Bytes(), []byte("age-encryption.org/v1\n")))
 	require.NotContains(t, encrypted.String(), "export-secret")
 	require.NotContains(t, encrypted.String(), "me@example.com")
-	after, err := json.Marshal(vault.Header)
+	after, err := json.Marshal(vault.Header, json.Deterministic(true))
 	require.NoError(t, err)
 	require.Equal(t, before, after)
 	vault.Accounts[0].Items = []cxf.Item{}

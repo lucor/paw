@@ -5,7 +5,7 @@ package cli
 
 import (
 	"context"
-	"encoding/json"
+	json "encoding/json/v2"
 	"fmt"
 	"time"
 
@@ -69,7 +69,10 @@ func (cmd *ShowCmd) Run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	return cmd.showItem(ctx, item)
+}
 
+func (cmd *ShowCmd) showItem(ctx context.Context, item *model.Item) error {
 	var pclip []byte
 	var pclipMsg string
 	switch cmd.itemType {
@@ -161,7 +164,7 @@ func (cmd *ShowCmd) Run(ctx context.Context) error {
 	if pclip != nil {
 		ctx, cancel := context.WithTimeout(ctx, clipboardWriteTimeout)
 		defer cancel()
-		err := base.clipboard(ctx, pclip)
+		err := cmd.command.clipboard(ctx, pclip)
 		if err != nil {
 			return err
 		}

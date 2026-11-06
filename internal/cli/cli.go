@@ -76,6 +76,7 @@ func newCommand(storage *storage.FileStorage) *urfave.Command {
 			newAddCommand(base),
 			newEditCommand(base),
 			newExportCommand(base),
+			newHistoryCommand(base),
 			newInitCommand(base),
 			newListCommand(base),
 			newLockCommand(base),

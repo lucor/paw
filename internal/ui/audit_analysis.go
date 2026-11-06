@@ -6,7 +6,7 @@ package ui
 import (
 	"context"
 	"crypto/sha1"
-	"encoding/json"
+	json "encoding/json/v2"
 	"runtime"
 	"sort"
 	"strings"

@@ -6,7 +6,7 @@ package storage
 import (
 	"bytes"
 	"context"
-	"encoding/json"
+	json "encoding/json/v2"
 	"io"
 	"os"
 	"strings"
@@ -27,7 +27,7 @@ func TestRestorePreservesItemsAndCreatesCopy(t *testing.T) {
 	require.NoError(t, err)
 	item, err := model.NewNote("Example", "Synthetic note content")
 	require.NoError(t, err)
-	itemData, err := json.Marshal(item)
+	itemData, err := json.Marshal(item, json.Deterministic(true))
 	require.NoError(t, err)
 	var exportedItem cxf.Item
 	require.NoError(t, json.Unmarshal(itemData, &exportedItem))
@@ -48,9 +48,13 @@ func TestRestorePreservesItemsAndCreatesCopy(t *testing.T) {
 	require.NoError(t, err)
 	restoredItem, err := store.LoadItem(loaded, item.ID)
 	require.NoError(t, err)
-	restoredItemData, err := json.Marshal(restoredItem)
+	itemHistory, err := restoredItem.History()
 	require.NoError(t, err)
-	expectedItemData, err := json.Marshal(item)
+	require.Empty(t, itemHistory.Entries)
+	assertSummaryStateHash(t, loaded.Accounts[0].Items[0], restoredItem)
+	restoredItemData, err := json.Marshal(restoredItem, json.Deterministic(true))
+	require.NoError(t, err)
+	expectedItemData, err := json.Marshal(item, json.Deterministic(true))
 	require.NoError(t, err)
 	require.JSONEq(t, string(expectedItemData), string(restoredItemData))
 	copy, err := store.Restore(ctx, backup, "Personal copy", "copy-master")
@@ -65,7 +69,7 @@ func TestRestorePreservesItemsAndCreatesCopy(t *testing.T) {
 	require.Equal(t, copy.Accounts[0].ID, *copy.Accounts[0].Collections[0].Items[0].Account)
 	copyItem, err := store.LoadItem(copy, item.ID)
 	require.NoError(t, err)
-	copyData, err := json.Marshal(copyItem)
+	copyData, err := json.Marshal(copyItem, json.Deterministic(true))
 	require.NoError(t, err)
 	require.JSONEq(t, string(expectedItemData), string(copyData))
 	vaults, err := store.Vaults()
@@ -114,7 +118,7 @@ func TestRestoreRejectsIncompatibleVersionsAndOversizedInput(t *testing.T) {
 	var document cxf.Header
 	require.NoError(t, json.Unmarshal(data.Bytes(), &document))
 	document.Version.Major = 2
-	wrongVersion, err := json.Marshal(document)
+	wrongVersion, err := json.Marshal(document, json.Deterministic(true))
 	require.NoError(t, err)
 	wrongPawVersion := bytes.ReplaceAll(data.Bytes(), []byte(`"schemaVersion":1`), []byte(`"schemaVersion":99`))
 	require.NotEqual(t, data.Bytes(), wrongPawVersion)
@@ -145,7 +149,7 @@ func TestRestoreRejectsUnsupportedAndUnauthenticatedInput(t *testing.T) {
 	var generic cxf.Header
 	require.NoError(t, json.Unmarshal(plain.Bytes(), &generic))
 	generic.Accounts[0].Extensions = nil
-	data, err := json.Marshal(generic)
+	data, err := json.Marshal(generic, json.Deterministic(true))
 	require.NoError(t, err)
 	_, err = ReadPawBackup(ctx, bytes.NewReader(data), "")
 	require.ErrorIs(t, err, ErrUnsupportedBackup)

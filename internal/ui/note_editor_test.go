@@ -4,7 +4,7 @@
 package ui
 
 import (
-	"encoding/json"
+	json "encoding/json/v2"
 	"testing"
 
 	"fyne.io/fyne/v2"
@@ -20,7 +20,7 @@ func noteEditorFixture(t *testing.T) *model.Item {
 	t.Helper()
 	item, err := model.NewNote("Recovery codes", "First private line.\nSecond private line.")
 	require.NoError(t, err)
-	totp, err := json.Marshal(cxf.TOTP{Type: cxf.CredentialTypeTOTP, Secret: "JBSWY3DPEHPK3PXP", Algorithm: "sha1", Period: 30, Digits: 6})
+	totp, err := json.Marshal(cxf.TOTP{Type: cxf.CredentialTypeTOTP, Secret: "JBSWY3DPEHPK3PXP", Algorithm: "sha1", Period: 30, Digits: 6}, json.Deterministic(true))
 	require.NoError(t, err)
 	item.Credentials = append(item.Credentials, totp)
 	return item
@@ -73,7 +73,7 @@ func TestNoteEditorTabOrderStartsWithTitle(t *testing.T) {
 func TestNoteEditorUpdatesContentAndPreservesOtherCredentials(t *testing.T) {
 	test.NewTempApp(t)
 	item := noteEditorFixture(t)
-	before, err := json.Marshal(item)
+	before, err := json.Marshal(item, json.Deterministic(true))
 	require.NoError(t, err)
 	editor, err := NewNoteEditor(item, false)
 	require.NoError(t, err)
@@ -87,7 +87,7 @@ func TestNoteEditorUpdatesContentAndPreservesOtherCredentials(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "One private line.\nAnother private line.", decoded.Note.Content.Value)
 	require.Equal(t, "JBSWY3DPEHPK3PXP", decoded.TOTP.Secret)
-	after, err := json.Marshal(item)
+	after, err := json.Marshal(item, json.Deterministic(true))
 	require.NoError(t, err)
 	require.JSONEq(t, string(before), string(after))
 }

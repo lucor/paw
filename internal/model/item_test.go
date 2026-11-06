@@ -1,7 +1,8 @@
 package model
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
+	json "encoding/json/v2"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -13,13 +14,13 @@ func TestItemJSONPreservesOpaqueData(t *testing.T) {
 	source := cxf.Item{
 		ID:          "AAAAAAAAAAAAAAAAAAAAAA",
 		Title:       "Example",
-		Credentials: []json.RawMessage{json.RawMessage(`{"type":"future-credential","secret":"opaque"}`)},
-		Extensions: []json.RawMessage{
-			json.RawMessage(`{"name":"paw.pm/item","type":2,"favicon":{"host":"old.example"},"future":{"counter":9007199254740993}}`),
-			json.RawMessage(`{"name":"example.com/future","secret":"opaque"}`),
+		Credentials: []jsontext.Value{jsontext.Value(`{"type":"future-credential","secret":"opaque"}`)},
+		Extensions: []jsontext.Value{
+			jsontext.Value(`{"name":"paw.pm/item","type":2,"favicon":{"host":"old.example"},"future":{"counter":9007199254740993}}`),
+			jsontext.Value(`{"name":"example.com/future","secret":"opaque"}`),
 		},
 	}
-	encoded, err := json.Marshal(source)
+	encoded, err := json.Marshal(source, json.Deterministic(true))
 	require.NoError(t, err)
 
 	var item Item
@@ -30,7 +31,7 @@ func TestItemJSONPreservesOpaqueData(t *testing.T) {
 	item.Metadata.Type = LoginItemType
 	item.Metadata.Favicon = &Favicon{Host: "new.example"}
 	item.Metadata.AddToAgent = true
-	encoded, err = json.Marshal(&item)
+	encoded, err = json.Marshal(&item, json.Deterministic(true))
 	require.NoError(t, err)
 
 	var decoded cxf.Item
@@ -47,13 +48,13 @@ func TestItemAddToAgentRoundTrip(t *testing.T) {
 	require.NoError(t, json.Unmarshal([]byte(`{"id":"AQ","title":"Key","credentials":[],"extensions":[{"name":"paw.pm/item","type":16,"future":"keep"}]}`), &item))
 	require.False(t, item.Metadata.AddToAgent)
 	item.Metadata.AddToAgent = true
-	encoded, err := json.Marshal(&item)
+	encoded, err := json.Marshal(&item, json.Deterministic(true))
 	require.NoError(t, err)
 	var decoded Item
 	require.NoError(t, json.Unmarshal(encoded, &decoded))
 	require.True(t, decoded.Metadata.AddToAgent)
 	decoded.Metadata.AddToAgent = false
-	encoded, err = json.Marshal(&decoded)
+	encoded, err = json.Marshal(&decoded, json.Deterministic(true))
 	require.NoError(t, err)
 	require.NotContains(t, string(encoded), `"addToAgent"`)
 	require.Contains(t, string(encoded), `"future":"keep"`)
@@ -87,7 +88,7 @@ func TestItemUnmarshalRejectsInvalidMetadata(t *testing.T) {
 // TestItemUnmarshalIsAtomic checks failed decoding leaves the receiver unchanged.
 func TestItemUnmarshalIsAtomic(t *testing.T) {
 	item := Item{
-		Item:     cxf.Item{ID: "AQEBAQEBAQEBAQEBAQEBAQ", Title: "Existing", Credentials: []json.RawMessage{}},
+		Item:     cxf.Item{ID: "AQEBAQEBAQEBAQEBAQEBAQ", Title: "Existing", Credentials: []jsontext.Value{}},
 		Metadata: ItemMetadata{Type: NoteItemType},
 	}
 
@@ -102,11 +103,11 @@ func TestItemUnmarshalIsAtomic(t *testing.T) {
 func TestItemMarshalForms(t *testing.T) {
 	for _, existingExtension := range []bool{false, true} {
 		item := Item{
-			Item:     cxf.Item{ID: "AQ", Title: "Example", Credentials: []json.RawMessage{}},
+			Item:     cxf.Item{ID: "AQ", Title: "Example", Credentials: []jsontext.Value{}},
 			Metadata: ItemMetadata{Type: LoginItemType},
 		}
 		if existingExtension {
-			item.Extensions = []json.RawMessage{json.RawMessage(`{"name":"paw.pm/item","type":2}`)}
+			item.Extensions = []jsontext.Value{jsontext.Value(`{"name":"paw.pm/item","type":2}`)}
 		}
 		for _, test := range []struct {
 			name   string
@@ -117,10 +118,10 @@ func TestItemMarshalForms(t *testing.T) {
 			{name: "map", value: map[string]*Item{"item": &item}, nested: true},
 		} {
 			t.Run(test.name, func(t *testing.T) {
-				encoded, err := json.Marshal(test.value)
+				encoded, err := json.Marshal(test.value, json.Deterministic(true))
 				require.NoError(t, err)
 				if test.nested {
-					var entries map[string]json.RawMessage
+					var entries map[string]jsontext.Value
 					require.NoError(t, json.Unmarshal(encoded, &entries))
 					encoded = entries["item"]
 				}
@@ -153,19 +154,19 @@ func TestItemFaviconPreservesUnknownFields(t *testing.T) {
 			var item Item
 			require.NoError(t, json.Unmarshal([]byte(`{"id":"AQ","title":"Example","credentials":[],"extensions":[{"name":"paw.pm/item","type":2,"favicon":{"host":"example.com","data":"aWNvbg==","format":"png","future":9007199254740993}}]}`), &item))
 			item.Metadata.Favicon = test.favicon
-			encoded, err := json.Marshal(&item)
+			encoded, err := json.Marshal(&item, json.Deterministic(true))
 			require.NoError(t, err)
 
 			var decoded Item
 			require.NoError(t, json.Unmarshal(encoded, &decoded))
 			require.Equal(t, test.favicon, decoded.Metadata.Favicon)
-			var extension map[string]json.RawMessage
+			var extension map[string]jsontext.Value
 			require.NoError(t, json.Unmarshal(decoded.Extensions[0], &extension))
 			if test.favicon == nil {
 				require.NotContains(t, extension, "favicon")
 				return
 			}
-			var fields map[string]json.RawMessage
+			var fields map[string]jsontext.Value
 			require.NoError(t, json.Unmarshal(extension["favicon"], &fields))
 			require.Equal(t, "9007199254740993", string(fields["future"]))
 			require.Equal(t, test.favicon.Host != "", fields["host"] != nil)
@@ -193,11 +194,11 @@ func TestItemSummaryProjectsPublicFields(t *testing.T) {
 				URLs:        []string{"https://github.com"},
 				AndroidApps: []cxf.AndroidAppID{},
 			},
-			Credentials: []json.RawMessage{json.RawMessage(`{"type":"note","content":{"fieldType":"string","value":"private content"}}`)},
+			Credentials: []jsontext.Value{jsontext.Value(`{"type":"note","content":{"fieldType":"string","value":"private content"}}`)},
 			Tags:        []string{"work"},
-			Extensions: []json.RawMessage{
-				json.RawMessage(`{"name":"paw.pm/item","type":4,"private":"extension secret"}`),
-				json.RawMessage(`{"name":"example.com/future","secret":"unknown secret"}`),
+			Extensions: []jsontext.Value{
+				jsontext.Value(`{"name":"paw.pm/item","type":4,"private":"extension secret"}`),
+				jsontext.Value(`{"name":"example.com/future","secret":"unknown secret"}`),
 			},
 		},
 		Metadata: ItemMetadata{
@@ -221,7 +222,7 @@ func TestItemSummaryProjectsPublicFields(t *testing.T) {
 	require.Len(t, summary.Extensions, 1)
 	require.JSONEq(t, `{"name":"paw.pm/item","type":2,"favicon":{"host":"github.com","data":"aWNvbg==","format":"png"}}`, string(summary.Extensions[0]))
 
-	encoded, err := json.Marshal(summary)
+	encoded, err := json.Marshal(summary, json.Deterministic(true))
 	require.NoError(t, err)
 	require.NotContains(t, string(encoded), "private content")
 	require.NotContains(t, string(encoded), "extension secret")

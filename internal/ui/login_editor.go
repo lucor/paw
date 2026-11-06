@@ -5,7 +5,8 @@ package ui
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
+	json "encoding/json/v2"
 	"errors"
 	"fmt"
 	"strings"
@@ -337,7 +338,7 @@ func (e *LoginEditor) putTOTP(item *model.Item) error {
 	if err := credential.Validate(); err != nil {
 		return errors.New("enter a valid secret")
 	}
-	encoded, err := json.Marshal(credential)
+	encoded, err := json.Marshal(credential, json.Deterministic(true))
 	if err != nil {
 		return errors.New("cannot encode TOTP credential")
 	}
@@ -394,11 +395,11 @@ func passwordFieldWithSettings(value string, settings *paw.PasswordSpec, previou
 
 func cloneItem(item *model.Item) *model.Item {
 	updated := *item
-	updated.Credentials = make([]json.RawMessage, len(item.Credentials))
+	updated.Credentials = make([]jsontext.Value, len(item.Credentials))
 	for index, credential := range item.Credentials {
-		updated.Credentials[index] = append(json.RawMessage(nil), credential...)
+		updated.Credentials[index] = append(jsontext.Value(nil), credential...)
 	}
-	updated.Extensions = append([]json.RawMessage(nil), item.Extensions...)
+	updated.Extensions = append([]jsontext.Value(nil), item.Extensions...)
 	if item.CreationAt != nil {
 		created := *item.CreationAt
 		updated.CreationAt = &created

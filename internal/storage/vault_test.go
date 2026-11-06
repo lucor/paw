@@ -2,7 +2,7 @@ package storage
 
 import (
 	"bytes"
-	"encoding/json"
+	json "encoding/json/v2"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -34,7 +34,7 @@ func TestDecryptVaultRejectsTrailingJSON(t *testing.T) {
 	require.NoError(t, err)
 	vault, err := model.NewVault(key, "Personal")
 	require.NoError(t, err)
-	data, err := json.Marshal(vault)
+	data, err := json.Marshal(vault, json.Deterministic(true))
 	require.NoError(t, err)
 	data = append(data, []byte(` {}`)...)
 
@@ -96,7 +96,7 @@ func TestDecryptItemRejectsTrailingJSON(t *testing.T) {
 	require.NoError(t, err)
 	item, err := model.NewNote("Title", "Content")
 	require.NoError(t, err)
-	data, err := json.Marshal(item)
+	data, err := json.Marshal(item, json.Deterministic(true))
 	require.NoError(t, err)
 	data = append(data, []byte(` {}`)...)
 	var encrypted bytes.Buffer

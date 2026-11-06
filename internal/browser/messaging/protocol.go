@@ -7,7 +7,8 @@ package messaging
 import (
 	"bytes"
 	"encoding/binary"
-	"encoding/json"
+	"encoding/json/jsontext"
+	json "encoding/json/v2"
 	"io"
 )
 
@@ -16,8 +17,8 @@ const sessionLifetime = 0
 
 // Request represents the native message request
 type Request struct {
-	Action  uint32          `json:"action"`  //the action to handled
-	Payload json.RawMessage `json:"payload"` //the json raw data will be unmarshaled by the action handler
+	Action  uint32         `json:"action"`  //the action to handled
+	Payload jsontext.Value `json:"payload"` //the json raw data will be unmarshaled by the action handler
 }
 
 // IsPayloadEmpty returns true if the payload contains no data
@@ -47,7 +48,7 @@ func (p *Response) MarshalJSON() ([]byte, error) {
 		"payload": p.Payload,
 	}
 
-	return json.Marshal(customJSON)
+	return json.Marshal(customJSON, json.Deterministic(true))
 }
 
 // A Handler responds to an native message request.
@@ -102,13 +103,13 @@ func readNativeMessage(r io.Reader) (*Request, error) {
 
 	req := &Request{}
 	reader := &io.LimitedReader{R: r, N: int64(length)}
-	err := json.NewDecoder(reader).Decode(req)
+	err := json.UnmarshalRead(reader, req)
 	return req, err
 }
 
 // writeNativeMessage writes the v to the writer w as defined in the native messaging protocol
 func writeNativeMessage(w io.Writer, v any) error {
-	encodedResponse, err := json.Marshal(v)
+	encodedResponse, err := json.Marshal(v, json.Deterministic(true))
 	if err != nil {
 		return err
 	}

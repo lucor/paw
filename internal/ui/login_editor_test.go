@@ -5,7 +5,7 @@ package ui
 
 import (
 	"context"
-	"encoding/json"
+	json "encoding/json/v2"
 	"strconv"
 	"strings"
 	"testing"
@@ -24,7 +24,7 @@ import (
 func loginEditorFixture(t *testing.T) *model.Item {
 	t.Helper()
 	item := detailFixture(t)
-	totp, err := json.Marshal(cxf.TOTP{Type: cxf.CredentialTypeTOTP, Secret: "JBSWY3DPEHPK3PXP", Algorithm: "sha1", Period: 30, Digits: 6})
+	totp, err := json.Marshal(cxf.TOTP{Type: cxf.CredentialTypeTOTP, Secret: "JBSWY3DPEHPK3PXP", Algorithm: "sha1", Period: 30, Digits: 6}, json.Deterministic(true))
 	require.NoError(t, err)
 	item.Credentials = append(item.Credentials, totp)
 	return item
@@ -108,7 +108,7 @@ func TestNewLoginEditorHeaderAndDirtyState(t *testing.T) {
 func TestLoginEditorUpdatesCredentialsAndPreservesTOTP(t *testing.T) {
 	test.NewTempApp(t)
 	item := loginEditorFixture(t)
-	before, err := json.Marshal(item)
+	before, err := json.Marshal(item, json.Deterministic(true))
 	require.NoError(t, err)
 	editor := newTestLoginEditor(t, item, false)
 	editor.Title.SetText("GitHub work")
@@ -134,7 +134,7 @@ func TestLoginEditorUpdatesCredentialsAndPreservesTOTP(t *testing.T) {
 	require.NoError(t, json.Unmarshal(item.Credentials[2], &oldTOTP))
 	require.NoError(t, json.Unmarshal(updated.Credentials[2], &newTOTP))
 	require.Equal(t, oldTOTP, newTOTP)
-	after, err := json.Marshal(item)
+	after, err := json.Marshal(item, json.Deterministic(true))
 	require.NoError(t, err)
 	require.JSONEq(t, string(before), string(after))
 }
@@ -275,7 +275,7 @@ func TestTOTPSettingsDialogLoadsStoredParametersAndPreservesNonFiveInterval(t *t
 	var stored cxf.TOTP
 	require.NoError(t, json.Unmarshal(item.Credentials[2], &stored))
 	stored.Algorithm, stored.Digits, stored.Period = "sha512", 9, 47
-	item.Credentials[2], _ = json.Marshal(stored)
+	item.Credentials[2], _ = json.Marshal(stored, json.Deterministic(true))
 	editor, err := NewLoginEditor(context.Background(), item, model.NewDefaultSettings().FaviconDownloader, false)
 	require.NoError(t, err)
 	require.Equal(t, stored, editor.totpSettings, "editing uses the stored parameters, not current defaults")

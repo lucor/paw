@@ -5,7 +5,7 @@ package ui
 
 import (
 	"context"
-	"encoding/json"
+	json "encoding/json/v2"
 	"fmt"
 	"regexp"
 	"testing"
@@ -251,7 +251,7 @@ func codeLoginFixture(t *testing.T, title string, withTOTP bool) *model.Item {
 	if withTOTP {
 		credential := testTOTPCredential()
 		credential.Username = "dev@example.com"
-		raw, err := json.Marshal(credential)
+		raw, err := json.Marshal(credential, json.Deterministic(true))
 		require.NoError(t, err)
 		item.Credentials = append(item.Credentials, raw)
 	}

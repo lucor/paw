@@ -6,7 +6,7 @@ package paw
 
 import (
 	"bytes"
-	"encoding/json"
+	json "encoding/json/v2"
 	"fmt"
 	"io"
 	"runtime/debug"
@@ -162,7 +162,7 @@ func (k *Key) Encrypt(dst io.Writer) (io.WriteCloser, error) {
 }
 
 func (k *Key) MarshalJSON() ([]byte, error) {
-	return json.Marshal(k.ageIdentity.String())
+	return json.Marshal(k.ageIdentity.String(), json.Deterministic(true))
 }
 
 func (k *Key) UnmarshalJSON(data []byte) error {

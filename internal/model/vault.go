@@ -1,7 +1,8 @@
 package model
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
+	json "encoding/json/v2"
 	"fmt"
 	"strings"
 	"time"
@@ -56,7 +57,7 @@ func NewVault(key *paw.Key, name string) (*Vault, error) {
 		SchemaVersion: storageSchemaVersion,
 		VaultName:     name,
 		CreationAt:    &creationAt,
-	})
+	}, json.Deterministic(true))
 	if err != nil {
 		return nil, fmt.Errorf("cannot encode vault metadata")
 	}
@@ -72,7 +73,7 @@ func NewVault(key *paw.Key, name string) (*Vault, error) {
 				Email:       "",
 				Collections: []cxf.Collection{},
 				Items:       []cxf.Item{},
-				Extensions:  []json.RawMessage{extension},
+				Extensions:  []jsontext.Value{extension},
 			}},
 		},
 		Metadata: VaultMetadata{VaultName: name, CreationAt: &creationAt},
@@ -190,7 +191,7 @@ func (vault *Vault) MarshalJSON() ([]byte, error) {
 	}
 	account.Extensions[index] = encoded
 	document.Accounts[0] = account
-	return json.Marshal(document)
+	return json.Marshal(document, json.Deterministic(true))
 }
 
 // UnmarshalJSON decodes and validates a CXF vault atomically.
@@ -247,12 +248,12 @@ func decodeVaultExtension(accounts []cxf.Account) (vaultExtension, error) {
 }
 
 // findVaultExtension returns the Paw metadata extension and its position.
-func findVaultExtension(accounts []cxf.Account) (int, json.RawMessage, error) {
+func findVaultExtension(accounts []cxf.Account) (int, jsontext.Value, error) {
 	if len(accounts) != 1 {
 		return -1, nil, fmt.Errorf("vault must contain exactly one account")
 	}
 	index := -1
-	var raw json.RawMessage
+	var raw jsontext.Value
 	for i, rawExtension := range accounts[0].Extensions {
 		var header struct {
 			Name string `json:"name"`
@@ -276,20 +277,20 @@ func findVaultExtension(accounts []cxf.Account) (int, json.RawMessage, error) {
 }
 
 // encodeVaultExtension updates known Paw fields and preserves unknown members.
-func encodeVaultExtension(raw json.RawMessage, metadata VaultMetadata) (json.RawMessage, error) {
-	fields := make(map[string]json.RawMessage)
+func encodeVaultExtension(raw jsontext.Value, metadata VaultMetadata) (jsontext.Value, error) {
+	fields := make(map[string]jsontext.Value)
 	if err := json.Unmarshal(raw, &fields); err != nil {
 		return nil, fmt.Errorf("cannot decode Paw vault metadata")
 	}
-	name, err := json.Marshal(vaultExtensionName)
+	name, err := json.Marshal(vaultExtensionName, json.Deterministic(true))
 	if err != nil {
 		return nil, fmt.Errorf("cannot encode Paw vault metadata")
 	}
-	schemaVersion, err := json.Marshal(storageSchemaVersion)
+	schemaVersion, err := json.Marshal(storageSchemaVersion, json.Deterministic(true))
 	if err != nil {
 		return nil, fmt.Errorf("cannot encode Paw vault metadata")
 	}
-	vaultName, err := json.Marshal(metadata.VaultName)
+	vaultName, err := json.Marshal(metadata.VaultName, json.Deterministic(true))
 	if err != nil {
 		return nil, fmt.Errorf("cannot encode Paw vault metadata")
 	}
@@ -299,13 +300,13 @@ func encodeVaultExtension(raw json.RawMessage, metadata VaultMetadata) (json.Raw
 	if metadata.CreationAt == nil {
 		delete(fields, "creationAt")
 	} else {
-		creationAt, err := json.Marshal(metadata.CreationAt)
+		creationAt, err := json.Marshal(metadata.CreationAt, json.Deterministic(true))
 		if err != nil {
 			return nil, fmt.Errorf("cannot encode Paw vault metadata")
 		}
 		fields["creationAt"] = creationAt
 	}
-	encoded, err := json.Marshal(fields)
+	encoded, err := json.Marshal(fields, json.Deterministic(true))
 	if err != nil {
 		return nil, fmt.Errorf("cannot encode Paw vault metadata")
 	}

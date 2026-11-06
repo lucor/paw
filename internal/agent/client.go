@@ -6,7 +6,8 @@ package agent
 import (
 	"bytes"
 	"crypto"
-	"encoding/json"
+	jsoncompat "encoding/json"
+	json "encoding/json/v2"
 	"errors"
 	"time"
 
@@ -88,7 +89,7 @@ func (c *client) Sessions() ([]Session, error) {
 		return nil, err
 	}
 	sessions := []Session{}
-	err = json.Unmarshal(response, &sessions)
+	err = json.Unmarshal(response, &sessions, jsoncompat.FormatDurationAsNano(true))
 	return sessions, err
 }
 
@@ -110,7 +111,7 @@ func (c *client) Key(vaultName string, sessionID string) (*paw.Key, error) {
 		ID:    sessionID,
 		Vault: vaultName,
 	}
-	payload, err := json.Marshal(session)
+	payload, err := json.Marshal(session, json.Deterministic(true), jsoncompat.FormatDurationAsNano(true))
 	if err != nil {
 		return nil, err
 	}
@@ -124,7 +125,7 @@ func (c *client) Key(vaultName string, sessionID string) (*paw.Key, error) {
 	}
 
 	key := &paw.Key{}
-	err = json.Unmarshal(response, key)
+	err = json.Unmarshal(response, key, jsoncompat.FormatDurationAsNano(true))
 	return key, err
 }
 
@@ -135,7 +136,7 @@ func (c *client) Unlock(vaultName string, key *paw.Key, lifetime time.Duration) 
 		Key:      key,
 		Vault:    vaultName,
 	}
-	payload, err := json.Marshal(session)
+	payload, err := json.Marshal(session, json.Deterministic(true), jsoncompat.FormatDurationAsNano(true))
 	if err != nil {
 		return "", err
 	}

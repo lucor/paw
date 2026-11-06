@@ -4,7 +4,8 @@
 package model
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
+	json "encoding/json/v2"
 	"fmt"
 	"time"
 	"unicode/utf8"
@@ -45,7 +46,7 @@ func NewPassword(title, value string, settings PasswordSettings) (*Item, error) 
 	credential, err := json.Marshal(cxf.BasicAuth{
 		Type:     cxf.CredentialTypeBasicAuth,
 		Password: password,
-	})
+	}, json.Deterministic(true))
 	if err != nil {
 		return nil, fmt.Errorf("cannot encode password credential")
 	}
@@ -62,8 +63,8 @@ func NewPassword(title, value string, settings PasswordSettings) (*Item, error) 
 			Title:       title,
 			CreationAt:  &created,
 			ModifiedAt:  &modified,
-			Credentials: []json.RawMessage{credential},
-			Extensions:  []json.RawMessage{itemExtension},
+			Credentials: []jsontext.Value{credential},
+			Extensions:  []jsontext.Value{itemExtension},
 		},
 		Metadata: metadata,
 	}

@@ -9,7 +9,7 @@ import (
 	"crypto/x509"
 	_ "embed"
 	"encoding/base64"
-	"encoding/json"
+	json "encoding/json/v2"
 	"errors"
 	"fmt"
 	"image/color"
@@ -627,7 +627,7 @@ func screenshotLoginEditorFixture() (*model.Item, error) {
 	if err != nil {
 		return nil, err
 	}
-	credential, err := json.Marshal(screenshotTOTPCredential())
+	credential, err := json.Marshal(screenshotTOTPCredential(), json.Deterministic(true))
 	if err != nil {
 		return nil, err
 	}

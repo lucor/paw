@@ -4,7 +4,8 @@
 package model
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
+	json "encoding/json/v2"
 	"fmt"
 	"time"
 	"unicode/utf8"
@@ -32,7 +33,7 @@ func NewLogin(title, username, password string, settings PasswordSettings) (*Ite
 			Value:     username,
 		},
 		Password: passwordField,
-	})
+	}, json.Deterministic(true))
 	if err != nil {
 		return nil, fmt.Errorf("cannot encode login credential")
 	}
@@ -49,8 +50,8 @@ func NewLogin(title, username, password string, settings PasswordSettings) (*Ite
 			Title:       title,
 			CreationAt:  &created,
 			ModifiedAt:  &modified,
-			Credentials: []json.RawMessage{credential},
-			Extensions:  []json.RawMessage{extension},
+			Credentials: []jsontext.Value{credential},
+			Extensions:  []jsontext.Value{extension},
 		},
 		Metadata: metadata,
 	}

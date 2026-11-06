@@ -9,7 +9,8 @@ import (
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/base64"
-	"encoding/json"
+	"encoding/json/jsontext"
+	json "encoding/json/v2"
 	"fmt"
 	"strings"
 	"testing"
@@ -38,7 +39,7 @@ func detailFixture(t *testing.T) *model.Item {
 	item, err := model.NewLogin("GitHub", "dev@example.com", "synthetic-secret", model.PasswordSettings{Mode: paw.CustomPassword})
 	require.NoError(t, err)
 	item.Scope = &cxf.CredentialScope{URLs: []string{"https://github.com"}, AndroidApps: []cxf.AndroidAppID{}}
-	note, err := json.Marshal(cxf.Note{Type: cxf.CredentialTypeNote, Content: cxf.EditableField{FieldType: cxf.FieldTypeString, Value: "Personal account for development."}})
+	note, err := json.Marshal(cxf.Note{Type: cxf.CredentialTypeNote, Content: cxf.EditableField{FieldType: cxf.FieldTypeString, Value: "Personal account for development."}}, json.Deterministic(true))
 	require.NoError(t, err)
 	item.Credentials = append(item.Credentials, note)
 	created, modified := uint64(1705055040), uint64(1709475420)
@@ -79,18 +80,18 @@ func TestEntryDetailUsesFirstCredentialOfEachType(t *testing.T) {
 	_, sshCredential := sshDetailFixture(t)
 	secondSSH := sshCredential
 	secondSSH.KeyComment = "Second key"
-	firstSSHRaw, err := json.Marshal(sshCredential)
+	firstSSHRaw, err := json.Marshal(sshCredential, json.Deterministic(true))
 	require.NoError(t, err)
-	secondSSHRaw, err := json.Marshal(secondSSH)
+	secondSSHRaw, err := json.Marshal(secondSSH, json.Deterministic(true))
 	require.NoError(t, err)
 
-	decoded, err := model.DecodeCredentials([]json.RawMessage{
-		json.RawMessage(`{"type":"basic-auth","username":{"fieldType":"string","value":"first"}}`),
-		json.RawMessage(`{"type":"basic-auth","username":{"fieldType":"string","value":"second"}}`),
-		json.RawMessage(`{"type":"note","content":{"fieldType":"string","value":"first note"}}`),
-		json.RawMessage(`{"type":"note","content":{"fieldType":"string","value":"second note"}}`),
-		json.RawMessage(`{"type":"totp","secret":"JBSWY3DPEHPK3PXP","algorithm":"sha256","period":45,"digits":8}`),
-		json.RawMessage(`{"type":"totp","secret":"JBSWY3DPEHPK3PXP","algorithm":"sha1","period":30,"digits":6}`),
+	decoded, err := model.DecodeCredentials([]jsontext.Value{
+		jsontext.Value(`{"type":"basic-auth","username":{"fieldType":"string","value":"first"}}`),
+		jsontext.Value(`{"type":"basic-auth","username":{"fieldType":"string","value":"second"}}`),
+		jsontext.Value(`{"type":"note","content":{"fieldType":"string","value":"first note"}}`),
+		jsontext.Value(`{"type":"note","content":{"fieldType":"string","value":"second note"}}`),
+		jsontext.Value(`{"type":"totp","secret":"JBSWY3DPEHPK3PXP","algorithm":"sha256","period":45,"digits":8}`),
+		jsontext.Value(`{"type":"totp","secret":"JBSWY3DPEHPK3PXP","algorithm":"sha1","period":30,"digits":6}`),
 		firstSSHRaw,
 		secondSSHRaw,
 	})
@@ -201,7 +202,7 @@ func TestEntryDetailCredentialsAndActions(t *testing.T) {
 	test.NewTempApp(t)
 	window := test.NewTempWindow(t, nil)
 	item := detailFixture(t)
-	before, err := json.Marshal(item)
+	before, err := json.Marshal(item, json.Deterministic(true))
 	require.NoError(t, err)
 	back, edited, deleted := false, false, false
 	view, err := NewEntryDetail(context.Background(), item, window, func() { back = true }, func() { edited = true }, func() { deleted = true })
@@ -257,7 +258,7 @@ func TestEntryDetailCredentialsAndActions(t *testing.T) {
 	require.True(t, deleted)
 	test.Tap(buttons["Back"])
 	require.True(t, back)
-	after, err := json.Marshal(item)
+	after, err := json.Marshal(item, json.Deterministic(true))
 	require.NoError(t, err)
 	require.JSONEq(t, string(before), string(after))
 }
@@ -364,7 +365,7 @@ func TestEntryDetailTOTPCopyUsesCXFParameters(t *testing.T) {
 	window := test.NewTempWindow(t, nil)
 	item := detailFixture(t)
 	credential := cxf.TOTP{Type: cxf.CredentialTypeTOTP, Secret: "JBSWY3DPEHPK3PXP", Algorithm: "sha256", Period: 45, Digits: 8}
-	raw, err := json.Marshal(credential)
+	raw, err := json.Marshal(credential, json.Deterministic(true))
 	require.NoError(t, err)
 	item.Credentials = append(item.Credentials, raw)
 	ctx, cancel := context.WithCancel(context.Background())
@@ -442,7 +443,7 @@ func TestEntryDetailTOTPCodeAndProgressShareRow(t *testing.T) {
 func loginTOTPFixture(t *testing.T) *model.Item {
 	t.Helper()
 	item := detailFixture(t)
-	raw, err := json.Marshal(cxf.TOTP{Type: cxf.CredentialTypeTOTP, Secret: "JBSWY3DPEHPK3PXP", Algorithm: "sha1", Period: 30, Digits: 6})
+	raw, err := json.Marshal(cxf.TOTP{Type: cxf.CredentialTypeTOTP, Secret: "JBSWY3DPEHPK3PXP", Algorithm: "sha1", Period: 30, Digits: 6}, json.Deterministic(true))
 	require.NoError(t, err)
 	item.Credentials = append(item.Credentials, raw)
 	return item
@@ -457,7 +458,7 @@ func TestEntryDetailHidesUnavailableTOTP(t *testing.T) {
 		test.NewTempApp(t)
 		window := test.NewTempWindow(t, nil)
 		item := detailFixture(t)
-		raw, err := json.Marshal(credential)
+		raw, err := json.Marshal(credential, json.Deterministic(true))
 		require.NoError(t, err)
 		item.Credentials = append(item.Credentials, raw)
 		view, err := NewEntryDetail(context.Background(), item, window, func() {}, func() {}, func() {})

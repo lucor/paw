@@ -4,7 +4,7 @@
 package ui
 
 import (
-	"encoding/json"
+	json "encoding/json/v2"
 	"strings"
 	"testing"
 
@@ -159,7 +159,7 @@ func TestSSHKeyEditorLayoutAcrossWindowWidths(t *testing.T) {
 func TestSSHKeyEditorUpdatesCredentialsAndClearsSensitiveValues(t *testing.T) {
 	test.NewTempApp(t)
 	item, originalKey := sshDetailFixture(t)
-	original, err := json.Marshal(item)
+	original, err := json.Marshal(item, json.Deterministic(true))
 	require.NoError(t, err)
 	editor, err := NewSSHKeyEditor(item, false)
 	require.NoError(t, err)
@@ -176,7 +176,7 @@ func TestSSHKeyEditorUpdatesCredentialsAndClearsSensitiveValues(t *testing.T) {
 	require.Equal(t, originalKey.PrivateKey, decoded.SSHKey.PrivateKey)
 	require.Equal(t, "new passphrase", decoded.BasicAuth.Password.Value)
 
-	unchanged, err := json.Marshal(item)
+	unchanged, err := json.Marshal(item, json.Deterministic(true))
 	require.NoError(t, err)
 	require.JSONEq(t, string(original), string(unchanged), "the editor must not mutate its input item")
 	require.True(t, editor.IsDirty())
@@ -191,7 +191,7 @@ func TestSSHKeyEditorUpdatesCredentialsAndClearsSensitiveValues(t *testing.T) {
 	require.Empty(t, editor.publicPreview.Text)
 	require.Nil(t, editor.item)
 	require.Nil(t, editor.CopyPrivateButton.OnTapped)
-	afterClear, err := json.Marshal(item)
+	afterClear, err := json.Marshal(item, json.Deterministic(true))
 	require.NoError(t, err)
 	require.JSONEq(t, string(original), string(afterClear), "clearing the editor must not mutate its input item")
 }

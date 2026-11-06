@@ -4,7 +4,7 @@
 package model
 
 import (
-	"encoding/json"
+	json "encoding/json/v2"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -45,7 +45,7 @@ func TestNewPasswordPreservesValueAndSettings(t *testing.T) {
 			require.Equal(t, passwordExtensionName, extension.Name)
 			require.Equal(t, settings, extension.PasswordSettings)
 
-			encoded, err := json.Marshal(item)
+			encoded, err := json.Marshal(item, json.Deterministic(true))
 			require.NoError(t, err)
 			var decoded Item
 			require.NoError(t, json.Unmarshal(encoded, &decoded))
@@ -66,7 +66,7 @@ func TestNewPasswordSummaryOmitsCredentials(t *testing.T) {
 	summary, err := item.Summary()
 	require.NoError(t, err)
 	require.Empty(t, summary.Credentials)
-	encoded, err := json.Marshal(summary)
+	encoded, err := json.Marshal(summary, json.Deterministic(true))
 	require.NoError(t, err)
 	require.NotContains(t, string(encoded), "secret-value")
 	require.NotContains(t, string(encoded), passwordExtensionName)

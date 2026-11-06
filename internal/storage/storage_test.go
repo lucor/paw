@@ -27,7 +27,7 @@ func TestEncryptRejectsUnsupportedJSONValue(t *testing.T) {
 	key, err := paw.MakeOneTimeKey()
 	require.NoError(t, err)
 	err = encrypt(key, &bytes.Buffer{}, make(chan int))
-	require.ErrorContains(t, err, "unsupported type")
+	require.ErrorContains(t, err, "Go chan int")
 }
 
 // TestFilesystemIDRoundTrip checks filesystem names preserve canonical IDs.

@@ -282,8 +282,7 @@ func (a *app) setWindowTitle() {
 
 // showItemView displays the selected item's details.
 func (a *app) showItemView(item *model.Item) {
-	a.closeItemDetail()
-	a.win.SetContent(a.makeShowItemView(item))
+	a.showItemViewWithBack(item, nil)
 }
 
 // showEditItemView opens the selected item's editor.

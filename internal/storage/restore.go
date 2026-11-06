@@ -6,7 +6,7 @@ package storage
 import (
 	"bytes"
 	"context"
-	"encoding/json"
+	json "encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
@@ -119,7 +119,7 @@ func validatePawBackup(data []byte) (*PawBackup, *model.Vault, []*model.Item, er
 	items := make([]*model.Item, 0, len(account.Items))
 	ids := map[string]bool{}
 	for i, raw := range account.Items {
-		encoded, err := json.Marshal(raw)
+		encoded, err := json.Marshal(raw, json.Deterministic(true))
 		if err != nil {
 			return nil, nil, nil, ErrUnsupportedBackup
 		}
@@ -142,7 +142,7 @@ func validatePawBackup(data []byte) (*PawBackup, *model.Vault, []*model.Item, er
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	index, err := json.Marshal(document)
+	index, err := json.Marshal(document, json.Deterministic(true))
 	if err != nil {
 		return nil, nil, nil, ErrUnsupportedBackup
 	}
@@ -235,13 +235,19 @@ func (s *FileStorage) Restore(ctx context.Context, backup *PawBackup, name, pass
 		remapBackupCollections(source.Accounts[0].Collections, oldID, id)
 	}
 	source.Metadata.VaultName = name
-	index, err := json.Marshal(source)
+	index, err := json.Marshal(source, json.Deterministic(true))
 	if err != nil {
 		return nil, err
 	}
 	restored, err := model.DecodeVault(index, fresh.Key())
 	if err != nil {
 		return nil, err
+	}
+	for _, item := range items {
+		restored, err = prepareItemVault(restored, item)
+		if err != nil {
+			return nil, fmt.Errorf("prepare restored item summary: %w", err)
+		}
 	}
 	vaultRoot, openErr := s.openVaultRoot(id)
 	if openErr != nil {
