@@ -12,6 +12,7 @@ import (
 	"encoding/json/jsontext"
 	json "encoding/json/v2"
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -337,6 +338,13 @@ func TestEntryDetailOmitsEmptyOptionalFieldsAndPreservesLongNote(t *testing.T) {
 	for _, label := range []string{"Username", "Password", "Website", "Verification code", "Notes"} {
 		require.NotContains(t, loginTexts, label)
 	}
+	loginSeparators := 0
+	for _, object := range test.LaidOutObjects(loginView) {
+		if _, ok := object.(*widget.Separator); ok {
+			loginSeparators++
+		}
+	}
+	require.Equal(t, 1, loginSeparators, "an empty login has only the metadata divider")
 
 	note := detailItemFixture(t, "note")
 	noteView, err := NewEntryDetail(context.Background(), note, window, func() {}, func() {}, func() {})
@@ -646,7 +654,7 @@ func TestEntryDetailGolden(t *testing.T) {
 	}
 }
 
-func TestEntryDetailLoginUsesLogicalSectionDividers(t *testing.T) {
+func TestEntryDetailLoginSeparatesVisibleFields(t *testing.T) {
 	test.NewTempApp(t)
 	window := test.NewTempWindow(t, nil)
 	ctx, cancel := context.WithCancel(context.Background())
@@ -662,7 +670,29 @@ func TestEntryDetailLoginUsesLogicalSectionDividers(t *testing.T) {
 			separators++
 		}
 	}
-	require.Equal(t, 3, separators, "credentials, TOTP, Notes, and metadata are four separate groups")
+	require.Equal(t, 6, separators, "each visible field and the metadata are separated")
+
+	texts := auditTexts(view)
+	require.Less(t, slices.Index(texts, "Username"), slices.Index(texts, "Password"))
+	require.Less(t, slices.Index(texts, "Password"), slices.Index(texts, "Website"))
+	require.Less(t, slices.Index(texts, "Website"), slices.Index(texts, "Verification code"))
+	require.Less(t, slices.Index(texts, "Verification code"), slices.Index(texts, "Notes"))
+
+	var firstSeparator *widget.Separator
+	var firstField *widget.Label
+	for _, object := range objects {
+		if separator, ok := object.(*widget.Separator); ok && firstSeparator == nil {
+			firstSeparator = separator
+		}
+		if label, ok := object.(*widget.Label); ok && label.Text == "Username" {
+			firstField = label
+		}
+	}
+	require.NotNil(t, firstSeparator)
+	require.NotNil(t, firstField)
+	separatorPosition := fyne.CurrentApp().Driver().AbsolutePositionForObject(firstSeparator)
+	fieldPosition := fyne.CurrentApp().Driver().AbsolutePositionForObject(firstField)
+	require.LessOrEqual(t, separatorPosition.Y+firstSeparator.Size().Height, fieldPosition.Y)
 }
 
 func TestEntryDetailSSHKeyNarrowAndRevealBehavior(t *testing.T) {

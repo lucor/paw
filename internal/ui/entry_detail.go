@@ -94,15 +94,14 @@ func newEntryDetailWithActions(
 		bodyObjects = append(bodyObjects, sshDetails...)
 		clearSensitive = append(clearSensitive, secrets...)
 	} else {
-		var credentialFields []fyne.CanvasObject
 		if auth := decoded.BasicAuth; auth != nil {
 			if auth.Username != nil && auth.Username.Value != "" {
-				credentialFields = append(credentialFields, newDetailField("Username", newText(auth.Username.Value, bodyStyle), newIconButton("Copy Username", icons.Copy, func() { detailCopy("Username", auth.Username.Value) })))
+				appendDetailSection(&bodyObjects, newDetailField("Username", newText(auth.Username.Value, bodyStyle), newIconButton("Copy Username", icons.Copy, func() { detailCopy("Username", auth.Username.Value) })))
 			}
 			if auth.Password != nil {
 				field, secret := detailSecretField("Password", auth.Password.Value)
 				if field != nil {
-					credentialFields = append(credentialFields, field)
+					appendDetailSection(&bodyObjects, field)
 					clearSensitive = append(clearSensitive, secret)
 				}
 			}
@@ -110,12 +109,9 @@ func newEntryDetailWithActions(
 		if item.Scope != nil {
 			for _, address := range item.Scope.URLs {
 				if website := detailWebsite(address); website != nil {
-					credentialFields = append(credentialFields, website)
+					appendDetailSection(&bodyObjects, website)
 				}
 			}
-		}
-		if len(credentialFields) > 0 {
-			appendDetailSection(&bodyObjects, container.New(layout.NewCustomPaddedVBoxLayout(theme.Size(theme.SizeNamePadding)), credentialFields...))
 		}
 		if decoded.TOTP != nil {
 			display, view := detailTOTP(ctx, *decoded.TOTP)
@@ -199,6 +195,9 @@ func newEntryDetailWithActions(
 	}
 	if footerAction != nil {
 		metadata = container.NewBorder(nil, nil, nil, footerAction, metadata)
+	}
+	if len(bodyObjects) > 0 {
+		bodyObjects = append([]fyne.CanvasObject{widget.NewSeparator()}, bodyObjects...)
 	}
 	body := newDetailScrollableContent(bodyObjects, metadata)
 	pagePadding := theme.Size(theme.SizeNamePadding) * 2
