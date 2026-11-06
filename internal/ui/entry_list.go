@@ -83,9 +83,15 @@ func NewEntryList(options EntryListOptions) fyne.CanvasObject {
 	emptyDescription.Alignment = fyne.TextAlignCenter
 	empty := container.NewCenter(container.NewVBox(emptyTitle, emptyDescription))
 	input := widget.NewEntry()
+	clearSearch := widget.NewButtonWithIcon("", theme.ContentClearIcon(), func() { input.SetText("") })
+	clearSearch.Importance = widget.LowImportance
+	input.ActionItem = clearSearch
+	if search == "" {
+		clearSearch.Hide()
+	}
 	input.SetPlaceHolder("Search entries…")
 	input.SetText(search)
-	input.ActionItem = widget.NewButtonWithIcon("", theme.CancelIcon(), func() { input.SetText("") })
+	input.SetIcon(theme.SearchIcon())
 	if len(options.Categories) == 0 {
 		options.Categories = []EntryCategory{{ID: "all", Label: "All items", Icon: icons.List}}
 	}
@@ -164,7 +170,16 @@ func NewEntryList(options EntryListOptions) fyne.CanvasObject {
 			options.OnFilterChanged(search, category)
 		}
 	}
-	input.OnChanged = func(value string) { search = value; changed() }
+	input.OnChanged = func(value string) {
+		search = value
+		if value == "" {
+			clearSearch.Hide()
+		} else {
+			clearSearch.Show()
+		}
+		input.Refresh()
+		changed()
+	}
 	var vaultButton *iconButton
 	vaultButton = newIconButton("Select vault", nil, func() {
 		var menu *widget.PopUp
@@ -223,7 +238,7 @@ func NewEntryList(options EntryListOptions) fyne.CanvasObject {
 		more.Hide()
 	}
 	vaultHeader := container.NewBorder(nil, nil, nil, controls, vaultControl)
-	listHeader := container.NewVBox(container.NewBorder(nil, nil, widget.NewIcon(icons.Search), nil, input), container.NewBorder(nil, nil, categoryDisplay, count))
+	listHeader := container.NewVBox(input, container.NewBorder(nil, nil, categoryDisplay, count))
 	pagePadding := pawSize(pawSizeNamePagePadding)
 	page := container.New(layout.NewCustomPaddedLayout(pagePadding, pagePadding, pagePadding, pagePadding), container.NewBorder(listHeader, nil, nil, nil, container.NewStack(list, container.NewCenter(empty))))
 	navigation := NewNavigation(NavigationItem{icons.Vault, icons.VaultActive}, NavigationItem{icons.Codes, icons.CodesActive}, NavigationItem{icons.Settings, icons.SettingsActive})
