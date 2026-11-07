@@ -38,7 +38,7 @@ func loadItemInRoot(root *os.Root, vault *model.Vault, itemID string) (*model.It
 	if !vaultHasItem(vault, itemID) || !isVaultID(itemID) {
 		return nil, fmt.Errorf("item is not in the vault")
 	}
-	r, err := root.Open(filesystemID(itemID) + ".age")
+	r, err := root.Open(itemRelativePath(itemID))
 	if err != nil {
 		return nil, fmt.Errorf("could not open item: %w", err)
 	}
@@ -126,7 +126,11 @@ func (s *FileStorage) storeItem(vault *model.Vault, item *model.Item) error {
 	if err != nil {
 		return err
 	}
-	if err := s.storeEncryptedInRoot(root, filepath.Base(itemPath(s, id, item.ID)), vault.Key(), item); err != nil {
+	itemDir := filepath.Join(itemsDirectoryName, filesystemID(item.ID))
+	if err := root.MkdirAll(itemDir, 0o700); err != nil {
+		return fmt.Errorf("could not create item directory: %w", err)
+	}
+	if err := s.storeEncryptedInRoot(root, itemRelativePath(item.ID), vault.Key(), item); err != nil {
 		return fmt.Errorf("could not store item: %w", err)
 	}
 	updated.Timestamp = uint64(time.Now().Unix())
@@ -149,7 +153,7 @@ func (s *FileStorage) deleteItem(vault *model.Vault, itemID string) error {
 		return fmt.Errorf("could not open vault: %w", err)
 	}
 	defer root.Close()
-	if err := root.Remove(filepath.Base(itemPath(s, id, itemID))); err != nil {
+	if err := root.Remove(itemRelativePath(itemID)); err != nil {
 		return fmt.Errorf("could not delete item file: %w", err)
 	}
 	updated.Timestamp = uint64(time.Now().Unix())

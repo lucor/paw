@@ -115,6 +115,9 @@ func (s *FileStorage) CreateVault(name, password string, appearances ...model.Va
 		return nil, err
 	}
 	defer vaultRoot.Close()
+	if err := vaultRoot.Mkdir(itemsDirectoryName, 0o700); err != nil {
+		return nil, fmt.Errorf("could not create item storage directory: %w", err)
+	}
 	if err := atomicWrite(vaultRoot, keyFileName, func(w io.Writer) error {
 		_, err := w.Write(keyData)
 		return err
@@ -146,6 +149,9 @@ func (s *FileStorage) LoadVault(vaultID string, key *paw.Key) (*model.Vault, err
 	}
 	if vault.Accounts[0].ID != vaultID {
 		return nil, fmt.Errorf("vault ID does not match requested ID")
+	}
+	if err := s.migrateItemLayout(vault); err != nil {
+		return nil, fmt.Errorf("could not migrate vault item storage: %w", err)
 	}
 	return vault, nil
 }

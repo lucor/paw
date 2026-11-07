@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"unicode/utf8"
 
@@ -254,6 +255,9 @@ func (s *FileStorage) Restore(ctx context.Context, backup *PawBackup, name, pass
 		return nil, openErr
 	}
 	defer vaultRoot.Close()
+	if err = vaultRoot.MkdirAll(itemsDirectoryName, 0o700); err != nil {
+		return nil, fmt.Errorf("create restored item storage directory: %w", err)
+	}
 	if err = atomicWrite(vaultRoot, keyFileName, func(w io.Writer) error {
 		_, writeErr := w.Write(keyData)
 		return errors.Join(writeErr, ctx.Err())
@@ -264,8 +268,11 @@ func (s *FileStorage) Restore(ctx context.Context, backup *PawBackup, name, pass
 		if err = ctx.Err(); err != nil {
 			return nil, err
 		}
-		itemName := filesystemID(item.ID) + ".age"
-		if err = atomicWrite(vaultRoot, itemName, func(w io.Writer) error {
+		itemDir := filepath.Join(itemsDirectoryName, filesystemID(item.ID))
+		if err = vaultRoot.MkdirAll(itemDir, 0o700); err != nil {
+			return nil, fmt.Errorf("create restored item directory: %w", err)
+		}
+		if err = atomicWrite(vaultRoot, itemRelativePath(item.ID), func(w io.Writer) error {
 			return errors.Join(encrypt(fresh.Key(), w, item), ctx.Err())
 		}); err != nil {
 			return nil, fmt.Errorf("write restored item: %w", err)

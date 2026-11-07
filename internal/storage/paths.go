@@ -6,7 +6,6 @@ package storage
 import (
 	"encoding/base32"
 	"encoding/base64"
-	"fmt"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -26,6 +25,8 @@ const (
 	vaultBackupSuffix     = ".bck"
 	keyFileName           = "key.age"
 	vaultFileName         = "vault.age"
+	itemsDirectoryName    = "items"
+	itemFileName          = "item.age"
 	vaultMetadataFileName = "metadata.json"
 	appStateFileName      = "paw.json"
 	lockFileName          = "paw.lock"
@@ -71,8 +72,12 @@ func vaultMetadataPath(s *FileStorage, vaultID string) string {
 
 // itemPath returns an encrypted item's file path.
 func itemPath(s *FileStorage, vaultID string, itemID string) string {
-	itemFileName := fmt.Sprintf("%s.age", filesystemID(itemID))
-	return filepath.Join(vaultRootPath(s, vaultID), itemFileName)
+	return filepath.Join(vaultRootPath(s, vaultID), itemRelativePath(itemID))
+}
+
+// itemRelativePath returns an encrypted item's path relative to its vault root.
+func itemRelativePath(itemID string) string {
+	return filepath.Join(itemsDirectoryName, filesystemID(itemID), itemFileName)
 }
 
 // filesystemID encodes a canonical Paw ID as lowercase, unpadded Base32.
