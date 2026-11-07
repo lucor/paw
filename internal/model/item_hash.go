@@ -11,12 +11,13 @@ import (
 const itemHashExtensionName = "paw.pm/item-hash"
 
 // ContentHash returns lowercase hexadecimal SHA-256 of deterministic item JSON,
-// excluding history, modifiedAt, and the summary-only item hash extension.
+// excluding history, creationAt, modifiedAt, and the summary-only item hash extension.
 func (item *Item) ContentHash() (string, error) {
 	snapshot, err := item.Snapshot()
 	if err != nil {
 		return "", err
 	}
+	snapshot.CreationAt = nil
 	snapshot.ModifiedAt = nil
 	return hashJSON(snapshot)
 }

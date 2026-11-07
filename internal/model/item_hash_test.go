@@ -54,6 +54,64 @@ func TestItemHashesAreDeterministicAndSeparateContentFromState(t *testing.T) {
 	require.Equal(t, stateAfterHistory, decodedState)
 }
 
+func TestItemHashesIgnoreCreationAtOnlyInContentHash(t *testing.T) {
+	item, err := NewNote("Example", "synthetic secret")
+	require.NoError(t, err)
+	contentBefore, err := item.ContentHash()
+	require.NoError(t, err)
+	stateBefore, err := item.StateHash()
+	require.NoError(t, err)
+
+	creationAt := *item.CreationAt + 10
+	item.CreationAt = &creationAt
+	contentAfter, err := item.ContentHash()
+	require.NoError(t, err)
+	require.Equal(t, contentBefore, contentAfter)
+	stateAfter, err := item.StateHash()
+	require.NoError(t, err)
+	require.NotEqual(t, stateBefore, stateAfter)
+}
+
+func TestItemContentHashMatchesEquivalentHistorySnapshot(t *testing.T) {
+	item, err := NewNote("Example", "synthetic secret")
+	require.NoError(t, err)
+	history, err := item.History()
+	require.NoError(t, err)
+	require.NoError(t, history.AddSnapshot(item, 42))
+	require.NoError(t, item.SetHistory(history))
+
+	currentHash, err := item.ContentHash()
+	require.NoError(t, err)
+	snapshotData, err := json.Marshal(history.Entries[0].Item, json.Deterministic(true))
+	require.NoError(t, err)
+	var snapshot Item
+	require.NoError(t, json.Unmarshal(snapshotData, &snapshot))
+	snapshotHash, err := snapshot.ContentHash()
+	require.NoError(t, err)
+	require.Equal(t, currentHash, snapshotHash)
+}
+
+func TestPrepareItemEditDoesNotArchiveCreationTimestampChanges(t *testing.T) {
+	previous, err := NewNote("Example", "synthetic secret")
+	require.NoError(t, err)
+	proposedSnapshot, err := previous.Snapshot()
+	require.NoError(t, err)
+	proposedData, err := json.Marshal(proposedSnapshot, json.Deterministic(true))
+	require.NoError(t, err)
+	var proposed Item
+	require.NoError(t, json.Unmarshal(proposedData, &proposed))
+	creationAt := *proposed.CreationAt + 10
+	proposed.CreationAt = &creationAt
+
+	updated, changed, err := PrepareItemEdit(previous, &proposed, 100, 101)
+	require.NoError(t, err)
+	require.False(t, changed)
+	history, err := updated.History()
+	require.NoError(t, err)
+	require.Empty(t, history.Entries)
+	require.Equal(t, *previous.ModifiedAt, *updated.ModifiedAt)
+}
+
 func TestItemHashesExcludeSummaryHashExtension(t *testing.T) {
 	item, err := NewNote("Example", "synthetic secret")
 	require.NoError(t, err)
