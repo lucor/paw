@@ -17,6 +17,7 @@ func Test_Client(t *testing.T) {
 
 	s, err := storage.NewFileStorage(t.TempDir())
 	require.NoError(t, err)
+	defer s.Close()
 
 	server := agent.NewCLI()
 	defer server.Close()

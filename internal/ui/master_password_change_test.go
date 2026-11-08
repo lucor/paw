@@ -22,6 +22,7 @@ func TestMasterPasswordChangeLocksVault(t *testing.T) {
 	test.NewTempApp(t)
 	store, err := storage.NewFileStorage(t.TempDir())
 	require.NoError(t, err)
+	defer store.Close()
 	vault, err := store.CreateVault("Personal", "old password")
 	require.NoError(t, err)
 	id := vault.Accounts[0].ID

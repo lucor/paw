@@ -10,6 +10,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -31,7 +32,7 @@ func TestAttachmentStorePublishesEncryptedFiles(t *testing.T) {
 			info, err := root.Stat(path)
 			require.NoError(t, err)
 			require.True(t, info.Mode().IsRegular())
-			if info.Mode().Perm() != 0 {
+			if runtime.GOOS != "windows" && info.Mode().Perm() != 0 {
 				require.Equal(t, os.FileMode(0600), info.Mode().Perm())
 			}
 			file := cxf.File{
@@ -53,7 +54,7 @@ func TestAttachmentStorePublishesEncryptedFiles(t *testing.T) {
 			require.Len(t, entries, 1)
 			filesInfo, err := root.Stat(filepath.Join(itemsDirectoryName, filesystemID(itemID), filesDirectoryName))
 			require.NoError(t, err)
-			if filesInfo.Mode().Perm() != 0 {
+			if runtime.GOOS != "windows" && filesInfo.Mode().Perm() != 0 {
 				require.Equal(t, os.FileMode(0700), filesInfo.Mode().Perm())
 			}
 		})

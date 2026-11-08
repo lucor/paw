@@ -10,6 +10,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"go.lucor.dev/paw/internal/paw"
@@ -36,7 +37,9 @@ func TestAttachmentSaveVerifiesAndPublishes(t *testing.T) {
 	require.Equal(t, content, got)
 	info, err := os.Stat(destination)
 	require.NoError(t, err)
-	require.Equal(t, os.FileMode(0600), info.Mode().Perm())
+	if runtime.GOOS != "windows" {
+		require.Equal(t, os.FileMode(0600), info.Mode().Perm())
+	}
 	entries, err := os.ReadDir(filepath.Dir(destination))
 	require.NoError(t, err)
 	require.Len(t, entries, 1)
