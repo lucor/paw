@@ -28,8 +28,10 @@ Paw is written in Go, uses [Fyne](https://github.com/fyne-io/fyne) for its inter
 * SSH agent integration and browser extension support
 * Password audits for exposed, weak, and reused passwords
 * Authenticator code (TOTP) support
+* File attachments for Login and Secure Note items
 * Native CXF-based credential storage
-* Paw backup export and restore, plus SSH key import and export
+* Password-protected `.paw` archive backup and restore, including attachments and history
+* CXF-compatible backup export and restore, plus SSH key import and export
 
 ### Later goals
 
@@ -86,15 +88,15 @@ You can enter a password manually or edit a generated password before saving. Pa
 
 ### Backups
 
-Paw exports complete vault backups as plaintext `.cxf` files or password-encrypted `.cxf.age` files. Restore accepts backups exported by Paw and creates a separate vault with a new master password and encryption key. It does not overwrite or merge existing vaults.
+Paw supports plaintext `.cxf` and password-encrypted `.cxf.age` backups for CXF compatibility, plus password-encrypted `.paw` archives. A `.paw` archive uses its own password and includes item history and attachment files. CXF backups cannot contain attachment binaries, so Paw rejects CXF exports when the vault contains attachments. Restoring any supported backup creates a separate vault with a new master password and encryption key; it does not overwrite or merge existing vaults.
 
 ### Items
 
 Paw supports these item types:
 
-* Login: username, password, website, optional authenticator key, and notes
+* Login: username, password, website, optional authenticator key, notes, and file attachments
 * Password: a standalone password
-* Secure note: multiline text
+* Secure note: multiline text and file attachments
 * SSH key: public and private key material, with an optional passphrase
 
 ## Threat model
