@@ -66,6 +66,27 @@ func TestExportCXFAndAgeDoNotExposeCredentials(t *testing.T) {
 	require.Empty(t, empty.Accounts[0].Items)
 }
 
+func TestExportRejectsCurrentAndHistoricalAttachmentsBeforeWriting(t *testing.T) {
+	for _, historical := range []bool{false, true} {
+		t.Run(map[bool]string{false: "current reference", true: "history reference"}[historical], func(t *testing.T) {
+			vault, store, item := exportFixture(t)
+			_, err := store.AddAttachment(vault, item.ID, "file.bin", bytes.NewReader([]byte("payload")))
+			require.NoError(t, err)
+			if historical {
+				files, err := store.ListAttachments(vault, item.ID)
+				require.NoError(t, err)
+				require.Len(t, files, 1)
+				require.NoError(t, store.RemoveAttachment(vault, item.ID, files[0].ID))
+			}
+			var plaintext, encrypted bytes.Buffer
+			require.ErrorContains(t, WriteCXF(context.Background(), &plaintext, store, vault), "cannot include attachment files")
+			require.Empty(t, plaintext.Bytes())
+			require.ErrorContains(t, WriteEncryptedCXF(context.Background(), &encrypted, store, vault, "password"), "cannot include attachment files")
+			require.Empty(t, encrypted.Bytes())
+		})
+	}
+}
+
 func TestExportFailuresLeaveNoFiles(t *testing.T) {
 	vault, store, _ := exportFixture(t)
 	dir := t.TempDir()

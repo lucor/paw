@@ -128,6 +128,9 @@ func validatePawBackup(data []byte) (*PawBackup, *model.Vault, []*model.Item, er
 		if json.Unmarshal(encoded, &item) != nil || item.Validate() != nil || !isVaultID(item.ID) {
 			return nil, nil, nil, ErrUnsupportedBackup
 		}
+		if itemHasFileReferences(&item) {
+			return nil, nil, nil, fmt.Errorf("%w: attachment binaries are not supported", ErrUnsupportedBackup)
+		}
 		if ids[item.ID] {
 			return nil, nil, nil, ErrUnsupportedBackup
 		}
@@ -157,6 +160,33 @@ func validatePawBackup(data []byte) (*PawBackup, *model.Vault, []*model.Item, er
 	}
 	backup := &PawBackup{data: bytes.Clone(data), Name: vault.Metadata.VaultName, CreationAt: vault.Metadata.CreationAt, ExportedAt: document.Timestamp, Collections: count, Credentials: len(items), AccountID: account.ID}
 	return backup, vault, items, nil
+}
+
+// itemHasFileReferences checks current credentials and every retained history snapshot.
+func itemHasFileReferences(item *model.Item) bool {
+	files, err := item.Files()
+	if err != nil || len(files) != 0 {
+		return true
+	}
+	history, err := item.History()
+	if err != nil {
+		return true
+	}
+	for _, entry := range history.Entries {
+		data, err := json.Marshal(entry.Item)
+		if err != nil {
+			return true
+		}
+		var snapshot model.Item
+		if json.Unmarshal(data, &snapshot) != nil {
+			return true
+		}
+		files, err := snapshot.Files()
+		if err != nil || len(files) != 0 {
+			return true
+		}
+	}
+	return false
 }
 
 // checkBackupCollections validates collection links and counts nested collections.

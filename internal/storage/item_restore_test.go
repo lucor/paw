@@ -9,6 +9,7 @@ import (
 	json "encoding/json/v2"
 	"fmt"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -112,6 +113,34 @@ func TestRestoreItemPersistsSelectedVersionAndCanBeReversed(t *testing.T) {
 	reopenedHistory, err := reopenedItem.History()
 	require.NoError(t, err)
 	require.Equal(t, revertedHistory, reopenedHistory)
+}
+
+func TestRestoreItemRejectsMissingAttachmentWithoutChangingState(t *testing.T) {
+	store, vault := newItemStoreVault(t)
+	item, err := model.NewNote("with file", "note")
+	require.NoError(t, err)
+	require.NoError(t, store.StoreItem(vault, item))
+	file, err := store.AddAttachment(vault, item.ID, "data.bin", bytes.NewReader([]byte("data")))
+	require.NoError(t, err)
+	require.NoError(t, store.RemoveAttachment(vault, item.ID, file.ID))
+	current, err := store.LoadItem(vault, item.ID)
+	require.NoError(t, err)
+	history, err := current.History()
+	require.NoError(t, err)
+	require.Len(t, history.Entries, 2)
+	before, err := current.StateHash()
+	require.NoError(t, err)
+	root, err := store.openVaultRoot(vault.Accounts[0].ID)
+	require.NoError(t, err)
+	require.NoError(t, root.Remove(filepath.Join(itemsDirectoryName, filesystemID(item.ID), documentsDirectoryName, documentFilename(file.ID))))
+	require.NoError(t, root.Close())
+	_, _, err = store.RestoreItem(vault, item.ID, 1, &history.Entries[1], uint64(200))
+	require.ErrorContains(t, err, "missing or not a regular file")
+	after, err := store.LoadItem(vault, item.ID)
+	require.NoError(t, err)
+	afterHash, err := after.StateHash()
+	require.NoError(t, err)
+	require.Equal(t, before, afterHash)
 }
 
 func TestRestoreItemNoOpDoesNotWrite(t *testing.T) {

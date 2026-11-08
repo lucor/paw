@@ -27,6 +27,9 @@ func WriteCXF(ctx context.Context, w io.Writer, s *FileStorage, vault *model.Vau
 	if vault == nil {
 		return fmt.Errorf("cannot export: no vault selected")
 	}
+	if err := rejectAttachmentExport(ctx, s, vault); err != nil {
+		return err
+	}
 	// Copy before marshaling: Paw's marshaler updates the vault extension slice.
 	data, err := json.Marshal(vault.Header, json.Deterministic(true))
 	if err != nil {
@@ -77,6 +80,12 @@ func WriteEncryptedCXF(ctx context.Context, w io.Writer, s *FileStorage, vault *
 	if err := ctx.Err(); err != nil {
 		return err
 	}
+	if vault == nil {
+		return fmt.Errorf("cannot export: no vault selected")
+	}
+	if err := rejectAttachmentExport(ctx, s, vault); err != nil {
+		return err
+	}
 	recipient, err := age.NewScryptRecipient(password)
 	if err != nil {
 		return fmt.Errorf("prepare export encryption: %w", err)
@@ -92,6 +101,48 @@ func WriteEncryptedCXF(ctx context.Context, w io.Writer, s *FileStorage, vault *
 		return fmt.Errorf("finalize export encryption: %w", err)
 	}
 	return ctx.Err()
+}
+
+// rejectAttachmentExport prevents CXF exports from silently omitting attachment blobs.
+func rejectAttachmentExport(ctx context.Context, storage *FileStorage, vault *model.Vault) error {
+	for _, summary := range vault.Accounts[0].Items {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		item, err := storage.LoadItem(vault, summary.ID)
+		if err != nil {
+			return fmt.Errorf("cannot inspect export Item: %w", err)
+		}
+		files, err := item.Files()
+		if err != nil {
+			return fmt.Errorf("cannot inspect export attachment metadata: %w", err)
+		}
+		if len(files) != 0 {
+			return fmt.Errorf("CXF export cannot include attachment files")
+		}
+		history, err := item.History()
+		if err != nil {
+			return fmt.Errorf("cannot inspect export Item history: %w", err)
+		}
+		for _, entry := range history.Entries {
+			data, err := json.Marshal(entry.Item)
+			if err != nil {
+				return fmt.Errorf("cannot inspect export Item history: %w", err)
+			}
+			var snapshot model.Item
+			if err := json.Unmarshal(data, &snapshot); err != nil {
+				return fmt.Errorf("cannot inspect export Item history: %w", err)
+			}
+			files, err := snapshot.Files()
+			if err != nil {
+				return fmt.Errorf("cannot inspect export attachment history: %w", err)
+			}
+			if len(files) != 0 {
+				return fmt.Errorf("CXF export cannot include attachment files")
+			}
+		}
+	}
+	return nil
 }
 
 // WriteExport writes the selected CXF export format to the supplied stream.

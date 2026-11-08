@@ -4,6 +4,7 @@
 package storage
 
 import (
+	"bytes"
 	"encoding/json/jsontext"
 	"os"
 	"path/filepath"
@@ -49,6 +50,29 @@ func TestItemCommitCrashRecovery(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestDeleteItemCleansAttachmentsAfterCommitAndPreservesUnknownFiles(t *testing.T) {
+	store, vault := newItemStoreVault(t)
+	item, err := model.NewNote("delete attachment owner", "note")
+	require.NoError(t, err)
+	require.NoError(t, store.StoreItem(vault, item))
+	file, err := store.AddAttachment(vault, item.ID, "data.bin", bytes.NewReader([]byte("data")))
+	require.NoError(t, err)
+	root, err := store.openVaultRoot(vault.Accounts[0].ID)
+	require.NoError(t, err)
+	dir := filepath.Join(itemsDirectoryName, filesystemID(item.ID), documentsDirectoryName)
+	require.NoError(t, root.WriteFile(filepath.Join(dir, "unknown!.age"), []byte("preserve"), 0600))
+	require.NoError(t, root.Close())
+	require.NoError(t, store.DeleteItem(vault, item.ID))
+	root, err = store.openVaultRoot(vault.Accounts[0].ID)
+	require.NoError(t, err)
+	_, err = root.Stat(filepath.Join(dir, documentFilename(file.ID)))
+	require.ErrorIs(t, err, os.ErrNotExist)
+	data, err := root.ReadFile(filepath.Join(dir, "unknown!.age"))
+	require.NoError(t, err)
+	require.Equal(t, []byte("preserve"), data)
+	require.NoError(t, root.Close())
 }
 
 func TestInterruptedItemDeletionPreservesUnknownFiles(t *testing.T) {

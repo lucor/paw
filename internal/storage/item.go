@@ -8,6 +8,7 @@ import (
 	json "encoding/json/v2"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
@@ -17,7 +18,125 @@ import (
 
 	"go.lucor.dev/cxf"
 	"go.lucor.dev/paw/internal/model"
+	"go.lucor.dev/paw/internal/paw"
 )
+
+// AddAttachment encrypts and commits one attachment through the normal Item history flow.
+func (s *FileStorage) AddAttachment(vault *model.Vault, itemID, name string, src io.Reader) (cxf.File, error) {
+	if vault == nil || vault.Key() == nil {
+		return cxf.File{}, fmt.Errorf("cannot add attachment: unlocked vault is required")
+	}
+	current, err := s.LoadItem(vault, itemID)
+	if err != nil {
+		return cxf.File{}, fmt.Errorf("cannot load Item: %w", err)
+	}
+	if current.Metadata.Type != model.NoteItemType && current.Metadata.Type != model.LoginItemType {
+		return cxf.File{}, fmt.Errorf("attachments are not supported for this Item type")
+	}
+	fileID, err := model.NewFileID()
+	if err != nil {
+		return cxf.File{}, err
+	}
+	root, err := s.openVaultRoot(vault.Accounts[0].ID)
+	if err != nil {
+		return cxf.File{}, err
+	}
+	defer root.Close()
+	size, digest, err := storeDocument(root, vault.Key(), itemID, fileID, src)
+	if err != nil {
+		return cxf.File{}, err
+	}
+	file := cxf.File{Type: cxf.CredentialTypeFile, ID: fileID, Name: name, DecryptedSize: size, IntegrityHash: digest}
+	proposed := *current
+	proposed.Credentials = slices.Clone(current.Credentials)
+	if err := proposed.AddFile(file); err != nil {
+		return cxf.File{}, err
+	}
+	now := uint64(time.Now().Unix())
+	updated, changed, err := model.PrepareItemEdit(current, &proposed, now, now)
+	if err != nil {
+		return cxf.File{}, err
+	}
+	if !changed {
+		return cxf.File{}, fmt.Errorf("attachment did not change Item")
+	}
+	if err := s.StoreItem(vault, updated); err != nil {
+		return cxf.File{}, fmt.Errorf("cannot commit attachment: %w", err)
+	}
+	return file, nil
+}
+
+// ListAttachments returns current CXF file metadata without opening attachment blobs.
+func (s *FileStorage) ListAttachments(vault *model.Vault, itemID string) ([]cxf.File, error) {
+	if vault == nil {
+		return nil, fmt.Errorf("cannot list attachments: vault is required")
+	}
+	item, err := s.LoadItem(vault, itemID)
+	if err != nil {
+		return nil, fmt.Errorf("cannot load Item: %w", err)
+	}
+	files, err := item.Files()
+	if err != nil {
+		return nil, fmt.Errorf("cannot list attachment metadata: %w", err)
+	}
+	return files, nil
+}
+
+// SaveAttachment decrypts one current attachment to an explicit destination without changing the vault.
+func (s *FileStorage) SaveAttachment(vault *model.Vault, itemID, fileID, destination string) error {
+	if vault == nil || vault.Key() == nil {
+		return fmt.Errorf("cannot save attachment: unlocked vault is required")
+	}
+	item, err := s.LoadItem(vault, itemID)
+	if err != nil {
+		return fmt.Errorf("cannot load Item: %w", err)
+	}
+	files, err := item.Files()
+	if err != nil {
+		return fmt.Errorf("cannot read attachment metadata: %w", err)
+	}
+	var selected *cxf.File
+	for i := range files {
+		if files[i].ID == fileID {
+			selected = &files[i]
+			break
+		}
+	}
+	if selected == nil {
+		return fmt.Errorf("attachment ID does not exist")
+	}
+	root, err := s.openVaultRoot(vault.Accounts[0].ID)
+	if err != nil {
+		return err
+	}
+	defer root.Close()
+	return s.saveDocument(root, vault.Key(), itemID, fileID, destination, *selected)
+}
+
+// RemoveAttachment removes one file credential and records the change in Item history.
+func (s *FileStorage) RemoveAttachment(vault *model.Vault, itemID, fileID string) error {
+	if vault == nil || vault.Key() == nil {
+		return fmt.Errorf("cannot remove attachment: unlocked vault is required")
+	}
+	current, err := s.LoadItem(vault, itemID)
+	if err != nil {
+		return fmt.Errorf("cannot load Item: %w", err)
+	}
+	proposed := *current
+	proposed.Credentials = slices.Clone(current.Credentials)
+	if err := proposed.RemoveFile(fileID); err != nil {
+		return err
+	}
+	now := uint64(time.Now().Unix())
+	updated, changed, err := model.PrepareItemEdit(current, &proposed, now, now)
+	if err != nil {
+		return err
+	}
+	if !changed {
+		return nil
+	}
+	return s.StoreItem(vault, updated)
+}
 
 const (
 	itemHashExtensionName = "paw.pm/item-hash"
@@ -107,10 +226,52 @@ func (s *FileStorage) RestoreItem(
 	if !changed {
 		return current, false, nil
 	}
+	root, err := s.openVaultRoot(vault.Accounts[0].ID)
+	if err != nil {
+		return nil, false, err
+	}
+	err = verifyItemDocuments(root, vault.Key(), restored)
+	_ = root.Close()
+	if err != nil {
+		return nil, false, fmt.Errorf("cannot restore Item with unavailable attachments: %w", err)
+	}
 	if err := s.StoreItem(vault, restored); err != nil {
 		return nil, false, fmt.Errorf("cannot persist restored item: %w", err)
 	}
 	return restored, true, nil
+}
+
+// verifyItemDocuments authenticates every blob referenced by an Item before restoring it.
+func verifyItemDocuments(root *os.Root, key *paw.Key, item *model.Item) error {
+	files, err := item.Files()
+	if err != nil {
+		return err
+	}
+	if len(files) == 0 {
+		return nil
+	}
+	dir, err := openStoredDocumentRoot(root, item.ID)
+	if err != nil {
+		return err
+	}
+	defer dir.Close()
+	for _, file := range files {
+		name := documentFilename(file.ID)
+		info, err := dir.Lstat(name)
+		if err != nil || !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 {
+			return fmt.Errorf("attachment %s is missing or not a regular file", file.ID)
+		}
+		source, err := dir.Open(name)
+		if err != nil {
+			return fmt.Errorf("cannot open attachment %s: %w", file.ID, err)
+		}
+		err = decryptDocument(key, io.Discard, source, file)
+		_ = source.Close()
+		if err != nil {
+			return fmt.Errorf("attachment %s failed integrity verification: %w", file.ID, err)
+		}
+	}
+	return nil
 }
 
 // DeleteItem removes a CXF item and its vault summary.
@@ -179,6 +340,7 @@ func (s *FileStorage) storeItem(vault *model.Vault, item *model.Item) error {
 	if oldHash != "" && oldHash != stateHash {
 		s.removeItemVersionBestEffort(root, item.ID, oldHash)
 	}
+	s.cleanupItemDocumentsBestEffort(root, item)
 	s.cleanupItemVersionsBestEffort(root, vault)
 	return nil
 }
@@ -279,6 +441,79 @@ func (s *FileStorage) removeItemVersionBestEffort(root *os.Root, itemID, hash st
 	}
 }
 
+// cleanupItemDocumentsBestEffort removes only canonical document files unused by current or retained history.
+func (s *FileStorage) cleanupItemDocumentsBestEffort(root *os.Root, item *model.Item) {
+	if !isVaultID(item.ID) {
+		return
+	}
+	references := make(map[string]struct{})
+	addFiles := func(snapshot *model.Item) error {
+		files, err := snapshot.Files()
+		if err != nil {
+			return err
+		}
+		for _, file := range files {
+			references[file.ID] = struct{}{}
+		}
+		return nil
+	}
+	if err := addFiles(item); err != nil {
+		log.Printf("storage cleanup: preserve attachments for Item %q: %v", item.ID, err)
+		return
+	}
+	history, err := item.History()
+	if err != nil {
+		log.Printf("storage cleanup: preserve attachments for Item %q: %v", item.ID, err)
+		return
+	}
+	for _, entry := range history.Entries {
+		data, err := json.Marshal(entry.Item)
+		if err != nil {
+			return
+		}
+		var snapshot model.Item
+		if err := json.Unmarshal(data, &snapshot); err != nil || addFiles(&snapshot) != nil {
+			log.Printf("storage cleanup: preserve attachments for Item %q: invalid history references", item.ID)
+			return
+		}
+	}
+	dir, err := openStoredDocumentRoot(root, item.ID)
+	if errors.Is(err, os.ErrNotExist) {
+		return
+	}
+	if err != nil {
+		log.Printf("storage cleanup: open attachments for Item %q: %v", item.ID, err)
+		return
+	}
+	listing, err := dir.Open(".")
+	if err != nil {
+		_ = dir.Close()
+		return
+	}
+	entries, err := listing.ReadDir(-1)
+	_ = listing.Close()
+	if err != nil {
+		_ = dir.Close()
+		return
+	}
+	for _, entry := range entries {
+		name := entry.Name()
+		if !strings.HasSuffix(name, ".age") || entry.Type() != 0 {
+			continue
+		}
+		fileID, ok := idFromFilesystemName(strings.TrimSuffix(name, ".age"))
+		if !ok {
+			continue
+		}
+		if _, ok := references[fileID]; ok {
+			continue
+		}
+		if err := dir.Remove(name); err != nil {
+			log.Printf("storage cleanup: remove unreferenced attachment for Item %q: %v", item.ID, err)
+		}
+	}
+}
+
 func (s *FileStorage) cleanupItemVersionsBestEffort(root *os.Root, vault *model.Vault) {
 	if err := syncDirectory(root, "."); err != nil {
 		log.Printf("storage cleanup: preserve versions after directory sync failure: %v", err)
@@ -333,8 +568,8 @@ func (s *FileStorage) cleanupItemVersionsBestEffort(root *os.Root, vault *model.
 			}
 		}
 		if !indexed {
-			// Remove only an empty directory; unknown files and documents stay intact.
 			path := filepath.Join(itemsDirectoryName, entry.Name())
+			s.cleanupDeletedItemDocumentsBestEffort(root, path)
 			dir, err := root.Open(path)
 			if err != nil {
 				log.Printf("storage cleanup: open directory %q: %v", itemID, err)
@@ -351,6 +586,46 @@ func (s *FileStorage) cleanupItemVersionsBestEffort(root *os.Root, vault *model.
 			}
 		}
 	}
+}
+
+// cleanupDeletedItemDocumentsBestEffort removes recognized blobs after the Item summary is gone.
+func (s *FileStorage) cleanupDeletedItemDocumentsBestEffort(root *os.Root, itemPath string) {
+	itemRoot, err := root.OpenRoot(itemPath)
+	if err != nil {
+		return
+	}
+	info, err := itemRoot.Lstat(documentsDirectoryName)
+	if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+		_ = itemRoot.Close()
+		return
+	}
+	documents, err := itemRoot.OpenRoot(documentsDirectoryName)
+	if err != nil {
+		_ = itemRoot.Close()
+		return
+	}
+	listing, err := documents.Open(".")
+	if err != nil {
+		_ = documents.Close()
+		_ = itemRoot.Close()
+		return
+	}
+	entries, err := listing.ReadDir(-1)
+	_ = listing.Close()
+	if err == nil {
+		for _, entry := range entries {
+			name := entry.Name()
+			if !strings.HasSuffix(name, ".age") || entry.Type() != 0 {
+				continue
+			}
+			if _, ok := idFromFilesystemName(strings.TrimSuffix(name, ".age")); ok {
+				_ = documents.Remove(name)
+			}
+		}
+	}
+	_ = documents.Close()
+	_ = itemRoot.Close()
+	_ = root.Remove(filepath.Join(itemPath, documentsDirectoryName))
 }
 
 // verifyItemVersion checks an existing immutable file before it is reused.

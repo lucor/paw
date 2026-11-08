@@ -6,6 +6,8 @@ package storage
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/base64"
 	json "encoding/json/v2"
 	"io"
 	"os"
@@ -18,6 +20,25 @@ import (
 	"go.lucor.dev/paw/internal/model"
 	"go.lucor.dev/paw/internal/paw"
 )
+
+func TestReadPawBackupRejectsAttachmentReferences(t *testing.T) {
+	source, store, _ := exportFixture(t)
+	var data bytes.Buffer
+	require.NoError(t, WriteCXF(context.Background(), &data, store, source))
+	var document cxf.Header
+	require.NoError(t, json.Unmarshal(data.Bytes(), &document))
+	id, err := model.NewFileID()
+	require.NoError(t, err)
+	digest := sha256.Sum256(nil)
+	file := cxf.File{Type: cxf.CredentialTypeFile, ID: id, Name: "file.bin", IntegrityHash: base64.RawURLEncoding.EncodeToString(digest[:])}
+	encoded, err := json.Marshal(file, json.Deterministic(true))
+	require.NoError(t, err)
+	document.Accounts[0].Items[0].Credentials = append(document.Accounts[0].Items[0].Credentials, encoded)
+	data.Reset()
+	require.NoError(t, cxf.Encode(&data, &document))
+	_, err = ReadPawBackup(context.Background(), &data, "")
+	require.ErrorIs(t, err, ErrUnsupportedBackup)
+}
 
 func TestRestorePreservesItemsAndCreatesCopy(t *testing.T) {
 	ctx := context.Background()
