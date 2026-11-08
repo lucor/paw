@@ -1,8 +1,28 @@
-# Changelog - Paw
+# Changelog
 
-## Unreleased
+All notable changes to this project will be documented in this file.
 
-- storage: no longer automatically imports vaults from the legacy Fyne configuration directory; users with vaults stored only there must move them to `PAW_HOME/.paw/storage` or `$HOME/.paw/storage` before upgrading
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## 0.31.0 - 09 Nov 2026
+
+### Added
+
+- add item history with previous version restore
+- add encrypted file attachments in CLI and GUI
+- add encrypted Paw archive import and export
+
+### Changed
+
+- ci: build Linux packages on Debian Bookworm
+
+### Fixed
+
+- ui: refine search input icons
+- ui: align vault selector rows with item list layout
+- ui: restore vault selector action after locking a vault
+- storage: exclude creation time from content hash calculations
 
 ## 0.30.0 - 04 Nov 2026
 

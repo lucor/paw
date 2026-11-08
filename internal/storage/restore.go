@@ -186,7 +186,7 @@ func ReadPawArchive(ctx context.Context, r io.Reader, password string) (_ *PawBa
 		backup.attachments[key] = staged.Name()
 	}
 	if len(backup.attachments) != len(expected) {
-		return nil, fmt.Errorf("Paw archive is missing attachment entries")
+		return nil, fmt.Errorf("missing attachment entries in Paw archive")
 	}
 	if err := verifyPawArchivePadding(ctx, decrypted); err != nil {
 		return nil, fmt.Errorf("cannot authenticate archive: %w", err)
@@ -369,7 +369,7 @@ func (s *FileStorage) Restore(ctx context.Context, backup *PawBackup, name, pass
 			expectedCount += len(files)
 		}
 		if backup.spoolKey == nil || len(backup.attachments) != expectedCount {
-			return nil, fmt.Errorf("Paw archive attachment staging is incomplete")
+			return nil, fmt.Errorf("incomplete attachment staging for Paw archive")
 		}
 	}
 	name = strings.TrimSpace(name)
