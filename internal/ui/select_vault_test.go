@@ -31,7 +31,7 @@ func TestVaultAppearanceIsShownInVaultHeaderAndUnlock(t *testing.T) {
 	require.True(t, hasVaultAppearance(window.Content(), appearance))
 }
 
-func TestVaultSelectorListUsesFullBoundsForKeyboardHighlight(t *testing.T) {
+func TestVaultSelectorUsesStandardNavigationRows(t *testing.T) {
 	test.NewTempApp(t)
 	view := NewSelectVault([]VaultChoice{{Name: "Personal", Open: func() {}}}, func() {})
 	window := test.NewTempWindow(t, view)
@@ -45,8 +45,9 @@ func TestVaultSelectorListUsesFullBoundsForKeyboardHighlight(t *testing.T) {
 		}
 	}
 	require.NotNil(t, list)
-	_, ok := list.CreateItem().(*ActionRow)
-	require.True(t, ok, "the outlined action row should fill the list item focus bounds")
+	require.False(t, list.HideSeparators, "vault rows should follow the standard list separator style")
+	_, ok := list.CreateItem().(*fyne.Container)
+	require.True(t, ok, "the vault list should use the shared navigation row layout")
 }
 
 func TestVaultAppearanceCanSelectNoColor(t *testing.T) {

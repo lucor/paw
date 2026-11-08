@@ -9,7 +9,6 @@ import (
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/widget"
 	"go.lucor.dev/paw/internal/model"
-	"go.lucor.dev/paw/internal/ui/assets/icons"
 )
 
 // VaultChoice describes a vault available in the selector.
@@ -27,7 +26,13 @@ func NewSelectVault(vaults []VaultChoice, addVault func()) fyne.CanvasObject {
 	list = widget.NewList(
 		func() int { return len(vaults) },
 		func() fyne.CanvasObject {
-			return NewActionRow("Vault", "Locked", icons.Lock, nil)
+			row := newNavigationRowWithSubtitle(
+				"Vault",
+				"Locked",
+				newVaultIcon(model.DefaultVaultAppearance(), vaultIconMedium),
+				nil,
+			)
+			return container.NewStack(row)
 		},
 		func(id widget.ListItemID, object fyne.CanvasObject) {
 			vault := vaults[id]
@@ -35,13 +40,18 @@ func NewSelectVault(vaults []VaultChoice, addVault func()) fyne.CanvasObject {
 			if vault.Unlocked {
 				status = "Unlocked"
 			}
-			row := object.(*ActionRow)
-			row.SetContent(vault.Name, status, vaultIconResource(vault.Appearance.Icon))
-			row.SetLeadingObject(newVaultIcon(vault.Appearance, vaultIconMedium))
-			row.SetTapped(func() { list.Select(id) })
+			cell := object.(*fyne.Container)
+			row := newNavigationRowWithSubtitle(
+				vault.Name,
+				status,
+				newVaultIcon(vault.Appearance, vaultIconMedium),
+				func() { list.Select(id) },
+			)
+			cell.Objects[0] = row
+			cell.Refresh()
 		},
 	)
-	list.HideSeparators = true
+	list.HideSeparators = false
 	list.OnSelected = func(id widget.ListItemID) {
 		list.UnselectAll()
 		vaults[id].Open()
