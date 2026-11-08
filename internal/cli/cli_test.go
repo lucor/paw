@@ -43,7 +43,7 @@ func executeWithInput(t *testing.T, args []string, cmd *urfave.Command, input st
 }
 
 func TestHelp(t *testing.T) {
-	commands := []string{"agent", "add", "edit", "history", "init", "ls", "lock", "pwgen", "rm", "show", "unlock", "version"}
+	commands := []string{"agent", "add", "attachment", "edit", "history", "init", "ls", "lock", "pwgen", "rm", "show", "unlock", "version"}
 	for _, flag := range []string{"--help", "-h", "-help"} {
 		t.Run("root/"+flag, func(t *testing.T) {
 			out, err := execute(t, []string{flag}, nil)
@@ -72,6 +72,27 @@ func TestHelp(t *testing.T) {
 	}
 }
 
+func TestCommandGroupHelpAndUnknownSubcommand(t *testing.T) {
+	for _, group := range []string{"attachment", "agent", "history"} {
+		t.Run(group, func(t *testing.T) {
+			out, err := execute(t, []string{group}, nil)
+			require.NoError(t, err)
+			require.Contains(t, out, "paw cli "+group)
+			out, err = execute(t, []string{group, "--help"}, nil)
+			require.NoError(t, err)
+			require.Contains(t, out, "paw cli "+group)
+			_, err = execute(t, []string{group, "unexpected"}, nil)
+			require.ErrorContains(t, err, "unknown "+group+" subcommand")
+			require.NotContains(t, err.Error(), "No help topic")
+		})
+	}
+	_, err := execute(t, []string{"attachment", "list", "--help"}, nil)
+	require.NoError(t, err)
+	out, err := execute(t, []string{"history", "list", "--help"}, nil)
+	require.NoError(t, err)
+	require.Contains(t, out, "paw cli history list")
+}
+
 func TestInvalidArguments(t *testing.T) {
 	type testCase struct {
 		args []string
@@ -80,8 +101,7 @@ func TestInvalidArguments(t *testing.T) {
 	cases := []testCase{
 		{nil, "a command is required"},
 		{[]string{"unknown"}, `unknown command "unknown"`},
-		{[]string{"agent"}, "a command is required"},
-		{[]string{"agent", "unknown"}, `unknown command "unknown"`},
+		{[]string{"agent", "unknown"}, `unknown agent subcommand "unknown"`},
 		{[]string{"agent", "start", "extra"}, "invalid arguments"},
 		{[]string{"agent", "sessions", "extra"}, "invalid arguments"},
 		{[]string{"ls", "a", "b"}, "invalid arguments"},

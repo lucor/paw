@@ -4,6 +4,7 @@
 package ui
 
 import (
+	"strings"
 	"testing"
 
 	"fyne.io/fyne/v2"
@@ -12,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.lucor.dev/paw/internal/model"
 	"go.lucor.dev/paw/internal/paw"
+	"go.lucor.dev/paw/internal/storage"
 )
 
 func TestExportCredentialsViewDefaultsAndValidation(t *testing.T) {
@@ -96,6 +98,28 @@ func TestExportCredentialsSavePickerUsesVaultNameAndCancelKeepsForm(t *testing.T
 	require.Same(t, view.View, window.Content())
 	require.Equal(t, "export password", view.Password.Entry.Text)
 	require.Equal(t, "export password", view.Confirm.Text)
+}
+
+func TestExportCredentialsRejectsAttachmentsBeforeOpeningPicker(t *testing.T) {
+	test.NewTempApp(t)
+	window := test.NewTempWindow(t, nil)
+	store, err := storage.NewFileStorage(t.TempDir())
+	require.NoError(t, err)
+	defer store.Close()
+	vault, err := store.CreateVault("Personal", "synthetic-password")
+	require.NoError(t, err)
+	item, err := model.NewNote("Note", "content")
+	require.NoError(t, err)
+	require.NoError(t, store.StoreItem(vault, item))
+	_, err = store.AddAttachment(vault, item.ID, "file.txt", strings.NewReader("payload"))
+	require.NoError(t, err)
+
+	view := newExportCredentialsView(window, store, vault, "Personal", func() {})
+	view.Password.Entry.SetText("export password")
+	view.Confirm.SetText("export password")
+	test.Tap(view.ExportButton)
+	require.Nil(t, window.Canvas().Overlays().Top(), "unsupported export must be rejected before opening a writer dialog")
+	require.Contains(t, view.errorText.Text, "cannot include attachment files")
 }
 
 func TestExportCredentialsBackClearsPasswords(t *testing.T) {

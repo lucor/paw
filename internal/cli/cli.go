@@ -72,6 +72,7 @@ func newCommand(storage *storage.FileStorage) *urfave.Command {
 		// Keep exit handling in main, including errors returned by command.
 		ExitErrHandler: func(context.Context, *urfave.Command, error) {},
 		Commands: []*urfave.Command{
+			newAttachmentCommand(base),
 			newAgentCommand(base),
 			newAddCommand(base),
 			newEditCommand(base),
@@ -100,10 +101,26 @@ func requireSubcommand(ctx context.Context, c *urfave.Command) error {
 	return fmt.Errorf("a command is required")
 }
 
+func commandGroupAction(_ context.Context, c *urfave.Command) error {
+	if c.Args().Present() {
+		var commands strings.Builder
+		for _, command := range c.Commands {
+			if command.Name == "help" {
+				continue
+			}
+			fmt.Fprintf(&commands, "\n  %-10s %s", command.Name, command.Usage)
+		}
+		return fmt.Errorf("unknown %s subcommand %q.\n\nUsage:\n  %s <command> [arguments]\n\nCommands:%s\n\nRun '%s --help' for details", c.Name, c.Args().First(), c.FullName(), commands.String(), c.FullName())
+	}
+	return urfave.ShowSubcommandHelp(c)
+}
+
 func withArgs(min, max int, action urfave.ActionFunc) urfave.ActionFunc {
 	return func(ctx context.Context, c *urfave.Command) error {
-		if n := c.Args().Len(); n < min || n > max {
-			return fmt.Errorf("invalid arguments; usage: %s %s", c.FullName(), strings.TrimSpace(c.ArgsUsage))
+		if n := c.Args().Len(); n < min {
+			return fmt.Errorf("invalid arguments: missing required arguments: %s\nUsage: %s %s", strings.TrimSpace(c.ArgsUsage), c.FullName(), strings.TrimSpace(c.ArgsUsage))
+		} else if n > max {
+			return fmt.Errorf("invalid arguments: unexpected arguments; usage: %s %s", c.FullName(), strings.TrimSpace(c.ArgsUsage))
 		}
 		return action(ctx, c)
 	}

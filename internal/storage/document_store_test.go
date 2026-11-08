@@ -112,6 +112,34 @@ func TestDocumentCleanupPreservesFilesForMalformedHistory(t *testing.T) {
 	require.Equal(t, []byte("preserve"), got)
 }
 
+func TestDocumentCleanupRemovesOnlyRecognizedStagingFilesAndClosesDirectory(t *testing.T) {
+	root, itemID, _ := newDocumentStoreRoot(t)
+	item, err := model.NewNote("cleanup", "")
+	require.NoError(t, err)
+	item.ID = itemID
+	documents := filepath.Join(itemsDirectoryName, filesystemID(itemID), documentsDirectoryName)
+	require.NoError(t, root.Mkdir(documents, 0700))
+	staged := filepath.Join(documents, ".paw-document-0123456789abcdef01234567.tmp")
+	require.NoError(t, root.WriteFile(staged, []byte("encrypted staging data"), 0600))
+	unknown := filepath.Join(documents, ".paw-document-not-a-token.tmp")
+	require.NoError(t, root.WriteFile(unknown, []byte("preserve"), 0600))
+	uppercase := filepath.Join(documents, ".paw-document-ABCDEF0123456789ABCDEF01.tmp")
+	require.NoError(t, root.WriteFile(uppercase, []byte("preserve"), 0600))
+
+	(&FileStorage{}).cleanupItemDocumentsBestEffort(root, item)
+	_, err = root.Lstat(staged)
+	require.ErrorIs(t, err, os.ErrNotExist)
+	got, err := root.ReadFile(unknown)
+	require.NoError(t, err)
+	require.Equal(t, []byte("preserve"), got)
+	got, err = root.ReadFile(uppercase)
+	require.NoError(t, err)
+	require.Equal(t, []byte("preserve"), got)
+	require.NoError(t, root.Remove(unknown))
+	require.NoError(t, root.Remove(uppercase))
+	require.NoError(t, root.Remove(documents), "cleanup must close its directory handle")
+}
+
 func TestDocumentStoreRejectsExistingTargets(t *testing.T) {
 	for _, kind := range []string{"regular", "directory", "symlink"} {
 		t.Run(kind, func(t *testing.T) {

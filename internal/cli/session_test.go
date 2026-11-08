@@ -89,6 +89,7 @@ func TestCommandsWithAgentSession(t *testing.T) {
 
 	t.Setenv(paw.ENV_SESSION, session)
 	require.NoError(t, Run([]string{"paw", "cli", "show", vaultID + "/note/example"}, s))
+	require.NoError(t, Run([]string{"paw", "cli", "attachment", "list", vaultID + "/note/example"}, s))
 
 	t.Setenv(paw.ENV_SESSION, "invalid-session")
 	require.NoError(t, Run([]string{"paw", "cli", "show", "--session", session, vaultID + "/note/example"}, s))

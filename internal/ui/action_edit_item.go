@@ -5,6 +5,7 @@ package ui
 
 import (
 	"context"
+	"encoding/json/jsontext"
 	"fmt"
 	"log"
 	"time"
@@ -13,6 +14,7 @@ import (
 	"fyne.io/fyne/v2/data/binding"
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/widget"
+	"go.lucor.dev/cxf"
 	"go.lucor.dev/paw/internal/model"
 )
 
@@ -228,6 +230,10 @@ func (a *app) saveEditedItem(original, item *model.Item, isNew bool) {
 			dialog.ShowError(err, a.win)
 			return
 		}
+		if err := preservePersistedFiles(previous, item); err != nil {
+			dialog.ShowError(err, a.win)
+			return
+		}
 		updated, changed, err := model.PrepareItemEdit(previous, item, now, now)
 		if err != nil {
 			dialog.ShowError(err, a.win)
@@ -261,6 +267,45 @@ func (a *app) saveEditedItem(original, item *model.Item, isNew bool) {
 	}
 	a.refreshCurrentView()
 	a.showItemView(item)
+}
+
+func preservePersistedFiles(previous, proposed *model.Item) error {
+	if previous.Metadata.Type != model.NoteItemType && previous.Metadata.Type != model.LoginItemType {
+		return nil
+	}
+	if proposed.Metadata.Type != previous.Metadata.Type {
+		return nil
+	}
+	if _, err := previous.Files(); err != nil {
+		return fmt.Errorf("cannot preserve attachment references: %w", err)
+	}
+	var files []jsontext.Value
+	for _, raw := range previous.Credentials {
+		typeName, err := cxf.CredentialTypeOf(raw)
+		if err != nil {
+			return fmt.Errorf("cannot preserve attachment references: %w", err)
+		}
+		if typeName == cxf.CredentialTypeFile {
+			files = append(files, raw)
+		}
+	}
+	credentials := make([]jsontext.Value, 0, len(proposed.Credentials)+len(files))
+	fileIndex := 0
+	for _, raw := range proposed.Credentials {
+		typeName, err := cxf.CredentialTypeOf(raw)
+		if err != nil {
+			return fmt.Errorf("cannot preserve attachment references: %w", err)
+		}
+		if typeName != cxf.CredentialTypeFile {
+			credentials = append(credentials, raw)
+		} else if fileIndex < len(files) {
+			credentials = append(credentials, files[fileIndex])
+			fileIndex++
+		}
+	}
+	credentials = append(credentials, files[fileIndex:]...)
+	proposed.Credentials = credentials
+	return nil
 }
 
 // deleteItem confirms deletion and updates the existing vault navigation.

@@ -160,6 +160,23 @@ func (cmd *ShowCmd) showItem(ctx context.Context, item *model.Item) error {
 	if item.CreationAt != nil {
 		fmt.Fprintf(cmd.out, "Created: %s\n", time.Unix(int64(*item.CreationAt), 0).Local().Format(time.RFC1123))
 	}
+	files, err := item.Files()
+	if err != nil {
+		return fmt.Errorf("cannot read attachment metadata: %w", err)
+	}
+	if len(files) > 0 {
+		fmt.Fprintf(cmd.out, "\nAttachments: %d\n", len(files))
+	}
+	history, err := item.History()
+	if err != nil {
+		return fmt.Errorf("cannot read item history: %w", err)
+	}
+	if len(history.Entries) > 0 {
+		if len(files) == 0 {
+			fmt.Fprintln(cmd.out)
+		}
+		fmt.Fprintf(cmd.out, "History: %d versions\n", len(history.Entries))
+	}
 
 	if pclip != nil {
 		ctx, cancel := context.WithTimeout(ctx, clipboardWriteTimeout)

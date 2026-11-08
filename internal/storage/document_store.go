@@ -26,11 +26,11 @@ func storeDocument(root *os.Root, key *paw.Key, itemID, fileID string, src io.Re
 	itemDirectory := filepath.Join(itemsDirectoryName, filesystemID(itemID))
 	itemsInfo, err := root.Lstat(itemsDirectoryName)
 	if err != nil || !itemsInfo.IsDir() || itemsInfo.Mode()&os.ModeSymlink != 0 {
-		return 0, "", fmt.Errorf("Item directory is unavailable")
+		return 0, "", fmt.Errorf("item directory is unavailable")
 	}
 	itemInfo, err := root.Lstat(itemDirectory)
 	if err != nil || !itemInfo.IsDir() || itemInfo.Mode()&os.ModeSymlink != 0 {
-		return 0, "", fmt.Errorf("Item directory is unavailable")
+		return 0, "", fmt.Errorf("item directory is unavailable")
 	}
 	itemRoot, err := root.OpenRoot(itemDirectory)
 	if err != nil {

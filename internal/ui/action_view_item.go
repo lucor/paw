@@ -27,9 +27,15 @@ func (a *app) makeShowItemViewWithBack(item *model.Item, back func()) fyne.Canva
 			back = func() { a.closeItemDetail(); a.audit.DetailBack() }
 		}
 	}
-	view, clear, err := newEntryDetailWithHistory(ctx, item, a.win, back, func() { a.showEditItemView(item, false) }, func() { a.deleteItem(item) }, func() {
+	attachments, err := a.attachmentDetailActions(item, back)
+	if err != nil {
+		a.closeItemDetail()
+		dialog.ShowError(err, a.win)
+		return a.main
+	}
+	view, clear, err := newEntryDetailWithHistoryAndAttachments(ctx, item, a.win, back, func() { a.showEditItemView(item, false) }, func() { a.deleteItem(item) }, func() {
 		a.showItemHistory(item.ID, back)
-	})
+	}, attachments)
 	if err == nil {
 		a.detailClear = clear
 		return view

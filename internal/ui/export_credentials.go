@@ -237,6 +237,10 @@ func (v *exportCredentialsView) chooseDestination() {
 		v.setError(exportPasswordError)
 		return
 	}
+	if err := storage.CheckExportSupported(context.Background(), v.store, v.vault); err != nil {
+		v.setError(err.Error())
+		return
+	}
 	v.setError("")
 
 	picker := dialog.NewFileSave(func(writer fyne.URIWriteCloser, err error) {

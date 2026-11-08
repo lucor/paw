@@ -231,7 +231,7 @@ func captureScreenshotGallery(outputDir string, variant fyne.ThemeVariant) error
 	window.SetContent(list)
 	categoryLabel := screenshotFindPilotLabel(list, "All items")
 	if categoryLabel == nil {
-		return errors.New("All items category was not rendered")
+		return errors.New("all items category was not rendered")
 	}
 	screenshotChooseEntryCategory(driver, window, categoryLabel, "Logins")
 	selectedOptions := screenshotEntryListFixture()
@@ -240,7 +240,7 @@ func captureScreenshotGallery(outputDir string, variant fyne.ThemeVariant) error
 	capture("entry-list-category-selected", selectedList)
 	categoryLabel = screenshotFindPilotLabel(selectedList, "Logins")
 	if categoryLabel == nil {
-		return errors.New("Logins category was not rendered")
+		return errors.New("logins category was not rendered")
 	}
 	window.SetContent(selectedList)
 	position := driver.Driver().AbsolutePositionForObject(categoryLabel).Add(fyne.NewPos(categoryLabel.Size().Width/2, categoryLabel.Size().Height/2))
@@ -276,7 +276,7 @@ func captureScreenshotGallery(outputDir string, variant fyne.ThemeVariant) error
 	window.Resize(fyne.NewSize(440, 800))
 	codesNavigation := screenshotFindPilotNavigation(window.Content())
 	if codesNavigation == nil {
-		return errors.New("Codes navigation was not rendered")
+		return errors.New("codes navigation was not rendered")
 	}
 	test.Tap(codesNavigation.buttons[1].button)
 	gallery.capture(window, "codes"+suffix)
@@ -284,7 +284,7 @@ func captureScreenshotGallery(outputDir string, variant fyne.ThemeVariant) error
 	window.Resize(fyne.NewSize(320, 540))
 	codesNavigation = screenshotFindPilotNavigation(window.Content())
 	if codesNavigation == nil {
-		return errors.New("Codes navigation was not rendered")
+		return errors.New("codes navigation was not rendered")
 	}
 	codesNavigation.Select(0)
 	codesNavigation.Select(1)

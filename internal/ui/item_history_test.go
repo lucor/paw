@@ -92,6 +92,9 @@ func TestHistoricalItemDetailReusesSupportedItemPresentation(t *testing.T) {
 	for _, kind := range []string{"login", "password", "note", "ssh"} {
 		t.Run(kind, func(t *testing.T) {
 			item := detailItemFixture(t, kind)
+			if kind == "login" || kind == "note" {
+				require.NoError(t, item.AddFile(testAttachmentFile("historical document.pdf", 2048)))
+			}
 			snapshot, err := item.Snapshot()
 			require.NoError(t, err)
 			data, err := json.Marshal(snapshot, json.Deterministic(true))
@@ -107,6 +110,13 @@ func TestHistoricalItemDetailReusesSupportedItemPresentation(t *testing.T) {
 			historyContext := "History · " + formatDetailTimestamp(capturedAt)
 			require.Contains(t, strings.Join(texts, "\n"), historyContext)
 			require.Contains(t, texts, item.Title)
+			if kind == "login" || kind == "note" {
+				require.Contains(t, texts, "Attachments · 1")
+				require.Contains(t, texts, "historical document.pdf")
+				require.Contains(t, texts, "2.0 KiB")
+				require.NotContains(t, texts, "Save historical document.pdf")
+				require.NotContains(t, texts, "Remove historical document.pdf")
+			}
 			require.NotContains(t, texts, "Edit entry")
 			require.NotContains(t, texts, "Delete entry")
 			require.NotContains(t, texts, "Save")

@@ -152,6 +152,14 @@ func (r *ActionRow) trailingArrow() *fyne.Container {
 	return container.NewCenter(container.NewGridWrap(fyne.NewSquareSize(theme.Size(theme.SizeNameInlineIcon)), r.next))
 }
 
+// SetTrailingActions replaces the navigation arrow with row actions.
+func (r *ActionRow) SetTrailingActions(actions ...fyne.CanvasObject) {
+	r.trailing.Layout = layout.NewHBoxLayout()
+	r.trailing.Objects = actions
+	r.trailing.Show()
+	r.trailing.Refresh()
+}
+
 // SetInteractive controls navigation and interaction while preserving the row's styling.
 func (r *ActionRow) SetInteractive(interactive bool) {
 	r.interactive = interactive

@@ -485,19 +485,27 @@ func (s *FileStorage) cleanupItemDocumentsBestEffort(root *os.Root, item *model.
 		log.Printf("storage cleanup: open attachments for Item %q: %v", item.ID, err)
 		return
 	}
+	defer dir.Close()
 	listing, err := dir.Open(".")
 	if err != nil {
-		_ = dir.Close()
 		return
 	}
 	entries, err := listing.ReadDir(-1)
 	_ = listing.Close()
 	if err != nil {
-		_ = dir.Close()
 		return
 	}
 	for _, entry := range entries {
 		name := entry.Name()
+		if isDocumentTempName(name) {
+			info, err := dir.Lstat(name)
+			if err == nil && info.Mode().IsRegular() && info.Mode()&os.ModeSymlink == 0 {
+				if err := dir.Remove(name); err != nil {
+					log.Printf("storage cleanup: remove staged attachment for Item %q: %v", item.ID, err)
+				}
+			}
+			continue
+		}
 		if !strings.HasSuffix(name, ".age") || entry.Type() != 0 {
 			continue
 		}
@@ -512,6 +520,19 @@ func (s *FileStorage) cleanupItemDocumentsBestEffort(root *os.Root, item *model.
 			log.Printf("storage cleanup: remove unreferenced attachment for Item %q: %v", item.ID, err)
 		}
 	}
+}
+
+func isDocumentTempName(name string) bool {
+	const prefix, suffix = ".paw-document-", ".tmp"
+	if len(name) != len(prefix)+24+len(suffix) || !strings.HasPrefix(name, prefix) || !strings.HasSuffix(name, suffix) {
+		return false
+	}
+	token := name[len(prefix) : len(prefix)+24]
+	if strings.ToLower(token) != token {
+		return false
+	}
+	_, err := hex.DecodeString(token)
+	return err == nil
 }
 
 func (s *FileStorage) cleanupItemVersionsBestEffort(root *os.Root, vault *model.Vault) {
@@ -615,6 +636,13 @@ func (s *FileStorage) cleanupDeletedItemDocumentsBestEffort(root *os.Root, itemP
 	if err == nil {
 		for _, entry := range entries {
 			name := entry.Name()
+			if isDocumentTempName(name) {
+				info, err := documents.Lstat(name)
+				if err == nil && info.Mode().IsRegular() && info.Mode()&os.ModeSymlink == 0 {
+					_ = documents.Remove(name)
+				}
+				continue
+			}
 			if !strings.HasSuffix(name, ".age") || entry.Type() != 0 {
 				continue
 			}
@@ -632,7 +660,7 @@ func (s *FileStorage) cleanupDeletedItemDocumentsBestEffort(root *os.Root, itemP
 func verifyItemVersion(root *os.Root, name string, vault *model.Vault, id, hash string) error {
 	info, err := root.Lstat(name)
 	if err != nil || !info.Mode().IsRegular() {
-		return fmt.Errorf("Item version is not a regular file: %v", err)
+		return fmt.Errorf("item version is not a regular file: %v", err)
 	}
 	f, err := root.Open(name)
 	if err != nil {
@@ -645,7 +673,7 @@ func verifyItemVersion(root *os.Root, name string, vault *model.Vault, id, hash 
 	}
 	actual, err := item.StateHash()
 	if err != nil || actual != hash {
-		return fmt.Errorf("Item version StateHash mismatch")
+		return fmt.Errorf("item version StateHash mismatch")
 	}
 	return nil
 }

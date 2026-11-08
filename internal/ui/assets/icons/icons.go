@@ -36,6 +36,8 @@ var (
 	Edit = themed("square-pen")
 	// Delete removes an entry after confirmation.
 	Delete = resource("danger/trash.png")
+	// Trash is the neutral trash icon for reversible removal actions.
+	Trash = themed("trash")
 	// External opens a website.
 	External = themed("external-link")
 	// Info identifies application information.
@@ -159,6 +161,8 @@ var (
 	Settings2 = themed("settings-2")
 	// Note identifies text notes.
 	Note = themed("file-text")
+	// File identifies a generic file attachment.
+	File = themed("file")
 	// Login is the fallback icon for login entries.
 	Login = themed("globe")
 	// Globe is the generic website and favicon fallback icon.

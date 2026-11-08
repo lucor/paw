@@ -27,7 +27,7 @@ func newAgentCommand(base *command) *urfave.Command {
 	return &urfave.Command{
 		Name:   "agent",
 		Usage:  "Manages the Paw agent",
-		Action: requireSubcommand,
+		Action: commandGroupAction,
 		Commands: []*urfave.Command{
 			{Name: "start", Usage: "Starts the agent", ArgsUsage: " ", Action: withArgs(0, 0, func(ctx context.Context, c *urfave.Command) error {
 				base := base.forInvocation(c)

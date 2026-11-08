@@ -37,15 +37,19 @@ func NewEntryDetail(ctx context.Context, item *model.Item, window fyne.Window, b
 }
 
 func newEntryDetailWithClear(ctx context.Context, item *model.Item, window fyne.Window, back, edit, deleteEntry func()) (fyne.CanvasObject, func(), error) {
-	return newEntryDetailWithActions(ctx, item, window, back, edit, deleteEntry, false, 0, nil, nil)
+	return newEntryDetailWithActions(ctx, item, window, back, edit, deleteEntry, false, 0, nil, nil, nil)
 }
 
 func newEntryDetailWithHistory(ctx context.Context, item *model.Item, window fyne.Window, back, edit, deleteEntry, openHistory func()) (fyne.CanvasObject, func(), error) {
-	return newEntryDetailWithActions(ctx, item, window, back, edit, deleteEntry, false, 0, openHistory, nil)
+	return newEntryDetailWithActions(ctx, item, window, back, edit, deleteEntry, false, 0, openHistory, nil, nil)
+}
+
+func newEntryDetailWithHistoryAndAttachments(ctx context.Context, item *model.Item, window fyne.Window, back, edit, deleteEntry, openHistory func(), attachments *attachmentDetailActions) (fyne.CanvasObject, func(), error) {
+	return newEntryDetailWithActions(ctx, item, window, back, edit, deleteEntry, false, 0, openHistory, nil, attachments)
 }
 
 func newHistoricalEntryDetailWithClear(ctx context.Context, item *model.Item, window fyne.Window, capturedAt uint64, back, restore func()) (fyne.CanvasObject, func(), error) {
-	return newEntryDetailWithActions(ctx, item, window, back, nil, nil, true, capturedAt, nil, restore)
+	return newEntryDetailWithActions(ctx, item, window, back, nil, nil, true, capturedAt, nil, restore, nil)
 }
 
 func newEntryDetailWithActions(
@@ -56,6 +60,7 @@ func newEntryDetailWithActions(
 	historical bool,
 	capturedAt uint64,
 	openHistory, restore func(),
+	attachments *attachmentDetailActions,
 ) (fyne.CanvasObject, func(), error) {
 	if err := item.Validate(); err != nil {
 		return nil, nil, err
@@ -126,6 +131,17 @@ func newEntryDetailWithActions(
 			noteValue.Wrapping = fyne.TextWrapBreak
 			noteValue.Selectable = true
 			appendDetailSection(&bodyObjects, newDetailMultilineField("Notes", noteValue, copyNotes))
+		}
+	}
+	if attachments != nil && !historical {
+		appendDetailSection(&bodyObjects, newAttachmentDetailSection(window, *attachments))
+	} else if historical && (item.Metadata.Type == model.NoteItemType || item.Metadata.Type == model.LoginItemType) {
+		files, err := item.Files()
+		if err != nil {
+			return nil, nil, fmt.Errorf("cannot read historical attachment metadata: %w", err)
+		}
+		if len(files) > 0 {
+			appendDetailSection(&bodyObjects, newHistoricalAttachmentSection(files))
 		}
 	}
 	var clearOnce sync.Once

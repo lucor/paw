@@ -8,6 +8,7 @@ import (
 	json "encoding/json/v2"
 	"fmt"
 	"strconv"
+	"strings"
 	"text/tabwriter"
 	"time"
 
@@ -21,14 +22,22 @@ func newHistoryCommand(base *command) *urfave.Command {
 		Usage:     "Lists and restores item history",
 		ArgsUsage: "VAULT_NAME/ITEM_TYPE/ITEM_NAME",
 		Flags:     []urfave.Flag{sessionFlag()},
-		Action: withArgs(1, 1, func(ctx context.Context, c *urfave.Command) error {
-			cmd, err := newHistoryCmd(base, c)
-			if err != nil {
-				return err
+		Action: func(ctx context.Context, c *urfave.Command) error {
+			if !c.Args().Present() {
+				return urfave.ShowSubcommandHelp(c)
 			}
-			return cmd.list()
-		}),
+			if c.Args().Len() != 1 {
+				return fmt.Errorf("unexpected arguments; usage: %s <VAULT_NAME/ITEM_TYPE/ITEM_NAME>", c.FullName())
+			}
+			if !strings.Contains(c.Args().First(), "/") {
+				return fmt.Errorf("unknown history subcommand %q; use 'list', 'show', or 'restore'", c.Args().First())
+			}
+			return runHistoryList(base, ctx, c)
+		},
 		Commands: []*urfave.Command{
+			{Name: "list", Usage: "Lists item history", ArgsUsage: "VAULT_NAME/ITEM_TYPE/ITEM_NAME", Action: withArgs(1, 1, func(ctx context.Context, c *urfave.Command) error {
+				return runHistoryList(base, ctx, c)
+			})},
 			{Name: "show", Usage: "Shows a historical item version", ArgsUsage: "VAULT_NAME/ITEM_TYPE/ITEM_NAME INDEX", Action: withArgs(2, 2, func(ctx context.Context, c *urfave.Command) error {
 				cmd, err := newHistoryCmd(base, c)
 				if err != nil {
@@ -53,6 +62,14 @@ func newHistoryCommand(base *command) *urfave.Command {
 			})},
 		},
 	}
+}
+
+func runHistoryList(base *command, ctx context.Context, c *urfave.Command) error {
+	cmd, err := newHistoryCmd(base, c)
+	if err != nil {
+		return err
+	}
+	return cmd.list()
 }
 
 type historyCmd struct {

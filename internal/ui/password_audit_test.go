@@ -187,15 +187,6 @@ func TestPasswordAuditIgnoresStaleProgress(t *testing.T) {
 	require.Empty(t, a.View.Objects)
 }
 
-func containsText(values []string, expected string) bool {
-	for _, value := range values {
-		if value == expected {
-			return true
-		}
-	}
-	return false
-}
-
 func TestDistinctAuditItemsCountsEachItemOnce(t *testing.T) {
 	require.Equal(t, 2, distinctAuditItems([]AuditFinding{
 		{AuditEntry: AuditEntry{ID: "same"}, Score: 0, Exposed: true},

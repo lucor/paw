@@ -103,6 +103,17 @@ func WriteEncryptedCXF(ctx context.Context, w io.Writer, s *FileStorage, vault *
 	return ctx.Err()
 }
 
+// CheckExportSupported reports whether a CXF export can represent the selected vault.
+func CheckExportSupported(ctx context.Context, s *FileStorage, vault *model.Vault) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if vault == nil {
+		return fmt.Errorf("cannot export: no vault selected")
+	}
+	return rejectAttachmentExport(ctx, s, vault)
+}
+
 // rejectAttachmentExport prevents CXF exports from silently omitting attachment blobs.
 func rejectAttachmentExport(ctx context.Context, storage *FileStorage, vault *model.Vault) error {
 	for _, summary := range vault.Accounts[0].Items {

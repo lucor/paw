@@ -40,11 +40,6 @@ func storageRootPath(s *FileStorage) string {
 	return filepath.Join(s.Root(), storageRootName)
 }
 
-// appStateFilePath returns the application settings file path.
-func appStateFilePath(s *FileStorage) string {
-	return filepath.Join(s.Root(), appStateFileName)
-}
-
 // vaultRootPath returns the directory containing one vault's files.
 func vaultRootPath(s *FileStorage, vaultID string) string {
 	return filepath.Join(s.Root(), vaultDirectory(vaultID))
