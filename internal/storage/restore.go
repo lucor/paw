@@ -272,10 +272,22 @@ func (s *FileStorage) Restore(ctx context.Context, backup *PawBackup, name, pass
 		if err = vaultRoot.MkdirAll(itemDir, 0o700); err != nil {
 			return nil, fmt.Errorf("create restored item directory: %w", err)
 		}
-		if err = atomicWrite(vaultRoot, itemRelativePath(item.ID), func(w io.Writer) error {
+		hash, hashErr := item.StateHash()
+		if hashErr != nil {
+			return nil, hashErr
+		}
+		if err = atomicWrite(vaultRoot, itemRelativePath(item.ID, hash), func(w io.Writer) error {
 			return errors.Join(encrypt(fresh.Key(), w, item), ctx.Err())
 		}); err != nil {
 			return nil, fmt.Errorf("write restored item: %w", err)
+		}
+		if err = syncDirectory(vaultRoot, itemDir); err != nil {
+			return nil, err
+		}
+	}
+	for _, dir := range []string{itemsDirectoryName, "."} {
+		if err = syncDirectory(vaultRoot, dir); err != nil {
+			return nil, err
 		}
 	}
 	if err = atomicWrite(vaultRoot, vaultFileName, func(w io.Writer) error {

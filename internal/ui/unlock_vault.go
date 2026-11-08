@@ -77,6 +77,7 @@ func NewUnlockVault(info model.VaultInfo, store *storage.FileStorage, onUnlocked
 		}
 	}
 	u.message = newText("", bodyStyle)
+	u.message.Wrapping = fyne.TextWrapWord
 	u.message.Hide()
 	back = u.clearPasswordWhenLeaving(back)
 	addVault = u.clearPasswordWhenLeaving(addVault)
@@ -217,7 +218,7 @@ func unlockVaultContent(info model.VaultInfo, password *widget.Entry, passwordEr
 	if chooseAnotherAction != nil {
 		fields = append(fields, chooseAnotherAction)
 	}
-	fields = append(fields, container.NewHBox(activity, message))
+	fields = append(fields, container.NewBorder(nil, nil, activity, nil, message))
 	content := container.NewVBox(fields...)
 	return newSecondaryPage(header, nil, container.NewVScroll(content))
 }

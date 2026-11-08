@@ -3,7 +3,7 @@
 
 // Package storage reads and writes Paw's encrypted files.
 // File replacement atomicity and durability depend on the operating system and filesystem.
-// Item and vault writes are sequential; a failure can leave the vault summary stale.
+// Immutable Item versions are persisted before vault.age commits their references.
 package storage
 
 import (

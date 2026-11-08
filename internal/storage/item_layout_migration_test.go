@@ -4,8 +4,10 @@
 package storage
 
 import (
+	"encoding/json/jsontext"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -60,9 +62,9 @@ func TestLoadVaultMigratesFlatItemFilesWithoutChangingContents(t *testing.T) {
 	require.Equal(t, metadataBefore, metadataAfter)
 	require.NoFileExists(t, legacyItemPath(store, vault.Accounts[0].ID, first.ID))
 	require.NoFileExists(t, legacyItemPath(store, vault.Accounts[0].ID, second.ID))
-	firstMigrated, err := os.ReadFile(itemPath(store, vault.Accounts[0].ID, first.ID))
+	firstMigrated, err := os.ReadFile(itemPath(store, vault.Accounts[0].ID, first.ID, testItemStateHash(t, first)))
 	require.NoError(t, err)
-	secondMigrated, err := os.ReadFile(itemPath(store, vault.Accounts[0].ID, second.ID))
+	secondMigrated, err := os.ReadFile(itemPath(store, vault.Accounts[0].ID, second.ID, testItemStateHash(t, second)))
 	require.NoError(t, err)
 	require.Equal(t, firstBytes, firstMigrated)
 	require.Equal(t, secondBytes, secondMigrated)
@@ -88,7 +90,7 @@ func TestLoadVaultMigratesFlatItemFilesWithoutChangingContents(t *testing.T) {
 	stillLegacy, err := os.ReadFile(legacyItemPath(store, other.Accounts[0].ID, otherItem.ID))
 	require.NoError(t, err)
 	require.Equal(t, otherBytes, stillLegacy)
-	require.NoFileExists(t, itemPath(store, other.Accounts[0].ID, otherItem.ID))
+	require.NoFileExists(t, itemPath(store, other.Accounts[0].ID, otherItem.ID, testItemStateHash(t, otherItem)))
 }
 
 func TestLoadVaultResumesPartialItemLayoutMigration(t *testing.T) {
@@ -102,31 +104,70 @@ func TestLoadVaultResumesPartialItemLayoutMigration(t *testing.T) {
 	root, err := store.openVaultRoot(vault.Accounts[0].ID)
 	require.NoError(t, err)
 	require.NoError(t, root.MkdirAll(firstDir, 0o700))
-	require.NoError(t, root.Rename(legacyItemPathRelative(first.ID), itemRelativePath(first.ID)))
+	require.NoError(t, root.Rename(legacyItemPathRelative(first.ID), itemRelativePath(first.ID, testItemStateHash(t, first))))
 	require.NoError(t, root.Close())
 
 	loaded, err := store.LoadVault(vault.Accounts[0].ID, vault.Key())
 	require.NoError(t, err)
-	firstAfter, err := os.ReadFile(itemPath(store, vault.Accounts[0].ID, first.ID))
+	firstAfter, err := os.ReadFile(itemPath(store, vault.Accounts[0].ID, first.ID, testItemStateHash(t, first)))
 	require.NoError(t, err)
-	secondAfter, err := os.ReadFile(itemPath(store, vault.Accounts[0].ID, second.ID))
+	secondAfter, err := os.ReadFile(itemPath(store, vault.Accounts[0].ID, second.ID, testItemStateHash(t, second)))
 	require.NoError(t, err)
 	require.Equal(t, firstBytes, firstAfter)
 	require.Equal(t, secondBytes, secondAfter)
 	require.NoError(t, store.migrateItemLayout(loaded))
-	firstAfterRepeat, err := os.ReadFile(itemPath(store, vault.Accounts[0].ID, first.ID))
+	firstAfterRepeat, err := os.ReadFile(itemPath(store, vault.Accounts[0].ID, first.ID, testItemStateHash(t, first)))
 	require.NoError(t, err)
-	secondAfterRepeat, err := os.ReadFile(itemPath(store, vault.Accounts[0].ID, second.ID))
+	secondAfterRepeat, err := os.ReadFile(itemPath(store, vault.Accounts[0].ID, second.ID, testItemStateHash(t, second)))
 	require.NoError(t, err)
 	require.Equal(t, firstAfter, firstAfterRepeat)
 	require.Equal(t, secondAfter, secondAfterRepeat)
+}
+
+func TestLoadVaultRecoversHashRebuildInterruptedAfterRename(t *testing.T) {
+	store, vault := newItemStoreVault(t)
+	item := newMigrationTestItem(t, store, vault, "Interrupted")
+	hash := testItemStateHash(t, item)
+	currentPath := itemPath(store, vault.Accounts[0].ID, item.ID, hash)
+	ciphertext := moveItemToLegacyPath(t, store, vault, item.ID)
+	require.NoError(t, os.MkdirAll(filepath.Dir(currentPath), 0o700))
+	require.NoError(t, os.Rename(legacyItemPath(store, vault.Accounts[0].ID, item.ID), currentPath))
+	require.FileExists(t, currentPath)
+	require.NoFileExists(t, legacyItemPath(store, vault.Accounts[0].ID, item.ID))
+
+	// Simulate the legacy-file rename completing before a rebuilt summary commits.
+	vault.Accounts[0].Items[0].Extensions = removeItemHashExtension(vault.Accounts[0].Items[0].Extensions)
+	root, err := store.openVaultRoot(vault.Accounts[0].ID)
+	require.NoError(t, err)
+	require.NoError(t, store.storeEncryptedInRoot(root, vaultFileName, vault.Key(), vault))
+	require.NoError(t, root.Close())
+
+	loaded, err := store.LoadVault(vault.Accounts[0].ID, vault.Key())
+	require.NoError(t, err)
+	require.Equal(t, hash, testSummaryStateHash(t, loaded, item.ID))
+	loadedBytes, err := os.ReadFile(currentPath)
+	require.NoError(t, err)
+	require.Equal(t, ciphertext, loadedBytes)
+	loadedItem, err := store.LoadItem(loaded, item.ID)
+	require.NoError(t, err)
+	require.Equal(t, hash, testItemStateHash(t, loadedItem))
+}
+
+func removeItemHashExtension(extensions []jsontext.Value) []jsontext.Value {
+	filtered := make([]jsontext.Value, 0, len(extensions))
+	for _, extension := range extensions {
+		if !strings.Contains(string(extension), itemHashExtensionName) {
+			filtered = append(filtered, extension)
+		}
+	}
+	return filtered
 }
 
 func TestLoadVaultRejectsItemPathCollision(t *testing.T) {
 	store, vault := newItemStoreVault(t)
 	item := newMigrationTestItem(t, store, vault, "Collision")
 	legacyBytes := moveItemToLegacyPath(t, store, vault, item.ID)
-	currentPath := itemPath(store, vault.Accounts[0].ID, item.ID)
+	currentPath := itemPath(store, vault.Accounts[0].ID, item.ID, testItemStateHash(t, item))
 	require.NoError(t, os.MkdirAll(filepath.Dir(currentPath), 0o700))
 	currentBytes := []byte("current destination")
 	require.NoError(t, os.WriteFile(currentPath, currentBytes, 0o600))
@@ -151,7 +192,7 @@ func newMigrationTestItem(t *testing.T, store *FileStorage, vault *model.Vault, 
 
 func moveItemToLegacyPath(t *testing.T, store *FileStorage, vault *model.Vault, itemID string) []byte {
 	t.Helper()
-	currentPath := itemPath(store, vault.Accounts[0].ID, itemID)
+	currentPath := itemPath(store, vault.Accounts[0].ID, itemID, testSummaryStateHash(t, vault, itemID))
 	data, err := os.ReadFile(currentPath)
 	require.NoError(t, err)
 	require.NoError(t, os.Rename(currentPath, legacyItemPath(store, vault.Accounts[0].ID, itemID)))

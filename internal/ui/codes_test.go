@@ -211,6 +211,8 @@ func TestCodesViewUsesActiveVaultAndLockClearsSecrets(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, store.Close()) })
 	for _, vault := range []*model.Vault{firstVault, secondVault} {
+		// Storage creates summaries with committed version hashes.
+		vault.Accounts[0].Items = vault.Accounts[0].Items[:0]
 		require.NoError(t, store.UpdateVaultIdentity(vault, vault.Metadata.VaultName, model.DefaultVaultAppearance()))
 	}
 	require.NoError(t, store.StoreItem(firstVault, firstLogin))

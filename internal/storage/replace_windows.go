@@ -52,3 +52,6 @@ func atomicWrite(root *os.Root, name string, write func(io.Writer) error) error 
 	}
 	return nil
 }
+
+// syncDirectory is unavailable through Go's portable Windows directory API.
+func syncDirectory(root *os.Root, name string) error { return nil }

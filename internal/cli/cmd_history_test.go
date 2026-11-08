@@ -77,6 +77,8 @@ func TestItemHistoryRestoreUsesNewestFirstIndexAndConfirms(t *testing.T) {
 	restored, err := executeWithHistoryBase(t, base, []string{"history", "restore", path, "0"})
 	require.NoError(t, err)
 	require.Contains(t, restored, "restored from")
+	vault, err = store.LoadVault(vault.Accounts[0].ID, vault.Key())
+	require.NoError(t, err)
 	current, err = store.LoadItem(vault, item.ID)
 	require.NoError(t, err)
 	require.Equal(t, "Newest", current.Title)

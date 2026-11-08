@@ -28,7 +28,7 @@ func TestJSONV2ReadsLegacyEncryptedItem(t *testing.T) {
 	// Keep the v1 producer only as a compatibility fixture.
 	require.NoError(t, jsonv1.NewEncoder(writer).Encode(item))
 	require.NoError(t, writer.Close())
-	require.NoError(t, os.WriteFile(itemPath(store, vault.Accounts[0].ID, item.ID), encrypted.Bytes(), 0600))
+	require.NoError(t, os.WriteFile(itemPath(store, vault.Accounts[0].ID, item.ID, testItemStateHash(t, item)), encrypted.Bytes(), 0600))
 	loaded, err := store.LoadItem(vault, item.ID)
 	require.NoError(t, err)
 	require.Equal(t, item.Metadata, loaded.Metadata)

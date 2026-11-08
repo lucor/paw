@@ -26,7 +26,6 @@ const (
 	keyFileName           = "key.age"
 	vaultFileName         = "vault.age"
 	itemsDirectoryName    = "items"
-	itemFileName          = "item.age"
 	vaultMetadataFileName = "metadata.json"
 	appStateFileName      = "paw.json"
 	lockFileName          = "paw.lock"
@@ -71,13 +70,13 @@ func vaultMetadataPath(s *FileStorage, vaultID string) string {
 }
 
 // itemPath returns an encrypted item's file path.
-func itemPath(s *FileStorage, vaultID string, itemID string) string {
-	return filepath.Join(vaultRootPath(s, vaultID), itemRelativePath(itemID))
+func itemPath(s *FileStorage, vaultID string, itemID, stateHash string) string {
+	return filepath.Join(vaultRootPath(s, vaultID), itemRelativePath(itemID, stateHash))
 }
 
 // itemRelativePath returns an encrypted item's path relative to its vault root.
-func itemRelativePath(itemID string) string {
-	return filepath.Join(itemsDirectoryName, filesystemID(itemID), itemFileName)
+func itemRelativePath(itemID, stateHash string) string {
+	return filepath.Join(itemsDirectoryName, filesystemID(itemID), stateHash+".age")
 }
 
 // filesystemID encodes a canonical Paw ID as lowercase, unpadded Base32.

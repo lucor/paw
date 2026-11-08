@@ -27,3 +27,12 @@ func atomicWrite(root *os.Root, name string, write func(io.Writer) error) error 
 	}
 	return nil
 }
+
+// syncDirectory persists directory entries before publishing dependent files.
+func syncDirectory(root *os.Root, name string) error {
+	dir, err := root.Open(name)
+	if err != nil {
+		return err
+	}
+	return errors.Join(dir.Sync(), dir.Close())
+}

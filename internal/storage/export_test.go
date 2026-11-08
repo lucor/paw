@@ -84,7 +84,7 @@ func TestExportFailuresLeaveNoFiles(t *testing.T) {
 	canceled, cancel := context.WithCancel(ctx)
 	cancel()
 	require.ErrorIs(t, ExportFile(canceled, store, vault, path, "", true), context.Canceled)
-	itemName := itemRelativePath(vault.Accounts[0].Items[0].ID)
+	itemName := itemRelativePath(vault.Accounts[0].Items[0].ID, testSummaryStateHash(t, vault, vault.Accounts[0].Items[0].ID))
 	vaultRoot, err := store.openVaultRoot(vault.Accounts[0].ID)
 	require.NoError(t, err)
 	require.NoError(t, vaultRoot.Remove(itemName))

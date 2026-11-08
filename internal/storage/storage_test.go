@@ -22,6 +22,20 @@ func newTestFileStorage(t *testing.T) *FileStorage {
 	return store
 }
 
+func testItemStateHash(t *testing.T, item *model.Item) string {
+	t.Helper()
+	hash, err := item.StateHash()
+	require.NoError(t, err)
+	return hash
+}
+
+func testSummaryStateHash(t *testing.T, vault *model.Vault, id string) string {
+	t.Helper()
+	hash, err := summaryStateHashForID(vault, id)
+	require.NoError(t, err)
+	return hash
+}
+
 // TestEncryptRejectsUnsupportedJSONValue checks encoding rejects values JSON cannot represent.
 func TestEncryptRejectsUnsupportedJSONValue(t *testing.T) {
 	key, err := paw.MakeOneTimeKey()

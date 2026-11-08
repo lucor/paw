@@ -119,7 +119,7 @@ func TestRestoreItemNoOpDoesNotWrite(t *testing.T) {
 	expected, err := item.History()
 	require.NoError(t, err)
 	entry := expected.Entries[0]
-	itemPath := itemPath(store, vault.Accounts[0].ID, item.ID)
+	itemPath := itemPath(store, vault.Accounts[0].ID, item.ID, testItemStateHash(t, item))
 	vaultPath := vaultPath(store, vault.Accounts[0].ID)
 	itemBytes, err := os.ReadFile(itemPath)
 	require.NoError(t, err)
@@ -205,13 +205,11 @@ func TestRestoreItemRetentionAndFailedVaultWrite(t *testing.T) {
 
 	persisted, err := store.LoadItem(vault, item.ID)
 	require.NoError(t, err)
-	require.Equal(t, "Version 06", persisted.Title)
+	require.Equal(t, "Current", persisted.Title)
 	persistedHistory, err := persisted.History()
 	require.NoError(t, err)
 	require.Len(t, persistedHistory.Entries, 10)
-	require.Equal(t, "Version 02", persistedHistory.Entries[0].Item.Title)
-	require.Equal(t, selected, persistedHistory.Entries[4])
-	require.Equal(t, "Current", persistedHistory.Entries[9].Item.Title)
+	require.Equal(t, history, persistedHistory)
 }
 
 func newItemWithOneHistoryEntry(t *testing.T) (*FileStorage, *model.Vault, *model.Item) {

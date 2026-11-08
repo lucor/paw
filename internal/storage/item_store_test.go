@@ -169,23 +169,25 @@ func TestStoreCXFItemFailures(t *testing.T) {
 			beforeFile, err := os.ReadFile(vaultFile)
 			require.NoError(t, err)
 			item.Title = "Edited title"
-			failingPath := itemPath(storage, vault.Accounts[0].ID, item.ID)
+			failingPath := itemPath(storage, vault.Accounts[0].ID, item.ID, testItemStateHash(t, item))
 			if phase == "vault" {
 				failingPath = vaultFile
 			}
-			require.NoError(t, os.Remove(failingPath))
+			if phase == "vault" {
+				require.NoError(t, os.Remove(failingPath))
+			}
 			require.NoError(t, os.Mkdir(failingPath, 0700))
 			err = storage.StoreItem(vault, item)
 			require.Error(t, err)
 			if phase == "item" {
-				require.ErrorContains(t, err, "could not store item")
+				require.ErrorContains(t, err, "collision")
 				actual, err := os.ReadFile(vaultFile)
 				require.NoError(t, err)
 				require.Equal(t, beforeFile, actual)
 			} else {
 				require.ErrorContains(t, err, "after item was saved")
 				actual := readStoredCXFItem(t, storage, vault, item.ID)
-				require.Equal(t, item.Title, actual.Title)
+				require.Equal(t, "Original", actual.Title)
 			}
 			after, err := json.Marshal(&vault.Header, json.Deterministic(true))
 			require.NoError(t, err)
@@ -242,8 +244,8 @@ func TestDeleteCXFItem(t *testing.T) {
 	require.GreaterOrEqual(t, vault.Timestamp, start)
 	require.Len(t, vault.Accounts[0].Items, 1)
 	require.Equal(t, second.ID, vault.Accounts[0].Items[0].ID)
-	require.NoFileExists(t, itemPath(storage, vault.Accounts[0].ID, first.ID))
-	require.FileExists(t, itemPath(storage, vault.Accounts[0].ID, second.ID))
+	require.NoFileExists(t, itemPath(storage, vault.Accounts[0].ID, first.ID, testItemStateHash(t, first)))
+	require.FileExists(t, itemPath(storage, vault.Accounts[0].ID, second.ID, testItemStateHash(t, second)))
 	decoded := readStoredCXFVault(t, storage, vault)
 	require.Len(t, decoded.Accounts[0].Items, 1)
 	require.Equal(t, second.ID, decoded.Accounts[0].Items[0].ID)
@@ -260,7 +262,7 @@ func TestDeleteCXFItemFailures(t *testing.T) {
 			before, err := json.Marshal(&vault.Header, json.Deterministic(true))
 			require.NoError(t, err)
 			vaultFile := vaultPath(storage, vault.Accounts[0].ID)
-			itemFile := itemPath(storage, vault.Accounts[0].ID, item.ID)
+			itemFile := itemPath(storage, vault.Accounts[0].ID, item.ID, testItemStateHash(t, item))
 			failingPath := itemFile
 			if phase == "vault" {
 				failingPath = vaultFile
@@ -272,15 +274,15 @@ func TestDeleteCXFItemFailures(t *testing.T) {
 			}
 
 			err = storage.DeleteItem(vault, item.ID)
-			require.Error(t, err)
 			if phase == "item" {
-				require.ErrorContains(t, err, "could not delete item file")
-				actual, readErr := json.Marshal(&readStoredCXFVault(t, storage, vault).Header, json.Deterministic(true))
-				require.NoError(t, readErr)
-				require.Equal(t, before, actual)
+				require.NoError(t, err)
+				require.Empty(t, vault.Accounts[0].Items)
+				require.FileExists(t, filepath.Join(failingPath, "blocker"))
+				return
 			} else {
+				require.Error(t, err)
 				require.ErrorContains(t, err, "after item was deleted")
-				require.NoFileExists(t, itemFile)
+				require.FileExists(t, itemFile)
 			}
 			after, marshalErr := json.Marshal(&vault.Header, json.Deterministic(true))
 			require.NoError(t, marshalErr)
@@ -397,7 +399,7 @@ func cxfItemWithoutHash(t *testing.T, item cxf.Item) cxf.Item {
 // readStoredCXFItem decrypts an item file using the same full-stream reader as storage.
 func readStoredCXFItem(t *testing.T, storage *FileStorage, vault *model.Vault, id string) *model.Item {
 	t.Helper()
-	data, err := os.ReadFile(itemPath(storage, vault.Accounts[0].ID, id))
+	data, err := os.ReadFile(itemPath(storage, vault.Accounts[0].ID, id, testSummaryStateHash(t, vault, id)))
 	require.NoError(t, err)
 	require.True(t, bytes.HasPrefix(data, []byte("age-encryption.org/v1")))
 	item, err := decryptItem(vault.Key(), bytes.NewReader(data), id)

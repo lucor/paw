@@ -40,7 +40,7 @@ func TestFileStorageRoundTrip(t *testing.T) {
 	note, err := model.NewNote("test note", "a secret note")
 	require.NoError(t, err)
 	require.NoError(t, storage.StoreItem(vault, note))
-	require.FileExists(t, itemPath(storage, id, note.ID))
+	require.FileExists(t, itemPath(storage, id, note.ID, testItemStateHash(t, note)))
 
 	item, err := reopened.LoadItem(vault, note.ID)
 	require.NoError(t, err)
@@ -77,7 +77,7 @@ func TestFileStorageRoundTrip(t *testing.T) {
 	require.Equal(t, login.Title, itemWebsite.Title)
 	require.NoError(t, reopened.DeleteItem(loadedVault, note.ID))
 	require.Len(t, loadedVault.Accounts[0].Items, 1)
-	require.NoFileExists(t, itemPath(storage, id, note.ID))
+	require.NoFileExists(t, itemPath(storage, id, note.ID, testItemStateHash(t, note)))
 	require.NoError(t, reopened.DeleteVault(id))
 	require.NoDirExists(t, vaultRootPath(storage, id))
 }

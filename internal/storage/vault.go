@@ -153,6 +153,12 @@ func (s *FileStorage) LoadVault(vaultID string, key *paw.Key) (*model.Vault, err
 	if err := s.migrateItemLayout(vault); err != nil {
 		return nil, fmt.Errorf("could not migrate vault item storage: %w", err)
 	}
+	root, err := s.openVaultRoot(vaultID)
+	if err != nil {
+		return nil, err
+	}
+	s.cleanupItemVersionsBestEffort(root, vault)
+	_ = root.Close()
 	return vault, nil
 }
 

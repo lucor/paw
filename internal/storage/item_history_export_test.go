@@ -42,7 +42,7 @@ func TestItemHistorySurvivesPawExportImportAndRestore(t *testing.T) {
 	require.NoError(t, item.SetHistory(history))
 	require.NoError(t, sourceStorage.StoreItem(sourceVault, item))
 
-	beforeItem, err := os.ReadFile(itemPath(sourceStorage, sourceVault.Accounts[0].ID, item.ID))
+	beforeItem, err := os.ReadFile(itemPath(sourceStorage, sourceVault.Accounts[0].ID, item.ID, testItemStateHash(t, item)))
 	require.NoError(t, err)
 	beforeVault, err := json.Marshal(sourceVault.Header, json.Deterministic(true))
 	require.NoError(t, err)
@@ -138,7 +138,7 @@ func TestItemHistorySurvivesPawExportImportAndRestore(t *testing.T) {
 		})
 	}
 
-	afterItem, err := os.ReadFile(itemPath(sourceStorage, sourceVault.Accounts[0].ID, item.ID))
+	afterItem, err := os.ReadFile(itemPath(sourceStorage, sourceVault.Accounts[0].ID, item.ID, testItemStateHash(t, item)))
 	require.NoError(t, err)
 	afterVault, err := json.Marshal(sourceVault.Header, json.Deterministic(true))
 	require.NoError(t, err)

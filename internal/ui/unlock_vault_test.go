@@ -4,6 +4,7 @@
 package ui
 
 import (
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -15,6 +16,23 @@ import (
 	"go.lucor.dev/paw/internal/model"
 	"go.lucor.dev/paw/internal/storage"
 )
+
+func TestUnlockVaultWrapsDetailedStorageErrors(t *testing.T) {
+	test.NewTempApp(t)
+	view := NewUnlockVault(model.VaultInfo{
+		ID:   "AAAAAAAAAAAAAAAAAAAAAA",
+		Name: "Personal",
+	}, nil, nil, nil, nil, nil)
+	window := test.NewTempWindow(t, view)
+	window.Resize(fyne.NewSize(360, 640))
+	window.Show()
+	message := "could not migrate vault item storage: verify legacy Item: Item version StateHash mismatch"
+	view.showError(errors.New(message))
+	require.Equal(t, message, view.message.Text)
+	require.Equal(t, fyne.TextWrapWord, view.message.Wrapping)
+	require.Less(t, view.message.Size().Width, window.Canvas().Size().Width)
+	require.Greater(t, view.message.MinSize().Height, view.password.MinSize().Height)
+}
 
 func TestUnlockVaultViewReportsPasswordErrorAndAllowsRetry(t *testing.T) {
 	app := test.NewApp()
