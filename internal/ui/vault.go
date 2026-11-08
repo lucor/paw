@@ -92,6 +92,17 @@ func (a *app) showVaultSelector(vaults []model.VaultInfo) {
 
 // makeUnlockVaultView displays the password form for a locked vault.
 func (a *app) makeUnlockVaultView(info model.VaultInfo, back, chooseAnother func()) fyne.CanvasObject {
+	if a.storage != nil {
+		vaults, err := a.storage.Vaults()
+		if err != nil {
+			log.Printf("unable to list vaults for unlock screen: %v", err)
+			chooseAnother = nil
+		} else if len(vaults) < 2 {
+			chooseAnother = nil
+		} else if chooseAnother == nil {
+			chooseAnother = func() { a.showVaultSelector(vaults) }
+		}
+	}
 	return NewUnlockVault(info, a.storage, func(vault *model.Vault) {
 		a.setVaultView(vault, info.ID)
 		a.showCurrentVaultView()
