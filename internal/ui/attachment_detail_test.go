@@ -11,10 +11,12 @@ import (
 	"testing"
 
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/test"
 	"fyne.io/fyne/v2/widget"
 	"github.com/stretchr/testify/require"
 	"go.lucor.dev/cxf"
+	"go.lucor.dev/paw/internal/model"
 	"go.lucor.dev/paw/internal/storage"
 )
 
@@ -30,7 +32,11 @@ func TestAttachmentDetailDisplaysEmptyAndMultipleFiles(t *testing.T) {
 
 	files := []cxf.File{testAttachmentFile("same name.txt", 12), testAttachmentFile("same name.txt", 1024)}
 	require.NotEqual(t, files[0].ID, files[1].ID)
-	view := newAttachmentDetailSection(window, attachmentDetailActions{files: files})
+	view := newAttachmentDetailSection(window, attachmentDetailActions{
+		files:  files,
+		save:   func(cxf.File) {},
+		remove: func(cxf.File) {},
+	})
 	window.SetContent(view)
 	texts := strings.Join(auditTexts(view), "\n")
 	require.Contains(t, texts, "Attachments · 2")
@@ -169,6 +175,41 @@ func TestAttachmentRemoveFailureIsReported(t *testing.T) {
 	test.Tap(detailButton(window.Canvas().Overlays().Top(), "Remove attachment"))
 	message := strings.Join(auditTexts(window.Canvas().Overlays().Top()), "\n")
 	require.Contains(t, message, "could not open item")
+}
+
+func TestAttachmentTransferDefersVaultLockUntilTransferCompletes(t *testing.T) {
+	test.NewTempApp(t)
+	window := test.NewTempWindow(t, nil)
+	store, err := storage.NewFileStorage(t.TempDir())
+	require.NoError(t, err)
+	defer store.Close()
+	vault, err := store.CreateVault("Personal", "synthetic-password")
+	require.NoError(t, err)
+	application := &app{
+		win:           window,
+		main:          container.NewVScroll(widget.NewLabel("vault")),
+		storage:       store,
+		vault:         vault,
+		vaultID:       vault.Accounts[0].ID,
+		unlockedVault: map[string]*model.Vault{vault.Accounts[0].ID: vault},
+	}
+	application.beginAttachmentTransfer("Adding attachment…")
+	var busyText string
+	fyne.DoAndWait(func() { busyText = strings.Join(auditTexts(window.Content()), "\n") })
+	require.Contains(t, busyText, "Adding attachment…")
+	application.lockVault()
+	require.Same(t, vault, application.vault, "the active vault remains available to the in-flight storage operation")
+	require.True(t, application.pendingLock)
+	require.True(t, application.finishAttachmentTransfer())
+	require.Nil(t, application.vault)
+	var content fyne.CanvasObject
+	var unlocked bool
+	fyne.DoAndWait(func() {
+		content = window.Content()
+		_, unlocked = application.main.Content.(*UnlockVault)
+	})
+	require.Same(t, application.main, content)
+	require.True(t, unlocked, "a deferred lock must return to the locked vault screen")
 }
 
 func TestFormatAttachmentSize(t *testing.T) {

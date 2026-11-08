@@ -122,6 +122,39 @@ func TestExportCredentialsRejectsAttachmentsBeforeOpeningPicker(t *testing.T) {
 	require.Contains(t, view.errorText.Text, "cannot include attachment files")
 }
 
+func TestPawExportOptionAcceptsAttachmentsAndOpensFolderPicker(t *testing.T) {
+	test.NewTempApp(t)
+	window := test.NewTempWindow(t, nil)
+	store, err := storage.NewFileStorage(t.TempDir())
+	require.NoError(t, err)
+	defer store.Close()
+	vault, err := store.CreateVault("Personal", "synthetic-password")
+	require.NoError(t, err)
+	item, err := model.NewNote("Note", "content")
+	require.NoError(t, err)
+	require.NoError(t, store.StoreItem(vault, item))
+	_, err = store.AddAttachment(vault, item.ID, "file.txt", strings.NewReader("payload"))
+	require.NoError(t, err)
+
+	view := newExportCredentialsView(window, store, vault, "Personal", func() {})
+	window.SetContent(view.View)
+	view.Mode.SetSelected(exportPawLabel)
+	view.Password.Entry.SetText("archive password")
+	view.Confirm.SetText("archive password")
+	var disabled bool
+	fyne.DoAndWait(func() { disabled = view.ExportButton.Disabled() })
+	require.False(t, disabled)
+	test.Tap(view.ExportButton)
+	var overlay fyne.CanvasObject
+	var message string
+	fyne.DoAndWait(func() {
+		overlay = window.Canvas().Overlays().Top()
+		message = view.errorText.Text
+	})
+	require.NotNil(t, overlay, "Paw archive export must ask for a folder without creating a file-save writer")
+	require.Empty(t, message, "the Paw format preserves attachments")
+}
+
 func TestExportCredentialsBackClearsPasswords(t *testing.T) {
 	test.NewTempApp(t)
 	window := test.NewTempWindow(t, nil)
@@ -142,6 +175,8 @@ func TestExportFilenameSanitizesUnsafeNames(t *testing.T) {
 	require.Equal(t, "vault.cxf.age", exportFilename("../", false))
 	require.Equal(t, "vault.cxf", exportFilename("CON", true))
 	require.Equal(t, "Work- Paw-.cxf.age", exportFilename(`Work: Paw?`, false))
+	require.Equal(t, "vault.paw", pawExportFilename("../"))
+	require.Equal(t, "Personal.paw", pawExportFilename("Personal.paw"))
 }
 
 func TestExportVaultActionOpensSecondaryView(t *testing.T) {
@@ -181,6 +216,7 @@ func TestExportFilenameUsesActiveVault(t *testing.T) {
 	vault := testExportVault(t, "Personal")
 	require.Equal(t, "Personal.cxf.age", exportFilename(vaultName(vault), false))
 	require.Equal(t, "Personal.cxf", exportFilename(vaultName(vault), true))
+	require.Equal(t, "Personal.paw", pawExportFilename(vaultName(vault)))
 }
 
 func testExportVault(t *testing.T, name string) *model.Vault {

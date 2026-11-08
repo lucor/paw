@@ -108,8 +108,8 @@ func TestAddAttachmentCommitsBlobAndHistory(t *testing.T) {
 	require.Len(t, history.Entries, 2)
 	root, err := storage.openVaultRoot(vault.Accounts[0].ID)
 	require.NoError(t, err)
-	documentPath := filepath.Join(itemsDirectoryName, filesystemID(item.ID), documentsDirectoryName, documentFilename(file.ID))
-	_, err = root.Stat(documentPath)
+	attachmentPath := filepath.Join(itemsDirectoryName, filesystemID(item.ID), filesDirectoryName, attachmentFilename(file.ID))
+	_, err = root.Stat(attachmentPath)
 	require.NoError(t, err, "history still references the encrypted blob")
 	require.NoError(t, root.Close())
 	for i := range 10 {
@@ -125,7 +125,7 @@ func TestAddAttachmentCommitsBlobAndHistory(t *testing.T) {
 	}
 	root, err = storage.openVaultRoot(vault.Accounts[0].ID)
 	require.NoError(t, err)
-	_, err = root.Stat(documentPath)
+	_, err = root.Stat(attachmentPath)
 	require.ErrorIs(t, err, os.ErrNotExist, "blob is removed after its last history reference expires")
 	require.NoError(t, root.Close())
 }
@@ -157,8 +157,8 @@ func TestAddAttachmentCommitFailureKeepsPreviousItemUsable(t *testing.T) {
 	require.Empty(t, files)
 	root, err := storage.openVaultRoot(vault.Accounts[0].ID)
 	require.NoError(t, err)
-	documentDir := filepath.Join(itemsDirectoryName, filesystemID(item.ID), documentsDirectoryName)
-	entries := readDocumentEntries(t, root, documentDir)
+	filesDir := filepath.Join(itemsDirectoryName, filesystemID(item.ID), filesDirectoryName)
+	entries := readAttachmentEntries(t, root, filesDir)
 	require.Len(t, entries, 1, "failed commit may leave one unreferenced encrypted blob")
 	require.NoError(t, root.Close())
 }
@@ -184,7 +184,7 @@ func TestRemoveAttachmentCommitFailureKeepsReferenceAndBlob(t *testing.T) {
 	require.Equal(t, []cxf.File{file}, files)
 	root, err := storage.openVaultRoot(vault.Accounts[0].ID)
 	require.NoError(t, err)
-	path := filepath.Join(itemsDirectoryName, filesystemID(item.ID), documentsDirectoryName, documentFilename(file.ID))
+	path := filepath.Join(itemsDirectoryName, filesystemID(item.ID), filesDirectoryName, attachmentFilename(file.ID))
 	info, err := root.Stat(path)
 	require.NoError(t, err)
 	require.True(t, info.Mode().IsRegular())

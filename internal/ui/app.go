@@ -57,6 +57,10 @@ type app struct {
 	autoLock     *backgroundAutoLock
 	detailClear  func()
 
+	attachmentBusy       bool
+	pendingLock          bool
+	pendingLockAllVaults bool
+
 	// Paw agent client
 	client agent.PawAgent
 }
@@ -157,6 +161,9 @@ func (a *app) makeApp() *container.Scroll {
 
 // setVaultViewByInfo selects the unlocked vault or displays its unlock screen.
 func (a *app) setVaultViewByInfo(info model.VaultInfo, back, chooseAnother func()) {
+	if a.attachmentBusy {
+		return
+	}
 	if a.settingsVaultID != "" {
 		return
 	}
@@ -312,6 +319,10 @@ func (a *app) clearUnlockPassword() {
 
 // lockVault removes the current vault from the unlocked views.
 func (a *app) lockVault() {
+	if a.attachmentBusy {
+		a.pendingLock = true
+		return
+	}
 	a.closeMasterPasswordView()
 	a.settingsVaultID = ""
 	a.closeItemDetail()
@@ -330,6 +341,11 @@ func (a *app) configureAutoLock(key string) {
 }
 
 func (a *app) lockAllVaults() {
+	if a.attachmentBusy {
+		a.pendingLock = true
+		a.pendingLockAllVaults = true
+		return
+	}
 	a.clearUnlockPassword()
 	log.Printf("auto-lock: locking %d unlocked vaults", len(a.unlockedVault))
 	a.closeMasterPasswordView()

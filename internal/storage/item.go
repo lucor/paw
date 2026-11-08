@@ -42,7 +42,7 @@ func (s *FileStorage) AddAttachment(vault *model.Vault, itemID, name string, src
 		return cxf.File{}, err
 	}
 	defer root.Close()
-	size, digest, err := storeDocument(root, vault.Key(), itemID, fileID, src)
+	size, digest, err := storeAttachment(root, vault.Key(), itemID, fileID, src)
 	if err != nil {
 		return cxf.File{}, err
 	}
@@ -110,7 +110,7 @@ func (s *FileStorage) SaveAttachment(vault *model.Vault, itemID, fileID, destina
 		return err
 	}
 	defer root.Close()
-	return s.saveDocument(root, vault.Key(), itemID, fileID, destination, *selected)
+	return s.saveAttachmentFile(root, vault.Key(), itemID, fileID, destination, *selected)
 }
 
 // RemoveAttachment removes one file credential and records the change in Item history.
@@ -230,7 +230,7 @@ func (s *FileStorage) RestoreItem(
 	if err != nil {
 		return nil, false, err
 	}
-	err = verifyItemDocuments(root, vault.Key(), restored)
+	err = verifyItemAttachments(root, vault.Key(), restored)
 	_ = root.Close()
 	if err != nil {
 		return nil, false, fmt.Errorf("cannot restore Item with unavailable attachments: %w", err)
@@ -241,8 +241,8 @@ func (s *FileStorage) RestoreItem(
 	return restored, true, nil
 }
 
-// verifyItemDocuments authenticates every blob referenced by an Item before restoring it.
-func verifyItemDocuments(root *os.Root, key *paw.Key, item *model.Item) error {
+// verifyItemAttachments authenticates every blob referenced by an Item before restoring it.
+func verifyItemAttachments(root *os.Root, key *paw.Key, item *model.Item) error {
 	files, err := item.Files()
 	if err != nil {
 		return err
@@ -250,13 +250,13 @@ func verifyItemDocuments(root *os.Root, key *paw.Key, item *model.Item) error {
 	if len(files) == 0 {
 		return nil
 	}
-	dir, err := openStoredDocumentRoot(root, item.ID)
+	dir, err := openAttachmentDirectory(root, item.ID)
 	if err != nil {
 		return err
 	}
 	defer dir.Close()
 	for _, file := range files {
-		name := documentFilename(file.ID)
+		name := attachmentFilename(file.ID)
 		info, err := dir.Lstat(name)
 		if err != nil || !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 {
 			return fmt.Errorf("attachment %s is missing or not a regular file", file.ID)
@@ -265,7 +265,7 @@ func verifyItemDocuments(root *os.Root, key *paw.Key, item *model.Item) error {
 		if err != nil {
 			return fmt.Errorf("cannot open attachment %s: %w", file.ID, err)
 		}
-		err = decryptDocument(key, io.Discard, source, file)
+		err = decryptAttachment(key, io.Discard, source, file)
 		_ = source.Close()
 		if err != nil {
 			return fmt.Errorf("attachment %s failed integrity verification: %w", file.ID, err)
@@ -340,7 +340,7 @@ func (s *FileStorage) storeItem(vault *model.Vault, item *model.Item) error {
 	if oldHash != "" && oldHash != stateHash {
 		s.removeItemVersionBestEffort(root, item.ID, oldHash)
 	}
-	s.cleanupItemDocumentsBestEffort(root, item)
+	s.cleanupItemAttachmentsBestEffort(root, item)
 	s.cleanupItemVersionsBestEffort(root, vault)
 	return nil
 }
@@ -441,8 +441,8 @@ func (s *FileStorage) removeItemVersionBestEffort(root *os.Root, itemID, hash st
 	}
 }
 
-// cleanupItemDocumentsBestEffort removes only canonical document files unused by current or retained history.
-func (s *FileStorage) cleanupItemDocumentsBestEffort(root *os.Root, item *model.Item) {
+// cleanupItemAttachmentsBestEffort removes only canonical files unused by current or retained history.
+func (s *FileStorage) cleanupItemAttachmentsBestEffort(root *os.Root, item *model.Item) {
 	if !isVaultID(item.ID) {
 		return
 	}
@@ -477,7 +477,7 @@ func (s *FileStorage) cleanupItemDocumentsBestEffort(root *os.Root, item *model.
 			return
 		}
 	}
-	dir, err := openStoredDocumentRoot(root, item.ID)
+	dir, err := openAttachmentDirectory(root, item.ID)
 	if errors.Is(err, os.ErrNotExist) {
 		return
 	}
@@ -497,7 +497,7 @@ func (s *FileStorage) cleanupItemDocumentsBestEffort(root *os.Root, item *model.
 	}
 	for _, entry := range entries {
 		name := entry.Name()
-		if isDocumentTempName(name) {
+		if isAttachmentTempName(name) {
 			info, err := dir.Lstat(name)
 			if err == nil && info.Mode().IsRegular() && info.Mode()&os.ModeSymlink == 0 {
 				if err := dir.Remove(name); err != nil {
@@ -522,8 +522,8 @@ func (s *FileStorage) cleanupItemDocumentsBestEffort(root *os.Root, item *model.
 	}
 }
 
-func isDocumentTempName(name string) bool {
-	const prefix, suffix = ".paw-document-", ".tmp"
+func isAttachmentTempName(name string) bool {
+	const prefix, suffix = ".paw-attachment-", ".tmp"
 	if len(name) != len(prefix)+24+len(suffix) || !strings.HasPrefix(name, prefix) || !strings.HasSuffix(name, suffix) {
 		return false
 	}
@@ -590,7 +590,7 @@ func (s *FileStorage) cleanupItemVersionsBestEffort(root *os.Root, vault *model.
 		}
 		if !indexed {
 			path := filepath.Join(itemsDirectoryName, entry.Name())
-			s.cleanupDeletedItemDocumentsBestEffort(root, path)
+			s.cleanupDeletedItemAttachmentsBestEffort(root, path)
 			dir, err := root.Open(path)
 			if err != nil {
 				log.Printf("storage cleanup: open directory %q: %v", itemID, err)
@@ -609,25 +609,25 @@ func (s *FileStorage) cleanupItemVersionsBestEffort(root *os.Root, vault *model.
 	}
 }
 
-// cleanupDeletedItemDocumentsBestEffort removes recognized blobs after the Item summary is gone.
-func (s *FileStorage) cleanupDeletedItemDocumentsBestEffort(root *os.Root, itemPath string) {
+// cleanupDeletedItemAttachmentsBestEffort removes recognized blobs after the Item summary is gone.
+func (s *FileStorage) cleanupDeletedItemAttachmentsBestEffort(root *os.Root, itemPath string) {
 	itemRoot, err := root.OpenRoot(itemPath)
 	if err != nil {
 		return
 	}
-	info, err := itemRoot.Lstat(documentsDirectoryName)
+	info, err := itemRoot.Lstat(filesDirectoryName)
 	if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
 		_ = itemRoot.Close()
 		return
 	}
-	documents, err := itemRoot.OpenRoot(documentsDirectoryName)
+	filesRoot, err := itemRoot.OpenRoot(filesDirectoryName)
 	if err != nil {
 		_ = itemRoot.Close()
 		return
 	}
-	listing, err := documents.Open(".")
+	listing, err := filesRoot.Open(".")
 	if err != nil {
-		_ = documents.Close()
+		_ = filesRoot.Close()
 		_ = itemRoot.Close()
 		return
 	}
@@ -636,10 +636,10 @@ func (s *FileStorage) cleanupDeletedItemDocumentsBestEffort(root *os.Root, itemP
 	if err == nil {
 		for _, entry := range entries {
 			name := entry.Name()
-			if isDocumentTempName(name) {
-				info, err := documents.Lstat(name)
+			if isAttachmentTempName(name) {
+				info, err := filesRoot.Lstat(name)
 				if err == nil && info.Mode().IsRegular() && info.Mode()&os.ModeSymlink == 0 {
-					_ = documents.Remove(name)
+					_ = filesRoot.Remove(name)
 				}
 				continue
 			}
@@ -647,13 +647,13 @@ func (s *FileStorage) cleanupDeletedItemDocumentsBestEffort(root *os.Root, itemP
 				continue
 			}
 			if _, ok := idFromFilesystemName(strings.TrimSuffix(name, ".age")); ok {
-				_ = documents.Remove(name)
+				_ = filesRoot.Remove(name)
 			}
 		}
 	}
-	_ = documents.Close()
+	_ = filesRoot.Close()
 	_ = itemRoot.Close()
-	_ = root.Remove(filepath.Join(itemPath, documentsDirectoryName))
+	_ = root.Remove(filepath.Join(itemPath, filesDirectoryName))
 }
 
 // verifyItemVersion checks an existing immutable file before it is reused.

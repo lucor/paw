@@ -4,6 +4,7 @@
 package storage
 
 import (
+	"archive/tar"
 	"bytes"
 	"context"
 	json "encoding/json/v2"
@@ -34,7 +35,10 @@ const UnsupportedBackupMessage = "This file is not a supported Paw backup."
 
 // PawBackup contains a validated document for review and restore, only in memory.
 type PawBackup struct {
-	data []byte
+	data        []byte
+	spoolDir    string
+	spoolKey    *paw.Key
+	attachments map[string]string
 	// Name is the original vault display name.
 	Name string
 	// CreationAt is the optional original creation timestamp.
@@ -47,6 +51,18 @@ type PawBackup struct {
 	Credentials int
 	// AccountID is the original logical vault identity.
 	AccountID string
+}
+
+// Close removes encrypted attachment staging files owned by this backup.
+func (backup *PawBackup) Close() error {
+	if backup == nil || backup.spoolDir == "" {
+		return nil
+	}
+	err := os.RemoveAll(backup.spoolDir)
+	backup.spoolDir = ""
+	backup.attachments = nil
+	backup.spoolKey = nil
+	return err
 }
 
 // ReadPawBackup fully authenticates encrypted input and validates Paw metadata.
@@ -82,6 +98,124 @@ func ReadPawBackup(ctx context.Context, r io.Reader, password string) (*PawBacku
 	return backup, err
 }
 
+// ReadPawArchive authenticates and validates an encrypted Paw TAR archive using encrypted temporary spools.
+func ReadPawArchive(ctx context.Context, r io.Reader, password string) (_ *PawBackup, resultErr error) {
+	if password == "" {
+		return nil, ErrBackupPasswordRequired
+	}
+	identity, err := age.NewScryptIdentity(password)
+	if err != nil {
+		return nil, err
+	}
+	identity.SetMaxWorkFactor(18)
+	decrypted, err := age.Decrypt(r, identity)
+	if err != nil {
+		return nil, fmt.Errorf("cannot unlock archive: incorrect password or invalid age file")
+	}
+	tr := tar.NewReader(backupReader{ctx: ctx, reader: decrypted})
+	header, err := tr.Next()
+	if err != nil || header.Name != "export.cxf" || header.Typeflag != tar.TypeReg || header.Size < 0 || header.Size > maxBackupBytes {
+		return nil, ErrUnsupportedBackup
+	}
+	cxfData, err := io.ReadAll(io.LimitReader(tr, maxBackupBytes+1))
+	if err != nil || int64(len(cxfData)) != header.Size {
+		return nil, ErrUnsupportedBackup
+	}
+	backup, _, items, err := validatePawBackupData(cxfData, true)
+	if err != nil {
+		return nil, err
+	}
+	spoolKey, err := paw.MakeOneTimeKey()
+	if err != nil {
+		return nil, err
+	}
+	spoolDir, err := os.MkdirTemp("", "paw-import-")
+	if err != nil {
+		return nil, err
+	}
+	backup.spoolDir = spoolDir
+	backup.spoolKey = spoolKey
+	backup.attachments = make(map[string]string)
+	defer func() {
+		if resultErr != nil {
+			_ = backup.Close()
+		}
+	}()
+	expected := make(map[string]cxf.File)
+	for _, item := range items {
+		files, err := itemAttachmentReferences(item)
+		if err != nil {
+			return nil, err
+		}
+		for _, file := range files {
+			expected[item.ID+"/"+file.ID] = file
+		}
+	}
+	for {
+		header, err = tr.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil || header.Typeflag != tar.TypeReg || header.Size < 0 {
+			return nil, ErrUnsupportedBackup
+		}
+		parts := strings.Split(header.Name, "/")
+		if len(parts) != 3 || parts[0] != filesDirectoryName {
+			return nil, ErrUnsupportedBackup
+		}
+		key := parts[1] + "/" + parts[2]
+		file, ok := expected[key]
+		if !ok || backup.attachments[key] != "" || uint64(header.Size) != file.DecryptedSize {
+			return nil, ErrUnsupportedBackup
+		}
+		staged, err := os.CreateTemp(spoolDir, "attachment-*.age")
+		if err != nil {
+			return nil, err
+		}
+		size, digest, copyErr := encryptAttachment(spoolKey, staged, tr)
+		if copyErr == nil {
+			copyErr = staged.Sync()
+		}
+		closeErr := staged.Close()
+		if copyErr != nil || closeErr != nil {
+			return nil, errors.Join(copyErr, closeErr)
+		}
+		if size != file.DecryptedSize || digest != file.IntegrityHash {
+			return nil, fmt.Errorf("attachment metadata mismatch for %s", file.ID)
+		}
+		backup.attachments[key] = staged.Name()
+	}
+	if len(backup.attachments) != len(expected) {
+		return nil, fmt.Errorf("Paw archive is missing attachment entries")
+	}
+	if err := verifyPawArchivePadding(ctx, decrypted); err != nil {
+		return nil, fmt.Errorf("cannot authenticate archive: %w", err)
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return backup, nil
+}
+
+// verifyPawArchivePadding rejects data after the TAR end marker while draining age to verify its authentication tag.
+func verifyPawArchivePadding(ctx context.Context, r io.Reader) error {
+	var buffer [32 * 1024]byte
+	for {
+		count, err := backupReader{ctx: ctx, reader: r}.Read(buffer[:])
+		for _, value := range buffer[:count] {
+			if value != 0 {
+				return ErrUnsupportedBackup
+			}
+		}
+		if err == io.EOF {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+	}
+}
+
 // readBackupBytes reads a size-limited backup while honoring cancellation.
 func readBackupBytes(ctx context.Context, r io.Reader) ([]byte, error) {
 	data, err := io.ReadAll(io.LimitReader(backupReader{ctx, r}, maxBackupBytes+1))
@@ -109,6 +243,10 @@ func (r backupReader) Read(p []byte) (int, error) {
 
 // validatePawBackup decodes and validates a Paw CXF backup and its items.
 func validatePawBackup(data []byte) (*PawBackup, *model.Vault, []*model.Item, error) {
+	return validatePawBackupData(data, false)
+}
+
+func validatePawBackupData(data []byte, allowAttachments bool) (*PawBackup, *model.Vault, []*model.Item, error) {
 	document, err := cxf.Decode(bytes.NewReader(data))
 	if err != nil || len(document.Accounts) != 1 {
 		return nil, nil, nil, ErrUnsupportedBackup
@@ -128,7 +266,7 @@ func validatePawBackup(data []byte) (*PawBackup, *model.Vault, []*model.Item, er
 		if json.Unmarshal(encoded, &item) != nil || item.Validate() != nil || !isVaultID(item.ID) {
 			return nil, nil, nil, ErrUnsupportedBackup
 		}
-		if itemHasFileReferences(&item) {
+		if !allowAttachments && itemHasFileReferences(&item) {
 			return nil, nil, nil, fmt.Errorf("%w: attachment binaries are not supported", ErrUnsupportedBackup)
 		}
 		if ids[item.ID] {
@@ -217,9 +355,22 @@ func (s *FileStorage) Restore(ctx context.Context, backup *PawBackup, name, pass
 	if backup == nil {
 		return nil, ErrUnsupportedBackup
 	}
-	_, source, items, err := validatePawBackup(backup.data)
+	_, source, items, err := validatePawBackupData(backup.data, backup.spoolDir != "")
 	if err != nil {
 		return nil, err
+	}
+	if backup.spoolDir != "" {
+		expectedCount := 0
+		for _, item := range items {
+			files, err := itemAttachmentReferences(item)
+			if err != nil {
+				return nil, err
+			}
+			expectedCount += len(files)
+		}
+		if backup.spoolKey == nil || len(backup.attachments) != expectedCount {
+			return nil, fmt.Errorf("Paw archive attachment staging is incomplete")
+		}
 	}
 	name = strings.TrimSpace(name)
 	if name == "" || !utf8.ValidString(name) {
@@ -301,6 +452,32 @@ func (s *FileStorage) Restore(ctx context.Context, backup *PawBackup, name, pass
 		itemDir := filepath.Join(itemsDirectoryName, filesystemID(item.ID))
 		if err = vaultRoot.MkdirAll(itemDir, 0o700); err != nil {
 			return nil, fmt.Errorf("create restored item directory: %w", err)
+		}
+		files, filesErr := itemAttachmentReferences(item)
+		if filesErr != nil {
+			return nil, filesErr
+		}
+		for _, file := range files {
+			if backup.spoolDir == "" {
+				return nil, fmt.Errorf("backup is missing attachment binaries")
+			}
+			spool, openErr := os.Open(backup.attachments[item.ID+"/"+file.ID])
+			if openErr != nil {
+				return nil, fmt.Errorf("open staged attachment: %w", openErr)
+			}
+			decrypted, decryptErr := backup.spoolKey.Decrypt(spool)
+			if decryptErr != nil {
+				_ = spool.Close()
+				return nil, decryptErr
+			}
+			size, digest, storeErr := storeAttachment(vaultRoot, fresh.Key(), item.ID, file.ID, decrypted)
+			closeErr := spool.Close()
+			if storeErr != nil || closeErr != nil {
+				return nil, errors.Join(storeErr, closeErr)
+			}
+			if size != file.DecryptedSize || digest != file.IntegrityHash {
+				return nil, fmt.Errorf("staged attachment metadata mismatch for %s", file.ID)
+			}
 		}
 		hash, hashErr := item.StateHash()
 		if hashErr != nil {

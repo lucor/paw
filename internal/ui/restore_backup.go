@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"image/color"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -29,11 +30,13 @@ type restoreFlow struct {
 	store    *storage.FileStorage
 	back     func()
 	restored func(*model.Vault)
+	backup   *storage.PawBackup
 }
 
 const (
 	restorePlainBackupSuffix     = ".cxf"
 	restoreEncryptedBackupSuffix = ".cxf.age"
+	restoreArchiveBackupSuffix   = ".paw"
 )
 
 // ShowRestoreBackup opens single-page navigation for selecting and restoring a backup.
@@ -48,6 +51,7 @@ func (f *restoreFlow) page(title string, back func(), content fyne.CanvasObject)
 }
 
 func (f *restoreFlow) selectFile(message string) {
+	f.closeBackup()
 	choose := widget.NewButton("Select backup file", func() {
 		picker := dialog.NewFileOpen(func(reader fyne.URIReadCloser, err error) {
 			if err != nil {
@@ -68,7 +72,7 @@ func (f *restoreFlow) selectFile(message string) {
 	if message == "" {
 		feedback.Hide()
 	}
-	content := container.NewVScroll(container.NewVBox(newText("Select a Paw backup file (.cxf or .cxf.age).", bodyStyle), feedback, choose))
+	content := container.NewVScroll(container.NewVBox(newText("Select a Paw backup file (.cxf, .cxf.age or .paw).", bodyStyle), feedback, choose))
 	f.page("Restore from backup", f.back, content)
 }
 
@@ -77,7 +81,7 @@ type restoreBackupFileFilter struct{}
 
 func (restoreBackupFileFilter) Matches(uri fyne.URI) bool {
 	name := strings.ToLower(uri.Name())
-	return strings.HasSuffix(name, restorePlainBackupSuffix) || strings.HasSuffix(name, restoreEncryptedBackupSuffix)
+	return strings.HasSuffix(name, restorePlainBackupSuffix) || strings.HasSuffix(name, restoreEncryptedBackupSuffix) || strings.HasSuffix(name, restoreArchiveBackupSuffix)
 }
 
 func (f *restoreFlow) busy(title string, cancel func()) {
@@ -89,15 +93,26 @@ func (f *restoreFlow) decode(reader fyne.URIReadCloser, password string) {
 	ctx, cancel := context.WithCancel(context.Background())
 	f.busy("Checking backup", func() { cancel(); f.selectFile("") })
 	go func() {
-		backup, err := storage.ReadPawBackup(ctx, reader, password)
+		var backup *storage.PawBackup
+		var err error
+		if isPawArchiveURI(uri) {
+			backup, err = storage.ReadPawArchive(ctx, reader, password)
+		} else {
+			backup, err = storage.ReadPawBackup(ctx, reader, password)
+		}
 		closeErr := reader.Close()
 		if err == nil {
 			err = closeErr
+		}
+		if err != nil {
+			_ = backup.Close()
+			backup = nil
 		}
 		fyne.Do(func() {
 			wasCancelled := ctx.Err() != nil
 			cancel()
 			if wasCancelled {
+				_ = backup.Close()
 				return
 			}
 			if errors.Is(err, storage.ErrBackupPasswordRequired) {
@@ -115,6 +130,10 @@ func (f *restoreFlow) decode(reader fyne.URIReadCloser, password string) {
 			f.review(backup, "")
 		})
 	}()
+}
+
+func isPawArchiveURI(uri fyne.URI) bool {
+	return uri != nil && strings.EqualFold(filepath.Ext(uri.Name()), restoreArchiveBackupSuffix)
 }
 
 func restoreErrorMessage(err error) string {
@@ -159,6 +178,10 @@ func (f *restoreFlow) unlock(uri fyne.URI, message string) {
 }
 
 func (f *restoreFlow) review(backup *storage.PawBackup, message string) {
+	if f.backup != nil && f.backup != backup {
+		f.closeBackup()
+	}
+	f.backup = backup
 	name := widget.NewEntry()
 	name.SetText(backup.Name)
 	password := NewPasswordField()
@@ -321,6 +344,7 @@ func restoreVaultNameExists(vaults []model.VaultInfo, name string) bool {
 }
 
 func (f *restoreFlow) complete(vault *model.Vault) {
+	f.closeBackup()
 	open := func() { f.restored(vault) }
 	circle := canvas.NewCircle(color.Transparent)
 	circle.StrokeColor = theme.Color(theme.ColorNameForeground)
@@ -331,4 +355,12 @@ func (f *restoreFlow) complete(vault *model.Vault) {
 	openButton.Importance = widget.HighImportance
 	content := container.NewVScroll(container.NewVBox(status, newText(vault.Metadata.VaultName+" is ready to use.", bodyStyle), openButton))
 	f.page("Restore complete", open, content)
+}
+
+func (f *restoreFlow) closeBackup() {
+	if f.backup == nil {
+		return
+	}
+	_ = f.backup.Close()
+	f.backup = nil
 }

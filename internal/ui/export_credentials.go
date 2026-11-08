@@ -25,6 +25,7 @@ import (
 const (
 	exportEncryptedLabel = "Encrypted (recommended)"
 	exportPlaintextLabel = "Plaintext"
+	exportPawLabel       = "Paw archive (includes attachments)"
 	exportPasswordError  = "Enter an export password and matching confirmation."
 	exportConsentError   = "Confirm that you understand the plaintext warning."
 )
@@ -74,7 +75,7 @@ func newExportCredentialsView(window fyne.Window, store *storage.FileStorage, va
 		store:    store,
 		vault:    vault,
 		back:     back,
-		Mode:     widget.NewRadioGroup([]string{exportEncryptedLabel, exportPlaintextLabel}, nil),
+		Mode:     widget.NewRadioGroup([]string{exportEncryptedLabel, exportPlaintextLabel, exportPawLabel}, nil),
 		Password: NewPasswordField(),
 		Confirm:  &exportConfirmEntry{Entry: widget.NewPasswordEntry()},
 	}
@@ -226,6 +227,7 @@ func (v *exportCredentialsView) updateExportButton() {
 
 func (v *exportCredentialsView) chooseDestination() {
 	plaintext := v.Mode.Selected == exportPlaintextLabel
+	pawArchive := v.Mode.Selected == exportPawLabel
 	password := v.Password.Entry.Text
 	if plaintext {
 		if !v.Consent.Checked {
@@ -237,11 +239,17 @@ func (v *exportCredentialsView) chooseDestination() {
 		v.setError(exportPasswordError)
 		return
 	}
-	if err := storage.CheckExportSupported(context.Background(), v.store, v.vault); err != nil {
-		v.setError(err.Error())
-		return
+	if !pawArchive {
+		if err := storage.CheckExportSupported(context.Background(), v.store, v.vault); err != nil {
+			v.setError(err.Error())
+			return
+		}
 	}
 	v.setError("")
+	if pawArchive {
+		v.choosePawDestination(password)
+		return
+	}
 
 	picker := dialog.NewFileSave(func(writer fyne.URIWriteCloser, err error) {
 		if err != nil {
@@ -257,6 +265,63 @@ func (v *exportCredentialsView) chooseDestination() {
 	picker.SetFilter(exportFileFilter{plaintext: plaintext})
 	configureFilePicker(picker)
 	picker.Show()
+}
+
+func (v *exportCredentialsView) choosePawDestination(password string) {
+	picker := dialog.NewFolderOpen(func(folder fyne.ListableURI, err error) {
+		if err != nil {
+			v.setError(err.Error())
+			return
+		}
+		if folder == nil {
+			return
+		}
+		if folder.Scheme() != "file" || folder.Path() == "" {
+			v.setError("Choose a local destination folder.")
+			return
+		}
+		v.showPawFilename(folder.Path(), password)
+	}, v.window)
+	configureFilePicker(picker)
+	picker.Show()
+}
+
+func (v *exportCredentialsView) showPawFilename(directory, password string) {
+	filename := widget.NewEntry()
+	filename.SetText(pawExportFilename(vaultName(v.vault)))
+	content := container.NewVBox(newText("Choose a name for the encrypted Paw archive.", bodyStyle), widget.NewForm(widget.NewFormItem("File name", filename)))
+	dialog.NewCustomConfirm("Export Paw archive", "Export", "Cancel", content, func(confirm bool) {
+		if !confirm {
+			return
+		}
+		name := strings.TrimSpace(filename.Text)
+		if name == "" || name == "." || name == ".." || strings.ContainsAny(name, `/\\`) || filepath.Base(name) != name {
+			v.setError("Enter a file name without a path.")
+			return
+		}
+		path := filepath.Join(directory, normalizePawFilename(name))
+		v.performPawExport(path, password)
+	}, v.window).Show()
+}
+
+func (v *exportCredentialsView) performPawExport(path, password string) {
+	v.busy = true
+	v.ExportButton.SetText("Exporting…")
+	v.updateExportButton()
+	go func() {
+		err := storage.ExportPawFile(context.Background(), v.store, v.vault, path, password)
+		fyne.Do(func() {
+			v.busy = false
+			v.ExportButton.SetText("Export…")
+			v.updateExportButton()
+			if err != nil {
+				v.setError(fmt.Sprintf("Export failed: %v", err))
+				return
+			}
+			fyne.CurrentApp().SendNotification(&fyne.Notification{Title: "Paw", Content: "Paw archive exported successfully."})
+			v.leave()
+		})
+	}()
 }
 
 func (v *exportCredentialsView) exportSelectedFile(writer fyne.URIWriteCloser, password string, plaintext bool) {
@@ -375,6 +440,28 @@ func exportFilename(vaultName string, plaintext bool) string {
 		name = "vault"
 	}
 	return normalizeExportFilename(name, plaintext)
+}
+
+func pawExportFilename(vaultName string) string {
+	name := sanitizeExportName(vaultName)
+	if name == "" {
+		name = "vault"
+	}
+	return normalizePawFilename(name)
+}
+
+func normalizePawFilename(name string) string {
+	name = sanitizeExportName(filepath.Base(name))
+	if strings.EqualFold(name, ".") || strings.EqualFold(name, "..") {
+		name = ""
+	}
+	if strings.HasSuffix(strings.ToLower(name), ".paw") {
+		name = name[:len(name)-len(".paw")]
+	}
+	if name == "" {
+		name = "vault"
+	}
+	return name + ".paw"
 }
 
 func sanitizeExportName(name string) string {

@@ -21,18 +21,18 @@ func (s *FileStorage) LockFilePath() string { return lockFilePath(s) }
 func (s *FileStorage) LogFilePath() string { return logFilePath(s) }
 
 const (
-	storageRootName        = "storage"
-	vaultBackupSuffix      = ".bck"
-	keyFileName            = "key.age"
-	vaultFileName          = "vault.age"
-	itemsDirectoryName     = "items"
-	documentsDirectoryName = "documents"
-	vaultMetadataFileName  = "metadata.json"
-	appStateFileName       = "paw.json"
-	lockFileName           = "paw.lock"
-	logFileName            = "paw.log"
-	socketFileName         = "agent.sock"
-	namedPipe              = `\\.\pipe\paw`
+	storageRootName       = "storage"
+	vaultBackupSuffix     = ".bck"
+	keyFileName           = "key.age"
+	vaultFileName         = "vault.age"
+	itemsDirectoryName    = "items"
+	filesDirectoryName    = "files"
+	vaultMetadataFileName = "metadata.json"
+	appStateFileName      = "paw.json"
+	lockFileName          = "paw.lock"
+	logFileName           = "paw.log"
+	socketFileName        = "agent.sock"
+	namedPipe             = `\\.\pipe\paw`
 )
 
 // storageRootPath returns the directory containing vaults.
@@ -75,8 +75,8 @@ func itemRelativePath(itemID, stateHash string) string {
 	return filepath.Join(itemsDirectoryName, filesystemID(itemID), stateHash+".age")
 }
 
-// documentFilename returns the age filename derived from a canonical file ID.
-func documentFilename(fileID string) string {
+// attachmentFilename returns the age filename derived from a canonical file ID.
+func attachmentFilename(fileID string) string {
 	return filesystemID(fileID) + ".age"
 }
 

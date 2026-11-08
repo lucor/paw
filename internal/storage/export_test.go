@@ -4,6 +4,7 @@
 package storage
 
 import (
+	"archive/tar"
 	"bytes"
 	"context"
 	"encoding/json/jsontext"
@@ -14,6 +15,7 @@ import (
 	"runtime"
 	"testing"
 
+	"filippo.io/age"
 	"github.com/stretchr/testify/require"
 	"go.lucor.dev/cxf"
 	"go.lucor.dev/paw/internal/model"
@@ -27,6 +29,109 @@ func exportFixture(t *testing.T) (*model.Vault, *FileStorage, *model.Item) {
 	require.NoError(t, err)
 	require.NoError(t, store.StoreItem(vault, item))
 	return vault, store, item
+}
+
+func TestWritePawArchiveIncludesCurrentAndHistoryAttachments(t *testing.T) {
+	vault, store, item := exportFixture(t)
+	current, err := store.AddAttachment(vault, item.ID, "same.bin", bytes.NewReader([]byte{0, 255, 1}))
+	require.NoError(t, err)
+	archived, err := store.AddAttachment(vault, item.ID, "same.bin", bytes.NewReader([]byte("older")))
+	require.NoError(t, err)
+	require.NoError(t, store.RemoveAttachment(vault, item.ID, current.ID))
+
+	var archive bytes.Buffer
+	require.NoError(t, WritePawArchive(context.Background(), &archive, store, vault, "archive-password"))
+	identity, err := age.NewScryptIdentity("archive-password")
+	require.NoError(t, err)
+	identity.SetMaxWorkFactor(18)
+	decrypted, err := age.Decrypt(bytes.NewReader(archive.Bytes()), identity)
+	require.NoError(t, err)
+	tr := tar.NewReader(decrypted)
+	header, err := tr.Next()
+	require.NoError(t, err)
+	require.Equal(t, "export.cxf", header.Name)
+	_, err = io.Copy(io.Discard, tr)
+	require.NoError(t, err)
+	entries := map[string][]byte{}
+	for {
+		header, err = tr.Next()
+		if err == io.EOF {
+			break
+		}
+		require.NoError(t, err)
+		data, err := io.ReadAll(tr)
+		require.NoError(t, err)
+		entries[header.Name] = data
+	}
+	require.Equal(t, []byte("older"), entries["files/"+item.ID+"/"+archived.ID])
+	require.Equal(t, []byte{0, 255, 1}, entries["files/"+item.ID+"/"+current.ID])
+	backup, err := ReadPawArchive(context.Background(), bytes.NewReader(archive.Bytes()), "archive-password")
+	require.NoError(t, err)
+	require.Equal(t, vault.Metadata.VaultName, backup.Name)
+	require.Len(t, backup.attachments, 2)
+	destination := newTestFileStorage(t)
+	restored, err := destination.Restore(context.Background(), backup, "Imported", "master-password")
+	require.NoError(t, err)
+	imported, err := destination.LoadItem(restored, item.ID)
+	require.NoError(t, err)
+	importedFiles, err := imported.Files()
+	require.NoError(t, err)
+	require.Equal(t, []cxf.File{archived}, importedFiles)
+	savedDirectory, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
+	savedPath := filepath.Join(savedDirectory, "restored.bin")
+	require.NoError(t, destination.SaveAttachment(restored, item.ID, archived.ID, savedPath))
+	savedContent, err := os.ReadFile(savedPath)
+	require.NoError(t, err)
+	require.Equal(t, []byte("older"), savedContent)
+	require.NoError(t, backup.Close())
+	_, err = ReadPawArchive(context.Background(), bytes.NewReader(archive.Bytes()), "wrong-password")
+	require.Error(t, err)
+}
+
+func TestReadPawArchiveRejectsDataAfterTAREndMarker(t *testing.T) {
+	vault, store, _ := exportFixture(t)
+	var archive bytes.Buffer
+	require.NoError(t, WritePawArchive(context.Background(), &archive, store, vault, "archive-password"))
+	identity, err := age.NewScryptIdentity("archive-password")
+	require.NoError(t, err)
+	identity.SetMaxWorkFactor(18)
+	decrypted, err := age.Decrypt(bytes.NewReader(archive.Bytes()), identity)
+	require.NoError(t, err)
+	plain, err := io.ReadAll(decrypted)
+	require.NoError(t, err)
+	plain = append(plain, []byte("unexpected TAR data")...)
+
+	recipient, err := age.NewScryptRecipient("archive-password")
+	require.NoError(t, err)
+	recipient.SetWorkFactor(18)
+	var malformed bytes.Buffer
+	encrypted, err := age.Encrypt(&malformed, recipient)
+	require.NoError(t, err)
+	_, err = encrypted.Write(plain)
+	require.NoError(t, err)
+	require.NoError(t, encrypted.Close())
+
+	_, err = ReadPawArchive(context.Background(), bytes.NewReader(malformed.Bytes()), "archive-password")
+	require.ErrorIs(t, err, ErrUnsupportedBackup)
+}
+
+func TestExportPawFilePublishesWithoutReplacingExistingDestination(t *testing.T) {
+	vault, store, _ := exportFixture(t)
+	directory := t.TempDir()
+	path := filepath.Join(directory, "vault.paw")
+	require.NoError(t, ExportPawFile(context.Background(), store, vault, path, "archive-password"))
+	info, err := os.Stat(path)
+	require.NoError(t, err)
+	if runtime.GOOS != "windows" {
+		require.Equal(t, os.FileMode(0600), info.Mode().Perm())
+	}
+	before, err := os.ReadFile(path)
+	require.NoError(t, err)
+	require.ErrorContains(t, ExportPawFile(context.Background(), store, vault, path, "archive-password"), "already exists")
+	after, err := os.ReadFile(path)
+	require.NoError(t, err)
+	require.Equal(t, before, after)
 }
 
 func TestExportCXFAndAgeDoNotExposeCredentials(t *testing.T) {

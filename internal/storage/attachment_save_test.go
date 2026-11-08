@@ -19,18 +19,18 @@ import (
 	"go.lucor.dev/cxf"
 )
 
-func TestDocumentSaveVerifiesAndPublishes(t *testing.T) {
-	s, root, itemID, key := newDocumentSaveRoot(t)
-	fileID := testDocumentID(t)
+func TestAttachmentSaveVerifiesAndPublishes(t *testing.T) {
+	s, root, itemID, key := newAttachmentSaveRoot(t)
+	fileID := testAttachmentID(t)
 	content := []byte{0, 255, 2, 0, 19}
-	size, digest, err := storeDocument(root, key, itemID, fileID, bytes.NewReader(content))
+	size, digest, err := storeAttachment(root, key, itemID, fileID, bytes.NewReader(content))
 	require.NoError(t, err)
 	expected := cxf.File{Type: cxf.CredentialTypeFile, ID: fileID, Name: "original.bin", DecryptedSize: size, IntegrityHash: digest}
 	destinationDir, err := filepath.EvalSymlinks(t.TempDir())
 	require.NoError(t, err)
 	destination := filepath.Join(destinationDir, "folder with spaces", "saved file.bin")
 	require.NoError(t, os.Mkdir(filepath.Dir(destination), 0700))
-	require.NoError(t, s.saveDocument(root, key, itemID, fileID, destination, expected))
+	require.NoError(t, s.saveAttachmentFile(root, key, itemID, fileID, destination, expected))
 	got, err := os.ReadFile(destination)
 	require.NoError(t, err)
 	require.Equal(t, content, got)
@@ -42,10 +42,10 @@ func TestDocumentSaveVerifiesAndPublishes(t *testing.T) {
 	require.Len(t, entries, 1)
 }
 
-func TestDocumentSavePublishesEmptyDocument(t *testing.T) {
-	s, root, itemID, key := newDocumentSaveRoot(t)
-	fileID := testDocumentID(t)
-	size, digest, err := storeDocument(root, key, itemID, fileID, bytes.NewReader(nil))
+func TestAttachmentSavePublishesEmptyFile(t *testing.T) {
+	s, root, itemID, key := newAttachmentSaveRoot(t)
+	fileID := testAttachmentID(t)
+	size, digest, err := storeAttachment(root, key, itemID, fileID, bytes.NewReader(nil))
 	require.NoError(t, err)
 	expected := cxf.File{
 		Type:          cxf.CredentialTypeFile,
@@ -57,24 +57,24 @@ func TestDocumentSavePublishesEmptyDocument(t *testing.T) {
 	destinationDir, err := filepath.EvalSymlinks(t.TempDir())
 	require.NoError(t, err)
 	destination := filepath.Join(destinationDir, "empty.bin")
-	require.NoError(t, s.saveDocument(root, key, itemID, fileID, destination, expected))
+	require.NoError(t, s.saveAttachmentFile(root, key, itemID, fileID, destination, expected))
 	info, err := os.Stat(destination)
 	require.NoError(t, err)
 	require.Zero(t, info.Size())
 }
 
-func TestDocumentSavePreservesExistingDestinationAndCleansFailure(t *testing.T) {
-	s, root, itemID, key := newDocumentSaveRoot(t)
-	fileID := testDocumentID(t)
+func TestAttachmentSavePreservesExistingDestinationAndCleansFailure(t *testing.T) {
+	s, root, itemID, key := newAttachmentSaveRoot(t)
+	fileID := testAttachmentID(t)
 	content := []byte("verified output")
-	size, digest, err := storeDocument(root, key, itemID, fileID, bytes.NewReader(content))
+	size, digest, err := storeAttachment(root, key, itemID, fileID, bytes.NewReader(content))
 	require.NoError(t, err)
 	expected := cxf.File{Type: cxf.CredentialTypeFile, ID: fileID, Name: "private name", DecryptedSize: size, IntegrityHash: digest}
 	destinationDir, err := filepath.EvalSymlinks(t.TempDir())
 	require.NoError(t, err)
 	destination := filepath.Join(destinationDir, "existing")
 	require.NoError(t, os.WriteFile(destination, []byte("sentinel"), 0600))
-	require.Error(t, s.saveDocument(root, key, itemID, fileID, destination, expected))
+	require.Error(t, s.saveAttachmentFile(root, key, itemID, fileID, destination, expected))
 	got, err := os.ReadFile(destination)
 	require.NoError(t, err)
 	require.Equal(t, []byte("sentinel"), got)
@@ -82,14 +82,14 @@ func TestDocumentSavePreservesExistingDestinationAndCleansFailure(t *testing.T) 
 	bad := expected
 	bad.IntegrityHash = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
 	failedPath := filepath.Join(destinationDir, "failed")
-	require.Error(t, s.saveDocument(root, key, itemID, fileID, failedPath, bad))
+	require.Error(t, s.saveAttachmentFile(root, key, itemID, fileID, failedPath, bad))
 	require.NoFileExists(t, failedPath)
 	storageDirectory := storageRootPath(s)
 	vaultDirectory, err := filepath.EvalSymlinks(storageDirectory)
 	require.NoError(t, err)
 	require.NoError(t, os.Mkdir(filepath.Join(vaultDirectory, "another-vault"), 0700))
 	vaultPath := filepath.Join(vaultDirectory, "another-vault", "plaintext")
-	require.Error(t, s.saveDocument(root, key, itemID, fileID, vaultPath, expected))
+	require.Error(t, s.saveAttachmentFile(root, key, itemID, fileID, vaultPath, expected))
 	require.NoFileExists(t, vaultPath)
 	entries, err := os.ReadDir(filepath.Dir(failedPath))
 	require.NoError(t, err)
@@ -98,7 +98,7 @@ func TestDocumentSavePreservesExistingDestinationAndCleansFailure(t *testing.T) 
 	}
 }
 
-func TestDocumentSaveCleansFailures(t *testing.T) {
+func TestAttachmentSaveCleansFailures(t *testing.T) {
 	for _, test := range []struct {
 		name      string
 		wrongKey  bool
@@ -110,16 +110,16 @@ func TestDocumentSaveCleansFailures(t *testing.T) {
 		{name: "size mismatch", badSize: true},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			s, root, itemID, key := newDocumentSaveRoot(t)
-			fileID := testDocumentID(t)
-			size, digest, err := storeDocument(root, key, itemID, fileID, bytes.NewReader([]byte("attachment data")))
+			s, root, itemID, key := newAttachmentSaveRoot(t)
+			fileID := testAttachmentID(t)
+			size, digest, err := storeAttachment(root, key, itemID, fileID, bytes.NewReader([]byte("attachment data")))
 			require.NoError(t, err)
 			expected := cxf.File{Type: cxf.CredentialTypeFile, ID: fileID, Name: "file.bin", DecryptedSize: size, IntegrityHash: digest}
 			if test.badSize {
 				expected.DecryptedSize++
 			}
 			if test.truncated {
-				path := filepath.Join(itemsDirectoryName, filesystemID(itemID), documentsDirectoryName, documentFilename(fileID))
+				path := filepath.Join(itemsDirectoryName, filesystemID(itemID), filesDirectoryName, attachmentFilename(fileID))
 				ciphertext, err := root.ReadFile(path)
 				require.NoError(t, err)
 				require.NoError(t, root.WriteFile(path, ciphertext[:len(ciphertext)-8], 0600))
@@ -130,7 +130,7 @@ func TestDocumentSaveCleansFailures(t *testing.T) {
 			}
 			dir, err := filepath.EvalSymlinks(t.TempDir())
 			require.NoError(t, err)
-			require.Error(t, s.saveDocument(root, key, itemID, fileID, filepath.Join(dir, "result"), expected))
+			require.Error(t, s.saveAttachmentFile(root, key, itemID, fileID, filepath.Join(dir, "result"), expected))
 			entries, err := os.ReadDir(dir)
 			require.NoError(t, err)
 			for _, entry := range entries {
@@ -140,10 +140,10 @@ func TestDocumentSaveCleansFailures(t *testing.T) {
 	}
 }
 
-func TestDocumentSaveRejectsSymlinkDestinationParent(t *testing.T) {
-	s, root, itemID, key := newDocumentSaveRoot(t)
-	fileID := testDocumentID(t)
-	size, digest, err := storeDocument(root, key, itemID, fileID, bytes.NewReader([]byte("data")))
+func TestAttachmentSaveRejectsSymlinkDestinationParent(t *testing.T) {
+	s, root, itemID, key := newAttachmentSaveRoot(t)
+	fileID := testAttachmentID(t)
+	size, digest, err := storeAttachment(root, key, itemID, fileID, bytes.NewReader([]byte("data")))
 	require.NoError(t, err)
 	expected := cxf.File{Type: cxf.CredentialTypeFile, ID: fileID, Name: "file.bin", DecryptedSize: size, IntegrityHash: digest}
 	base, err := filepath.EvalSymlinks(t.TempDir())
@@ -154,15 +154,15 @@ func TestDocumentSaveRejectsSymlinkDestinationParent(t *testing.T) {
 	if err := os.Symlink(target, link); err != nil {
 		t.Skipf("symlink unavailable: %v", err)
 	}
-	require.Error(t, s.saveDocument(root, key, itemID, fileID, filepath.Join(link, "result"), expected))
+	require.Error(t, s.saveAttachmentFile(root, key, itemID, fileID, filepath.Join(link, "result"), expected))
 	require.NoFileExists(t, filepath.Join(target, "result"))
 }
 
-func TestDocumentSaveStreamsGeneratedLargeContent(t *testing.T) {
-	s, root, itemID, key := newDocumentSaveRoot(t)
-	fileID := testDocumentID(t)
+func TestAttachmentSaveStreamsGeneratedLargeContent(t *testing.T) {
+	s, root, itemID, key := newAttachmentSaveRoot(t)
+	fileID := testAttachmentID(t)
 	const size = 16 * 1024 * 1024
-	sizeOnDisk, digest, err := storeDocument(root, key, itemID, fileID, &patternReader{remaining: size})
+	sizeOnDisk, digest, err := storeAttachment(root, key, itemID, fileID, &patternReader{remaining: size})
 	require.NoError(t, err)
 	expected := cxf.File{
 		Type:          cxf.CredentialTypeFile,
@@ -174,7 +174,7 @@ func TestDocumentSaveStreamsGeneratedLargeContent(t *testing.T) {
 	destinationDir, err := filepath.EvalSymlinks(t.TempDir())
 	require.NoError(t, err)
 	destination := filepath.Join(destinationDir, "large.bin")
-	require.NoError(t, s.saveDocument(root, key, itemID, fileID, destination, expected))
+	require.NoError(t, s.saveAttachmentFile(root, key, itemID, fileID, destination, expected))
 	file, err := os.Open(destination)
 	require.NoError(t, err)
 	hash := sha256.New()
@@ -185,11 +185,11 @@ func TestDocumentSaveStreamsGeneratedLargeContent(t *testing.T) {
 	require.Equal(t, digest, base64.RawURLEncoding.EncodeToString(hash.Sum(nil)))
 }
 
-func TestDocumentSaveRejectsCorruptionWithoutPublishingTemporary(t *testing.T) {
-	s, root, itemID, key := newDocumentSaveRoot(t)
-	fileID := testDocumentID(t)
+func TestAttachmentSaveRejectsCorruptionWithoutPublishingTemporary(t *testing.T) {
+	s, root, itemID, key := newAttachmentSaveRoot(t)
+	fileID := testAttachmentID(t)
 	content := []byte("encrypted content")
-	size, digest, err := storeDocument(root, key, itemID, fileID, bytes.NewReader(content))
+	size, digest, err := storeAttachment(root, key, itemID, fileID, bytes.NewReader(content))
 	require.NoError(t, err)
 	expected := cxf.File{
 		Type:          cxf.CredentialTypeFile,
@@ -198,15 +198,15 @@ func TestDocumentSaveRejectsCorruptionWithoutPublishingTemporary(t *testing.T) {
 		DecryptedSize: size,
 		IntegrityHash: digest,
 	}
-	documents := filepath.Join(itemsDirectoryName, filesystemID(itemID), documentsDirectoryName)
-	path := filepath.Join(documents, documentFilename(fileID))
+	filesDir := filepath.Join(itemsDirectoryName, filesystemID(itemID), filesDirectoryName)
+	path := filepath.Join(filesDir, attachmentFilename(fileID))
 	ciphertext, err := root.ReadFile(path)
 	require.NoError(t, err)
-	require.NoError(t, root.WriteFile(path, tamperDocument(ciphertext), 0600))
+	require.NoError(t, root.WriteFile(path, tamperAttachment(ciphertext), 0600))
 	destinationDir, err := filepath.EvalSymlinks(t.TempDir())
 	require.NoError(t, err)
 	corruptDestination := filepath.Join(destinationDir, "corrupt.bin")
-	require.Error(t, s.saveDocument(root, key, itemID, fileID, corruptDestination, expected))
+	require.Error(t, s.saveAttachmentFile(root, key, itemID, fileID, corruptDestination, expected))
 	require.NoFileExists(t, corruptDestination)
 	entries, err := os.ReadDir(destinationDir)
 	require.NoError(t, err)
@@ -214,18 +214,18 @@ func TestDocumentSaveRejectsCorruptionWithoutPublishingTemporary(t *testing.T) {
 
 }
 
-// newDocumentSaveRoot creates the real application/storage/vault layout without password derivation.
-func newDocumentSaveRoot(t *testing.T) (*FileStorage, *os.Root, string, *paw.Key) {
+// newAttachmentSaveRoot creates the real application/storage/vault layout without password derivation.
+func newAttachmentSaveRoot(t *testing.T) (*FileStorage, *os.Root, string, *paw.Key) {
 	t.Helper()
 	s, err := NewFileStorage(t.TempDir())
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, s.Close()) })
-	vaultID := testDocumentID(t)
+	vaultID := testAttachmentID(t)
 	require.NoError(t, s.root.Mkdir(vaultDirectory(vaultID), 0700))
 	root, err := s.openVaultRoot(vaultID)
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, root.Close()) })
-	itemID := testDocumentID(t)
+	itemID := testAttachmentID(t)
 	require.NoError(t, root.MkdirAll(filepath.Join(itemsDirectoryName, filesystemID(itemID)), 0700))
 	key, err := paw.MakeOneTimeKey()
 	require.NoError(t, err)

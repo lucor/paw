@@ -145,11 +145,20 @@ func TestRestoreUnlockRequiresBackupPassword(t *testing.T) {
 
 func TestRestoreBackupFilterMatchesOnlySupportedExtensions(t *testing.T) {
 	filter := restoreBackupFileFilter{}
-	for _, name := range []string{"backup.cxf", "backup.cxf.age", "BACKUP.CXF", "BACKUP.CXF.AGE"} {
+	for _, name := range []string{"backup.cxf", "backup.cxf.age", "backup.paw", "BACKUP.CXF", "BACKUP.CXF.AGE", "BACKUP.PAW"} {
 		require.True(t, filter.Matches(fynestorage.NewFileURI(name)), name)
 	}
 	for _, name := range []string{"backup.age", "backup.zip", "backup.cxf.txt", "backup.cxf.age.txt"} {
 		require.False(t, filter.Matches(fynestorage.NewFileURI(name)), name)
+	}
+}
+
+func TestRestoreSelectsPawArchiveReaderByExtension(t *testing.T) {
+	for _, name := range []string{"backup.paw", "BACKUP.PAW"} {
+		require.True(t, isPawArchiveURI(fynestorage.NewFileURI(name)), name)
+	}
+	for _, name := range []string{"backup.cxf", "backup.cxf.age", "backup.age"} {
+		require.False(t, isPawArchiveURI(fynestorage.NewFileURI(name)), name)
 	}
 }
 

@@ -16,16 +16,16 @@ import (
 	"go.lucor.dev/paw/internal/paw"
 )
 
-// saveDocument verifies an encrypted document and publishes it at an explicit path without replacement.
-func (s *FileStorage) saveDocument(root *os.Root, key *paw.Key, itemID, fileID, destination string, expected cxf.File) (resultErr error) {
+// saveAttachmentFile verifies an encrypted attachment and publishes it at an explicit path without replacement.
+func (s *FileStorage) saveAttachmentFile(root *os.Root, key *paw.Key, itemID, fileID, destination string, expected cxf.File) (resultErr error) {
 	if key == nil {
 		return errors.New("vault key is missing")
 	}
 	if !isVaultID(itemID) || !isVaultID(fileID) || expected.ID != fileID {
-		return errors.New("invalid document ID or metadata")
+		return errors.New("invalid attachment ID or metadata")
 	}
 	if err := expected.Validate(); err != nil {
-		return fmt.Errorf("invalid document metadata: %w", err)
+		return fmt.Errorf("invalid attachment metadata: %w", err)
 	}
 	if destination == "" {
 		return errors.New("destination path is required")
@@ -53,23 +53,23 @@ func (s *FileStorage) saveDocument(root *os.Root, key *paw.Key, itemID, fileID, 
 		return fmt.Errorf("inspect destination: %w", err)
 	}
 
-	documentRoot, err := openStoredDocumentRoot(root, itemID)
+	filesRoot, err := openAttachmentDirectory(root, itemID)
 	if err != nil {
 		return err
 	}
-	defer documentRoot.Close()
-	name := documentFilename(fileID)
-	info, err := documentRoot.Lstat(name)
+	defer filesRoot.Close()
+	name := attachmentFilename(fileID)
+	info, err := filesRoot.Lstat(name)
 	if err != nil || !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 {
-		return errors.New("encrypted document is missing or not a regular file")
+		return errors.New("encrypted attachment is missing or not a regular file")
 	}
-	source, err := documentRoot.Open(name)
+	source, err := filesRoot.Open(name)
 	if err != nil {
-		return fmt.Errorf("open encrypted document: %w", err)
+		return fmt.Errorf("open encrypted attachment: %w", err)
 	}
 	defer source.Close()
 
-	tempName, temp, err := createPlainDocumentTemp(destinationRoot)
+	tempName, temp, err := createPlainAttachmentTemp(destinationRoot)
 	if err != nil {
 		return fmt.Errorf("create destination temporary: %w", err)
 	}
@@ -82,7 +82,7 @@ func (s *FileStorage) saveDocument(root *os.Root, key *paw.Key, itemID, fileID, 
 			resultErr = errors.Join(resultErr, destinationRoot.Remove(tempName))
 		}
 	}()
-	if err := decryptDocument(key, temp, source, expected); err != nil {
+	if err := decryptAttachment(key, temp, source, expected); err != nil {
 		return err
 	}
 	if err := temp.Sync(); err != nil {
@@ -135,20 +135,20 @@ func (s *FileStorage) validateDestinationParent(path string) error {
 	return nil
 }
 
-// openStoredDocumentRoot opens an Item's document directory after rejecting unsafe paths.
-func openStoredDocumentRoot(root *os.Root, itemID string) (*os.Root, error) {
+// openAttachmentDirectory opens an Item's files directory after rejecting unsafe paths.
+func openAttachmentDirectory(root *os.Root, itemID string) (*os.Root, error) {
 	itemPath := filepath.Join(itemsDirectoryName, filesystemID(itemID))
-	for _, path := range []string{itemsDirectoryName, itemPath, filepath.Join(itemPath, documentsDirectoryName)} {
+	for _, path := range []string{itemsDirectoryName, itemPath, filepath.Join(itemPath, filesDirectoryName)} {
 		info, err := root.Lstat(path)
 		if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
-			return nil, errors.New("encrypted document directory is unavailable")
+			return nil, errors.New("encrypted files directory is unavailable")
 		}
 	}
-	return root.OpenRoot(filepath.Join(itemPath, documentsDirectoryName))
+	return root.OpenRoot(filepath.Join(itemPath, filesDirectoryName))
 }
 
-// createPlainDocumentTemp creates a private temporary file beside the requested destination.
-func createPlainDocumentTemp(root *os.Root) (string, *os.File, error) {
+// createPlainAttachmentTemp creates a private temporary file beside the requested destination.
+func createPlainAttachmentTemp(root *os.Root) (string, *os.File, error) {
 	for range 10 {
 		var token [12]byte
 		if _, err := rand.Read(token[:]); err != nil {

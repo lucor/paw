@@ -132,7 +132,7 @@ func TestRestoreItemRejectsMissingAttachmentWithoutChangingState(t *testing.T) {
 	require.NoError(t, err)
 	root, err := store.openVaultRoot(vault.Accounts[0].ID)
 	require.NoError(t, err)
-	require.NoError(t, root.Remove(filepath.Join(itemsDirectoryName, filesystemID(item.ID), documentsDirectoryName, documentFilename(file.ID))))
+	require.NoError(t, root.Remove(filepath.Join(itemsDirectoryName, filesystemID(item.ID), filesDirectoryName, attachmentFilename(file.ID))))
 	require.NoError(t, root.Close())
 	_, _, err = store.RestoreItem(vault, item.ID, 1, &history.Entries[1], uint64(200))
 	require.ErrorContains(t, err, "missing or not a regular file")

@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"path/filepath"
+	"strings"
 	"time"
 
 	urfave "github.com/urfave/cli/v3"
@@ -16,7 +18,7 @@ import (
 )
 
 func newRestoreCommand(base *command) *urfave.Command {
-	return &urfave.Command{Name: "restore", Usage: "Restore a Paw CXF backup into a new vault", ArgsUsage: "BACKUP", Flags: []urfave.Flag{&urfave.StringFlag{Name: "name", Usage: "Name for the restored vault"}}, Action: withArgs(1, 1, func(ctx context.Context, c *urfave.Command) error {
+	return &urfave.Command{Name: "restore", Usage: "Restore a Paw or CXF backup into a new vault", ArgsUsage: "BACKUP", Flags: []urfave.Flag{&urfave.StringFlag{Name: "name", Usage: "Name for the restored vault"}}, Action: withArgs(1, 1, func(ctx context.Context, c *urfave.Command) error {
 		base := base.forInvocation(c)
 		ctx, stop := signal.NotifyContext(ctx, os.Interrupt)
 		defer stop()
@@ -25,20 +27,30 @@ func newRestoreCommand(base *command) *urfave.Command {
 			return fmt.Errorf("open backup: %w", err)
 		}
 		defer file.Close()
-		backup, err := storage.ReadPawBackup(ctx, file, "")
-		if errors.Is(err, storage.ErrBackupPasswordRequired) {
-			password, readErr := base.prompter.askPassword("Backup password")
+		var backup *storage.PawBackup
+		if strings.EqualFold(filepath.Ext(c.Args().First()), ".paw") {
+			password, readErr := base.prompter.askPassword("Archive password")
 			if readErr != nil {
 				return readErr
 			}
-			if _, err = file.Seek(0, 0); err != nil {
-				return err
+			backup, err = storage.ReadPawArchive(ctx, file, password)
+		} else {
+			backup, err = storage.ReadPawBackup(ctx, file, "")
+			if errors.Is(err, storage.ErrBackupPasswordRequired) {
+				password, readErr := base.prompter.askPassword("Backup password")
+				if readErr != nil {
+					return readErr
+				}
+				if _, err = file.Seek(0, 0); err != nil {
+					return err
+				}
+				backup, err = storage.ReadPawBackup(ctx, file, password)
 			}
-			backup, err = storage.ReadPawBackup(ctx, file, password)
 		}
 		if err != nil {
 			return err
 		}
+		defer backup.Close()
 		fmt.Fprintf(base.out, "Vault: %s\nCollections: %d\nCredentials: %d\n", backup.Name, backup.Collections, backup.Credentials)
 		if backup.CreationAt != nil {
 			fmt.Fprintf(base.out, "Created: %s\n", time.Unix(int64(*backup.CreationAt), 0).UTC().Format(time.RFC3339))

@@ -4,8 +4,11 @@
 package storage
 
 import (
+	"archive/tar"
+	"bytes"
 	"context"
 	json "encoding/json/v2"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -30,46 +33,176 @@ func WriteCXF(ctx context.Context, w io.Writer, s *FileStorage, vault *model.Vau
 	if err := rejectAttachmentExport(ctx, s, vault); err != nil {
 		return err
 	}
+	document, err := exportDocument(ctx, s, vault)
+	if err != nil {
+		return err
+	}
+	if err := cxf.Encode(exportWriter{ctx, w}, document); err != nil {
+		return fmt.Errorf("write CXF: %w", err)
+	}
+	return ctx.Err()
+}
+
+func exportDocument(ctx context.Context, s *FileStorage, vault *model.Vault) (*cxf.Header, error) {
 	// Copy before marshaling: Paw's marshaler updates the vault extension slice.
 	data, err := json.Marshal(vault.Header, json.Deterministic(true))
 	if err != nil {
-		return fmt.Errorf("copy export document: %w", err)
+		return nil, fmt.Errorf("copy export document: %w", err)
 	}
 	copy, err := model.DecodeVault(data, vault.Key())
 	if err != nil {
-		return fmt.Errorf("copy export vault: %w", err)
+		return nil, fmt.Errorf("copy export vault: %w", err)
 	}
 	copy.Metadata = vault.Metadata
 	data, err = json.Marshal(copy, json.Deterministic(true))
 	if err != nil {
-		return fmt.Errorf("encode vault metadata: %w", err)
+		return nil, fmt.Errorf("encode vault metadata: %w", err)
 	}
 	var document cxf.Header
 	if err := json.Unmarshal(data, &document); err != nil {
-		return err
+		return nil, err
 	}
 	for a := range document.Accounts {
 		for i, summary := range document.Accounts[a].Items {
 			if err := ctx.Err(); err != nil {
-				return err
+				return nil, err
 			}
 			item, err := s.LoadItem(vault, summary.ID)
 			if err != nil {
-				return fmt.Errorf("load export item: %w", err)
+				return nil, fmt.Errorf("load export item: %w", err)
 			}
 			data, err := json.Marshal(item, json.Deterministic(true))
 			if err != nil {
-				return fmt.Errorf("encode export item: %w", err)
+				return nil, fmt.Errorf("encode export item: %w", err)
 			}
 			if err := json.Unmarshal(data, &document.Accounts[a].Items[i]); err != nil {
+				return nil, err
+			}
+		}
+	}
+	return &document, ctx.Err()
+}
+
+// WritePawArchive streams an encrypted TAR containing CXF and all referenced attachments.
+func WritePawArchive(ctx context.Context, w io.Writer, s *FileStorage, vault *model.Vault, password string) error {
+	if password == "" {
+		return fmt.Errorf("archive password is required")
+	}
+	if vault == nil || len(vault.Accounts) == 0 {
+		return fmt.Errorf("cannot export: no vault selected")
+	}
+	filesByItem := make(map[string][]cxf.File)
+	for _, summary := range vault.Accounts[0].Items {
+		item, err := s.LoadItem(vault, summary.ID)
+		if err != nil {
+			return err
+		}
+		files, err := itemAttachmentReferences(item)
+		if err != nil {
+			return err
+		}
+		filesByItem[item.ID] = files
+	}
+	document, err := exportDocument(ctx, s, vault)
+	if err != nil {
+		return err
+	}
+	var cxfData bytes.Buffer
+	if err := cxf.Encode(exportWriter{ctx, &cxfData}, document); err != nil {
+		return fmt.Errorf("encode archive CXF: %w", err)
+	}
+	recipient, err := age.NewScryptRecipient(password)
+	if err != nil {
+		return err
+	}
+	encrypted, err := age.Encrypt(exportWriter{ctx, w}, recipient)
+	if err != nil {
+		return err
+	}
+	tarWriter := tar.NewWriter(encrypted)
+	if err := tarWriter.WriteHeader(&tar.Header{Name: "export.cxf", Mode: 0600, Size: int64(cxfData.Len()), Typeflag: tar.TypeReg}); err != nil {
+		return err
+	}
+	if _, err := io.Copy(tarWriter, &cxfData); err != nil {
+		return err
+	}
+	root, err := s.openVaultRoot(vault.Accounts[0].ID)
+	if err != nil {
+		return err
+	}
+	defer root.Close()
+	for itemID, files := range filesByItem {
+		for _, file := range files {
+			if err := writePawAttachment(ctx, tarWriter, root, vault, itemID, file); err != nil {
 				return err
 			}
 		}
 	}
-	if err := cxf.Encode(exportWriter{ctx, w}, &document); err != nil {
-		return fmt.Errorf("write CXF: %w", err)
+	if err := tarWriter.Close(); err != nil {
+		return err
 	}
-	return ctx.Err()
+	return encrypted.Close()
+}
+
+func writePawAttachment(ctx context.Context, tw *tar.Writer, root *os.Root, vault *model.Vault, itemID string, file cxf.File) error {
+	files, err := openAttachmentDirectory(root, itemID)
+	if err != nil {
+		return err
+	}
+	defer files.Close()
+	source, err := files.Open(attachmentFilename(file.ID))
+	if err != nil {
+		return err
+	}
+	defer source.Close()
+	name := filesDirectoryName + "/" + itemID + "/" + file.ID
+	if file.DecryptedSize > uint64(^uint64(0)>>1) {
+		return errors.New("attachment is too large for TAR")
+	}
+	if err := tw.WriteHeader(&tar.Header{Name: name, Mode: 0600, Size: int64(file.DecryptedSize), Typeflag: tar.TypeReg}); err != nil {
+		return err
+	}
+	return decryptAttachment(vault.Key(), exportWriter{ctx: ctx, writer: tw}, source, file)
+}
+
+func itemAttachmentReferences(item *model.Item) ([]cxf.File, error) {
+	files, err := item.Files()
+	if err != nil {
+		return nil, err
+	}
+	history, err := item.History()
+	if err != nil {
+		return nil, err
+	}
+	seen := make(map[string]cxf.File, len(files))
+	for _, file := range files {
+		seen[file.ID] = file
+	}
+	for _, entry := range history.Entries {
+		data, err := json.Marshal(entry.Item, json.Deterministic(true))
+		if err != nil {
+			return nil, err
+		}
+		var snapshot model.Item
+		if err := json.Unmarshal(data, &snapshot); err != nil {
+			return nil, err
+		}
+		archived, err := snapshot.Files()
+		if err != nil {
+			return nil, err
+		}
+		for _, file := range archived {
+			if current, ok := seen[file.ID]; ok {
+				if current != file {
+					return nil, fmt.Errorf("attachment %s has inconsistent history metadata", file.ID)
+				}
+				continue
+			}
+			seen[file.ID] = file
+			files = append(files, file)
+		}
+	}
+	return files, nil
 }
 
 // WriteEncryptedCXF streams CXF into a standard password-encrypted age file.
@@ -170,6 +303,22 @@ func ExportFile(ctx context.Context, s *FileStorage, vault *model.Vault, path, p
 	if !plaintext && password == "" {
 		return fmt.Errorf("export password is required")
 	}
+	return publishExportFile(ctx, path, func(w io.Writer) error {
+		return WriteExport(ctx, w, s, vault, password, plaintext)
+	})
+}
+
+// ExportPawFile writes a password-encrypted Paw archive and publishes it atomically.
+func ExportPawFile(ctx context.Context, s *FileStorage, vault *model.Vault, path, password string) error {
+	if password == "" {
+		return fmt.Errorf("archive password is required")
+	}
+	return publishExportFile(ctx, path, func(w io.Writer) error {
+		return WritePawArchive(ctx, w, s, vault, password)
+	})
+}
+
+func publishExportFile(ctx context.Context, path string, write func(io.Writer) error) (err error) {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -184,7 +333,7 @@ func ExportFile(ctx context.Context, s *FileStorage, vault *model.Vault, path, p
 	}
 	defer os.Remove(f.Name())
 	defer f.Close()
-	if err := WriteExport(ctx, f, s, vault, password, plaintext); err != nil {
+	if err := write(f); err != nil {
 		return err
 	}
 	if err := f.Sync(); err != nil {
