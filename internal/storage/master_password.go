@@ -32,7 +32,7 @@ func (s *FileStorage) ChangeMasterPassword(ctx context.Context, id, current, nex
 		return fmt.Errorf("open protected key directory: %w", err)
 	}
 	defer root.Close()
-	reader, err := root.Open(keyFileName)
+	reader, err := root.Open(scryptIdentityPath())
 	if err != nil {
 		return fmt.Errorf("read protected vault key: %w", err)
 	}
@@ -48,7 +48,7 @@ func (s *FileStorage) ChangeMasterPassword(ctx context.Context, id, current, nex
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if err := atomicWrite(root, keyFileName, func(w io.Writer) error {
+	if err := atomicWrite(root, scryptIdentityPath(), func(w io.Writer) error {
 		if err := key.WriteWrapped(w, next); err != nil {
 			return err
 		}

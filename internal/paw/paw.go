@@ -5,12 +5,10 @@
 package paw
 
 import (
-	"bytes"
 	json "encoding/json/v2"
 	"fmt"
 	"io"
 	"runtime/debug"
-	"time"
 
 	"filippo.io/age"
 	"filippo.io/age/armor"
@@ -29,86 +27,42 @@ var (
 )
 
 type Key struct {
-	ageIdentity *age.X25519Identity
+	ageIdentity age.Identity
+	migrated    bool
 }
 
-// MakeOneTimeKey generates a one time age secret key.
-// The key can be used to encrypt and decrypt vault data.
-func MakeOneTimeKey() (key *Key, err error) {
-	wrapErr := func(err error) error {
-		return fmt.Errorf("paw: makekey error: %w", err)
+// MakeOneTimeKey generates a one-time hybrid age key for encrypted temporary data.
+func MakeOneTimeKey() (*Key, error) {
+	identity, err := age.GenerateHybridIdentity()
+	if err != nil {
+		return nil, fmt.Errorf("paw: generate key: %w", err)
 	}
-
-	// Generate the age X25519 Identity
-	ageIdentity, ierr := age.GenerateX25519Identity()
-	if ierr != nil {
-		err = wrapErr(ierr)
-		return
-	}
-	key = &Key{
-		ageIdentity: ageIdentity,
-	}
-	return
+	return &Key{ageIdentity: identity}, nil
 }
 
-// MakeKey generates an age secret key. The key is encrypted to w and protect using the provided password
+// MakeKey generates a hybrid age secret key protected by the provided password.
 func MakeKey(password string, w io.Writer) (key *Key, err error) {
-
-	wrapErr := func(err error) error {
-		return fmt.Errorf("paw: makekey error: %w", err)
-	}
-
-	// Generate the age X25519 Identity
-	ageIdentity, ierr := age.GenerateX25519Identity()
-	if ierr != nil {
-		err = wrapErr(ierr)
-		return
-	}
-
-	ageScryptRecipient, ierr := age.NewScryptRecipient(password)
-	if ierr != nil {
-		err = wrapErr(ierr)
-		return
-	}
-
-	a := armor.NewWriter(w)
-	defer func() {
-		// make sure to handle the error, if any
-		if ierr := a.Close(); ierr != nil {
-			err = wrapErr(ierr)
-			return
-		}
-	}()
-	e, err := age.Encrypt(a, ageScryptRecipient)
+	key, err = MakeOneTimeKey()
 	if err != nil {
-		err = wrapErr(ierr)
-		return
+		return nil, err
 	}
-
-	data := &bytes.Buffer{}
-	fmt.Fprintf(data, "# created: %s\n", time.Now().UTC().Format(time.RFC3339))
-	fmt.Fprintf(data, "# public key: %s\n", ageIdentity.Recipient())
-	fmt.Fprintf(data, "%s\n", ageIdentity)
-
-	_, err = e.Write(data.Bytes())
-	if err != nil {
-		err = wrapErr(ierr)
-		return
+	if err := key.WriteWrapped(w, password); err != nil {
+		return nil, fmt.Errorf("paw: protect key: %w", err)
 	}
-	err = e.Close()
-	if err != nil {
-		err = wrapErr(ierr)
-		return
-	}
-
-	key = &Key{
-		ageIdentity: ageIdentity,
-	}
-	return
+	return key, nil
 }
 
-// LoadKey decrypts an age secret key from the reader r using the provided password
+// LoadKey decrypts a hybrid age identity from the reader using the provided password.
 func LoadKey(password string, r io.Reader) (key *Key, err error) {
+	return loadKey(password, r, true)
+}
+
+// LoadLegacyKey decrypts a legacy X25519 age identity for automatic migration.
+func LoadLegacyKey(password string, r io.Reader) (*Key, error) {
+	return loadKey(password, r, false)
+}
+
+func loadKey(password string, r io.Reader, hybrid bool) (key *Key, err error) {
 
 	wrapErr := func(err error) error {
 		return fmt.Errorf("paw: loadkey error: %w", err)
@@ -127,28 +81,34 @@ func LoadKey(password string, r io.Reader) (key *Key, err error) {
 		return
 	}
 
-	// Generate the age X25519 Identity
 	ageIdentities, ierr := age.ParseIdentities(d)
 	if ierr != nil {
 		err = wrapErr(ierr)
 		return
 	}
 
-	if len(ageIdentities) > 1 {
+	if len(ageIdentities) != 1 {
 		err = wrapErr(fmt.Errorf("only one identity per file is supported, found %d", len(ageIdentities)))
 		return
 	}
-
-	ageIdentity, ok := ageIdentities[0].(*age.X25519Identity)
-	if !ok {
-		err = wrapErr(fmt.Errorf("only *age.X25519Identity are supported, got %T", ageIdentities[0]))
-		return
+	switch identity := ageIdentities[0].(type) {
+	case *age.HybridIdentity:
+		if hybrid {
+			return &Key{
+				ageIdentity: identity,
+			}, nil
+		}
+	case *age.X25519Identity:
+		if !hybrid {
+			return &Key{
+				ageIdentity: identity,
+			}, nil
+		}
 	}
-
-	key = &Key{
-		ageIdentity: ageIdentity,
+	if hybrid {
+		return nil, wrapErr(fmt.Errorf("hybrid age identity required"))
 	}
-	return
+	return nil, wrapErr(fmt.Errorf("legacy X25519 age identity required"))
 }
 
 // Decrypt decrypts the message
@@ -158,11 +118,18 @@ func (k *Key) Decrypt(src io.Reader) (io.Reader, error) {
 
 // Encrypt a message
 func (k *Key) Encrypt(dst io.Writer) (io.WriteCloser, error) {
-	return age.Encrypt(dst, k.ageIdentity.Recipient())
+	switch identity := k.ageIdentity.(type) {
+	case *age.HybridIdentity:
+		return age.Encrypt(dst, identity.Recipient())
+	case *age.X25519Identity:
+		return age.Encrypt(dst, identity.Recipient())
+	default:
+		return nil, fmt.Errorf("unsupported age identity type")
+	}
 }
 
 func (k *Key) MarshalJSON() ([]byte, error) {
-	return json.Marshal(k.ageIdentity.String(), json.Deterministic(true))
+	return json.Marshal(k.String(), json.Deterministic(true))
 }
 
 func (k *Key) UnmarshalJSON(data []byte) error {
@@ -171,11 +138,17 @@ func (k *Key) UnmarshalJSON(data []byte) error {
 	if err != nil {
 		return err
 	}
-	ageIdentity, err := age.ParseX25519Identity(v)
-	if err != nil {
-		return err
+	if identity, err := age.ParseHybridIdentity(v); err == nil {
+		*k = Key{
+			ageIdentity: identity,
+		}
+		return nil
 	}
-	k.ageIdentity = ageIdentity
+	identity, err := age.ParseX25519Identity(v)
+	if err != nil {
+		return fmt.Errorf("invalid native age identity")
+	}
+	*k = Key{ageIdentity: identity}
 	return nil
 }
 
@@ -193,7 +166,7 @@ func (k *Key) WriteWrapped(w io.Writer, password string) error {
 	if err != nil {
 		return err
 	}
-	if _, err = io.WriteString(encrypted, k.ageIdentity.String()+"\n"); err != nil {
+	if _, err = io.WriteString(encrypted, k.String()+"\n"); err != nil {
 		return err
 	}
 	if err = encrypted.Close(); err != nil {
@@ -203,8 +176,21 @@ func (k *Key) WriteWrapped(w io.Writer, password string) error {
 }
 
 func (k *Key) String() string {
-	return k.ageIdentity.String()
+	switch identity := k.ageIdentity.(type) {
+	case *age.HybridIdentity:
+		return identity.String()
+	case *age.X25519Identity:
+		return identity.String()
+	default:
+		return "unsupported age identity"
+	}
 }
+
+// Migrated reports whether loading this key automatically migrated its vault.
+func (k *Key) Migrated() bool { return k.migrated }
+
+// MarkMigrated records that loading this key completed a vault identity migration.
+func (k *Key) MarkMigrated() { k.migrated = true }
 
 // Version returns the Paw's version
 func Version() string {

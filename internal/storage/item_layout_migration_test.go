@@ -42,6 +42,7 @@ func TestLoadVaultMigratesFlatItemFilesWithoutChangingContents(t *testing.T) {
 	secondBytes := moveItemToLegacyPath(t, store, vault, second.ID)
 	beforeSummaries := append([]cxf.Item(nil), vault.Accounts[0].Items...)
 	keyBefore := []byte("key must remain untouched")
+	require.NoError(t, os.MkdirAll(filepath.Dir(keyPath(store, vault.Accounts[0].ID)), 0o700))
 	require.NoError(t, os.WriteFile(keyPath(store, vault.Accounts[0].ID), keyBefore, 0o600))
 	vaultBefore, err := os.ReadFile(vaultPath(store, vault.Accounts[0].ID))
 	require.NoError(t, err)

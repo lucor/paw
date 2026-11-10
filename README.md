@@ -100,9 +100,9 @@ Go installs `paw` in `GOBIN`, or in `GOPATH/bin` when `GOBIN` is not set. Add th
 
 Paw stores credentials in one or more local vaults.
 
-When creating a vault, Paw generates an age X25519 key and protects it with the master password using age's scrypt-based password encryption. Paw uses that key to encrypt the vault index and individual items. The vault name and appearance are kept separately as local listing metadata.
+New vaults use a hybrid post-quantum age identity combining X25519 and ML-KEM-768. Paw protects it with the master password using age's scrypt-based password encryption and uses it to encrypt the vault index, items, history, and attachments. Existing vaults are upgraded automatically the next time they are successfully unlocked; the master password stays the same. The upgrade stages a second encrypted copy and may temporarily need additional disk space. Back up your vault before upgrading Paw. Older Paw versions may not be able to open an upgraded vault.
 
-The protected key is stored in `key.age`, the encrypted vault index in `vault.age`, and each item in its own encrypted file. Item contents and their index summaries are encrypted; `metadata.json` contains the vault's unencrypted name, icon, and color so Paw can list locked vaults.
+The protected identity is stored in `identities/scrypt.age`, the encrypted vault index in `vault.age`, and each item in its own encrypted file. Item contents and their index summaries are encrypted; `metadata.json` contains the vault's unencrypted name, icon, and color so Paw can list locked vaults.
 
 ### Password generation
 

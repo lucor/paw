@@ -21,18 +21,20 @@ func (s *FileStorage) LockFilePath() string { return lockFilePath(s) }
 func (s *FileStorage) LogFilePath() string { return logFilePath(s) }
 
 const (
-	storageRootName       = "storage"
-	vaultBackupSuffix     = ".bck"
-	keyFileName           = "key.age"
-	vaultFileName         = "vault.age"
-	itemsDirectoryName    = "items"
-	filesDirectoryName    = "files"
-	vaultMetadataFileName = "metadata.json"
-	appStateFileName      = "paw.json"
-	lockFileName          = "paw.lock"
-	logFileName           = "paw.log"
-	socketFileName        = "agent.sock"
-	namedPipe             = `\\.\pipe\paw`
+	storageRootName         = "storage"
+	vaultBackupSuffix       = ".bck"
+	keyFileName             = "key.age"
+	identitiesDirectoryName = "identities"
+	identityFileName        = "scrypt.age"
+	vaultFileName           = "vault.age"
+	itemsDirectoryName      = "items"
+	filesDirectoryName      = "files"
+	vaultMetadataFileName   = "metadata.json"
+	appStateFileName        = "paw.json"
+	lockFileName            = "paw.lock"
+	logFileName             = "paw.log"
+	socketFileName          = "agent.sock"
+	namedPipe               = `\\.\pipe\paw`
 )
 
 // storageRootPath returns the directory containing vaults.
@@ -52,6 +54,15 @@ func vaultDirectory(vaultID string) string {
 
 // keyPath returns the encrypted vault key file path.
 func keyPath(s *FileStorage, vaultID string) string {
+	return filepath.Join(vaultRootPath(s, vaultID), scryptIdentityPath())
+}
+
+// scryptIdentityPath returns the password-protected identity path within a vault.
+func scryptIdentityPath() string {
+	return filepath.Join(identitiesDirectoryName, identityFileName)
+}
+
+func legacyKeyPath(s *FileStorage, vaultID string) string {
 	return filepath.Join(vaultRootPath(s, vaultID), keyFileName)
 }
 

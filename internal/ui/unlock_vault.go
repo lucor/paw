@@ -114,6 +114,13 @@ func (u *UnlockVault) unlock() {
 	}
 
 	password := u.password.Text
+	u.unlockDone = make(chan struct{})
+	needsMigration, err := u.store.VaultKeyNeedsMigration(u.info.ID)
+	if err != nil {
+		u.showError(err)
+		close(u.unlockDone)
+		return
+	}
 	u.password.Disable()
 	u.button.Disable()
 	u.passwordError.Hide()
@@ -121,14 +128,18 @@ func (u *UnlockVault) unlock() {
 	u.activity.Show()
 	u.activity.Start()
 	u.message.Importance = widget.MediumImportance
-	u.message.SetText("Unlocking vault…")
+	if needsMigration {
+		u.message.SetText("Upgrading vault encryption…")
+	} else {
+		u.message.SetText("Unlocking vault…")
+	}
 	u.message.Show()
 	u.Refresh()
 
-	u.unlockDone = make(chan struct{})
 	done := u.unlockDone
 	go func() {
 		defer close(done)
+		defer func() { password = "" }()
 		key, err := u.store.LoadVaultKey(u.info.ID, password)
 		if err != nil {
 			var invalidPassword *age.NoIdentityMatchError

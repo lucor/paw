@@ -4,7 +4,10 @@
 package ui
 
 import (
+	"encoding/base32"
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -143,6 +146,28 @@ func TestUnlockVaultUnrelatedFailureDoesNotShowIncorrectPassword(t *testing.T) {
 	require.NotEmpty(t, view.message.Text)
 	require.False(t, view.passwordError.Visible())
 	require.Empty(t, view.password.Text, "unrelated failures keep the existing clear-on-error behavior")
+}
+
+func TestUnlockVaultShowsAutomaticMigrationStatusWithoutBlockingUI(t *testing.T) {
+	test.NewTempApp(t)
+	store, err := storage.NewFileStorage(t.TempDir())
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, store.Close()) })
+	id := "AAAAAAAAAAAAAAAAAAAAAA"
+	directory := strings.ToLower(base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(make([]byte, 16)))
+	vaultRoot := filepath.Join(store.Root(), "storage", directory)
+	require.NoError(t, os.MkdirAll(vaultRoot, 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(vaultRoot, "key.age"), []byte("legacy"), 0o600))
+	view := NewUnlockVault(model.VaultInfo{ID: id, Name: "Personal"}, store, nil, nil, nil, nil)
+	view.password.SetText("password")
+
+	var status string
+	fyne.DoAndWait(func() {
+		view.unlock()
+		status = view.message.Text
+	})
+	require.Equal(t, "Upgrading vault encryption…", status)
+	waitForUnlock(t, view)
 }
 
 func waitForUnlock(t *testing.T, view *UnlockVault) {

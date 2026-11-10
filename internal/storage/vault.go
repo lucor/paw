@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"time"
@@ -34,17 +35,7 @@ func (s *FileStorage) LoadVaultKey(vaultID, password string) (*paw.Key, error) {
 	if !isVaultID(vaultID) {
 		return nil, fmt.Errorf("invalid vault ID")
 	}
-	root, err := s.openVaultRoot(vaultID)
-	if err != nil {
-		return nil, fmt.Errorf("could not read URI: %w", err)
-	}
-	defer root.Close()
-	r, err := root.Open(keyFileName)
-	if err != nil {
-		return nil, fmt.Errorf("could not read URI: %w", err)
-	}
-	defer r.Close()
-	return paw.LoadKey(password, r)
+	return s.loadVaultKey(vaultID, password)
 }
 
 // storeVaultInfo writes the public name used to list a CXF vault.
@@ -74,11 +65,24 @@ func (s *FileStorage) Vaults() ([]model.VaultInfo, error) {
 		if !entry.IsDir() || strings.HasSuffix(entry.Name(), vaultBackupSuffix) {
 			continue
 		}
-		if !isFilesystemVaultID(entry.Name()) {
+		name := entry.Name()
+		if before, ok := strings.CutSuffix(name, identityBackupSuffix); ok {
+			name = before
+			if !isFilesystemVaultID(name) {
+				continue
+			}
+			activeExists, err := s.directoryExists(filepath.Join(storageRootName, name))
+			if err != nil {
+				return nil, err
+			}
+			if activeExists {
+				continue
+			}
+		}
+		if !isFilesystemVaultID(name) {
 			continue
 		}
-		id, _ := idFromFilesystemName(entry.Name())
-		vaultRoot, err := s.openVaultRoot(id)
+		vaultRoot, err := s.openNamedVaultRoot(entry.Name())
 		if err != nil {
 			return nil, fmt.Errorf("could not open vault directory: %w", err)
 		}
@@ -91,7 +95,7 @@ func (s *FileStorage) Vaults() ([]model.VaultInfo, error) {
 		if err != nil {
 			return nil, fmt.Errorf("could not read vault metadata: %w", err)
 		}
-		info, err := vaultInfoFromFilesystemName(entry.Name(), data)
+		info, err := vaultInfoFromFilesystemName(name, data)
 		if err != nil {
 			return nil, fmt.Errorf("invalid metadata for vault %q: %w", entry.Name(), err)
 		}
@@ -118,7 +122,10 @@ func (s *FileStorage) CreateVault(name, password string, appearances ...model.Va
 	if err := vaultRoot.Mkdir(itemsDirectoryName, 0o700); err != nil {
 		return nil, fmt.Errorf("could not create item storage directory: %w", err)
 	}
-	if err := atomicWrite(vaultRoot, keyFileName, func(w io.Writer) error {
+	if err := vaultRoot.Mkdir(identitiesDirectoryName, 0o700); err != nil {
+		return nil, fmt.Errorf("could not create identity storage directory: %w", err)
+	}
+	if err := atomicWrite(vaultRoot, scryptIdentityPath(), func(w io.Writer) error {
 		_, err := w.Write(keyData)
 		return err
 	}); err != nil {

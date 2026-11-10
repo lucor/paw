@@ -49,6 +49,9 @@ func (cmd *UnlockCmd) Run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	if key.Migrated() {
+		fmt.Fprintln(cmd.errOut, "Upgraded vault encryption to post-quantum age.")
+	}
 
 	vault, err := base.loadVault(key)
 	if err != nil {

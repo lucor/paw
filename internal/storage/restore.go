@@ -439,7 +439,10 @@ func (s *FileStorage) Restore(ctx context.Context, backup *PawBackup, name, pass
 	if err = vaultRoot.MkdirAll(itemsDirectoryName, 0o700); err != nil {
 		return nil, fmt.Errorf("create restored item storage directory: %w", err)
 	}
-	if err = atomicWrite(vaultRoot, keyFileName, func(w io.Writer) error {
+	if err = vaultRoot.MkdirAll(identitiesDirectoryName, 0o700); err != nil {
+		return nil, fmt.Errorf("create restored identity directory: %w", err)
+	}
+	if err = atomicWrite(vaultRoot, scryptIdentityPath(), func(w io.Writer) error {
 		_, writeErr := w.Write(keyData)
 		return errors.Join(writeErr, ctx.Err())
 	}); err != nil {
