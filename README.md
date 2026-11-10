@@ -2,11 +2,15 @@
     <img alt="Paw" src="logo/paw.png" height="128" />
 </div>
 
-# Simple, modern and privacy-focused open-source password manager
+# Simply a password manager
 
-Paw is an offline-first password manager for storing logins, passwords, secure notes, SSH keys, and authenticator codes.
+Paw stores your data locally in files encrypted with [age](https://age-encryption.org). It works offline and doesn't require an account.
 
-Paw is written in Go, uses [Fyne](https://github.com/fyne-io/fyne) for its interface, and uses [age](https://github.com/FiloSottile/age) to encrypt vault data.
+Free and open source.
+
+Paw provides a desktop app and command-line interface in a single binary. Run `paw` to open the desktop app or `paw cli` to use the command line. Both access the same local vaults.
+
+See the [documentation](https://paw.pm/docs/) for installation and usage instructions.
 
 ## Warning
 
@@ -14,12 +18,14 @@ Paw is written in Go, uses [Fyne](https://github.com/fyne-io/fyne) for its inter
 
 **Do not expect it to be bug free and do not rely on it for any type of security.**
 
-## Screenshot
+## Screenshots
 
-<div>
-    <img alt="Paw - list view" src="images/list.png" />
-    <img alt="Paw - details view" src="images/details.png" />
-</div>
+<table>
+    <tr>
+        <td><a href="images/list.png"><img alt="Paw showing the items in a vault" src="images/list.png" width="240" /></a></td>
+        <td><a href="images/details.png"><img alt="Paw showing login item details" src="images/details.png" width="240" /></a></td>
+    </tr>
+</table>
 
 ## Main features
 
@@ -68,6 +74,26 @@ Download and run the `windows_amd64.exe` package.
 
 Download and extract the `.tar.xz` package for your architecture. Install GNU Make (`gmake`) if needed, then from the extracted directory containing the `Makefile`, run `gmake user-install` to install Paw for your user, or `sudo gmake install` to install it system-wide.
 
+### Install with Go
+
+If your system has a version of Go supported by Paw, install the latest published release:
+
+```sh
+go install go.lucor.dev/paw@latest
+```
+
+You also need a C compiler and the platform libraries listed in the [Fyne build requirements](https://docs.fyne.io/started/).
+
+To build from source instead, clone the repository and install the executable:
+
+```sh
+git clone https://github.com/lucor/paw.git
+cd paw
+go install .
+```
+
+Go installs `paw` in `GOBIN`, or in `GOPATH/bin` when `GOBIN` is not set. Add that directory to your `PATH` to run `paw` and `paw cli`.
+
 ## How vaults and passwords work
 
 ### Vault initialization
@@ -115,14 +141,16 @@ See <https://lucor.dev/projects/#maintenance-policy>
 
 ## Credits
 
-* [age](https://github.com/FiloSottile/age) for the encryption library
-* [Fyne](https://github.com/fyne-io/fyne) for the UI toolkit
-* [Lucide](https://lucide.dev/) for the current UI icon set
+Paw is built with:
 
-Also thanks to these Open Source password managers that inspired Paw:
+* [Go](https://go.dev/) — programming language
+* [age](https://age-encryption.org) — encryption
+* [Fyne](https://github.com/fyne-io/fyne) — graphical interface
+* [Lucide](https://lucide.dev/) — icons
+* [zxcvbn](https://github.com/lucor/zxcvbn) — password strength estimation (adapted fork)
 
-* [gopass](https://github.com/gopasspw/gopass)
-* [lesspass](https://github.com/lesspass/lesspass)
-* [pass](https://www.passwordstore.org/)
-* [passage](https://github.com/FiloSottile/passage)
-* [passgo](https://github.com/ejcx/passgo)
+Paw also uses [Have I Been Pwned](https://haveibeenpwned.com/Passwords) for optional compromised-password checks.
+
+For a complete list of third-party dependencies and their licenses, see [Third-party licenses](/THIRD_PARTY_LICENSES).
+
+Also thanks to [pass](https://www.passwordstore.org/) and the other open-source password managers that inspired Paw.
