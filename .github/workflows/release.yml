@@ -90,6 +90,7 @@ jobs:
 
       - name: Build Linux package
         run: |
+          export GOFLAGS="-ldflags=-X=go.lucor.dev/paw/internal/paw.BuildVersion=v$PACKAGE_VERSION"
           mkdir -p dist
           cd dist
           go tool fyne package --source-dir .. --name Paw \
@@ -140,6 +141,7 @@ jobs:
 
       - name: Build Windows package
         run: |
+          export GOFLAGS="-ldflags=-X=go.lucor.dev/paw/internal/paw.BuildVersion=v$PACKAGE_VERSION"
           mkdir -p dist
           cd dist
           go tool fyne package --source-dir .. --name Paw \
@@ -195,6 +197,7 @@ jobs:
 
       - name: Build macOS package
         run: |
+          export GOFLAGS="-ldflags=-X=go.lucor.dev/paw/internal/paw.BuildVersion=v$PACKAGE_VERSION"
           mkdir -p dist
           cd dist
           go tool fyne package --source-dir .. --name Paw \
@@ -258,10 +261,12 @@ jobs:
 
       - name: Build package with fyne-cross image
         run: |
+          export PAW_GOFLAGS="-ldflags=-X=go.lucor.dev/paw/internal/paw.BuildVersion=v$PACKAGE_VERSION"
           docker run --rm \
             --volume "$GITHUB_WORKSPACE:/app" \
             --workdir /app \
             --env PACKAGE_VERSION \
+            --env GOFLAGS="$PAW_GOFLAGS" \
             --env GOOS \
             --env GOARCH \
             --env CGO_ENABLED \
