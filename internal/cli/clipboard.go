@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2022-2025 Luca Corbo, Paw contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//go:build darwin || linux || windows
+//go:build (darwin || freebsd || linux || windows) && !android && !ios
 
 package cli
 
