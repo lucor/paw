@@ -14,7 +14,11 @@ func (a *app) makeSettingsView() fyne.CanvasObject {
 	}
 	view := NewSettingsView(a.state, a.storage, a.win)
 	view.configureAutoLock = a.configureAutoLock
-	view.openAbout = func() { a.showAboutPawView(view.View) }
+	a.connectAboutNavigation(view)
 	view.BackButton.OnTapped = func() { a.win.SetContent(a.main) }
 	return view.View
+}
+
+func (a *app) connectAboutNavigation(view *SettingsView) {
+	view.openAbout = func() { a.showAboutPawView(view.View) }
 }

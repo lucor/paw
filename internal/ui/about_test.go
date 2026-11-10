@@ -55,6 +55,23 @@ func TestSettingsAboutNavigationReturnsToSameView(t *testing.T) {
 	require.Same(t, settings, window.Content())
 }
 
+func TestVaultSettingsAboutNavigationOpensAboutView(t *testing.T) {
+	driver := test.NewApp()
+	t.Cleanup(driver.Quit)
+	window := driver.NewWindow("Settings")
+	t.Cleanup(window.Close)
+	settings := NewSettingsView(&model.AppState{Settings: model.NewDefaultSettings()}, nil, window)
+	a := &app{win: window}
+	a.connectAboutNavigation(settings)
+	window.SetContent(settings.View)
+	window.Resize(fyne.NewSize(440, 800))
+	window.Show()
+
+	test.Tap(findNavigationRowButton(t, settings.View, aboutPageTitle))
+	require.Contains(t, auditTexts(window.Content()), aboutPageTitle)
+	require.NotSame(t, settings.View, window.Content())
+}
+
 func TestAboutPawShowsLogoVersionAndExternalNavigationRows(t *testing.T) {
 	driver := test.NewApp()
 	t.Cleanup(driver.Quit)
