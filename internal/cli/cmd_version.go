@@ -12,6 +12,7 @@ import (
 	"go.lucor.dev/paw/internal/paw"
 )
 
+// newVersionCommand constructs the version-display command.
 func newVersionCommand() *urfave.Command {
 	return &urfave.Command{
 		Name:      "version",

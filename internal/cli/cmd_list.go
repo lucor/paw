@@ -20,12 +20,14 @@ type ListCmd struct {
 	itemPath
 }
 
+// newListCommand constructs the vault and item listing command.
 func newListCommand(base *command) *urfave.Command {
 	return &urfave.Command{
-		Name:      "ls",
-		Usage:     "Lists vaults and items",
-		ArgsUsage: "[VAULT_NAME/ITEM_TYPE/ITEM_NAME]",
-		Flags:     []urfave.Flag{sessionFlag()},
+		Name:        "ls",
+		Usage:       "Lists vaults and items",
+		ArgsUsage:   "[VAULT/ITEM_TYPE/ITEM_NAME]",
+		Description: vaultReferenceHelp,
+		Flags:       []urfave.Flag{sessionFlag()},
 		Action: withArgs(0, 1, func(ctx context.Context, c *urfave.Command) error {
 			base := base.forInvocation(c)
 			cmd := &ListCmd{command: base, sessionID: c.String("session")}
@@ -41,7 +43,7 @@ func newListCommand(base *command) *urfave.Command {
 	}
 }
 
-// Run runs the command
+// Run lists the selected vaults or their items.
 func (cmd *ListCmd) Run(ctx context.Context) error {
 	vaultNode, err := cmd.vaults()
 	if err != nil {
@@ -57,7 +59,7 @@ func (cmd *ListCmd) Run(ctx context.Context) error {
 		return err
 	}
 
-	n := tree.Node{Value: "paw/" + cmd.vaultName}
+	n := tree.Node{Value: vaultNode.Child[0].Value}
 	for _, v := range itemsNode {
 		if len(v.Child) == 0 {
 			continue
@@ -73,6 +75,7 @@ func (cmd *ListCmd) Run(ctx context.Context) error {
 	return tree.Fprint(cmd.out, n)
 }
 
+// items builds the tree of items in the selected vault.
 func (cmd *ListCmd) items() ([]tree.Node, error) {
 	key, err := cmd.loadVaultKey(cmd.vaultName, cmd.sessionID)
 	if err != nil {
@@ -119,6 +122,7 @@ func (cmd *ListCmd) items() ([]tree.Node, error) {
 	}, nil
 }
 
+// vaults builds the tree of available vaults.
 func (cmd *ListCmd) vaults() (tree.Node, error) {
 	s := cmd.storage
 
@@ -132,14 +136,24 @@ func (cmd *ListCmd) vaults() (tree.Node, error) {
 	if len(vaults) == 0 {
 		return n, fmt.Errorf("no vaults found. To create one: paw cli init VAULT")
 	}
+	ids := make([]string, len(vaults))
+	for i := range vaults {
+		ids[i] = vaults[i].ID
+	}
+	prefixes := vaultIDPrefixes(ids)
+	var selected *model.VaultInfo
+	if cmd.vaultName != "" {
+		info, err := resolveVaultInfo(vaults, cmd.vaultName)
+		if err != nil {
+			return n, err
+		}
+		selected = &info
+	}
 	for _, v := range vaults {
-		if cmd.vaultName != "" && cmd.vaultName != v.Name && cmd.vaultName != v.ID {
+		if selected != nil && selected.ID != v.ID {
 			continue
 		}
-		n.Child = append(n.Child, tree.Node{Value: v.Name})
-	}
-	if len(n.Child) == 0 {
-		return n, fmt.Errorf("vault %q does not exists", cmd.vaultName)
+		n.Child = append(n.Child, tree.Node{Value: fmt.Sprintf("%s (%s)", v.Name, prefixes[v.ID])})
 	}
 	return n, nil
 }

@@ -17,7 +17,7 @@ import (
 	"go.lucor.dev/paw/internal/sshkey"
 )
 
-// Add adds an item to the vault.
+// AddCmd implements the command that adds an item to a vault.
 type AddCmd struct {
 	*command
 	sessionID string
@@ -25,9 +25,10 @@ type AddCmd struct {
 	importPath string
 }
 
+// newAddCommand constructs the item-add command.
 func newAddCommand(base *command) *urfave.Command {
 	return &urfave.Command{
-		Name: "add", Usage: "Adds an item to the vault", ArgsUsage: "VAULT_NAME/ITEM_TYPE/ITEM_NAME",
+		Name: "add", Usage: "Adds an item to the vault", ArgsUsage: "VAULT/ITEM_TYPE/ITEM_NAME", Description: vaultReferenceHelp,
 		Flags: []urfave.Flag{sessionFlag(), &urfave.StringFlag{Name: "input", Aliases: []string{"i"}, Usage: "Import an SSH key from FILE"}},
 		Action: withArgs(1, 1, func(ctx context.Context, c *urfave.Command) error {
 			base := base.forInvocation(c)
@@ -40,7 +41,7 @@ func newAddCommand(base *command) *urfave.Command {
 	}
 }
 
-// Run creates and stores a CXF item.
+// Run creates and stores a CXF item in the selected vault.
 func (cmd *AddCmd) Run(ctx context.Context) error {
 	s := cmd.storage
 	appState, err := s.LoadAppState()

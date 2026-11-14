@@ -26,11 +26,13 @@ type ShowCmd struct {
 	clipboard bool
 }
 
+// newShowCommand constructs the item-display command.
 func newShowCommand(base *command) *urfave.Command {
 	return &urfave.Command{
-		Name:      "show",
-		Usage:     "Shows item details",
-		ArgsUsage: "VAULT_NAME/ITEM_TYPE/ITEM_NAME",
+		Name:        "show",
+		Usage:       "Shows item details",
+		ArgsUsage:   "VAULT/ITEM_TYPE/ITEM_NAME",
+		Description: vaultReferenceHelp,
 		Flags: []urfave.Flag{
 			sessionFlag(),
 			&urfave.BoolFlag{Name: "clip", Aliases: []string{"c"}, Usage: "Copy the secret to the clipboard instead of printing it"},
@@ -47,7 +49,7 @@ func newShowCommand(base *command) *urfave.Command {
 	}
 }
 
-// Run runs the command
+// Run displays the selected item from its vault.
 func (cmd *ShowCmd) Run(ctx context.Context) error {
 	base := cmd.command
 	s := base.storage
@@ -72,6 +74,7 @@ func (cmd *ShowCmd) Run(ctx context.Context) error {
 	return cmd.showItem(ctx, item)
 }
 
+// showItem writes a readable representation of an item to the command output.
 func (cmd *ShowCmd) showItem(ctx context.Context, item *model.Item) error {
 	var pclip []byte
 	var pclipMsg string

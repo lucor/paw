@@ -86,17 +86,18 @@ func TestCommandsWithAgentSession(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, store.StoreItem(vault, item))
 	vaultID := vault.Accounts[0].ID
+	vaultPath := storage.FormatVaultID(vaultID)
 
 	t.Setenv(paw.ENV_SESSION, session)
-	require.NoError(t, Run([]string{"paw", "cli", "show", vaultID + "/note/example"}, s))
-	require.NoError(t, Run([]string{"paw", "cli", "attachment", "list", vaultID + "/note/example"}, s))
+	require.NoError(t, Run([]string{"paw", "cli", "show", vaultPath + "/note/example"}, s))
+	require.NoError(t, Run([]string{"paw", "cli", "attachment", "list", vaultPath + "/note/example"}, s))
 
 	t.Setenv(paw.ENV_SESSION, "invalid-session")
-	require.NoError(t, Run([]string{"paw", "cli", "show", "--session", session, vaultID + "/note/example"}, s))
+	require.NoError(t, Run([]string{"paw", "cli", "show", "--session", session, vaultPath + "/note/example"}, s))
 	require.Equal(t, "invalid-session", os.Getenv(paw.ENV_SESSION))
 
-	require.NoError(t, Run([]string{"paw", "cli", "ls", vaultID + "/*", "--session", session}, s))
-	createdPath := vaultID + "/note/created"
+	require.NoError(t, Run([]string{"paw", "cli", "ls", vaultPath + "/*", "--session", session}, s))
+	createdPath := vaultPath + "/note/created"
 	beforeAdd := time.Now().UTC()
 	added, _, err := executeWithInput(t, []string{"add", "--session", session, createdPath}, newCommand(s), "created note\n")
 	require.NoError(t, err)
@@ -123,7 +124,7 @@ func TestCommandsWithAgentSession(t *testing.T) {
 
 	t.Setenv(paw.ENV_SESSION, session)
 	missing := filepath.Join(root, "missing-key")
-	err = Run([]string{"paw", "cli", "add", "-i", missing, vaultID + "/ssh_key/import"}, s)
+	err = Run([]string{"paw", "cli", "add", "-i", missing, vaultPath + "/ssh_key/import"}, s)
 	require.True(t, os.IsNotExist(err), "expected an SSH key read error, got %v", err)
 
 	t.Run("cancel SSH key import", func(t *testing.T) {
@@ -131,23 +132,23 @@ func TestCommandsWithAgentSession(t *testing.T) {
 		require.NoError(t, err)
 		keyPath := filepath.Join(root, "import-key")
 		require.NoError(t, os.WriteFile(keyPath, imported.MarshalPrivateKey(), 0600))
-		_, _, err = executeWithInput(t, []string{"add", "-i", keyPath, vaultID + "/ssh_key/import"}, newCommand(s), "n\n")
+		_, _, err = executeWithInput(t, []string{"add", "-i", keyPath, vaultPath + "/ssh_key/import"}, newCommand(s), "n\n")
 		require.ErrorIs(t, err, errCanceled)
 		loaded, err := store.LoadVault(vaultID, vault.Key())
 		require.NoError(t, err)
 		require.Len(t, loaded.Accounts[0].Items, 1)
 	})
 	t.Run("cancel removal", func(t *testing.T) {
-		_, _, err := executeWithInput(t, []string{"rm", vaultID + "/note/example"}, newCommand(s), "n\n")
+		_, _, err := executeWithInput(t, []string{"rm", vaultPath + "/note/example"}, newCommand(s), "n\n")
 		require.NoError(t, err)
 		loaded, err := store.LoadVault(vaultID, vault.Key())
 		require.NoError(t, err)
 		require.Len(t, loaded.Accounts[0].Items, 1)
 	})
 	for _, name := range []string{"add", "edit", "rm"} {
-		path := vaultID + "/note/example"
+		path := vaultPath + "/note/example"
 		if name == "add" {
-			path = vaultID + "/note/incomplete"
+			path = vaultPath + "/note/incomplete"
 		}
 		_, _, err := executeWithInput(t, []string{name, "--session", session, path}, newCommand(s), "")
 		require.ErrorIs(t, err, io.EOF)
@@ -165,7 +166,7 @@ func TestCommandsWithAgentSession(t *testing.T) {
 	require.NoError(t, err)
 	note, err := model.NewNote("memo", "")
 	require.NoError(t, err)
-	_, _, err = executeWithInput(t, []string{"add", "--session", session, vaultID + "/password/secret"}, newCommand(s), "3\n\n")
+	_, _, err = executeWithInput(t, []string{"add", "--session", session, vaultPath + "/password/secret"}, newCommand(s), "3\n\n")
 	require.NoError(t, err)
 	loaded, err = store.LoadVault(vaultID, key)
 	require.NoError(t, err)
@@ -187,7 +188,7 @@ func TestCommandsWithAgentSession(t *testing.T) {
 	for _, item := range []*model.Item{login, note, sshKey} {
 		require.NoError(t, store.StoreItem(loaded, item))
 	}
-	output, _, err := executeWithInput(t, []string{"ls", "--session", session, vaultID + "/*"}, newCommand(s), "")
+	output, _, err := executeWithInput(t, []string{"ls", "--session", session, vaultPath + "/*"}, newCommand(s), "")
 	require.NoError(t, err)
 	for _, want := range []string{"login", "web", "note", "memo", "password", "secret", "ssh_key", "deploy"} {
 		require.Contains(t, output, want)
@@ -202,7 +203,7 @@ func TestCommandsWithAgentSession(t *testing.T) {
 			require.True(t, ok)
 			return nil
 		}
-		args := []string{"show", "-c", "--session", session, vaultID + "/password/secret"}
+		args := []string{"show", "-c", "--session", session, vaultPath + "/password/secret"}
 		out, _, err := executeWithInput(t, args, newShowCommand(base), "")
 		require.NoError(t, err)
 		require.Equal(t, 1, calls)

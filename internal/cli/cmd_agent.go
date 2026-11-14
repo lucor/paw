@@ -23,6 +23,7 @@ type AgentCmd struct {
 	agentCommand string
 }
 
+// newAgentCommand constructs the agent-start command.
 func newAgentCommand(base *command) *urfave.Command {
 	return &urfave.Command{
 		Name:   "agent",
@@ -41,7 +42,7 @@ func newAgentCommand(base *command) *urfave.Command {
 	}
 }
 
-// Run runs the command
+// Run starts the Paw agent using the selected socket path.
 func (cmd *AgentCmd) Run(ctx context.Context) error {
 	base := cmd.command
 	s := base.storage
@@ -72,9 +73,14 @@ func (cmd *AgentCmd) Run(ctx context.Context) error {
 		}
 
 		w := tabwriter.NewWriter(cmd.out, 0, 0, 1, ' ', tabwriter.Debug)
-		fmt.Fprintln(w, "Session ID\tVault\tLifetime")
+		fmt.Fprintln(w, "Session ID\tVault ID\tLifetime")
+		vaultIDs := make([]string, len(sessions))
+		for i, session := range sessions {
+			vaultIDs[i] = session.Vault
+		}
+		prefixes := vaultIDPrefixes(vaultIDs)
 		for _, session := range sessions {
-			fmt.Fprintf(w, "%s\t%s\t%s\n", session.ID, session.Vault, session.Lifetime.Round(1*time.Second))
+			fmt.Fprintf(w, "%s\t%s\t%s\n", session.ID, prefixes[session.Vault], session.Lifetime.Round(1*time.Second))
 		}
 		w.Flush()
 	}

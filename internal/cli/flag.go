@@ -9,6 +9,7 @@ import (
 	"go.lucor.dev/paw/internal/paw"
 )
 
+// sessionFlag defines the option for selecting an existing agent session.
 func sessionFlag() urfave.Flag {
 	return &urfave.StringFlag{
 		Name:        "session",

@@ -15,16 +15,17 @@ import (
 	"go.lucor.dev/paw/internal/paw"
 )
 
-// Edit edits an item in the vault.
+// EditCmd implements the command that edits an item in a vault.
 type EditCmd struct {
 	*command
 	sessionID string
 	itemPath
 }
 
+// newEditCommand constructs the item-edit command.
 func newEditCommand(base *command) *urfave.Command {
 	return &urfave.Command{
-		Name: "edit", Usage: "Edits an item in the vault", ArgsUsage: "VAULT_NAME/ITEM_TYPE/ITEM_NAME",
+		Name: "edit", Usage: "Edits an item in the vault", ArgsUsage: "VAULT/ITEM_TYPE/ITEM_NAME", Description: vaultReferenceHelp,
 		Flags: []urfave.Flag{sessionFlag()},
 		Action: withArgs(1, 1, func(ctx context.Context, c *urfave.Command) error {
 			base := base.forInvocation(c)

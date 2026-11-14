@@ -14,17 +14,19 @@ import (
 	"go.lucor.dev/paw/internal/model"
 )
 
-// Lock locks a Paw vault removing all the associated sessions from the agent
+// LockCmd implements the command that locks a Paw vault and removes its sessions from the agent.
 type LockCmd struct {
 	*command
 	vaultName string
 }
 
+// newLockCommand constructs the vault-lock command.
 func newLockCommand(base *command) *urfave.Command {
 	return &urfave.Command{
-		Name:      "lock",
-		Usage:     "Locks a vault",
-		ArgsUsage: "VAULT",
+		Name:        "lock",
+		Usage:       "Locks a vault",
+		ArgsUsage:   "VAULT",
+		Description: vaultReferenceHelp,
 		Action: withArgs(1, 1, func(ctx context.Context, c *urfave.Command) error {
 			base := base.forInvocation(c)
 			return (&LockCmd{command: base, vaultName: c.Args().First()}).Run(ctx)
@@ -32,7 +34,7 @@ func newLockCommand(base *command) *urfave.Command {
 	}
 }
 
-// Run runs the command
+// Run locks the selected vault and removes its keys from the agent.
 func (cmd *LockCmd) Run(ctx context.Context) error {
 	base := cmd.command
 	s := base.storage
@@ -59,6 +61,7 @@ func (cmd *LockCmd) Run(ctx context.Context) error {
 	return nil
 }
 
+// removeSSHKeysFromAgent removes the locked vault's SSH keys from the agent.
 func (cmd *LockCmd) removeSSHKeysFromAgent(c agent.PawAgent) error {
 	s := cmd.storage
 	key, err := cmd.loadVaultKey(cmd.vaultName, "")

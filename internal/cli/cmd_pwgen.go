@@ -12,9 +12,10 @@ import (
 	"go.lucor.dev/paw/internal/paw"
 )
 
-// PwGenCmd generates a password
+// PwGenCmd implements the command that generates a password.
 type PwGenCmd struct{ *command }
 
+// newPwGenCommand constructs the password-generation command.
 func newPwGenCommand(base *command) *urfave.Command {
 	return &urfave.Command{
 		Name:      "pwgen",
@@ -27,7 +28,7 @@ func newPwGenCommand(base *command) *urfave.Command {
 	}
 }
 
-// Run runs the command
+// Run generates a password and writes it to the command output.
 func (cmd *PwGenCmd) Run(ctx context.Context) error {
 	modes := []paw.PasswordMode{
 		paw.RandomPassword,
@@ -43,6 +44,7 @@ func (cmd *PwGenCmd) Run(ctx context.Context) error {
 	return nil
 }
 
+// Pwgen prompts for a password mode and generates a password using that mode.
 func (cmd *PwGenCmd) Pwgen(modes []paw.PasswordMode, defaultMode paw.PasswordMode) (*paw.PasswordSpec, error) {
 	choice, err := cmd.prompter.askPasswordMode("Password type", modes, defaultMode)
 	if err != nil {
@@ -62,7 +64,7 @@ func (cmd *PwGenCmd) Pwgen(modes []paw.PasswordMode, defaultMode paw.PasswordMod
 	return nil, fmt.Errorf("unsupported password type: %q", choice)
 }
 
-// Parse parses the arguments and set the usage for the command
+// makeRandomPassword prompts for the length and symbol options and generates a password.
 func (cmd *PwGenCmd) makeRandomPassword() (*paw.PasswordSpec, error) {
 	p := paw.NewRandomPassword()
 	length, err := cmd.prompter.askIntWithDefaultAndRange("Password length", p.Length, 6, 64)
@@ -87,6 +89,7 @@ func (cmd *PwGenCmd) makeRandomPassword() (*paw.PasswordSpec, error) {
 	return p, nil
 }
 
+// makeCustomPassword prompts for and confirms a custom password.
 func (cmd *PwGenCmd) makeCustomPassword() (*paw.PasswordSpec, error) {
 	p := paw.NewCustomPassword()
 	v, err := cmd.prompter.askPasswordWithConfirm()
@@ -97,6 +100,7 @@ func (cmd *PwGenCmd) makeCustomPassword() (*paw.PasswordSpec, error) {
 	return p, nil
 }
 
+// makePassphrasePassword prompts for the number of words and generates a passphrase.
 func (cmd *PwGenCmd) makePassphrasePassword() (*paw.PasswordSpec, error) {
 	p := paw.NewPassphrasePassword()
 	length, err := cmd.prompter.askIntWithDefaultAndRange("Passphrase words", p.Length, 2, 12)
@@ -112,6 +116,7 @@ func (cmd *PwGenCmd) makePassphrasePassword() (*paw.PasswordSpec, error) {
 	return p, nil
 }
 
+// makePinPassword prompts for a PIN length and generates a numeric PIN.
 func (cmd *PwGenCmd) makePinPassword() (*paw.PasswordSpec, error) {
 	p := paw.NewPinPassword()
 	length, err := cmd.prompter.askIntWithDefaultAndRange("Pin length", p.Length, 4, 10)

@@ -13,9 +13,10 @@ import (
 	"go.lucor.dev/paw/internal/model"
 )
 
+// newAttachmentCommand constructs the attachment command group.
 func newAttachmentCommand(base *command) *urfave.Command {
 	return &urfave.Command{Name: "attachment", Usage: "Manage Item attachments", Action: commandGroupAction, Commands: []*urfave.Command{
-		{Name: "add", ArgsUsage: "VAULT/TYPE/ITEM PATH", Flags: []urfave.Flag{sessionFlag()}, Action: withArgs(2, 2, func(ctx context.Context, c *urfave.Command) error {
+		{Name: "add", ArgsUsage: "VAULT/TYPE/ITEM PATH", Description: vaultReferenceHelp, Flags: []urfave.Flag{sessionFlag()}, Action: withArgs(2, 2, func(ctx context.Context, c *urfave.Command) error {
 			cmd, vault, item, err := attachmentItem(base, c)
 			if err != nil {
 				return err
@@ -32,7 +33,7 @@ func newAttachmentCommand(base *command) *urfave.Command {
 			_, err = fmt.Fprintf(cmd.out, "%s\t%s\t%d bytes\n", metadata.ID, metadata.Name, metadata.DecryptedSize)
 			return err
 		})},
-		{Name: "list", ArgsUsage: "VAULT/TYPE/ITEM", Flags: []urfave.Flag{sessionFlag()}, Action: withArgs(1, 1, func(ctx context.Context, c *urfave.Command) error {
+		{Name: "list", ArgsUsage: "VAULT/TYPE/ITEM", Description: vaultReferenceHelp, Flags: []urfave.Flag{sessionFlag()}, Action: withArgs(1, 1, func(ctx context.Context, c *urfave.Command) error {
 			cmd, vault, item, err := attachmentItem(base, c)
 			if err != nil {
 				return err
@@ -48,14 +49,14 @@ func newAttachmentCommand(base *command) *urfave.Command {
 			}
 			return nil
 		})},
-		{Name: "save", ArgsUsage: "VAULT/TYPE/ITEM FILE_ID --output PATH", Flags: []urfave.Flag{sessionFlag(), &urfave.StringFlag{Name: "output", Required: true}}, Action: withArgs(2, 2, func(ctx context.Context, c *urfave.Command) error {
+		{Name: "save", ArgsUsage: "VAULT/TYPE/ITEM FILE_ID --output PATH", Description: vaultReferenceHelp, Flags: []urfave.Flag{sessionFlag(), &urfave.StringFlag{Name: "output", Required: true}}, Action: withArgs(2, 2, func(ctx context.Context, c *urfave.Command) error {
 			cmd, vault, item, err := attachmentItem(base, c)
 			if err != nil {
 				return err
 			}
 			return cmd.storage.SaveAttachment(vault, item.ID, c.Args().Get(1), c.String("output"))
 		})},
-		{Name: "remove", ArgsUsage: "VAULT/TYPE/ITEM FILE_ID", Flags: []urfave.Flag{sessionFlag()}, Action: withArgs(2, 2, func(ctx context.Context, c *urfave.Command) error {
+		{Name: "remove", ArgsUsage: "VAULT/TYPE/ITEM FILE_ID", Description: vaultReferenceHelp, Flags: []urfave.Flag{sessionFlag()}, Action: withArgs(2, 2, func(ctx context.Context, c *urfave.Command) error {
 			cmd, vault, item, err := attachmentItem(base, c)
 			if err != nil {
 				return err
@@ -65,6 +66,7 @@ func newAttachmentCommand(base *command) *urfave.Command {
 	}}
 }
 
+// attachmentItem resolves and loads the vault item addressed by an attachment command.
 func attachmentItem(base *command, c *urfave.Command) (*command, *model.Vault, *model.Item, error) {
 	cmd := base.forInvocation(c)
 	path, err := parseItemPath(c.Args().First(), itemPathOptions{fullPath: true})
@@ -87,6 +89,7 @@ func attachmentItem(base *command, c *urfave.Command) (*command, *model.Vault, *
 	return cmd, vault, item, err
 }
 
+// filepathBase returns the final path component using either slash convention.
 func filepathBase(path string) string {
 	return filepath.Base(path)
 }

@@ -16,18 +16,20 @@ import (
 	"go.lucor.dev/paw/internal/model"
 )
 
+// newHistoryCommand constructs the item-history command group.
 func newHistoryCommand(base *command) *urfave.Command {
 	return &urfave.Command{
-		Name:      "history",
-		Usage:     "Lists and restores item history",
-		ArgsUsage: "VAULT_NAME/ITEM_TYPE/ITEM_NAME",
-		Flags:     []urfave.Flag{sessionFlag()},
+		Name:        "history",
+		Usage:       "Lists and restores item history",
+		ArgsUsage:   "VAULT/ITEM_TYPE/ITEM_NAME",
+		Description: vaultReferenceHelp,
+		Flags:       []urfave.Flag{sessionFlag()},
 		Action: func(ctx context.Context, c *urfave.Command) error {
 			if !c.Args().Present() {
 				return urfave.ShowSubcommandHelp(c)
 			}
 			if c.Args().Len() != 1 {
-				return fmt.Errorf("unexpected arguments; usage: %s <VAULT_NAME/ITEM_TYPE/ITEM_NAME>", c.FullName())
+				return fmt.Errorf("unexpected arguments; usage: %s <VAULT/ITEM_TYPE/ITEM_NAME>", c.FullName())
 			}
 			if !strings.Contains(c.Args().First(), "/") {
 				return fmt.Errorf("unknown history subcommand %q; use 'list', 'show', or 'restore'", c.Args().First())
@@ -35,10 +37,10 @@ func newHistoryCommand(base *command) *urfave.Command {
 			return runHistoryList(base, ctx, c)
 		},
 		Commands: []*urfave.Command{
-			{Name: "list", Usage: "Lists item history", ArgsUsage: "VAULT_NAME/ITEM_TYPE/ITEM_NAME", Action: withArgs(1, 1, func(ctx context.Context, c *urfave.Command) error {
+			{Name: "list", Usage: "Lists item history", ArgsUsage: "VAULT/ITEM_TYPE/ITEM_NAME", Description: vaultReferenceHelp, Action: withArgs(1, 1, func(ctx context.Context, c *urfave.Command) error {
 				return runHistoryList(base, ctx, c)
 			})},
-			{Name: "show", Usage: "Shows a historical item version", ArgsUsage: "VAULT_NAME/ITEM_TYPE/ITEM_NAME INDEX", Action: withArgs(2, 2, func(ctx context.Context, c *urfave.Command) error {
+			{Name: "show", Usage: "Shows a historical item version", ArgsUsage: "VAULT/ITEM_TYPE/ITEM_NAME INDEX", Description: vaultReferenceHelp, Action: withArgs(2, 2, func(ctx context.Context, c *urfave.Command) error {
 				cmd, err := newHistoryCmd(base, c)
 				if err != nil {
 					return err
@@ -49,7 +51,7 @@ func newHistoryCommand(base *command) *urfave.Command {
 				}
 				return cmd.show(ctx, index)
 			})},
-			{Name: "restore", Usage: "Restores a historical item version", ArgsUsage: "VAULT_NAME/ITEM_TYPE/ITEM_NAME INDEX", Action: withArgs(2, 2, func(ctx context.Context, c *urfave.Command) error {
+			{Name: "restore", Usage: "Restores a historical item version", ArgsUsage: "VAULT/ITEM_TYPE/ITEM_NAME INDEX", Description: vaultReferenceHelp, Action: withArgs(2, 2, func(ctx context.Context, c *urfave.Command) error {
 				cmd, err := newHistoryCmd(base, c)
 				if err != nil {
 					return err
@@ -64,6 +66,7 @@ func newHistoryCommand(base *command) *urfave.Command {
 	}
 }
 
+// runHistoryList lists the history for the addressed vault item.
 func runHistoryList(base *command, ctx context.Context, c *urfave.Command) error {
 	cmd, err := newHistoryCmd(base, c)
 	if err != nil {
@@ -78,6 +81,7 @@ type historyCmd struct {
 	itemPath
 }
 
+// newHistoryCmd resolves the vault item and history options from a command invocation.
 func newHistoryCmd(base *command, c *urfave.Command) (*historyCmd, error) {
 	path, err := parseItemPath(c.Args().First(), itemPathOptions{fullPath: true})
 	if err != nil {
@@ -86,6 +90,7 @@ func newHistoryCmd(base *command, c *urfave.Command) (*historyCmd, error) {
 	return &historyCmd{command: base.forInvocation(c), sessionID: c.String("session"), itemPath: path}, nil
 }
 
+// historyIndex parses a one-based history index and converts it to a zero-based index.
 func historyIndex(value string) (int, error) {
 	index, err := strconv.Atoi(value)
 	if err != nil || index < 0 {
@@ -94,6 +99,7 @@ func historyIndex(value string) (int, error) {
 	return index, nil
 }
 
+// load unlocks the vault and returns the addressed item and its history.
 func (cmd *historyCmd) load() (*model.Vault, *model.Item, model.History, error) {
 	key, err := cmd.loadVaultKey(cmd.vaultName, cmd.sessionID)
 	if err != nil {
@@ -118,6 +124,7 @@ func (cmd *historyCmd) load() (*model.Vault, *model.Item, model.History, error) 
 	return vault, item, history, nil
 }
 
+// list prints the item's history entries from newest to oldest.
 func (cmd *historyCmd) list() error {
 	_, _, history, err := cmd.load()
 	if err != nil {
@@ -140,6 +147,7 @@ func (cmd *historyCmd) list() error {
 	return w.Flush()
 }
 
+// selected loads a history entry by its one-based display index.
 func (cmd *historyCmd) selected(index int) (*model.Vault, *model.Item, model.HistoryEntry, int, error) {
 	vault, item, history, err := cmd.load()
 	if err != nil {
@@ -155,6 +163,7 @@ func (cmd *historyCmd) selected(index int) (*model.Vault, *model.Item, model.His
 	return vault, item, history.Entries[storedIndex], storedIndex, nil
 }
 
+// show displays a selected historical item version.
 func (cmd *historyCmd) show(ctx context.Context, index int) error {
 	_, _, entry, _, err := cmd.selected(index)
 	if err != nil {
@@ -177,6 +186,7 @@ func (cmd *historyCmd) show(ctx context.Context, index int) error {
 	return show.showItem(ctx, &historical)
 }
 
+// restore replaces the current item with a selected historical version.
 func (cmd *historyCmd) restore(index int) error {
 	vault, item, entry, storedIndex, err := cmd.selected(index)
 	if err != nil {

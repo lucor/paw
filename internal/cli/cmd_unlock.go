@@ -23,12 +23,14 @@ type UnlockCmd struct {
 	life      time.Duration
 }
 
+// newUnlockCommand constructs the vault-unlock command.
 func newUnlockCommand(base *command) *urfave.Command {
 	return &urfave.Command{
-		Name:      "unlock",
-		Usage:     "Unlocks a vault and returns a session ID",
-		ArgsUsage: "VAULT",
-		Flags:     []urfave.Flag{&urfave.DurationFlag{Name: "lifetime", Aliases: []string{"t"}, Usage: "Maximum session lifetime (zero means no expiry)"}},
+		Name:        "unlock",
+		Usage:       "Unlocks a vault and returns a session ID",
+		ArgsUsage:   "VAULT",
+		Description: vaultReferenceHelp,
+		Flags:       []urfave.Flag{&urfave.DurationFlag{Name: "lifetime", Aliases: []string{"t"}, Usage: "Maximum session lifetime (zero means no expiry)"}},
 		Action: withArgs(1, 1, func(ctx context.Context, c *urfave.Command) error {
 			base := base.forInvocation(c)
 			return (&UnlockCmd{command: base, vaultName: c.Args().First(), life: c.Duration("lifetime")}).Run(ctx)
@@ -36,7 +38,7 @@ func newUnlockCommand(base *command) *urfave.Command {
 	}
 }
 
-// Run runs the command
+// Run unlocks the selected vault and restores its agent keys when configured.
 func (cmd *UnlockCmd) Run(ctx context.Context) error {
 	base := cmd.command
 	s := base.storage

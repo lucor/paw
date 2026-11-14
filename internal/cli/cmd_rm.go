@@ -17,12 +17,14 @@ type RemoveCmd struct {
 	itemPath
 }
 
+// newRemoveCommand constructs the item-removal command.
 func newRemoveCommand(base *command) *urfave.Command {
 	return &urfave.Command{
-		Name:      "rm",
-		Usage:     "Removes an item from the vault",
-		ArgsUsage: "VAULT_NAME/ITEM_TYPE/ITEM_NAME",
-		Flags:     []urfave.Flag{sessionFlag()},
+		Name:        "rm",
+		Usage:       "Removes an item from the vault",
+		ArgsUsage:   "VAULT/ITEM_TYPE/ITEM_NAME",
+		Description: vaultReferenceHelp,
+		Flags:       []urfave.Flag{sessionFlag()},
 		Action: withArgs(1, 1, func(ctx context.Context, c *urfave.Command) error {
 			base := base.forInvocation(c)
 			path, err := parseItemPath(c.Args().First(), itemPathOptions{fullPath: true})
@@ -34,7 +36,7 @@ func newRemoveCommand(base *command) *urfave.Command {
 	}
 }
 
-// Run runs the command
+// Run removes the selected item from its vault.
 func (cmd *RemoveCmd) Run(ctx context.Context) error {
 	base := cmd.command
 	s := base.storage

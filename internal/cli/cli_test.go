@@ -43,7 +43,7 @@ func executeWithInput(t *testing.T, args []string, cmd *urfave.Command, input st
 }
 
 func TestHelp(t *testing.T) {
-	commands := []string{"agent", "add", "attachment", "edit", "history", "init", "ls", "lock", "pwgen", "rm", "show", "unlock", "version"}
+	commands := []string{"agent", "add", "attachment", "edit", "history", "init", "ls", "lock", "pwgen", "rm", "show", "sync", "unlock", "version"}
 	for _, flag := range []string{"--help", "-h", "-help"} {
 		t.Run("root/"+flag, func(t *testing.T) {
 			out, err := execute(t, []string{flag}, nil)
@@ -60,6 +60,7 @@ func TestHelp(t *testing.T) {
 				require.Contains(t, out, "paw cli "+name)
 				if name == "unlock" {
 					require.Contains(t, out, "VAULT")
+					require.Contains(t, out, "VAULT can be a vault name, full ID, or unique ID prefix (at least 7 characters).")
 					require.NotContains(t, out, "paw cli session")
 				}
 			})
@@ -110,6 +111,8 @@ func TestInvalidArguments(t *testing.T) {
 		{[]string{"unlock", "-t", "invalid", "vault"}, "invalid value"},
 		{[]string{"show", "--unknown"}, "flag provided but not defined"},
 		{[]string{"show", "vault/unknown/item"}, "invalid item type"},
+		{[]string{"sync"}, "invalid arguments"},
+		{[]string{"sync", "vault", "extra"}, "invalid arguments"},
 		{[]string{"ls", "vault/login/item/extra"}, "invalid vault item path"},
 	}
 	for _, name := range []string{"add", "edit", "init", "lock", "rm", "show", "unlock"} {

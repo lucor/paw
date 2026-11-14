@@ -11,9 +11,10 @@ import (
 	"go.lucor.dev/paw/internal/storage"
 )
 
+// newExportCommand constructs the vault-export command.
 func newExportCommand(base *command) *urfave.Command {
 	return &urfave.Command{
-		Name: "export", Usage: "Export a vault as CXF or an encrypted Paw archive", ArgsUsage: "VAULT DESTINATION",
+		Name: "export", Usage: "Export a vault as CXF or an encrypted Paw archive", ArgsUsage: "VAULT DESTINATION", Description: vaultReferenceHelp,
 		Flags: []urfave.Flag{sessionFlag(), &urfave.BoolFlag{Name: "plaintext", Usage: "Export unencrypted CXF after confirmation"}, &urfave.BoolFlag{Name: "encrypted", Usage: "Export password-encrypted CXF (default)"}, &urfave.BoolFlag{Name: "paw", Usage: "Export an encrypted Paw archive including attachments"}},
 		Action: withArgs(2, 2, func(ctx context.Context, c *urfave.Command) error {
 			base := base.forInvocation(c)

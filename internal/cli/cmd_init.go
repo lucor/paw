@@ -16,11 +16,12 @@ type InitCmd struct {
 	vaultName string
 }
 
+// newInitCommand constructs the vault-initialization command.
 func newInitCommand(base *command) *urfave.Command {
 	return &urfave.Command{
 		Name:      "init",
 		Usage:     "Initializes a vault",
-		ArgsUsage: "VAULT",
+		ArgsUsage: "VAULT_NAME",
 		Action: withArgs(1, 1, func(ctx context.Context, c *urfave.Command) error {
 			base := base.forInvocation(c)
 			return (&InitCmd{command: base, vaultName: c.Args().First()}).Run(ctx)
@@ -28,7 +29,7 @@ func newInitCommand(base *command) *urfave.Command {
 	}
 }
 
-// Run runs the command
+// Run initializes a new vault using the supplied command input.
 func (cmd *InitCmd) Run(ctx context.Context) error {
 	base := cmd.command
 	s := base.storage

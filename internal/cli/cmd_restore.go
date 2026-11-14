@@ -17,6 +17,7 @@ import (
 	"go.lucor.dev/paw/internal/storage"
 )
 
+// newRestoreCommand constructs the vault-restore command.
 func newRestoreCommand(base *command) *urfave.Command {
 	return &urfave.Command{Name: "restore", Usage: "Restore a Paw or CXF backup into a new vault", ArgsUsage: "BACKUP", Flags: []urfave.Flag{&urfave.StringFlag{Name: "name", Usage: "Name for the restored vault"}}, Action: withArgs(1, 1, func(ctx context.Context, c *urfave.Command) error {
 		base := base.forInvocation(c)
@@ -90,7 +91,7 @@ func newRestoreCommand(base *command) *urfave.Command {
 		if vault.Accounts[0].ID != backup.AccountID {
 			fmt.Fprintln(base.out, "The original vault ID is already in use. An independent copy was created.")
 		}
-		_, err = fmt.Fprintf(base.out, "Vault restored successfully: %s (%s)\n", name, vault.Accounts[0].ID)
+		_, err = fmt.Fprintf(base.out, "Vault restored successfully: %s (Vault ID %s)\n", name, shortVaultID(vault.Accounts[0].ID))
 		return err
 	})}
 }

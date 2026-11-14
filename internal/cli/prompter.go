@@ -21,6 +21,7 @@ type prompter struct {
 	readPassword func() ([]byte, error)
 }
 
+// newPrompter creates a prompt reader and writer for an interactive command.
 func newPrompter(input io.Reader, output io.Writer) *prompter {
 	reader := input
 	fd, hasFD := input.(interface{ Fd() uintptr })
@@ -42,6 +43,7 @@ func newPrompter(input io.Reader, output io.Writer) *prompter {
 
 type singleByteReader struct{ io.Reader }
 
+// Read returns one byte at a time to prevent buffered text input from consuming a password.
 func (r singleByteReader) Read(b []byte) (int, error) {
 	if len(b) > 1 {
 		b = b[:1]
@@ -49,6 +51,7 @@ func (r singleByteReader) Read(b []byte) (int, error) {
 	return r.Reader.Read(b)
 }
 
+// readLine reads one line from the prompt input.
 func (p *prompter) readLine() (string, error) {
 	line, err := p.input.ReadString('\n')
 	if err != nil && !(err == io.EOF && len(line) > 0) {
@@ -57,6 +60,7 @@ func (p *prompter) readLine() (string, error) {
 	return strings.TrimSuffix(strings.TrimSuffix(line, "\n"), "\r"), nil
 }
 
+// ask displays a prompt and returns the entered line.
 func (p *prompter) ask(prompt string) (string, error) {
 	if _, err := fmt.Fprintf(p.output, "%s: ", prompt); err != nil {
 		return "", err
@@ -64,6 +68,7 @@ func (p *prompter) ask(prompt string) (string, error) {
 	return p.readLine()
 }
 
+// askWithDefault displays the previous value and keeps it when input is empty.
 func (p *prompter) askWithDefault(prompt, old string) (string, error) {
 	if _, err := fmt.Fprintf(p.output, "%s [%s]: ", prompt, old); err != nil {
 		return old, err
@@ -75,6 +80,7 @@ func (p *prompter) askWithDefault(prompt, old string) (string, error) {
 	return line, nil
 }
 
+// askPassword reads a password without echoing it to the terminal.
 func (p *prompter) askPassword(prompt string) (string, error) {
 	if _, err := fmt.Fprintf(p.output, "%s: ", prompt); err != nil {
 		return "", err
@@ -90,6 +96,7 @@ func (p *prompter) askPassword(prompt string) (string, error) {
 	return string(password), nil
 }
 
+// askPasswordWithConfirm reads a password twice and rejects mismatched values.
 func (p *prompter) askPasswordWithConfirm() (string, error) {
 	for {
 		password, err := p.askPassword("Password")
@@ -109,6 +116,7 @@ func (p *prompter) askPasswordWithConfirm() (string, error) {
 	}
 }
 
+// askYesNo prompts for a yes-or-no answer using the provided default.
 func (p *prompter) askYesNo(prompt string, defaultYes bool) (bool, error) {
 	def := "y/N"
 	if defaultYes {
@@ -133,6 +141,7 @@ func (p *prompter) askYesNo(prompt string, defaultYes bool) (bool, error) {
 	}
 }
 
+// askIntWithDefaultAndRange reads an integer, applies a default, and enforces its bounds.
 func (p *prompter) askIntWithDefaultAndRange(prompt string, def, min, max int) (int, error) {
 	for {
 		if _, err := fmt.Fprintf(p.output, "%s [%d]: ", prompt, def); err != nil {
@@ -152,6 +161,7 @@ func (p *prompter) askIntWithDefaultAndRange(prompt string, def, min, max int) (
 	}
 }
 
+// askPasswordMode displays available password modes and reads the selected mode.
 func (p *prompter) askPasswordMode(prompt string, options []paw.PasswordMode, defaultMode paw.PasswordMode) (paw.PasswordMode, error) {
 	if len(options) == 0 {
 		return 0, fmt.Errorf("no password modes available")

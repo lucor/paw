@@ -38,6 +38,9 @@ func Run(args []string, s *storage.FileStorage) error {
 
 var errCanceled = errors.New("command canceled")
 
+const vaultReferenceHelp = "VAULT can be a vault name, full ID, or unique ID prefix (at least 7 characters)."
+
+// newCommand builds the root CLI command and its subcommands.
 func newCommand(storage *storage.FileStorage) *urfave.Command {
 	base := &command{
 		storage:     storage,
@@ -85,12 +88,14 @@ func newCommand(storage *storage.FileStorage) *urfave.Command {
 			newRemoveCommand(base),
 			newRestoreCommand(base),
 			newShowCommand(base),
+			newSyncCommand(base),
 			newUnlockCommand(base),
 			newVersionCommand(),
 		},
 	}
 }
 
+// requireSubcommand rejects the root command when no subcommand is supplied.
 func requireSubcommand(ctx context.Context, c *urfave.Command) error {
 	if c.Args().Present() {
 		return fmt.Errorf("unknown command %q for %s", c.Args().First(), c.FullName())
@@ -101,6 +106,7 @@ func requireSubcommand(ctx context.Context, c *urfave.Command) error {
 	return fmt.Errorf("a command is required")
 }
 
+// commandGroupAction displays help or reports an unknown command-group subcommand.
 func commandGroupAction(_ context.Context, c *urfave.Command) error {
 	if c.Args().Present() {
 		var commands strings.Builder
@@ -115,6 +121,7 @@ func commandGroupAction(_ context.Context, c *urfave.Command) error {
 	return urfave.ShowSubcommandHelp(c)
 }
 
+// withArgs wraps an action with a positional argument count check.
 func withArgs(min, max int, action urfave.ActionFunc) urfave.ActionFunc {
 	return func(ctx context.Context, c *urfave.Command) error {
 		if n := c.Args().Len(); n < min {
@@ -132,6 +139,7 @@ type itemPath struct {
 	vaultName string
 }
 
+// String returns the item path in its user-facing form.
 func (i itemPath) String() string {
 	return filepath.Join(i.vaultName, i.itemType.String(), i.itemName)
 }
@@ -141,17 +149,18 @@ type itemPathOptions struct {
 	wildcard bool
 }
 
+// parseItemPath parses and validates a vault and item path.
 func parseItemPath(path string, opts itemPathOptions) (itemPath, error) {
 	parts := strings.Split(path, "/")
 	ip := itemPath{}
 
 	if len(parts) > 3 || (opts.fullPath && len(parts) != 3) {
-		return ip, fmt.Errorf("invalid vault item path. Got %q, expected VAULT_NAME/ITEM_TYPE/ITEM_NAME", path)
+		return ip, fmt.Errorf("invalid vault item path. Got %q, expected VAULT/ITEM_TYPE/ITEM_NAME", path)
 	}
 
 	for i, v := range parts {
 		if opts.fullPath && v == "" {
-			return ip, fmt.Errorf("a path element is empty. Got %s, expected VAULT_NAME/ITEM_TYPE/ITEM_NAME", path)
+			return ip, fmt.Errorf("a path element is empty. Got %s, expected VAULT/ITEM_TYPE/ITEM_NAME", path)
 		}
 		switch i {
 		case 0:
@@ -207,9 +216,77 @@ func (base *command) resolveVaultInfo(value string) (model.VaultInfo, error) {
 	if err != nil {
 		return model.VaultInfo{}, err
 	}
-	return model.FindVaultInfo(vaults, value)
+	return resolveVaultInfo(vaults, value)
 }
 
+// resolveVaultInfo finds a vault by name, full ID, or unique ID prefix.
+func resolveVaultInfo(vaults []model.VaultInfo, value string) (model.VaultInfo, error) {
+	matches := make([]model.VaultInfo, 0, 2)
+	for _, vault := range vaults {
+		id := storage.FormatVaultID(vault.ID)
+		if vault.Name == value || (id != "" && (id == value || (len(value) >= 7 && strings.HasPrefix(id, value)))) {
+			matches = append(matches, vault)
+		}
+	}
+	if len(matches) == 1 {
+		return matches[0], nil
+	}
+	if len(matches) == 0 {
+		return model.VaultInfo{}, fmt.Errorf("vault %q does not exist", value)
+	}
+	ids := make([]string, len(matches))
+	for i, vault := range matches {
+		ids[i] = vault.ID
+	}
+	prefixes := vaultIDPrefixes(ids)
+	lines := make([]string, len(matches))
+	for i, vault := range matches {
+		lines[i] = fmt.Sprintf("  %s  (%s)", vault.Name, prefixes[ids[i]])
+	}
+	return model.VaultInfo{}, fmt.Errorf("ambiguous vault %q:\n\n%s\n\nSpecify a Vault ID to continue", value, strings.Join(lines, "\n"))
+}
+
+// vaultIDPrefixes assigns each ID its shortest unique prefix of at least seven characters.
+func vaultIDPrefixes(ids []string) map[string]string {
+	displayIDs := make([]string, len(ids))
+	for i, id := range ids {
+		displayIDs[i] = storage.FormatVaultID(id)
+	}
+	prefixes := make(map[string]string, len(ids))
+	for i, id := range ids {
+		displayID := displayIDs[i]
+		length := 7
+		for length < len(displayID) {
+			unique := true
+			for j, other := range displayIDs {
+				if i != j && strings.HasPrefix(other, displayID[:length]) {
+					unique = false
+					break
+				}
+			}
+			if unique {
+				break
+			}
+			length++
+		}
+		if length > len(displayID) {
+			length = len(displayID)
+		}
+		prefixes[id] = displayID[:length]
+	}
+	return prefixes
+}
+
+// shortVaultID returns the display prefix assigned to an ID.
+func shortVaultID(id string) string {
+	id = storage.FormatVaultID(id)
+	if len(id) > 7 {
+		return id[:7]
+	}
+	return id
+}
+
+// loadVaultKeyWithSession loads a vault key, using the agent session when provided.
 func (base *command) loadVaultKeyWithSession(vaultName string, sessionID string) (*paw.Key, error) {
 	client, err := base.agentClient(base.storage.SocketAgentPath())
 	if err != nil {

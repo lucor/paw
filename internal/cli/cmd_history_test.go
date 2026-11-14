@@ -13,6 +13,7 @@ import (
 	urfave "github.com/urfave/cli/v3"
 	"go.lucor.dev/paw/internal/model"
 	"go.lucor.dev/paw/internal/storage"
+	"go.lucor.dev/paw/internal/test"
 )
 
 func TestItemHistoryListAndShow(t *testing.T) {
@@ -29,7 +30,7 @@ func TestItemHistoryListAndShow(t *testing.T) {
 	require.NoError(t, history.AddSnapshot(&newest, 200))
 	require.NoError(t, item.SetHistory(history))
 	require.NoError(t, store.StoreItem(vault, item))
-	path := vault.Accounts[0].ID + "/note/Current"
+	path := storage.FormatVaultID(vault.Accounts[0].ID) + "/note/Current"
 
 	listed, err := executeWithHistoryBase(t, base, []string{"history", path})
 	require.NoError(t, err)
@@ -62,7 +63,7 @@ func TestItemHistoryRestoreUsesNewestFirstIndexAndConfirms(t *testing.T) {
 	require.NoError(t, history.AddSnapshot(&newest, 200))
 	require.NoError(t, item.SetHistory(history))
 	require.NoError(t, store.StoreItem(vault, item))
-	path := vault.Accounts[0].ID + "/note/Current"
+	path := storage.FormatVaultID(vault.Accounts[0].ID) + "/note/Current"
 
 	base.prompter = historyPrompter("n\n")
 	canceled, err := executeWithHistoryBase(t, base, []string{"history", "restore", path, "0"})
@@ -90,7 +91,7 @@ func TestItemHistoryRestoreUsesNewestFirstIndexAndConfirms(t *testing.T) {
 
 func TestItemHistoryWithoutEntriesListsEmptyAndRejectsRestore(t *testing.T) {
 	_, vault, _, base := historyCLIFixture(t)
-	path := vault.Accounts[0].ID + "/note/Current"
+	path := storage.FormatVaultID(vault.Accounts[0].ID) + "/note/Current"
 	listed, err := executeWithHistoryBase(t, base, []string{"history", path})
 	require.NoError(t, err)
 	require.Contains(t, listed, "No history found")
@@ -103,8 +104,7 @@ func historyCLIFixture(t *testing.T) (*storage.FileStorage, *model.Vault, *model
 	store, err := storage.NewFileStorage(t.TempDir())
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, store.Close()) })
-	vault, err := store.CreateVault("Personal", "synthetic-password")
-	require.NoError(t, err)
+	vault := test.CreateVaultWithPassword(t, store, "Personal", "synthetic-password")
 	item, err := model.NewNote("Current", "current-secret")
 	require.NoError(t, err)
 	require.NoError(t, store.StoreItem(vault, item))
