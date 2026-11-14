@@ -20,6 +20,7 @@ import (
 	"go.lucor.dev/cxf"
 	"go.lucor.dev/paw/internal/model"
 	"go.lucor.dev/paw/internal/paw"
+	"go.lucor.dev/paw/internal/test"
 )
 
 func exportFixture(t *testing.T) (*model.Vault, *FileStorage, *model.Item) {
@@ -102,9 +103,8 @@ func TestReadPawArchiveRejectsDataAfterTAREndMarker(t *testing.T) {
 	require.NoError(t, err)
 	plain = append(plain, []byte("unexpected TAR data")...)
 
-	recipient, err := age.NewScryptRecipient("archive-password")
+	recipient, err := test.NewPasswordRecipient("archive-password")
 	require.NoError(t, err)
-	recipient.SetWorkFactor(18)
 	var malformed bytes.Buffer
 	encrypted, err := age.Encrypt(&malformed, recipient)
 	require.NoError(t, err)

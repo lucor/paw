@@ -31,8 +31,8 @@ type Key struct {
 	migrated    bool
 }
 
-// MakeOneTimeKey generates a one-time hybrid age key for encrypted temporary data.
-func MakeOneTimeKey() (*Key, error) {
+// GenerateKey generates a hybrid age key for a Paw vault.
+func GenerateKey() (*Key, error) {
 	identity, err := age.GenerateHybridIdentity()
 	if err != nil {
 		return nil, fmt.Errorf("paw: generate key: %w", err)
@@ -40,9 +40,12 @@ func MakeOneTimeKey() (*Key, error) {
 	return &Key{ageIdentity: identity}, nil
 }
 
+// MakeOneTimeKey generates a hybrid age key for encrypted temporary data.
+func MakeOneTimeKey() (*Key, error) { return GenerateKey() }
+
 // MakeKey generates a hybrid age secret key protected by the provided password.
 func MakeKey(password string, w io.Writer) (key *Key, err error) {
-	key, err = MakeOneTimeKey()
+	key, err = GenerateKey()
 	if err != nil {
 		return nil, err
 	}
@@ -160,6 +163,14 @@ func (k *Key) WriteWrapped(w io.Writer, password string) error {
 	recipient, err := age.NewScryptRecipient(password)
 	if err != nil {
 		return err
+	}
+	return k.WriteEncrypted(w, recipient)
+}
+
+// WriteEncrypted serializes this key protected for the supplied age recipient.
+func (k *Key) WriteEncrypted(w io.Writer, recipient age.Recipient) error {
+	if k == nil || recipient == nil {
+		return fmt.Errorf("key and recipient are required")
 	}
 	armored := armor.NewWriter(w)
 	encrypted, err := age.Encrypt(armored, recipient)

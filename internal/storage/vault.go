@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"filippo.io/age"
 	"go.lucor.dev/cxf"
 	"go.lucor.dev/paw/internal/model"
 	"go.lucor.dev/paw/internal/paw"
@@ -106,7 +107,67 @@ func (s *FileStorage) Vaults() ([]model.VaultInfo, error) {
 
 // CreateVault saves a new CXF vault before publishing its catalog entry.
 func (s *FileStorage) CreateVault(name, password string, appearances ...model.VaultAppearance) (*model.Vault, error) {
-	vault, keyData, err := prepareVault(name, password)
+	key, err := paw.GenerateKey()
+	if err != nil {
+		return nil, fmt.Errorf("could not create vault key: %w", err)
+	}
+	recipient, err := age.NewScryptRecipient(password)
+	if err != nil {
+		return nil, err
+	}
+	return s.createVaultWithKey(name, key, recipient, false, appearances...)
+}
+
+// CreateVaultWithKey creates a vault encrypted with the supplied Paw key.
+func (s *FileStorage) CreateVaultWithKey(name string, key *paw.Key, appearances ...model.VaultAppearance) (*model.Vault, error) {
+	return s.createVaultWithKey(name, key, nil, false, appearances...)
+}
+
+// SaveVaultKey protects a vault's Paw key for password-based unlocking.
+func (s *FileStorage) SaveVaultKey(vaultID string, key *paw.Key, recipient *age.ScryptRecipient) error {
+	if !isVaultID(vaultID) {
+		return fmt.Errorf("invalid vault ID")
+	}
+	if key == nil || recipient == nil {
+		return fmt.Errorf("key and recipient are required")
+	}
+	var keyData bytes.Buffer
+	if err := key.WriteEncrypted(&keyData, recipient); err != nil {
+		return fmt.Errorf("could not protect vault key: %w", err)
+	}
+	vaultRoot, err := s.openVaultRoot(vaultID)
+	if err != nil {
+		return fmt.Errorf("could not open vault directory: %w", err)
+	}
+	defer vaultRoot.Close()
+	return atomicWrite(vaultRoot, scryptIdentityPath(), func(w io.Writer) error {
+		_, err := w.Write(keyData.Bytes())
+		return err
+	})
+}
+
+// CreateCloneVault creates a vault marked for removal until the clone completes.
+func (s *FileStorage) CreateCloneVault(name, password string, appearances ...model.VaultAppearance) (*model.Vault, error) {
+	return s.createVault(name, password, true, appearances...)
+}
+
+func (s *FileStorage) createVault(name, password string, clonePending bool, appearances ...model.VaultAppearance) (*model.Vault, error) {
+	key, err := paw.GenerateKey()
+	if err != nil {
+		return nil, err
+	}
+	recipient, err := age.NewScryptRecipient(password)
+	if err != nil {
+		return nil, err
+	}
+	return s.createVaultWithKey(name, key, recipient, clonePending, appearances...)
+}
+
+func (s *FileStorage) createVaultWithKey(name string, key *paw.Key, recipient *age.ScryptRecipient, clonePending bool, appearances ...model.VaultAppearance) (*model.Vault, error) {
+	if key == nil {
+		return nil, fmt.Errorf("key is required")
+	}
+	vault, err := model.NewVault(key, name)
 	if err != nil {
 		return nil, err
 	}
@@ -119,17 +180,32 @@ func (s *FileStorage) CreateVault(name, password string, appearances ...model.Va
 		return nil, err
 	}
 	defer vaultRoot.Close()
+	if clonePending {
+		marker, err := vaultRoot.OpenFile(clonePendingFileName, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+		if err != nil {
+			return nil, fmt.Errorf("could not mark incomplete clone: %w", err)
+		}
+		if err := marker.Close(); err != nil {
+			return nil, fmt.Errorf("could not close incomplete clone marker: %w", err)
+		}
+	}
 	if err := vaultRoot.Mkdir(itemsDirectoryName, 0o700); err != nil {
 		return nil, fmt.Errorf("could not create item storage directory: %w", err)
 	}
 	if err := vaultRoot.Mkdir(identitiesDirectoryName, 0o700); err != nil {
 		return nil, fmt.Errorf("could not create identity storage directory: %w", err)
 	}
-	if err := atomicWrite(vaultRoot, scryptIdentityPath(), func(w io.Writer) error {
-		_, err := w.Write(keyData)
-		return err
-	}); err != nil {
-		return nil, fmt.Errorf("could not store vault key: %w", err)
+	if recipient != nil {
+		var keyData bytes.Buffer
+		if err := key.WriteEncrypted(&keyData, recipient); err != nil {
+			return nil, fmt.Errorf("could not protect vault key: %w", err)
+		}
+		if err := atomicWrite(vaultRoot, scryptIdentityPath(), func(w io.Writer) error {
+			_, err := w.Write(keyData.Bytes())
+			return err
+		}); err != nil {
+			return nil, fmt.Errorf("could not store vault key: %w", err)
+		}
 	}
 	if err := s.storeEncryptedInRoot(vaultRoot, vaultFileName, vault.Key(), vault); err != nil {
 		return nil, fmt.Errorf("could not store vault: %w", err)

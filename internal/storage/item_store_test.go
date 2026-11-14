@@ -17,7 +17,7 @@ import (
 	"go.lucor.dev/cxf"
 
 	"go.lucor.dev/paw/internal/model"
-	"go.lucor.dev/paw/internal/paw"
+	"go.lucor.dev/paw/internal/test"
 )
 
 // TestStoreCXFItem checks creation and editing preserve full items and derived summaries.
@@ -334,6 +334,8 @@ func TestStoreCXFItemValidatesBeforeWriting(t *testing.T) {
 			vaultFile := vaultPath(storage, vault.Accounts[0].ID)
 			before, err := os.ReadFile(vaultFile)
 			require.NoError(t, err)
+			filesBefore, err := os.ReadDir(filepath.Dir(vaultFile))
+			require.NoError(t, err)
 			item, err := model.NewNote("Title", "Content")
 			require.NoError(t, err)
 			switch invalid {
@@ -351,7 +353,7 @@ func TestStoreCXFItemValidatesBeforeWriting(t *testing.T) {
 			require.Equal(t, before, after)
 			files, err := os.ReadDir(filepath.Dir(vaultFile))
 			require.NoError(t, err)
-			require.Len(t, files, 1)
+			require.Len(t, files, len(filesBefore))
 		})
 	}
 }
@@ -454,15 +456,7 @@ func TestPrepareItemVaultIsolated(t *testing.T) {
 func newItemStoreVault(t *testing.T) (*FileStorage, *model.Vault) {
 	t.Helper()
 	storage := newTestFileStorage(t)
-	key, err := paw.MakeOneTimeKey()
-	require.NoError(t, err)
-	vault, err := model.NewVault(key, "Personal")
-	require.NoError(t, err)
-	require.NoError(t, os.Mkdir(vaultRootPath(storage, vault.Accounts[0].ID), 0700))
-	root, err := storage.openVaultRoot(vault.Accounts[0].ID)
-	require.NoError(t, err)
-	require.NoError(t, storage.storeEncryptedInRoot(root, vaultFileName, key, vault))
-	require.NoError(t, root.Close())
+	vault := test.CreateVault(t, storage, "Personal")
 	return storage, vault
 }
 

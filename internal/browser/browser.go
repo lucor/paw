@@ -5,7 +5,7 @@
 package browser
 
 import (
-	"log"
+	"log/slog"
 	"os"
 	"strings"
 
@@ -14,12 +14,15 @@ import (
 )
 
 func MessageFromExtension(args []string) bool {
+	if len(args) == 0 {
+		return false
+	}
 	if strings.HasPrefix(args[0], "chrome-extension") {
-		log.Println("message from chrome extension:", args[0])
+		slog.Debug("native messaging request detected", "component", "browser", "browser", "chrome")
 		return true
 	}
-	if strings.Contains(args[0], nativeMessagingManifestFileName) && strings.Contains(firefoxExtensionIDs, args[1]) {
-		log.Println("message from chrome extension:", args[0])
+	if len(args) > 1 && strings.Contains(args[0], nativeMessagingManifestFileName) && strings.Contains(firefoxExtensionIDs, args[1]) {
+		slog.Debug("native messaging request detected", "component", "browser", "browser", "firefox")
 		return true
 	}
 	return false
@@ -35,9 +38,9 @@ func HandleNativeMessage(s *storage.FileStorage) {
 		&messaging.GetLoginItemHandler{Storage: s},
 		&messaging.GetAppStateHandler{Storage: s},
 	)
-	log.Println("[browser] starting native messaging listener")
+	slog.Debug("starting native messaging listener", "component", "browser")
 	err := m.Handle(os.Stdout, os.Stdin)
 	if err != nil {
-		log.Println("[browser] could not handle message:", err)
+		slog.Error("could not handle native messaging request", "component", "browser", "error", err)
 	}
 }

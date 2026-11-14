@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"go.lucor.dev/paw/internal/model"
+	"go.lucor.dev/paw/internal/test"
 )
 
 // TestFileStorageRoundTrip checks the filesystem backend preserves encrypted vault data.
@@ -21,8 +22,7 @@ func TestFileStorageRoundTrip(t *testing.T) {
 	password := "secret"
 	storage := newTestFileStorage(t)
 	appearance := model.VaultAppearance{Icon: "laptop", Color: "purple"}
-	vault, err := storage.CreateVault(name, password, appearance)
-	require.NoError(t, err)
+	vault := test.CreateVaultWithPassword(t, storage, name, password, appearance)
 	require.Equal(t, name, vault.Metadata.VaultName)
 	id := vault.Accounts[0].ID
 	reopened, err := NewFileStorage(storage.Root())

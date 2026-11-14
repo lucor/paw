@@ -9,7 +9,31 @@ import (
 
 	"go.lucor.dev/paw/internal/model"
 	"go.lucor.dev/paw/internal/paw"
+	"go.lucor.dev/paw/internal/test"
 )
+
+func TestCreateVaultWithKeyStoresTheProvidedKey(t *testing.T) {
+	store := newTestFileStorage(t)
+	key, err := paw.GenerateKey()
+	require.NoError(t, err)
+	recipient, err := test.NewPasswordRecipient("fixture-password")
+	require.NoError(t, err)
+	vault, err := store.CreateVaultWithKey("Personal", key)
+	require.NoError(t, err)
+	require.Same(t, key, vault.Key())
+	require.NoFileExists(t, keyPath(store, vault.Accounts[0].ID))
+	loadedVault, err := store.LoadVault(vault.Accounts[0].ID, key)
+	require.NoError(t, err)
+	require.Equal(t, "Personal", loadedVault.Metadata.VaultName)
+	require.NoError(t, store.SaveVaultKey(vault.Accounts[0].ID, key, recipient))
+
+	loadedKey, err := store.LoadVaultKey(vault.Accounts[0].ID, "fixture-password")
+	require.NoError(t, err)
+	require.Equal(t, key.String(), loadedKey.String())
+	loadedVault, err = store.LoadVault(vault.Accounts[0].ID, loadedKey)
+	require.NoError(t, err)
+	require.Equal(t, "Personal", loadedVault.Metadata.VaultName)
+}
 
 // TestDecryptVault checks encrypted files decode as complete CXF vaults.
 func TestDecryptVault(t *testing.T) {

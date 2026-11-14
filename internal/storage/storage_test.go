@@ -53,6 +53,8 @@ func TestFilesystemIDRoundTrip(t *testing.T) {
 	name := filesystemID(id)
 	require.Len(t, name, 26)
 	require.Equal(t, strings.ToLower(name), name)
+	require.Equal(t, name, FormatVaultID(id))
+	require.Empty(t, FormatVaultID("invalid"))
 	require.NotContains(t, name, "-")
 	require.NotContains(t, name, "_")
 	decodedID, ok := idFromFilesystemName(name)

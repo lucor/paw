@@ -16,12 +16,12 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.lucor.dev/paw/internal/model"
 	"go.lucor.dev/paw/internal/paw"
+	"go.lucor.dev/paw/internal/test"
 )
 
 func TestCreateVaultStoresHybridIdentityAndEncryptedData(t *testing.T) {
 	store := newTestFileStorage(t)
-	vault, err := store.CreateVault("Personal", "password")
-	require.NoError(t, err)
+	vault := test.CreateVaultWithPassword(t, store, "Personal", "password")
 	id := vault.Accounts[0].ID
 	require.FileExists(t, keyPath(store, id))
 	require.NoFileExists(t, legacyKeyPath(store, id))
@@ -133,11 +133,16 @@ func TestLegacyUnlockRecoversInterruptedIdentityMigration(t *testing.T) {
 			active := vaultDirectory(id)
 			stage := active + identityStageSuffix
 			backup := active + identityBackupSuffix
-			oldKey, err := loadIdentityAt(store, active, keyFileName, password, false)
-			require.NoError(t, err)
-			require.NoError(t, store.prepareIdentityStage(active, stage, password, oldKey))
-			if testCase.corruptStage {
-				require.NoError(t, os.WriteFile(filepath.Join(store.Root(), stage, vaultFileName), []byte("corrupt staged file"), 0o600))
+			if testCase.name == "during activation" {
+				oldKey, err := loadIdentityAt(store, active, keyFileName, password, false)
+				require.NoError(t, err)
+				require.NoError(t, store.prepareIdentityStage(active, stage, password, oldKey))
+			} else {
+				require.NoError(t, store.root.Mkdir(stage, 0o700))
+				if testCase.corruptStage {
+					path := filepath.Join(store.Root(), stage, vaultFileName)
+					require.NoError(t, os.WriteFile(path, []byte("corrupt staged file"), 0o600))
+				}
 			}
 			if testCase.name != "before activation" {
 				require.NoError(t, store.root.Rename(active, backup))
@@ -184,9 +189,12 @@ func TestLegacyUnlockRejectsCorruptAndAmbiguousVaults(t *testing.T) {
 
 func createLegacyIdentityVault(t *testing.T, password string) (*FileStorage, *model.Vault, *model.Item, model.History, string) {
 	t.Helper()
-	store := newTestFileStorage(t)
-	vault, err := store.CreateVault("Migration", password)
-	require.NoError(t, err)
+	store, vault := newItemStoreVault(t)
+	info := model.VaultInfo{
+		ID:   vault.Accounts[0].ID,
+		Name: "Personal",
+	}
+	require.NoError(t, store.storeVaultInfo(info))
 	item, err := model.NewNote("History note", "current secret")
 	require.NoError(t, err)
 	require.NoError(t, store.StoreItem(vault, item))

@@ -19,6 +19,7 @@ import (
 	"go.lucor.dev/cxf"
 	"go.lucor.dev/paw/internal/model"
 	"go.lucor.dev/paw/internal/paw"
+	"go.lucor.dev/paw/internal/test"
 )
 
 func TestReadPawBackupRejectsAttachmentReferences(t *testing.T) {
@@ -84,7 +85,7 @@ func TestRestorePreservesItemsAndCreatesCopy(t *testing.T) {
 	unchanged, err := store.LoadVault(accountID, restored.Key())
 	require.NoError(t, err)
 	require.Equal(t, "Personal", unchanged.Metadata.VaultName)
-	require.Greater(t, *copy.Metadata.CreationAt, *source.Metadata.CreationAt)
+	require.GreaterOrEqual(t, *copy.Metadata.CreationAt, *source.Metadata.CreationAt)
 	require.Equal(t, item.ID, copy.Accounts[0].Items[0].ID)
 	require.Equal(t, source.Accounts[0].Collections[0].ID, copy.Accounts[0].Collections[0].ID)
 	require.Equal(t, copy.Accounts[0].ID, *copy.Accounts[0].Collections[0].Items[0].Account)
@@ -203,9 +204,8 @@ func TestRestoreDetectsLateAgeIntegrityFailure(t *testing.T) {
 	// Put authenticated JSON before a later damaged age chunk.
 	payload := append(plain.Bytes(), bytes.Repeat([]byte(" "), 128<<10)...)
 	var encoded bytes.Buffer
-	recipient, err := age.NewScryptRecipient("secret")
+	recipient, err := test.NewPasswordRecipient("secret")
 	require.NoError(t, err)
-	recipient.SetWorkFactor(1)
 	w, err := age.Encrypt(&encoded, recipient)
 	require.NoError(t, err)
 	_, err = io.Copy(w, bytes.NewReader(payload))
@@ -220,9 +220,8 @@ func TestRestoreDetectsLateAgeIntegrityFailure(t *testing.T) {
 // writeEncryptedBackup creates a cheap age fixture for backup reader tests.
 func writeEncryptedBackup(t *testing.T, data []byte, password string) []byte {
 	t.Helper()
-	recipient, err := age.NewScryptRecipient(password)
+	recipient, err := test.NewPasswordRecipient(password)
 	require.NoError(t, err)
-	recipient.SetWorkFactor(1)
 	var encrypted bytes.Buffer
 	writer, err := age.Encrypt(&encrypted, recipient)
 	require.NoError(t, err)

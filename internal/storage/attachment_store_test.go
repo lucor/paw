@@ -5,6 +5,8 @@ package storage
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json/jsontext"
 	"errors"
 	"io"
@@ -18,6 +20,26 @@ import (
 	"go.lucor.dev/paw/internal/model"
 	"go.lucor.dev/paw/internal/paw"
 )
+
+func TestStoreVerifiedAttachmentRejectsMismatchBeforePublication(t *testing.T) {
+	root, itemID, key := newAttachmentStoreRoot(t)
+	fileID := testAttachmentID(t)
+	digest := sha256.Sum256([]byte("expected"))
+	file := cxf.File{
+		Type:          cxf.CredentialTypeFile,
+		ID:            fileID,
+		Name:          "attachment",
+		DecryptedSize: uint64(len("expected")),
+		IntegrityHash: base64.RawURLEncoding.EncodeToString(digest[:]),
+	}
+	_, _, err := storeVerifiedAttachment(root, key, itemID, fileID, bytes.NewReader([]byte("changed!")), &file)
+	require.ErrorContains(t, err, "does not match")
+	path := filepath.Join(itemsDirectoryName, filesystemID(itemID), filesDirectoryName, attachmentFilename(fileID))
+	_, err = root.Stat(path)
+	require.ErrorIs(t, err, os.ErrNotExist)
+	_, _, err = storeVerifiedAttachment(root, key, itemID, fileID, bytes.NewReader([]byte("expected")), &file)
+	require.NoError(t, err)
+}
 
 func TestAttachmentStorePublishesEncryptedFiles(t *testing.T) {
 	require.Equal(t, "files", filesDirectoryName)

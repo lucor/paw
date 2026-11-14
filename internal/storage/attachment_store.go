@@ -12,23 +12,48 @@ import (
 	"os"
 	"path/filepath"
 
+	"go.lucor.dev/cxf"
 	"go.lucor.dev/paw/internal/paw"
 )
 
 // storeAttachment encrypts a new attachment under its Item and file IDs without replacing existing files.
 func storeAttachment(root *os.Root, key *paw.Key, itemID, fileID string, src io.Reader) (size uint64, digest string, resultErr error) {
+	return storeVerifiedAttachment(root, key, itemID, fileID, src, nil)
+}
+
+// storeVerifiedAttachment checks expected metadata before publishing an encrypted file.
+func storeVerifiedAttachment(root *os.Root, key *paw.Key, itemID, fileID string, src io.Reader, expected *cxf.File) (size uint64, digest string, resultErr error) {
 	if key == nil {
 		return 0, "", fmt.Errorf("vault key is missing")
 	}
 	if !isVaultID(itemID) || !isVaultID(fileID) {
 		return 0, "", fmt.Errorf("invalid attachment ID")
 	}
+	if expected != nil {
+		if err := expected.Validate(); err != nil {
+			return 0, "", fmt.Errorf("invalid attachment metadata: %w", err)
+		}
+		// Bound the input to the declared size so an endless stream cannot fill the disk.
+		src = io.LimitReader(src, int64(expected.DecryptedSize)+1)
+	}
 	itemDirectory := filepath.Join(itemsDirectoryName, filesystemID(itemID))
 	itemsInfo, err := root.Lstat(itemsDirectoryName)
+	if errors.Is(err, os.ErrNotExist) && expected != nil {
+		if err := root.Mkdir(itemsDirectoryName, 0700); err != nil {
+			return 0, "", fmt.Errorf("cannot create items directory: %w", err)
+		}
+		itemsInfo, err = root.Lstat(itemsDirectoryName)
+	}
 	if err != nil || !itemsInfo.IsDir() || itemsInfo.Mode()&os.ModeSymlink != 0 {
 		return 0, "", fmt.Errorf("item directory is unavailable")
 	}
 	itemInfo, err := root.Lstat(itemDirectory)
+	if errors.Is(err, os.ErrNotExist) && expected != nil {
+		if err := root.Mkdir(itemDirectory, 0700); err != nil {
+			return 0, "", fmt.Errorf("cannot create item directory: %w", err)
+		}
+		itemInfo, err = root.Lstat(itemDirectory)
+	}
 	if err != nil || !itemInfo.IsDir() || itemInfo.Mode()&os.ModeSymlink != 0 {
 		return 0, "", fmt.Errorf("item directory is unavailable")
 	}
@@ -79,6 +104,11 @@ func storeAttachment(root *os.Root, key *paw.Key, itemID, fileID string, src io.
 	size, digest, err = encryptAttachment(key, temp, src)
 	if err != nil {
 		return 0, "", err
+	}
+	if expected != nil {
+		if expected.ID != fileID || expected.DecryptedSize != size || expected.IntegrityHash != digest {
+			return 0, "", fmt.Errorf("attachment content does not match metadata")
+		}
 	}
 	if err := temp.Sync(); err != nil {
 		return 0, "", fmt.Errorf("cannot sync encrypted attachment: %w", err)

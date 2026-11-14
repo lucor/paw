@@ -10,13 +10,15 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 
 	"go.lucor.dev/paw/internal/paw"
 )
 
 // FileStorage stores encrypted vault data in one local application directory.
 type FileStorage struct {
-	root *os.Root
+	root        *os.Root
+	syncPeersMu sync.Mutex
 }
 
 // NewFileStorage opens an application directory and keeps its root open. An empty
@@ -51,6 +53,10 @@ func newFileStorage(root string) (*FileStorage, error) {
 	}
 	s := &FileStorage{root: r}
 	if err := r.MkdirAll(storageRootName, 0o700); err != nil {
+		_ = r.Close()
+		return nil, err
+	}
+	if err := (&FileStorage{root: r}).recoverIncompleteClones(); err != nil {
 		_ = r.Close()
 		return nil, err
 	}

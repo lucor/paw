@@ -13,12 +13,12 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.lucor.dev/cxf"
 	"go.lucor.dev/paw/internal/model"
+	"go.lucor.dev/paw/internal/test"
 )
 
 func TestCreateVaultCreatesItemStorageDirectory(t *testing.T) {
 	store := newTestFileStorage(t)
-	vault, err := store.CreateVault("Personal", "password")
-	require.NoError(t, err)
+	vault := test.CreateVault(t, store, "Personal")
 	require.DirExists(t, filepath.Join(vaultRootPath(store, vault.Accounts[0].ID), itemsDirectoryName))
 	loaded, err := store.LoadVault(vault.Accounts[0].ID, vault.Key())
 	require.NoError(t, err)
@@ -82,8 +82,7 @@ func TestLoadVaultMigratesFlatItemFilesWithoutChangingContents(t *testing.T) {
 	require.Equal(t, firstHistory, afterHistory)
 
 	// Loading another vault migrates only that vault.
-	other, err := store.CreateVault("Other", "password")
-	require.NoError(t, err)
+	other := test.CreateVault(t, store, "Other")
 	otherItem := newMigrationTestItem(t, store, other, "Other item")
 	otherBytes := moveItemToLegacyPath(t, store, other, otherItem.ID)
 	_, err = store.LoadVault(vault.Accounts[0].ID, vault.Key())

@@ -7,6 +7,7 @@ require (
 	fyne.io/fyne/v2 v2.8.2
 	github.com/godbus/dbus/v5 v5.2.2
 	github.com/google/renameio/v2 v2.0.2
+	github.com/libp2p/zeroconf/v2 v2.2.0
 	github.com/stretchr/testify v1.12.1
 	github.com/urfave/cli/v3 v3.14.0
 	go.lucor.dev/cxf v0.0.0-20261025171600-daa288fd4137
@@ -19,6 +20,7 @@ require (
 	golang.org/x/term v0.47.0
 	golang.org/x/text v0.43.0
 	gopkg.in/natefinch/npipe.v2 v2.0.0-20160621034901-c1b8fa8bdcce
+	rsc.io/qr v0.2.0
 )
 
 require (
@@ -54,6 +56,7 @@ require (
 	github.com/lucor/goinfo v0.9.0 // indirect
 	github.com/mattn/go-runewidth v0.0.24 // indirect
 	github.com/mcuadros/go-version v0.0.0-20190830083331-035f6764e8d2 // indirect
+	github.com/miekg/dns v1.1.72 // indirect
 	github.com/natefinch/atomic v1.0.1 // indirect
 	github.com/nfnt/resize v0.0.0-20180221191011-83c6a9932646 // indirect
 	github.com/nicksnyder/go-i18n/v2 v2.5.1 // indirect

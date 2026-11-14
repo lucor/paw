@@ -2,7 +2,6 @@ package model
 
 import (
 	"fmt"
-	"strings"
 )
 
 // VaultInfo contains the storage ID and public details shown to users.
@@ -55,22 +54,12 @@ func isVaultAppearanceColor(color string) bool {
 	}
 }
 
-// FindVaultInfo resolves an ID or an unambiguous display name.
+// FindVaultInfo resolves an ID or an exact display name.
 func FindVaultInfo(vaults []VaultInfo, value string) (VaultInfo, error) {
-	var match VaultInfo
 	for _, vault := range vaults {
-		if vault.ID == value {
+		if vault.ID == value || vault.Name == value {
 			return vault, nil
 		}
-		if strings.EqualFold(vault.Name, value) {
-			if match.ID != "" {
-				return VaultInfo{}, fmt.Errorf("vault name %q is ambiguous", value)
-			}
-			match = vault
-		}
 	}
-	if match.ID == "" {
-		return VaultInfo{}, fmt.Errorf("vault %q does not exist", value)
-	}
-	return match, nil
+	return VaultInfo{}, fmt.Errorf("vault %q does not exist", value)
 }

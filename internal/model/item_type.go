@@ -53,6 +53,11 @@ func (it ItemType) String() string {
 	return "invalid"
 }
 
+// IsZero reports whether the item type has no recognized value.
+func (it ItemType) IsZero() bool {
+	return it != NoteItemType && it != PasswordItemType && it != LoginItemType && it != SSHKeyItemType
+}
+
 // ItemTypeFromString returns the item type from a string
 func ItemTypeFromString(v string) (ItemType, error) {
 	var itemType ItemType

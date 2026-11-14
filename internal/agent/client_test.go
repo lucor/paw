@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.lucor.dev/paw/internal/agent"
 	"go.lucor.dev/paw/internal/storage"
+	"go.lucor.dev/paw/internal/test"
 )
 
 func Test_Client(t *testing.T) {
@@ -23,8 +24,7 @@ func Test_Client(t *testing.T) {
 	defer server.Close()
 	go agent.Run(server, s.SocketAgentPath())
 
-	vault, err := s.CreateVault("client-test", "secret")
-	require.NoError(t, err)
+	vault := test.CreateVault(t, s, "client-test")
 	vaultID := vault.Accounts[0].ID
 	key := vault.Key()
 

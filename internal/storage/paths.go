@@ -30,6 +30,7 @@ const (
 	itemsDirectoryName      = "items"
 	filesDirectoryName      = "files"
 	vaultMetadataFileName   = "metadata.json"
+	clonePendingFileName    = "clone-pending"
 	appStateFileName        = "paw.json"
 	lockFileName            = "paw.lock"
 	logFileName             = "paw.log"
@@ -99,6 +100,11 @@ func filesystemID(id string) string {
 	}
 	encoding := base32.StdEncoding.WithPadding(base32.NoPadding)
 	return strings.ToLower(encoding.EncodeToString(decoded))
+}
+
+// FormatVaultID returns the user-facing form of a canonical Vault ID.
+func FormatVaultID(id string) string {
+	return filesystemID(id)
 }
 
 // idFromFilesystemName decodes a lowercase Base32 filesystem ID to Base64url.

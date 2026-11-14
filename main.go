@@ -5,6 +5,8 @@ package main
 
 import (
 	"fmt"
+	"io"
+	"log/slog"
 	"os"
 	"runtime"
 
@@ -15,6 +17,7 @@ import (
 	"go.lucor.dev/paw/internal/browser"
 	"go.lucor.dev/paw/internal/cli"
 	"go.lucor.dev/paw/internal/icon"
+	"go.lucor.dev/paw/internal/logging"
 	"go.lucor.dev/paw/internal/storage"
 	"go.lucor.dev/paw/internal/ui"
 )
@@ -50,12 +53,19 @@ func (a *appType) IsWindowsOS() bool {
 }
 
 func main() {
+	os.Exit(run())
+}
+
+func run() int {
 	at := &appType{args: os.Args}
+	if logger := makeLogger(); logger != nil {
+		defer logger.Close()
+	}
 
 	// handle application start: CLI, GUI
 	if at.IsCLI() && at.IsMobile() {
 		fmt.Fprintln(os.Stderr, "CLI app is unsupported on this OS")
-		os.Exit(1)
+		return 1
 	}
 
 	if !at.IsCLI() && at.IsWindowsOS() {
@@ -68,8 +78,9 @@ func main() {
 	fyneApp.SetIcon(icon.PawIcon)
 	s, err := makeStorage(at, fyneApp)
 	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		slog.Error("could not initialize storage", "component", "app", "error", err)
+		fmt.Fprintf(os.Stderr, "Paw could not start: %v\n", err)
+		return 1
 	}
 	defer s.Close()
 
@@ -80,22 +91,22 @@ func main() {
 	// Handle message from browser extension
 	if at.IsMessageFromBrowserExtension() {
 		browser.HandleNativeMessage(s)
-		return
+		return 0
 	}
 
 	if at.IsCLI() {
 		// Run the CLI app
 		if err := cli.Run(os.Args, s); err != nil {
 			fmt.Fprintf(os.Stderr, "[✗] %s\n", err)
-			os.Exit(1)
+			return 1
 		}
-		return
+		return 0
 	}
 
 	// check for running instance looking at the health service
 	if ui.HealthServiceCheck(s.LockFilePath()) {
 		fmt.Fprintln(os.Stderr, "Paw GUI is already running")
-		os.Exit(1)
+		return 1
 	}
 	// start the health service
 	go ui.HealthService(s.LockFilePath())
@@ -119,6 +130,19 @@ func main() {
 	w.Resize(fyne.NewSize(ui.DefaultWindowWidth, ui.DefaultWindowHeight))
 	w.SetContent(ui.MakeApp(s, w))
 	w.ShowAndRun()
+	return 0
+}
+
+// makeLogger configures application logging and returns the log file closer.
+// When file logging cannot start it falls back to stderr, so startup never fails.
+func makeLogger() io.Closer {
+	closer, err := logging.Init()
+	if err == nil {
+		return closer
+	}
+	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, nil)))
+	slog.Warn("could not initialize file logging", "component", "app", "error", err)
+	return nil
 }
 
 // makeStorage create the storage
