@@ -5,9 +5,10 @@ package ui
 
 import (
 	"fmt"
-	"log"
+	"log/slog"
 
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/driver/desktop"
 	"go.lucor.dev/paw/internal/model"
 )
@@ -58,7 +59,7 @@ func (a *app) makeMainMenu() *fyne.MainMenu {
 	)
 }
 func (a *app) makeVaultActions() []*fyne.MenuItem {
-	return NewVaultActions(func() { a.showVaultSettingsView() }, a.showAuditPasswordView, a.exportToFile, func() {
+	return NewVaultActions(func() { a.showVaultSettingsView() }, a.showAuditPasswordView, a.exportToFile, a.showSyncView, func() {
 		name, _ := a.vault.Name()
 		a.main.Content = a.makeUnlockVaultView(model.VaultInfo{ID: a.vaultID, Name: name}, nil, nil)
 		a.lockVault()
@@ -69,7 +70,9 @@ func (a *app) makeVaultActions() []*fyne.MenuItem {
 func (a *app) makeVaultMenuItems() []*fyne.MenuItem {
 	vaults, err := a.storage.Vaults()
 	if err != nil {
-		log.Fatal(err)
+		slog.Error("could not load vaults for menu", "component", "ui", "error", err)
+		dialog.ShowError(err, a.win)
+		return nil
 	}
 
 	mi := make([]*fyne.MenuItem, len(vaults))

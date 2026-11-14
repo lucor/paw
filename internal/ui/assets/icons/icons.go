@@ -8,7 +8,7 @@ import (
 	"go.lucor.dev/paw/internal/icon"
 )
 
-//go:embed light/*.png dark/*.png active/*.png danger/*.png
+//go:embed light/*.png dark/*.png active/*.png danger/*.png success/*.png
 var assets embed.FS
 
 // resource loads one generated PNG from the embedded assets.
@@ -28,6 +28,10 @@ func themed(name string) fyne.Resource {
 var (
 	// Copy copies a field to the clipboard.
 	Copy = themed("copy")
+	// Link identifies a shareable connection link.
+	Link = themed("link")
+	// QRCode identifies a QR code action.
+	QRCode = themed("qr-code")
 	// Show reveals a concealed field.
 	Show = themed("eye")
 	// Hide conceals a revealed field.
@@ -50,6 +54,10 @@ var (
 	Code = themed("code")
 	// Bug identifies issue reporting.
 	Bug = themed("bug")
+	// CircleX marks a failed operation.
+	CircleX = resource("danger/circle-x.png")
+	// CircleCheck marks a successful operation.
+	CircleCheck = resource("success/circle-check.png")
 	// Audit opens the password audit.
 	Audit = themed("shield-check")
 	// Import identifies file import.
@@ -66,8 +74,10 @@ var (
 	ArchiveRestore = themed("archive-restore")
 	// PlusCircle identifies creating a new vault.
 	PlusCircle = themed("circle-plus")
-	// Sync is the theme-aware cloud icon.
-	Sync = themed("cloud")
+	// Sync is the theme-aware refresh icon.
+	Sync = themed("refresh-cw")
+	// CopyPlus identifies cloning an existing vault.
+	CopyPlus = themed("copy-plus")
 	// Timer identifies the background auto-lock setting.
 	Timer = themed("timer")
 	// Back is the theme-aware back navigation arrow.

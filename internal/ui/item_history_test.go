@@ -11,11 +11,11 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/test"
 	"fyne.io/fyne/v2/widget"
 	"github.com/stretchr/testify/require"
 	"go.lucor.dev/paw/internal/model"
 	"go.lucor.dev/paw/internal/storage"
+	"go.lucor.dev/paw/internal/test"
 )
 
 func TestEntryDetailHistoryActionUsesExistingMetadataFooter(t *testing.T) {
@@ -246,8 +246,7 @@ func newHistoryAppFixture(t *testing.T) (*app, fyne.Window, *storage.FileStorage
 	store, err := storage.NewFileStorage(t.TempDir())
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, store.Close()) })
-	vault, err := store.CreateVault("Personal", "synthetic-master-password")
-	require.NoError(t, err)
+	vault := test.CreateVault(t, store, "Personal")
 	item := detailFixture(t)
 	history := addHistorySnapshotForUI(t, item)
 	history.Entries[0].Item.Title = "Oldest"

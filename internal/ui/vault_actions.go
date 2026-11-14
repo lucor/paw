@@ -10,18 +10,20 @@ import (
 )
 
 // NewVaultActions connects available vault management operations to native menu items.
-func NewVaultActions(settings, audit, exportFile, lock func()) []*fyne.MenuItem {
+func NewVaultActions(settings, audit, exportFile, syncVault, lock func()) []*fyne.MenuItem {
 	items := []*fyne.MenuItem{
 		fyne.NewMenuItem("Vault settings", settings),
 		fyne.NewMenuItem("Password audit", audit),
 		fyne.NewMenuItem("Export credentials", exportFile),
+		fyne.NewMenuItem("Sync", syncVault),
 		fyne.NewMenuItemSeparator(),
 		fyne.NewMenuItem("Lock vault", lock),
 	}
 	items[0].Icon = icons.Settings
 	items[1].Icon = icons.Audit
 	items[2].Icon = icons.Export
-	items[4].Icon = icons.LockVault
+	items[3].Icon = icons.Sync
+	items[5].Icon = icons.LockVault
 	return items
 }
 

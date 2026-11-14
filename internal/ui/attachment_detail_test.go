@@ -12,12 +12,12 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/test"
 	"fyne.io/fyne/v2/widget"
 	"github.com/stretchr/testify/require"
 	"go.lucor.dev/cxf"
 	"go.lucor.dev/paw/internal/model"
 	"go.lucor.dev/paw/internal/storage"
+	"go.lucor.dev/paw/internal/test"
 )
 
 func TestAttachmentDetailDisplaysEmptyAndMultipleFiles(t *testing.T) {
@@ -156,8 +156,7 @@ func TestAttachmentRemoveFailureIsReported(t *testing.T) {
 	window := test.NewTempWindow(t, nil)
 	store, err := storage.NewFileStorage(t.TempDir())
 	require.NoError(t, err)
-	vault, err := store.CreateVault("Personal", "synthetic-password")
-	require.NoError(t, err)
+	vault := test.CreateVault(t, store, "Personal")
 	item := detailFixture(t)
 	require.NoError(t, store.StoreItem(vault, item))
 	_, err = store.AddAttachment(vault, item.ID, "report.pdf", strings.NewReader("content"))
@@ -183,8 +182,7 @@ func TestAttachmentTransferDefersVaultLockUntilTransferCompletes(t *testing.T) {
 	store, err := storage.NewFileStorage(t.TempDir())
 	require.NoError(t, err)
 	defer store.Close()
-	vault, err := store.CreateVault("Personal", "synthetic-password")
-	require.NoError(t, err)
+	vault := test.CreateVault(t, store, "Personal")
 	application := &app{
 		win:           window,
 		main:          container.NewVScroll(widget.NewLabel("vault")),

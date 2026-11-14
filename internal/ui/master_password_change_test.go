@@ -1,8 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Luca Corbo, Paw contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//go:build !race
-
 package ui
 
 import (
@@ -10,21 +8,19 @@ import (
 	"time"
 
 	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/test"
 	"github.com/stretchr/testify/require"
 	"go.lucor.dev/paw/internal/model"
 	"go.lucor.dev/paw/internal/storage"
+	test "go.lucor.dev/paw/internal/test"
 )
 
 // TestMasterPasswordChangeLocksVault exercises a real password rekey through FileStorage.
-// Running age's scrypt derivation twice under -race makes this end-to-end UI test very slow.
 func TestMasterPasswordChangeLocksVault(t *testing.T) {
 	test.NewTempApp(t)
 	store, err := storage.NewFileStorage(t.TempDir())
 	require.NoError(t, err)
 	defer store.Close()
-	vault, err := store.CreateVault("Personal", "old password")
-	require.NoError(t, err)
+	vault := test.CreateVaultWithPassword(t, store, "Personal", "old password")
 	id := vault.Accounts[0].ID
 	w := test.NewTempWindow(t, nil)
 	a := &app{win: w, storage: store, main: container.NewVScroll(nil), vault: vault, vaultID: id, settingsVaultID: id, unlockedVault: map[string]*model.Vault{id: vault}}

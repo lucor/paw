@@ -35,7 +35,7 @@ func TestFirstRunUsesAddVaultAndReturnsFromCreateAndRestore(t *testing.T) {
 
 	objects := test.LaidOutObjects(application.main)
 	texts := unlockViewText(t, application.main)
-	for _, expected := range []string{"Add vault", "Create new vault", "Restore from backup"} {
+	for _, expected := range []string{"Add vault", "Create new vault", "Restore from backup", "Clone from device"} {
 		require.Contains(t, texts, expected)
 	}
 	for _, obsolete := range []string{"Welcome to Paw", "Connect via Sync"} {
@@ -73,6 +73,21 @@ func TestFirstRunUsesAddVaultAndReturnsFromCreateAndRestore(t *testing.T) {
 	test.Tap(restoreBack)
 	require.Same(t, application.main, window.Content(), "Cancel from Restore returns to first-run Add vault")
 	require.Contains(t, unlockViewText(t, window.Content()), "Add vault")
+}
+
+func TestMakeAppShowsStorageErrorInsteadOfExiting(t *testing.T) {
+	driver := test.NewApp()
+	t.Cleanup(driver.Quit)
+	window := driver.NewWindow("Paw")
+	t.Cleanup(window.Close)
+	store, err := storage.NewFileStorage(t.TempDir())
+	require.NoError(t, err)
+	require.NoError(t, store.Close())
+
+	application := &app{win: window, storage: store}
+	content := application.makeApp()
+	require.Equal(t, "Could not load vaults.", content.Content.(*widget.Label).Text)
+	require.Nil(t, application.makeVaultMenuItems())
 }
 
 func TestMakeAppAndAutoLockUseLastUsedVaultSetting(t *testing.T) {
@@ -217,7 +232,7 @@ func TestManualLockShowsVaultSelectorOnlyWhenMultipleVaultsExist(t *testing.T) {
 				unlockedVault: map[string]*model.Vault{currentID: current},
 			}
 			window.SetContent(application.main)
-			lock := application.makeVaultActions()[4]
+			lock := application.makeVaultActions()[5]
 			lock.Action()
 
 			unlock, ok := application.main.Content.(*UnlockVault)

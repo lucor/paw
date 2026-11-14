@@ -84,7 +84,7 @@ func captureScreenshotGallery(outputDir string, variant fyne.ThemeVariant) error
 		gallery.capture(window, name+suffix)
 	}
 
-	addVault := NewAddVault(func() {}, func() {}, func() {})
+	addVault := NewAddVault(func() {}, func() {}, func() {}, func() {})
 	capture("add-vault", addVault)
 	captureAt("add-vault-narrow", addVault, fyne.NewSize(320, 540))
 	createVault := NewCreateVault(func() {}, func(string, string, model.VaultAppearance) error { return nil })
@@ -600,7 +600,7 @@ func screenshotVariantName(variant fyne.ThemeVariant) string {
 func screenshotEntryListFixture() EntryListOptions {
 	return EntryListOptions{
 		VaultName: "Personal", Codes: widget.NewLabel("Codes"), Settings: widget.NewLabel("Settings"),
-		VaultActions: NewVaultActions(func() {}, func() {}, func() {}, func() {}),
+		VaultActions: NewVaultActions(func() {}, func() {}, func() {}, func() {}, func() {}),
 		AddEntry:     func(EntryKind) {}, AddVault: func() {},
 		Categories: []EntryCategory{
 			{ID: "all", Label: "All items", Icon: icons.List}, {ID: "login", Label: "Logins", Icon: icons.Login},

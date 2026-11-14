@@ -13,7 +13,7 @@ import (
 )
 
 // NewAddVault shows the available ways to add a vault.
-func NewAddVault(back, create, restore func()) fyne.CanvasObject {
+func NewAddVault(back, create, restore, clone func()) fyne.CanvasObject {
 	var backButton fyne.CanvasObject
 	if back != nil {
 		button := widget.NewButtonWithIcon("", icons.Back, back)
@@ -23,15 +23,17 @@ func NewAddVault(back, create, restore func()) fyne.CanvasObject {
 	header := newPageHeader(backButton, newText("Add vault", titleStyle), nil)
 	createRow := newNavigationRowWithSubtitle("Create new vault", "Start with an empty encrypted vault", navigationRowIcon(icons.PlusCircle), create)
 	restoreRow := newNavigationRowWithSubtitle("Restore from backup", "Create a vault from a backup file", navigationRowIcon(icons.ArchiveRestore), restore)
-	choices := container.New(layout.NewVBoxLayout(), createRow, widget.NewSeparator(), restoreRow)
+	cloneRow := newNavigationRowWithSubtitle("Clone from device", "Create a vault from another Paw device", navigationRowIcon(icons.CopyPlus), clone)
+	choices := container.New(layout.NewVBoxLayout(), createRow, widget.NewSeparator(), restoreRow, widget.NewSeparator(), cloneRow)
 	return newSecondaryPage(header, nil, container.NewVScroll(choices))
 }
 
 // ShowAddVault opens the choice page and keeps Back navigation within the flow.
-func ShowAddVault(window fyne.Window, back func(), create func(string, string, model.VaultAppearance) error, restore func()) {
-	showChoices := func() { ShowAddVault(window, back, create, restore) }
+func ShowAddVault(window fyne.Window, back func(), create func(string, string, model.VaultAppearance) error, restore, clone func()) {
+	showChoices := func() { ShowAddVault(window, back, create, restore, clone) }
 	window.SetContent(NewAddVault(back,
 		func() { window.SetContent(NewCreateVault(showChoices, create)) },
 		restore,
+		clone,
 	))
 }

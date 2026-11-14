@@ -103,6 +103,16 @@ func (r *ActionRow) SetSupplemental(object fyne.CanvasObject) {
 	r.Refresh()
 }
 
+// SetDetailObject replaces the secondary line with a canvas object.
+func (r *ActionRow) SetDetailObject(object fyne.CanvasObject) {
+	if object == nil {
+		object = r.detail
+	}
+	r.text.Objects = []fyne.CanvasObject{r.title, object}
+	r.text.Refresh()
+	r.Refresh()
+}
+
 // SetDetailStyle applies a shared semantic typography role to the secondary line.
 func (r *ActionRow) SetDetailStyle(style textStyle) {
 	r.detail.SizeName = style.size

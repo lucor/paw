@@ -8,12 +8,12 @@ import (
 	"testing"
 
 	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/test"
 	"fyne.io/fyne/v2/widget"
 	"github.com/stretchr/testify/require"
 	"go.lucor.dev/paw/internal/model"
 	"go.lucor.dev/paw/internal/paw"
 	"go.lucor.dev/paw/internal/storage"
+	"go.lucor.dev/paw/internal/test"
 )
 
 func TestExportCredentialsViewDefaultsAndValidation(t *testing.T) {
@@ -106,8 +106,7 @@ func TestExportCredentialsRejectsAttachmentsBeforeOpeningPicker(t *testing.T) {
 	store, err := storage.NewFileStorage(t.TempDir())
 	require.NoError(t, err)
 	defer store.Close()
-	vault, err := store.CreateVault("Personal", "synthetic-password")
-	require.NoError(t, err)
+	vault := test.CreateVault(t, store, "Personal")
 	item, err := model.NewNote("Note", "content")
 	require.NoError(t, err)
 	require.NoError(t, store.StoreItem(vault, item))
@@ -128,8 +127,7 @@ func TestPawExportOptionAcceptsAttachmentsAndOpensFolderPicker(t *testing.T) {
 	store, err := storage.NewFileStorage(t.TempDir())
 	require.NoError(t, err)
 	defer store.Close()
-	vault, err := store.CreateVault("Personal", "synthetic-password")
-	require.NoError(t, err)
+	vault := test.CreateVault(t, store, "Personal")
 	item, err := model.NewNote("Note", "content")
 	require.NoError(t, err)
 	require.NoError(t, store.StoreItem(vault, item))

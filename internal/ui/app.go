@@ -7,13 +7,14 @@ package ui
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"runtime"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/driver/desktop"
+	"fyne.io/fyne/v2/widget"
 	"github.com/godbus/dbus/v5"
 
 	"go.lucor.dev/paw/internal/agent"
@@ -60,6 +61,7 @@ type app struct {
 	attachmentBusy       bool
 	pendingLock          bool
 	pendingLockAllVaults bool
+	syncRun              *syncConnectRun
 
 	// Paw agent client
 	client agent.PawAgent
@@ -89,7 +91,12 @@ func MakeApp(s *storage.FileStorage, w fyne.Window) fyne.CanvasObject {
 	a.configureAutoLock(a.state.Settings.AutoLock)
 	fyne.CurrentApp().Lifecycle().SetOnExitedForeground(func() { fyne.Do(a.autoLock.exitedForeground) })
 	fyne.CurrentApp().Lifecycle().SetOnEnteredForeground(func() { fyne.Do(a.autoLock.enteredForeground) })
-	fyne.CurrentApp().Lifecycle().SetOnStopped(func() { fyne.Do(a.autoLock.close) })
+	fyne.CurrentApp().Lifecycle().SetOnStopped(func() {
+		fyne.Do(func() {
+			a.closeSyncConnect()
+			a.autoLock.close()
+		})
+	})
 
 	a.win.SetMainMenu(a.makeMainMenu())
 	if a.state != nil && a.state.Settings != nil {
@@ -109,7 +116,7 @@ func (a *app) agentClient() agent.PawAgent {
 	}
 	c, err := agent.NewClient(a.storage.SocketAgentPath())
 	if err != nil {
-		log.Println("agent not available: %w", err)
+		slog.Warn("agent not available", "component", "ui", "error", err)
 		return nil
 	}
 	return c
@@ -119,7 +126,7 @@ func (a *app) agentClient() agent.PawAgent {
 func (a *app) makeSysTray() {
 	if desk, ok := fyne.CurrentApp().(desktop.App); ok {
 		if err := checkStatusNotifierWatcher(); err != nil {
-			log.Println("systray not available: %w", err)
+			slog.Warn("systray not available", "component", "ui", "error", err)
 			return
 		}
 		a.win.SetCloseIntercept(a.win.Hide) // don't close the window if system tray used
@@ -133,7 +140,9 @@ func (a *app) makeSysTray() {
 func (a *app) makeApp() *container.Scroll {
 	vaults, err := a.storage.Vaults()
 	if err != nil {
-		log.Fatal(err)
+		slog.Error("could not load vaults", "component", "ui", "error", err)
+		dialog.ShowError(err, a.win)
+		return container.NewVScroll(widget.NewLabel("Could not load vaults."))
 	}
 
 	var o fyne.CanvasObject
@@ -144,7 +153,7 @@ func (a *app) makeApp() *container.Scroll {
 
 	switch len(vaults) {
 	case 0:
-		o = NewAddVault(nil, a.showCreateVaultView, a.showRestoreVaultView)
+		o = NewAddVault(nil, a.showCreateVaultView, a.showRestoreVaultView, a.showCloneView)
 	case 1:
 		o = a.makeUnlockVaultView(vaults[0], nil, nil)
 	default:
@@ -165,6 +174,9 @@ func (a *app) setVaultViewByInfo(info model.VaultInfo, back, chooseAnother func(
 		return
 	}
 	if a.settingsVaultID != "" {
+		return
+	}
+	if a.stopSyncConnectBefore(func() { a.setVaultViewByInfo(info, back, chooseAnother) }) {
 		return
 	}
 	a.closeItemDetail()
@@ -225,18 +237,18 @@ func (a *app) removeSSHKeyFromAgent(item *model.Item) error {
 func (a *app) addSSHKeysToAgent() {
 	summaries, err := a.vault.FilterItems("", model.SSHKeyItemType)
 	if err != nil {
-		log.Println(err)
+		slog.Error("could not list SSH keys for agent", "component", "ui", "error", err)
 		return
 	}
 	for _, summary := range summaries {
 		item, err := a.storage.LoadItem(a.vault, summary.ID)
 		if err != nil {
-			log.Println(err)
+			slog.Warn("could not load SSH key for agent", "component", "ui", "error", err)
 			continue
 		}
 		err = a.addSSHKeyToAgent(item)
 		if err != nil {
-			log.Println("unable to add SSH Key to agent:", err)
+			slog.Warn("could not add SSH key to agent", "component", "ui", "error", err)
 		}
 	}
 }
@@ -251,7 +263,7 @@ func (a *app) setVaultView(vault *model.Vault, vaultID string) {
 	if a.state != nil && a.state.Settings != nil && a.state.Settings.LastVaultID != vaultID {
 		a.state.Settings.LastVaultID = vaultID
 		if err := a.storage.StoreAppState(a.state); err != nil {
-			log.Println("unable to save last used vault:", err)
+			slog.Warn("could not save last used vault", "component", "ui", "error", err)
 		}
 	}
 	a.main.Content = a.makeCurrentVaultView()
@@ -261,6 +273,9 @@ func (a *app) setVaultView(vault *model.Vault, vaultID string) {
 
 // showAuditPasswordView opens the password audit screen.
 func (a *app) showAuditPasswordView() {
+	if a.stopSyncConnectBefore(a.showAuditPasswordView) {
+		return
+	}
 	a.closeItemDetail()
 	if a.vault == nil {
 		return
@@ -271,6 +286,9 @@ func (a *app) showAuditPasswordView() {
 
 // showCurrentVaultView displays the selected vault or its unlock screen.
 func (a *app) showCurrentVaultView() {
+	if a.stopSyncConnectBefore(a.showCurrentVaultView) {
+		return
+	}
 	a.closeMasterPasswordView()
 	a.closeItemDetail()
 	a.closePasswordAudit()
@@ -303,6 +321,9 @@ func (a *app) showEditItemView(item *model.Item, isNew bool) {
 
 // showSettingsView opens the application settings.
 func (a *app) showSettingsView() {
+	if a.stopSyncConnectBefore(a.showSettingsView) {
+		return
+	}
 	a.clearUnlockPassword()
 	a.closeItemDetail()
 	a.win.SetContent(a.makeSettingsView())
@@ -321,6 +342,9 @@ func (a *app) clearUnlockPassword() {
 func (a *app) lockVault() {
 	if a.attachmentBusy {
 		a.pendingLock = true
+		return
+	}
+	if a.stopSyncConnectBefore(a.lockVault) {
 		return
 	}
 	a.closeMasterPasswordView()
@@ -346,8 +370,11 @@ func (a *app) lockAllVaults() {
 		a.pendingLockAllVaults = true
 		return
 	}
+	if a.stopSyncConnectBefore(a.lockAllVaults) {
+		return
+	}
 	a.clearUnlockPassword()
-	log.Printf("auto-lock: locking %d unlocked vaults", len(a.unlockedVault))
+	slog.Debug("locking unlocked vaults", "component", "ui", "count", len(a.unlockedVault))
 	a.closeMasterPasswordView()
 	a.settingsVaultID = ""
 	a.closeItemDetail()

@@ -6,8 +6,9 @@ readonly REQUIRED_RESVG_VERSION="0.48.1"
 readonly ICON_SIZE=64
 readonly ICONS_ACTIVE="circle-plus vault timer settings"
 readonly ICONS_LINK=""
-readonly ICONS="folder-open archive-restore circle-plus cloud arrow-left chevron-right chevron-down chevron-up download dices lock lock-open ellipsis-vertical plus minus search list file file-text globe key-round rotate-ccw-key file-key terminal shield-check file-input file-output lock-keyhole copy eye eye-off square-pen settings-2 trash external-link briefcase-business house archive shield folder laptop pencil check timer play image hash binary sun-moon whole-word info scale scroll-text code bug"
-readonly ICONS_DANGER="trash"
+readonly ICONS="folder-open archive-restore circle-plus cloud refresh-cw copy-plus arrow-left chevron-right chevron-down chevron-up download dices lock lock-open ellipsis-vertical plus minus search list file file-text globe key-round rotate-ccw-key file-key terminal shield-check file-input file-output lock-keyhole copy link qr-code eye eye-off square-pen settings-2 trash external-link briefcase-business house archive shield folder laptop pencil check timer play image hash binary sun-moon whole-word info scale scroll-text code bug"
+readonly ICONS_DANGER="trash circle-x"
+readonly ICONS_SUCCESS="circle-check"
 readonly SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 readonly REPO_ROOT="$(cd -- "$SCRIPT_DIR/../../../../.." && pwd)"
 
@@ -81,7 +82,7 @@ actual_oxipng_version="$("$oxipng_bin" --version | awk '{print $2}')"
 if [[ "$output_dir" != /* ]]; then
 	output_dir="$REPO_ROOT/$output_dir"
 fi
-mkdir -p "$output_dir/light" "$output_dir/dark" "$output_dir/active" "$output_dir/danger"
+mkdir -p "$output_dir/light" "$output_dir/dark" "$output_dir/active" "$output_dir/danger" "$output_dir/success"
 
 tmp_dir="$(mktemp -d)"
 trap 'rm -rf "$tmp_dir"' EXIT
@@ -155,9 +156,10 @@ render_icon() {
 
 color_for_variant() {
 	case "$1" in
-	light) printf '#565656' ;;
-	dark) printf '#F3F3F3' ;;
-	active) printf '#0B8FF3' ;;
+		light) printf '#565656' ;;
+		dark) printf '#F3F3F3' ;;
+		active) printf '#0B8FF3' ;;
+		success) printf '#22C55E' ;;
 	danger) printf '#E5484D' ;;
 	*) fail "unknown color variant: $1" ;;
 	esac
@@ -179,7 +181,7 @@ generate_group() {
 	done
 }
 
-for icon in $ICONS_ACTIVE $ICONS_LINK $ICONS $ICONS_DANGER; do
+for icon in $ICONS_ACTIVE $ICONS_LINK $ICONS $ICONS_DANGER $ICONS_SUCCESS; do
 	for variant in light dark active danger; do
 		rm -f "$output_dir/$variant/$icon.png"
 	done
@@ -196,6 +198,9 @@ for icon in $ICONS; do
 done
 for icon in $ICONS_DANGER; do
 	generate_group "$icon" "danger"
+done
+for icon in $ICONS_SUCCESS; do
+	generate_group "$icon" "success"
 done
 
 license_url="https://raw.githubusercontent.com/lucide-icons/lucide/$lucide_version/LICENSE"

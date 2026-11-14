@@ -88,7 +88,7 @@ func TestAuditIsDiscardedOnLockAndVaultSwitch(t *testing.T) {
 			view := a.audit.View
 			window.SetContent(view)
 			if action == "lock" {
-				a.makeVaultActions()[4].Action()
+				a.makeVaultActions()[5].Action()
 			} else {
 				a.setVaultViewByInfo(model.VaultInfo{ID: "work", Name: "Work"}, nil, nil)
 			}
@@ -545,7 +545,7 @@ func TestUnlockAddVaultOptions(t *testing.T) {
 				actions = append(actions, button)
 			}
 		}
-		require.Len(t, actions, 2)
+		require.Len(t, actions, 3)
 		test.Tap(actions[index])
 		var back *widget.Button
 		foundTitle := false

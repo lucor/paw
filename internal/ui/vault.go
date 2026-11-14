@@ -18,6 +18,9 @@ import (
 
 // showCreateVaultView opens the vault creation screen.
 func (a *app) showCreateVaultView() {
+	if a.stopSyncConnectBefore(a.showCreateVaultView) {
+		return
+	}
 	a.clearUnlockPassword()
 	a.closeItemDetail()
 	a.win.SetContent(NewCreateVault(a.showCurrentVaultView, a.createVault))
@@ -25,13 +28,19 @@ func (a *app) showCreateVaultView() {
 
 // showAddVaultView opens the available ways to add a vault.
 func (a *app) showAddVaultView() {
+	if a.stopSyncConnectBefore(a.showAddVaultView) {
+		return
+	}
 	a.clearUnlockPassword()
 	a.closeItemDetail()
-	ShowAddVault(a.win, a.showCurrentVaultView, a.createVault, a.showRestoreVaultView)
+	ShowAddVault(a.win, a.showCurrentVaultView, a.createVault, a.showRestoreVaultView, a.showCloneView)
 }
 
 // showRestoreVaultView restores a Paw backup as a new unlocked vault.
 func (a *app) showRestoreVaultView() {
+	if a.stopSyncConnectBefore(a.showRestoreVaultView) {
+		return
+	}
 	a.clearUnlockPassword()
 	a.closeItemDetail()
 	ShowRestoreBackup(a.win, a.storage, func(vault *model.Vault) {

@@ -16,7 +16,7 @@ import (
 )
 
 func entryListFixture() EntryListOptions {
-	return EntryListOptions{VaultName: "Personal", Codes: widget.NewLabel("Codes test view"), Settings: widget.NewLabel("Settings test view"), VaultActions: NewVaultActions(func() {}, func() {}, func() {}, func() {}), AddEntry: func(EntryKind) {}, AddVault: func() {}, Categories: []EntryCategory{
+	return EntryListOptions{VaultName: "Personal", Codes: widget.NewLabel("Codes test view"), Settings: widget.NewLabel("Settings test view"), VaultActions: NewVaultActions(func() {}, func() {}, func() {}, func() {}, func() {}), AddEntry: func(EntryKind) {}, AddVault: func() {}, Categories: []EntryCategory{
 		{ID: "all", Label: "All items", Icon: icons.List}, {ID: "login", Label: "Logins", Icon: icons.Login},
 		{ID: "password", Label: "Passwords", Icon: icons.Password}, {ID: "note", Label: "Notes", Icon: icons.Note}, {ID: "ssh", Label: "SSH keys", Icon: icons.SSH},
 	}, Vaults: []VaultChoice{

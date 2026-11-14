@@ -130,7 +130,7 @@ func TestSecondaryViewsShareHeaderPosition(t *testing.T) {
 		title string
 		view  fyne.CanvasObject
 	}{
-		{title: "Add vault", view: NewAddVault(func() {}, func() {}, func() {})},
+		{title: "Add vault", view: NewAddVault(func() {}, func() {}, func() {}, func() {})},
 		{title: "Create new vault", view: NewCreateVault(func() {}, func(string, string, model.VaultAppearance) error { return nil })},
 		{title: "Vault appearance", view: newVaultAppearanceView("Personal", model.DefaultVaultAppearance(), nil, func() {})},
 		{title: "Restore from backup", view: auditPage("Restore from backup", func() {}, container.NewVScroll(container.NewVBox()))},

@@ -108,6 +108,9 @@ func NewVaultIdentityEditor(name string, appearance model.VaultAppearance, save 
 }
 
 func (a *app) showVaultSettingsView() {
+	if a.stopSyncConnectBefore(a.showVaultSettingsView) {
+		return
+	}
 	if a.vault == nil || a.vaultID == "" {
 		return
 	}
@@ -168,13 +171,13 @@ func (a *app) confirmDeleteVault(vaultID, name string) {
 		delete(a.unlockedVault, vaultID)
 		vaults, err := a.storage.Vaults()
 		if err != nil {
-			a.main.Content = NewAddVault(nil, a.showCreateVaultView, a.showRestoreVaultView)
+			a.main.Content = NewAddVault(nil, a.showCreateVaultView, a.showRestoreVaultView, a.showCloneView)
 			a.lockVault()
 			dialog.ShowError(err, a.win)
 			return
 		}
 		if len(vaults) == 0 {
-			a.main.Content = NewAddVault(nil, a.showCreateVaultView, a.showRestoreVaultView)
+			a.main.Content = NewAddVault(nil, a.showCreateVaultView, a.showRestoreVaultView, a.showCloneView)
 		} else {
 			a.main.Content = a.makeSelectVaultView(vaults)
 		}

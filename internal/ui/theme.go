@@ -12,7 +12,13 @@ import (
 )
 
 const (
-	pawColorNameFaviconBackground fyne.ThemeColorName = "pawFaviconBackground"
+	pawColorNameFaviconBackground      fyne.ThemeColorName = "pawFaviconBackground"
+	pawColorNameSuccessBadgeBackground fyne.ThemeColorName = "pawSuccessBadgeBackground"
+	pawColorNameSuccessBadgeForeground fyne.ThemeColorName = "pawSuccessBadgeForeground"
+	pawColorNameInfoBadgeBackground    fyne.ThemeColorName = "pawInfoBadgeBackground"
+	pawColorNameInfoBadgeForeground    fyne.ThemeColorName = "pawInfoBadgeForeground"
+	pawColorNameNeutralBadgeBackground fyne.ThemeColorName = "pawNeutralBadgeBackground"
+	pawColorNameNeutralBadgeForeground fyne.ThemeColorName = "pawNeutralBadgeForeground"
 
 	pawSizeNamePagePadding    fyne.ThemeSizeName = "pawPagePadding"
 	pawSizeNameFormSpacing    fyne.ThemeSizeName = "pawFormSpacing"
@@ -50,6 +56,38 @@ func (t *pawTheme) Color(name fyne.ThemeColorName, variant fyne.ThemeVariant) co
 	}
 
 	dark := variant == theme.VariantDark
+	switch name {
+	case pawColorNameSuccessBadgeBackground:
+		if dark {
+			return color.NRGBA{R: 0x17, G: 0x3A, B: 0x28, A: 0xFF}
+		}
+		return color.NRGBA{R: 0xDC, G: 0xFC, B: 0xE7, A: 0xFF}
+	case pawColorNameSuccessBadgeForeground:
+		if dark {
+			return color.NRGBA{R: 0x86, G: 0xEF, B: 0xAC, A: 0xFF}
+		}
+		return color.NRGBA{R: 0x15, G: 0x80, B: 0x3D, A: 0xFF}
+	case pawColorNameInfoBadgeBackground:
+		if dark {
+			return color.NRGBA{R: 0x1E, G: 0x35, B: 0x5B, A: 0xFF}
+		}
+		return color.NRGBA{R: 0xDB, G: 0xEA, B: 0xFE, A: 0xFF}
+	case pawColorNameInfoBadgeForeground:
+		if dark {
+			return color.NRGBA{R: 0x93, G: 0xC5, B: 0xFD, A: 0xFF}
+		}
+		return color.NRGBA{R: 0x1D, G: 0x4E, B: 0xD8, A: 0xFF}
+	case pawColorNameNeutralBadgeBackground:
+		if dark {
+			return color.NRGBA{R: 0x33, G: 0x37, B: 0x3F, A: 0xFF}
+		}
+		return color.NRGBA{R: 0xF3, G: 0xF4, B: 0xF6, A: 0xFF}
+	case pawColorNameNeutralBadgeForeground:
+		if dark {
+			return color.NRGBA{R: 0xCB, G: 0xD0, B: 0xD8, A: 0xFF}
+		}
+		return color.NRGBA{R: 0x37, G: 0x41, B: 0x51, A: 0xFF}
+	}
 	switch name {
 	case theme.ColorNameForeground:
 		if dark {
@@ -117,6 +155,17 @@ func pawSize(name fyne.ThemeSizeName) float32 {
 		}
 	}
 	return newPawTheme().Size(name)
+}
+
+// pawColor reads a Paw color from the active theme, with a fallback for unthemed test widgets.
+func pawColor(name fyne.ThemeColorName) color.Color {
+	if app := fyne.CurrentApp(); app != nil {
+		if _, ok := app.Settings().Theme().(*pawTheme); ok {
+			return theme.Color(name)
+		}
+		return newPawTheme().Color(name, app.Settings().ThemeVariant())
+	}
+	return newPawTheme().Color(name, theme.VariantLight)
 }
 
 // passwordStrengthColor returns the fixed color for a score in the active theme.
