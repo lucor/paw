@@ -314,10 +314,15 @@ jobs:
           path: /tmp/paw-release-assets
           merge-multiple: true
 
-      - name: Publish release with GoReleaser
-        uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
-        with:
-          version: v2.20.1
-          args: release --clean
+      - name: Create checksums
+        run: |
+          cd /tmp/paw-release-assets
+          shasum -a 256 Paw_* > checksums.txt
+
+      - name: Create draft release
         env:
-          GITHUB_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 || \
+            gh release create "$GITHUB_REF_NAME" --draft --generate-notes --title "$GITHUB_REF_NAME"
+          gh release upload "$GITHUB_REF_NAME" --clobber /tmp/paw-release-assets/*
