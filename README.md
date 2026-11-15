@@ -12,11 +12,8 @@ Paw provides a desktop app and command-line interface in a single binary. Run `p
 
 See the [documentation](https://paw.pm/docs/) for installation and usage instructions.
 
-## Warning
-
-**This software is a work in progress and has not undergone a full security audit.**
-
-**Do not expect it to be bug free and do not rely on it for any type of security.**
+> [!WARNING]
+> Paw is a work in progress and has not yet undergone an independent security audit. Read the [threat model](https://paw.pm/docs/security/threat-model/) before trusting it with important secrets.
 
 ## Screenshots
 
@@ -31,17 +28,18 @@ See the [documentation](https://paw.pm/docs/) for installation and usage instruc
 
 * Cross-platform desktop application for Linux, macOS, Windows, and FreeBSD
 * Desktop GUI and CLI modes from the same executable
+* Hybrid post-quantum age encryption (X25519 and ML-KEM-768)
+* Vault synchronization and cloning directly between devices on the local network
 * SSH agent integration and browser extension support
 * Password audits for exposed, weak, and reused passwords
 * Authenticator code (TOTP) support
 * File attachments for Login and Secure Note items
-* Native CXF-based credential storage
+* CXF-based credential storage
 * Password-protected `.paw` archive backup and restore, including attachments and history
 * CXF-compatible backup export and restore, plus SSH key import and export
 
 ### Later goals
 
-* Synchronization between devices
 * Browser extension autofill
 * CXF import from other password managers
 * Support for more CXF credential types, including passkeys, credit cards, API keys, Wi-Fi credentials, and identity documents
@@ -50,13 +48,34 @@ See the [documentation](https://paw.pm/docs/) for installation and usage instruc
 
 ## Installation
 
+Install Paw using Homebrew on macOS and Linux, download a pre-built package from GitHub Releases, or install with Go.
+
+### Homebrew (macOS and Linux)
+
+Install the [Lucor Homebrew tap](https://github.com/lucor/homebrew-tap):
+
+```sh
+brew install --cask lucor/tap/paw
+```
+
+The qualified command adds the tap if needed. You can also add the tap first:
+
+```sh
+brew tap lucor/tap
+brew install --cask lucor/tap/paw
+```
+
+On Linux, a current Homebrew installation with Linux cask support is required. The Homebrew `bin` directory must be on the `PATH` used by your desktop session for the Paw desktop launcher to run.
+
+### Download a release
+
 Download the latest stable packages from the [Releases page](https://github.com/lucor/paw/releases/latest). Packages are available for Linux (amd64 and arm64), macOS (Intel and Apple Silicon), Windows (amd64), and FreeBSD (amd64 and arm64).
 
-### Linux
+#### Linux
 
 Download the `.tar.xz` package for your architecture and extract it. From the extracted directory containing the `Makefile`, run `make user-install` to install Paw for your user, or `sudo make install` to install it system-wide.
 
-### macOS
+#### macOS
 
 Download the `.dmg` package for your Mac: `darwin_amd64` for Intel or `darwin_arm64` for Apple Silicon. Open the disk image and drag Paw to Applications. Because Paw is not notarized, remove the quarantine attribute after copying it:
 
@@ -66,11 +85,11 @@ xattr -r -d com.apple.quarantine /Applications/Paw.app
 
 Run this command again after upgrading Paw.
 
-### Windows
+#### Windows
 
-Download and run the `windows_amd64.exe` package.
+Download and run the `.exe` package for amd64.
 
-### FreeBSD
+#### FreeBSD
 
 Download and extract the `.tar.xz` package for your architecture. Install GNU Make (`gmake`) if needed, then from the extracted directory containing the `Makefile`, run `gmake user-install` to install Paw for your user, or `sudo gmake install` to install it system-wide.
 
@@ -94,40 +113,66 @@ go install .
 
 Go installs `paw` in `GOBIN`, or in `GOPATH/bin` when `GOBIN` is not set. Add that directory to your `PATH` to run `paw` and `paw cli`.
 
+## Usage
+
+Run `paw` to open the desktop app, or use `paw cli` for command-line operations:
+
+```sh
+# Create a vault
+paw cli init Personal
+
+# Add an item (Paw prompts for the fields)
+paw cli add Personal/login/GitHub
+
+# Show an item (use --clip to copy the password instead of printing it)
+paw cli show Personal/login/GitHub
+```
+
+Commands that select an existing vault accept its name, full Vault ID, or a unique Vault ID prefix of at least 7 characters (for example, `paw cli unlock Personal` and `paw cli unlock mjqxgz2` select the same vault).
+
+Details: [Command reference](https://paw.pm/docs/cli/commands/) and [Desktop app](https://paw.pm/docs/desktop/).
+
 ## How vaults and passwords work
 
 ### Vault initialization
 
-Paw stores credentials in one or more local vaults.
+Paw stores credentials in one or more local vaults. Each vault uses a hybrid post-quantum age identity combining X25519 and ML-KEM-768, protected by the master password with age's scrypt-based password encryption. All vault data is encrypted at rest; only the vault name, icon, and color are stored unencrypted in `metadata.json` so Paw can list locked vaults.
 
-New vaults use a hybrid post-quantum age identity combining X25519 and ML-KEM-768. Paw protects it with the master password using age's scrypt-based password encryption and uses it to encrypt the vault index, items, history, and attachments. Existing vaults are upgraded automatically the next time they are successfully unlocked; the master password stays the same. The upgrade stages a second encrypted copy and may temporarily need additional disk space. Back up your vault before upgrading Paw. Older Paw versions may not be able to open an upgraded vault.
-
-The protected identity is stored in `identities/scrypt.age`, the encrypted vault index in `vault.age`, and each item in its own encrypted file. Item contents and their index summaries are encrypted; `metadata.json` contains the vault's unencrypted name, icon, and color so Paw can list locked vaults.
-
-### Password generation
-
-Random passwords and PINs use Go's `crypto/rand` directly and do not depend on the vault key. Random passwords use the selected character sets: lowercase letters, uppercase letters, numbers, and symbols. Passphrases join randomly selected English words with hyphens.
-
-### Custom passwords
-
-You can enter a password manually or edit a generated password before saving. Paw stores the current password field value.
-
-### Backups
-
-Paw supports plaintext `.cxf` and password-encrypted `.cxf.age` backups for CXF compatibility, plus password-encrypted `.paw` archives. A `.paw` archive uses its own password and includes item history and attachment files. CXF backups cannot contain attachment binaries, so Paw rejects CXF exports when the vault contains attachments. Restoring any supported backup creates a separate vault with a new master password and encryption key; it does not overwrite or merge existing vaults.
+Details: [Vault encryption](https://paw.pm/docs/security/vault-encryption/) and [Storage layout](https://paw.pm/docs/security/storage-layout/).
 
 ### Items
 
-Paw supports these item types:
+Paw supports Login, Password, Secure note, and SSH key items, with item history and encrypted file attachments.
 
-* Login: username, password, website, optional authenticator key, notes, and file attachments
-* Password: a standalone password
-* Secure note: multiline text and file attachments
-* SSH key: public and private key material, with an optional passphrase
+Details: [Items and history](https://paw.pm/docs/data/items-history/).
+
+### Password generation
+
+Passwords, passphrases, and PINs are generated with Go's `crypto/rand` and do not depend on the vault key. You can also enter a password manually.
+
+Details: [Password generator](https://paw.pm/docs/desktop/) and the [`pwgen` command](https://paw.pm/docs/cli/commands/).
+
+### Backups
+
+Paw exports password-protected `.paw` archives (including attachments and item history), password-encrypted `.cxf.age`, and plaintext `.cxf` CXF documents. CXF exports cannot contain attachments. Restoring a backup always creates a separate vault with a new master password; it does not overwrite or merge existing vaults.
+
+Details: [Backup and restore](https://paw.pm/docs/backup-restore/).
+
+### Vault synchronization and cloning
+
+Paw synchronizes and clones vaults directly between devices on the same local network, without cloud servers. Sync uses mDNS discovery, mutual TLS 1.3 with post-quantum key exchange, and ML-DSA-44 authentication. First-time pairing requires confirming a 6-digit code on both devices.
+
+* **In the desktop app**: see [Vault synchronization](https://paw.pm/docs/desktop/).
+* **In the CLI**: run `paw cli sync <vault>` to synchronize or `paw cli sync --clone` to clone. If mDNS discovery is unavailable, connect directly with `--link`.
+* **Protocol details**: [Sync protocol & cryptography](https://paw.pm/docs/security/sync-protocol/).
+
+The device Sync identity is stored in the local vault directory as `sync.age`. It is device-specific; do not copy this file to another device.
 
 ## Threat model
 
-The threat model of Paw assumes there are no attackers on your local machine.
+The threat model of Paw assumes there are no attackers on your local machine. See the full [threat model](https://paw.pm/docs/security/threat-model/).
+
+To report a security issue or vulnerability, follow the [security policy](https://github.com/lucor/paw/security/policy).
 
 ## License
 
@@ -150,7 +195,5 @@ Paw is built with:
 * [zxcvbn](https://github.com/lucor/zxcvbn) — password strength estimation (adapted fork)
 
 Paw also uses [Have I Been Pwned](https://haveibeenpwned.com/Passwords) for optional compromised-password checks.
-
-For a complete list of third-party dependencies and their licenses, see [Third-party licenses](/THIRD_PARTY_LICENSES).
 
 Also thanks to [pass](https://www.passwordstore.org/) and the other open-source password managers that inspired Paw.
