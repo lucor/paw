@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -79,7 +80,9 @@ func TestInitCreatesRestrictiveAppendOnlyFileAndRedirectsLegacyLogger(t *testing
 	require.NoError(t, closer.Close())
 	info, err := os.Stat(path)
 	require.NoError(t, err)
-	require.Equal(t, os.FileMode(0600), info.Mode().Perm())
+	if runtime.GOOS != "windows" {
+		require.Equal(t, os.FileMode(0600), info.Mode().Perm())
+	}
 	content, err := os.ReadFile(path)
 	require.NoError(t, err)
 	require.Contains(t, string(content), "first legacy message")
