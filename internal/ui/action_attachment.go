@@ -88,7 +88,7 @@ func (a *app) beginAttachmentTransfer(title string) {
 	a.attachmentBusy = true
 	a.pendingLock = false
 	a.pendingLockAllVaults = false
-	a.win.SetMainMenu(nil)
+	a.clearMainMenu()
 	a.win.SetContent(container.NewVBox(newText(title, bodyStyle), widget.NewProgressBarInfinite()))
 }
 
@@ -98,7 +98,7 @@ func (a *app) finishAttachmentTransfer() bool {
 		a.pendingLockAllVaults = false
 		a.pendingLock = false
 		a.lockAllVaults()
-		a.win.SetMainMenu(a.makeMainMenu())
+		a.updateMainMenu()
 		return true
 	}
 	if a.pendingLock {
@@ -109,10 +109,10 @@ func (a *app) finishAttachmentTransfer() bool {
 			a.main.Refresh()
 		}
 		a.lockVault()
-		a.win.SetMainMenu(a.makeMainMenu())
+		a.updateMainMenu()
 		return true
 	}
-	a.win.SetMainMenu(a.makeMainMenu())
+	a.updateMainMenu()
 	return false
 }
 

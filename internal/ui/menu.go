@@ -58,6 +58,21 @@ func (a *app) makeMainMenu() *fyne.MainMenu {
 		helpMenu,
 	)
 }
+
+func (a *app) updateMainMenu() {
+	if _, ok := fyne.CurrentApp().(desktop.App); !ok {
+		return
+	}
+	a.win.SetMainMenu(a.makeMainMenu())
+}
+
+func (a *app) clearMainMenu() {
+	if _, ok := fyne.CurrentApp().(desktop.App); !ok {
+		return
+	}
+	a.win.SetMainMenu(nil)
+}
+
 func (a *app) makeVaultActions() []*fyne.MenuItem {
 	return NewVaultActions(func() { a.showVaultSettingsView() }, a.showAuditPasswordView, a.exportToFile, a.showSyncView, func() {
 		name, _ := a.vault.Name()

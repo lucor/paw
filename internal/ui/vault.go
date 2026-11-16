@@ -46,7 +46,7 @@ func (a *app) showRestoreVaultView() {
 	ShowRestoreBackup(a.win, a.storage, func(vault *model.Vault) {
 		a.setVaultView(vault, vault.Accounts[0].ID)
 		a.showCurrentVaultView()
-		a.win.SetMainMenu(a.makeMainMenu())
+		a.updateMainMenu()
 		a.makeSysTray()
 	})
 }
@@ -59,7 +59,7 @@ func (a *app) createVault(name, password string, appearance model.VaultAppearanc
 	}
 	a.setVaultView(vault, vault.Accounts[0].ID)
 	a.showCurrentVaultView()
-	a.win.SetMainMenu(a.makeMainMenu())
+	a.updateMainMenu()
 	a.makeSysTray()
 	return nil
 }

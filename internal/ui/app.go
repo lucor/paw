@@ -98,7 +98,7 @@ func MakeApp(s *storage.FileStorage, w fyne.Window) fyne.CanvasObject {
 		})
 	})
 
-	a.win.SetMainMenu(a.makeMainMenu())
+	a.updateMainMenu()
 	if a.state != nil && a.state.Settings != nil {
 		installPawTheme(a.state.Settings.Theme)
 	}

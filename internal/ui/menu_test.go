@@ -52,3 +52,15 @@ func TestMainMenuAboutOpensAboutPawView(t *testing.T) {
 	}
 	require.Same(t, main, window.Content())
 }
+
+func TestSetMainMenuSkipsMobileApp(t *testing.T) {
+	driver := test.NewApp()
+	t.Cleanup(driver.Quit)
+	window := driver.NewWindow(AppTitle)
+	t.Cleanup(window.Close)
+	a := &app{win: window}
+
+	a.updateMainMenu()
+
+	require.Nil(t, window.MainMenu())
+}
