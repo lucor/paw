@@ -1,7 +1,14 @@
 [tools]
 go = "1.27.4"
+java = "21"
+android-sdk = "23.0"
 resvg = "0.48.1"
 oxipng = "10.2.1"
+
+[env]
+ANDROID_PLATFORM = "android-36"
+ANDROID_BUILD_TOOLS = "36.0.0"
+ANDROID_NDK_VERSION = "30.0.16248370"
 
 [tasks.generate-icons]
 description = "Generate Lucide PNG icons for the interface"
@@ -74,6 +81,31 @@ run = "go test -race ./..."
 [tasks.build]
 description = "Build the Paw application"
 run = "mkdir -p dist && go build -trimpath -o dist/paw ."
+
+[tasks.android-setup]
+description = "Install Android SDK components required by Fyne"
+run = """
+set -eu
+sdk_root="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-$(mise where android-sdk)}}"
+export ANDROID_HOME="$sdk_root" ANDROID_SDK_ROOT="$sdk_root"
+android --no-metrics --sdk="$sdk_root" sdk install "platform-tools"
+android --no-metrics --sdk="$sdk_root" sdk install "platforms;${ANDROID_PLATFORM}"
+android --no-metrics --sdk="$sdk_root" sdk install "build-tools;${ANDROID_BUILD_TOOLS}"
+android --no-metrics --sdk="$sdk_root" sdk install "ndk;${ANDROID_NDK_VERSION}"
+"""
+
+[tasks.package-android]
+description = "Build an arm64 Android APK to dist/Paw.apk"
+depends = ["android-setup"]
+run = """
+set -eu
+sdk_root="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-$(mise where android-sdk)}}"
+export ANDROID_HOME="$sdk_root" ANDROID_SDK_ROOT="$sdk_root"
+export ANDROID_NDK_HOME="$sdk_root/ndk/${ANDROID_NDK_VERSION}"
+mkdir -p dist
+go tool fyne package --os android/arm64 --release --name Paw --app-id dev.lucor.paw --icon logo/paw.png
+mv Paw.apk dist/Paw.apk
+"""
 
 [tasks.check]
 description = "Run formatting, analysis, tests, vulnerability check, and build"
