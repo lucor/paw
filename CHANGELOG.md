@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.32.0 - 16 Nov 2026
+
+### Added
+
+- sync: synchronize and clone vaults directly between devices on the same local network, using the desktop app or CLI
+- sync: review conflicting changes during synchronization and choose how to resolve them.
+- sync: connect devices directly with a link when network discovery is unavailable.
+
+### Changed
+
+- encryption: use hybrid post-quantum age encryption combining X25519 and ML-KEM-768. Existing vaults are upgraded automatically when unlocked, keeping the same master password.
+- cli: commands that select a vault now accept its name, full Vault ID, or a unique ID prefix.
+- docs: README now includes Homebrew and Go installation instructions and links to the full documentation.
+- chore: bump Go toolchain to 1.27.4
+
+### Fixed
+
+- desktop: open the About screen from vault settings.
+- desktop: show the correct release version in packaged application binaries.
+
 ## 0.31.0 - 09 Nov 2026
 
 ### Added
