@@ -3,14 +3,26 @@
 
 package devicename
 
+import (
+	"context"
+	"os/exec"
+	"strings"
+	"time"
+)
+
 const fallback = "macOS"
 
 func detect() string {
-	name := command("/usr/sbin/scutil", "--get", "ComputerName")
-	if Validate(name) == nil {
-		return name
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, "/usr/sbin/scutil", "--get", "ComputerName").Output()
+	if err == nil {
+		name := strings.TrimSpace(string(out))
+		if Validate(name) == nil {
+			return name
+		}
 	}
-	name = hostname()
+	name := hostname()
 	if Validate(name) == nil {
 		return name
 	}

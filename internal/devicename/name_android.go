@@ -3,10 +3,23 @@
 
 package devicename
 
+import (
+	"context"
+	"os/exec"
+	"strings"
+	"time"
+)
+
 const fallback = "Android"
 
 func detect() string {
-	name := command("/system/bin/getprop", "ro.product.model")
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, "/system/bin/getprop", "ro.product.model").Output()
+	if err != nil {
+		return fallback
+	}
+	name := strings.TrimSpace(string(out))
 	if Validate(name) == nil {
 		return name
 	}

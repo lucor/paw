@@ -5,12 +5,9 @@
 package devicename
 
 import (
-	"context"
 	"errors"
 	"os"
-	"os/exec"
 	"strings"
-	"time"
 )
 
 // Detect returns a readable local device name.
@@ -42,14 +39,4 @@ func normalizedHostname(name string) string {
 		return ""
 	}
 	return name
-}
-
-func command(path string, args ...string) string {
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-	out, err := exec.CommandContext(ctx, path, args...).Output()
-	if err != nil {
-		return ""
-	}
-	return strings.TrimSpace(string(out))
 }
