@@ -4,6 +4,7 @@
 package ui
 
 import (
+	"strings"
 	"testing"
 
 	"fyne.io/fyne/v2"
@@ -18,12 +19,25 @@ import (
 	"go.lucor.dev/paw/internal/ui/assets/icons"
 )
 
+func TestOnlinePairedDeviceUsesAdvertisedName(t *testing.T) {
+	device := syncConnectDevice{
+		Name:    "Previous name",
+		Online:  true,
+		Trusted: true,
+	}
+	device.Peer.Name = "Current name"
+	require.Equal(t, "Current name", syncConnectDeviceName(device))
+	device.Online = false
+	require.Equal(t, "Previous name", syncConnectDeviceName(device))
+}
+
 func TestSettingsViewEditsAndPersistsSettings(t *testing.T) {
 	app := test.NewApp()
 	t.Cleanup(app.Quit)
 	window := app.NewWindow("Settings")
 	t.Cleanup(window.Close)
 	state := &model.AppState{Settings: model.NewDefaultSettings()}
+	state.Settings.DeviceName = "Initial device"
 	store, err := storage.NewFileStorage(t.TempDir())
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, store.Close()) })
@@ -32,12 +46,15 @@ func TestSettingsViewEditsAndPersistsSettings(t *testing.T) {
 	window.Resize(fyne.NewSize(430, 926))
 
 	var favicon *widget.Check
+	var deviceName *widget.Entry
 	var selects []*widget.Select
 	var steppers []*widget.Button
 	for _, object := range test.LaidOutObjects(view.View) {
 		switch object := object.(type) {
 		case *widget.Check:
 			favicon = object
+		case *widget.Entry:
+			deviceName = object
 		case *widget.Select:
 			selects = append(selects, object)
 		case *widget.Button:
@@ -47,6 +64,16 @@ func TestSettingsViewEditsAndPersistsSettings(t *testing.T) {
 		}
 	}
 	require.NotNil(t, favicon)
+	require.NotNil(t, deviceName)
+	require.Equal(t, "Initial device", deviceName.Text)
+	deviceName.SetText("My device")
+	require.Equal(t, "My device", state.Settings.DeviceName)
+	deviceName.SetText("   ")
+	require.Error(t, deviceName.Validate())
+	require.Equal(t, "My device", state.Settings.DeviceName)
+	deviceName.SetText(strings.Repeat("x", 201))
+	require.Error(t, deviceName.Validate())
+	require.Equal(t, "My device", state.Settings.DeviceName)
 	require.Len(t, selects, 3)
 	require.Len(t, steppers, 3)
 	require.NotNil(t, view.BackButton)

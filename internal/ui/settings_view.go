@@ -4,12 +4,15 @@
 package ui
 
 import (
+	"strings"
+
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
+	"go.lucor.dev/paw/internal/devicename"
 	"go.lucor.dev/paw/internal/model"
 	"go.lucor.dev/paw/internal/storage"
 	"go.lucor.dev/paw/internal/ui/assets/icons"
@@ -48,6 +51,16 @@ func NewSettingsView(state *model.AppState, store *storage.FileStorage, window f
 	e.BackButton = newIconButton("Back", icons.Back, nil)
 	e.BackButton.Importance = widget.LowImportance
 	p := state.Settings
+	deviceName := widget.NewEntry()
+	deviceName.SetText(p.DeviceName)
+	deviceName.Validator = devicename.Validate
+	deviceName.OnChanged = func(value string) {
+		if devicename.Validate(value) != nil {
+			return
+		}
+		p.DeviceName = strings.TrimSpace(value)
+		e.save()
+	}
 	autoLock := widget.NewSelect(autoLockLabels(), nil)
 	autoLock.Selected = autoLockLabel(p.AutoLock)
 	autoLock.OnChanged = func(label string) {
@@ -100,6 +113,7 @@ func NewSettingsView(state *model.AppState, store *storage.FileStorage, window f
 	content := container.NewVBox(
 		settingsSection("Security", e.row("Auto-lock", settingsAutoLockDescription, icons.Timer, autoLock)),
 		settingsSection("General",
+			deviceNameRow(deviceName),
 			e.row("Startup vault", "", icons.Play, startup),
 			e.row("Download favicons", "Download website icons automatically", icons.Image, favicon)),
 		settingsSection("Password generator",
@@ -111,6 +125,14 @@ func NewSettingsView(state *model.AppState, store *storage.FileStorage, window f
 	)
 	e.View = newSecondaryPage(newPageHeader(e.BackButton, newText("Settings", titleStyle), nil), nil, container.NewVScroll(content))
 	return e
+}
+
+func deviceNameRow(entry *widget.Entry) fyne.CanvasObject {
+	return container.NewVBox(
+		newText("Device name", itemTitleStyle),
+		entry,
+		newText("Used to identify this device when connecting to others.", captionStyle),
+	)
 }
 
 func settingsSection(title string, rows ...fyne.CanvasObject) fyne.CanvasObject {

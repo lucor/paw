@@ -10,6 +10,7 @@ import (
 	"os"
 	"time"
 
+	"go.lucor.dev/paw/internal/devicename"
 	"go.lucor.dev/paw/internal/model"
 )
 
@@ -21,18 +22,35 @@ func (s *FileStorage) LoadAppState() (*model.AppState, error) {
 	}
 	r, err := s.root.Open(appStateFileName)
 	if os.IsNotExist(err) {
-		return defaultAppState, nil
+		return s.ensureDeviceName(defaultAppState)
 	}
 	if err != nil {
 		return defaultAppState, fmt.Errorf("could not read URI: %w", err)
 	}
-	defer r.Close()
 	appState := &model.AppState{}
 	err = json.UnmarshalRead(r, appState)
+	closeErr := r.Close()
 	if err != nil {
 		return defaultAppState, err
 	}
-	return appState, nil
+	if closeErr != nil {
+		return defaultAppState, fmt.Errorf("close app state: %w", closeErr)
+	}
+	return s.ensureDeviceName(appState)
+}
+
+// ensureDeviceName initializes the local name once and saves it with the settings.
+func (s *FileStorage) ensureDeviceName(state *model.AppState) (*model.AppState, error) {
+	if state.Settings == nil {
+		state.Settings = model.NewDefaultSettings()
+	}
+	if state.Settings.DeviceName == "" {
+		state.Settings.DeviceName = devicename.Detect()
+		if err := s.StoreAppState(state); err != nil {
+			return state, fmt.Errorf("save device name: %w", err)
+		}
+	}
+	return state, nil
 }
 
 // StoreAppState store the configuration into the underlying storage

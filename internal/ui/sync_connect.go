@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"os"
 	"slices"
 	"strings"
 	"sync"
@@ -63,6 +62,7 @@ type cloneCreateInput struct {
 }
 
 type syncConnectRun struct {
+	deviceName              string
 	ctx                     context.Context
 	cancel                  context.CancelFunc
 	done                    chan struct{}
@@ -293,6 +293,9 @@ func (v *syncConnectView) SetConnectionLink(value string) {
 }
 
 func syncConnectDeviceName(device syncConnectDevice) string {
+	if device.Online && device.Peer.Name != "" {
+		return device.Peer.Name
+	}
 	if device.Name != "" {
 		return device.Name
 	}
@@ -364,7 +367,9 @@ func (a *app) openSyncConnect(clone bool) {
 	if a.main != nil {
 		previousMainContent = a.main.Content
 	}
+	deviceName := a.state.Settings.DeviceName
 	run := &syncConnectRun{
+		deviceName:              deviceName,
 		ctx:                     ctx,
 		cancel:                  cancel,
 		done:                    make(chan struct{}),
@@ -462,10 +467,8 @@ func (a *app) runSyncConnect(run *syncConnectRun, previousDone <-chan struct{}) 
 	if run.ctx.Err() != nil {
 		return
 	}
-	deviceName, err := os.Hostname()
-	if err != nil || strings.TrimSpace(deviceName) == "" {
-		deviceName = "Paw device"
-	}
+	deviceName := run.deviceName
+	var err error
 	var session *pawsync.Session
 	if run.clone {
 		session, err = run.manager.StartClone(run.ctx, a.storage, deviceName, true)

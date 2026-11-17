@@ -50,6 +50,7 @@ func TestFileStorageRoundTrip(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, storage.StoreItem(vault, login))
 	state := &model.AppState{Modified: time.Now().UTC(), Settings: model.NewDefaultSettings()}
+	state.Settings.DeviceName = "Test device"
 	state.Settings.FaviconDownloader.Disabled = true
 	state.Settings.Password.Random.DefaultLength = 24
 	require.NoError(t, storage.StoreAppState(state))

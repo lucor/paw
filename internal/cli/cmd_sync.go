@@ -101,10 +101,11 @@ func (cmd *SyncCmd) Run(ctx context.Context) (runErr error) {
 	if err != nil {
 		return err
 	}
-	host, err := os.Hostname()
-	if err != nil || strings.TrimSpace(host) == "" {
-		host = "Paw device"
+	state, err := cmd.storage.LoadAppState()
+	if err != nil {
+		return fmt.Errorf("load settings: %w", err)
 	}
+	host := state.Settings.DeviceName
 	manager := &pawsync.Manager{}
 	var session *pawsync.Session
 	if cmd.link != "" {

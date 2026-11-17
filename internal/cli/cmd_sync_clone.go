@@ -7,7 +7,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
@@ -16,10 +15,11 @@ import (
 
 // runClone receives a vault from a peer and creates a local copy.
 func (cmd *SyncCmd) runClone(ctx context.Context) (result error) {
-	host, err := os.Hostname()
-	if err != nil || strings.TrimSpace(host) == "" {
-		host = "Paw device"
+	state, err := cmd.storage.LoadAppState()
+	if err != nil {
+		return fmt.Errorf("load settings: %w", err)
 	}
+	host := state.Settings.DeviceName
 	var manager pawsync.Manager
 	session, err := manager.StartClone(ctx, cmd.storage, host, cmd.link == "")
 	if err != nil {

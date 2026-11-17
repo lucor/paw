@@ -58,6 +58,7 @@ func NewDefaultSettings() *Settings {
 }
 
 type Settings struct {
+	DeviceName        string                    `json:"deviceName,omitempty"`
 	Theme             string                    `json:"theme,omitempty"`
 	StartupVault      string                    `json:"startup_vault,omitempty"`
 	AutoLock          string                    `json:"auto_lock,omitempty"`

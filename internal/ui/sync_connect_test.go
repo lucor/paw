@@ -12,7 +12,7 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/test"
+	fynetest "fyne.io/fyne/v2/test"
 	"fyne.io/fyne/v2/widget"
 	"github.com/stretchr/testify/require"
 	"go.lucor.dev/paw/internal/model"
@@ -21,7 +21,7 @@ import (
 )
 
 func TestSyncConnectViewShowsDevicesAndStartsConnections(t *testing.T) {
-	app := test.NewApp()
+	app := fynetest.NewApp()
 	t.Cleanup(app.Quit)
 	window := app.NewWindow("Sync")
 	t.Cleanup(window.Close)
@@ -46,7 +46,7 @@ func TestSyncConnectViewShowsDevicesAndStartsConnections(t *testing.T) {
 
 	labels := make(map[string]*widget.Label)
 	badgeTexts := make(map[string]bool)
-	for _, object := range test.LaidOutObjects(view.view) {
+	for _, object := range fynetest.LaidOutObjects(view.view) {
 		if label, ok := object.(*widget.Label); ok {
 			labels[label.Text] = label
 		}
@@ -65,12 +65,12 @@ func TestSyncConnectViewShowsDevicesAndStartsConnections(t *testing.T) {
 	require.True(t, view.connect.Disabled())
 	view.link.SetText("")
 	phoenix := labels["phoenix"]
-	test.TapCanvas(window.Canvas(), app.Driver().AbsolutePositionForObject(phoenix).Add(fyne.NewPos(phoenix.Size().Width/2, phoenix.Size().Height/2)))
+	fynetest.TapCanvas(window.Canvas(), app.Driver().AbsolutePositionForObject(phoenix).Add(fyne.NewPos(phoenix.Size().Width/2, phoenix.Size().Height/2)))
 	require.Equal(t, "nearby", selected.ID)
 	require.False(t, selectedTrusted)
 
 	fedora := labels["fedora"]
-	test.TapCanvas(window.Canvas(), app.Driver().AbsolutePositionForObject(fedora).Add(fyne.NewPos(fedora.Size().Width/2, fedora.Size().Height/2)))
+	fynetest.TapCanvas(window.Canvas(), app.Driver().AbsolutePositionForObject(fedora).Add(fyne.NewPos(fedora.Size().Width/2, fedora.Size().Height/2)))
 	require.Equal(t, "known", selected.ID)
 	require.True(t, selectedTrusted)
 
@@ -79,11 +79,11 @@ func TestSyncConnectViewShowsDevicesAndStartsConnections(t *testing.T) {
 	require.True(t, view.connect.Disabled())
 	view.link.SetText(validLink)
 	require.False(t, view.connect.Disabled())
-	test.Tap(view.connect)
+	fynetest.Tap(view.connect)
 	require.Equal(t, validLink, manualLink)
 
 	var copyButton, qrButton *iconButton
-	for _, object := range test.LaidOutObjects(view.view) {
+	for _, object := range fynetest.LaidOutObjects(view.view) {
 		if button, ok := object.(*iconButton); ok {
 			switch button.label {
 			case "Copy connection link":
@@ -95,14 +95,14 @@ func TestSyncConnectViewShowsDevicesAndStartsConnections(t *testing.T) {
 	}
 	require.NotNil(t, copyButton)
 	require.NotNil(t, qrButton)
-	for _, object := range test.LaidOutObjects(view.view) {
+	for _, object := range fynetest.LaidOutObjects(view.view) {
 		if scroll, ok := object.(*container.Scroll); ok {
 			scroll.ScrollToBottom()
 		}
 	}
-	test.TapCanvas(window.Canvas(), app.Driver().AbsolutePositionForObject(copyButton).Add(fyne.NewPos(copyButton.Size().Width/2, copyButton.Size().Height/2)))
+	fynetest.TapCanvas(window.Canvas(), app.Driver().AbsolutePositionForObject(copyButton).Add(fyne.NewPos(copyButton.Size().Width/2, copyButton.Size().Height/2)))
 	require.Equal(t, "link", shared)
-	test.TapCanvas(window.Canvas(), app.Driver().AbsolutePositionForObject(qrButton).Add(fyne.NewPos(qrButton.Size().Width/2, qrButton.Size().Height/2)))
+	fynetest.TapCanvas(window.Canvas(), app.Driver().AbsolutePositionForObject(qrButton).Add(fyne.NewPos(qrButton.Size().Width/2, qrButton.Size().Height/2)))
 	require.True(t, qrShown)
 	view.SetStatus("Could not connect.", true)
 	view.SetDevices([]syncConnectDevice{{Peer: pawsync.Peer{ID: "other", Fingerprint: "other-fingerprint", Name: "other"}, Name: "other", Status: "New", Online: true}})
@@ -130,11 +130,11 @@ func TestSyncConnectDevicesMergeByFingerprintAndSortByStatus(t *testing.T) {
 	require.True(t, devices[0].Trusted)
 	require.Equal(t, "fp-shared", devices[0].Peer.Fingerprint)
 
-	test.NewTempApp(t)
+	fynetest.NewTempApp(t)
 	rows := syncConnectRows(devices, nil, true)
 	content := container.NewVBox(rows...)
 	var fingerprintCaptions []string
-	for _, object := range test.LaidOutObjects(content) {
+	for _, object := range fynetest.LaidOutObjects(content) {
 		if label, ok := object.(*widget.Label); ok && (label.Text == "fp-new-a" || label.Text == "fp-new-z") {
 			fingerprintCaptions = append(fingerprintCaptions, label.Text)
 		}
@@ -144,11 +144,11 @@ func TestSyncConnectDevicesMergeByFingerprintAndSortByStatus(t *testing.T) {
 }
 
 func TestSyncQRCodeViewDisplaysConnectionURI(t *testing.T) {
-	test.NewTempApp(t)
+	fynetest.NewTempApp(t)
 	link := "paw://127.0.0.1:61654/sync?fp=7a2a9d534f4b092dcc8e5a53f644508ed498fdd0203f387f717c74f8b63c118d"
 	view := newSyncQRCodeView(link, widget.NewLabel("qr image"), func() {})
 	found := false
-	for _, object := range test.LaidOutObjects(view) {
+	for _, object := range fynetest.LaidOutObjects(view) {
 		if label, ok := object.(*widget.Label); ok && label.Text == link {
 			found = true
 		}
@@ -157,10 +157,10 @@ func TestSyncQRCodeViewDisplaysConnectionURI(t *testing.T) {
 }
 
 func TestCloneConnectViewUsesCloneHeading(t *testing.T) {
-	test.NewTempApp(t)
+	fynetest.NewTempApp(t)
 	view := newSyncConnectView(true, func() {}, func() {}, func() {}, nil, nil)
 	var cloneHeading bool
-	for _, object := range test.LaidOutObjects(view.view) {
+	for _, object := range fynetest.LaidOutObjects(view.view) {
 		if label, ok := object.(*widget.Label); ok && label.Text == "Clone from device" {
 			cloneHeading = true
 		}
@@ -169,13 +169,13 @@ func TestCloneConnectViewUsesCloneHeading(t *testing.T) {
 }
 
 func TestSyncPairingInitiatorShowsVerificationCodeAndWaitState(t *testing.T) {
-	app := test.NewApp()
+	app := fynetest.NewApp()
 	t.Cleanup(app.Quit)
 	labels := make(map[string]bool)
 	buttons := make(map[string]bool)
 	fyne.DoAndWait(func() {
 		view := newSyncPairingView("fedora", "760763", false, func() {}, nil)
-		for _, object := range test.LaidOutObjects(view.view) {
+		for _, object := range fynetest.LaidOutObjects(view.view) {
 			if label, ok := object.(*widget.Label); ok {
 				labels[label.Text] = true
 			}
@@ -193,7 +193,7 @@ func TestSyncPairingInitiatorShowsVerificationCodeAndWaitState(t *testing.T) {
 }
 
 func TestSyncPairingReceiverRequiresExplicitDecision(t *testing.T) {
-	app := test.NewApp()
+	app := fynetest.NewApp()
 	t.Cleanup(app.Quit)
 	window := app.NewWindow("Pairing")
 	t.Cleanup(window.Close)
@@ -204,7 +204,7 @@ func TestSyncPairingReceiverRequiresExplicitDecision(t *testing.T) {
 		view := newSyncPairingView("phoenix", "123456", true, func() { declined = true }, func() { confirmed = true })
 		window.SetContent(view.view)
 		window.Show()
-		for _, object := range test.LaidOutObjects(view.view) {
+		for _, object := range fynetest.LaidOutObjects(view.view) {
 			if label, ok := object.(*widget.Label); ok {
 				labels[label.Text] = true
 			}
@@ -212,7 +212,7 @@ func TestSyncPairingReceiverRequiresExplicitDecision(t *testing.T) {
 				buttons[button.Text] = button
 			}
 		}
-		test.Tap(buttons["Confirm pairing"])
+		fynetest.Tap(buttons["Confirm pairing"])
 	})
 	require.True(t, labels["Pair with phoenix"])
 	require.True(t, labels["Does this code match the one on phoenix?"])
@@ -223,10 +223,10 @@ func TestSyncPairingReceiverRequiresExplicitDecision(t *testing.T) {
 	require.False(t, declined)
 	fyne.DoAndWait(func() {
 		declineView := newSyncPairingView("phoenix", "123456", true, func() { declined = true }, func() {})
-		for _, object := range test.LaidOutObjects(declineView.view) {
+		for _, object := range fynetest.LaidOutObjects(declineView.view) {
 			button, ok := object.(*widget.Button)
 			if ok && button.Text == "Decline" {
-				test.Tap(button)
+				fynetest.Tap(button)
 				break
 			}
 		}
@@ -235,7 +235,7 @@ func TestSyncPairingReceiverRequiresExplicitDecision(t *testing.T) {
 }
 
 func TestSyncPairingReceiverCanGoBackWhileWaiting(t *testing.T) {
-	app := test.NewApp()
+	app := fynetest.NewApp()
 	t.Cleanup(app.Quit)
 	window := app.NewWindow("Pairing")
 	t.Cleanup(window.Close)
@@ -244,16 +244,16 @@ func TestSyncPairingReceiverCanGoBackWhileWaiting(t *testing.T) {
 		view := newSyncPairingView("phoenix", "123456", true, func() { backed = true }, func() { confirmed = true })
 		window.SetContent(view.view)
 		window.Show()
-		for _, object := range test.LaidOutObjects(view.view) {
+		for _, object := range fynetest.LaidOutObjects(view.view) {
 			button, ok := object.(*widget.Button)
 			if ok && button.Text == "Confirm pairing" {
-				test.Tap(button)
+				fynetest.Tap(button)
 			}
 		}
-		for _, object := range test.LaidOutObjects(view.view) {
+		for _, object := range fynetest.LaidOutObjects(view.view) {
 			button, ok := object.(*widget.Button)
 			if ok && button.Text == "" {
-				test.Tap(button)
+				fynetest.Tap(button)
 				break
 			}
 		}
@@ -263,7 +263,7 @@ func TestSyncPairingReceiverCanGoBackWhileWaiting(t *testing.T) {
 }
 
 func TestSyncReviewRequiresAValidDecisionForEveryDifference(t *testing.T) {
-	app := test.NewApp()
+	app := fynetest.NewApp()
 	t.Cleanup(app.Quit)
 	window := app.NewWindow("Sync")
 	t.Cleanup(window.Close)
@@ -350,7 +350,7 @@ func TestSyncReviewRequiresAValidDecisionForEveryDifference(t *testing.T) {
 		window.Resize(fyne.NewSize(320, 540))
 		var heading, device, itemTitle, itemSubtitle, localTime, remoteTime, remoteDevice *widget.Label
 		action := view.actions["different"]
-		for _, object := range test.LaidOutObjects(view.view) {
+		for _, object := range fynetest.LaidOutObjects(view.view) {
 			if label, ok := object.(*widget.Label); ok {
 				labels[label.Text] = true
 				switch label.Text {
@@ -411,7 +411,7 @@ func TestSyncReviewRequiresAValidDecisionForEveryDifference(t *testing.T) {
 		finalProgress = view.progress.Text
 		readyDisabled = view.review.Disabled()
 		readyBeforeReset, _ = plan.Ready()
-		test.Tap(view.review)
+		fynetest.Tap(view.review)
 		view.actions["different"].SetSelected("Choose action")
 	})
 	require.True(t, readyBeforeReset)
@@ -424,7 +424,7 @@ func TestSyncReviewRequiresAValidDecisionForEveryDifference(t *testing.T) {
 }
 
 func TestSyncConfirmViewSummarizesAndRequiresExplicitSyncAction(t *testing.T) {
-	app := test.NewApp()
+	app := fynetest.NewApp()
 	t.Cleanup(app.Quit)
 	local := &pawsync.Manifest{Items: []pawsync.ManifestItem{
 		{
@@ -491,7 +491,7 @@ func TestSyncConfirmViewSummarizesAndRequiresExplicitSyncAction(t *testing.T) {
 		disabledView := newSyncConfirmView("fedora", localVault, remoteVault, local, remote, plan, func() {}, nil, nil)
 		disabled = disabledView.sync.Disabled()
 		view = newSyncConfirmView("fedora", localVault, remoteVault, local, remote, plan, func() { back = true }, func() { synced = true }, func() {})
-		for _, object := range test.LaidOutObjects(view.view) {
+		for _, object := range fynetest.LaidOutObjects(view.view) {
 			if label, ok := object.(*widget.Label); ok {
 				labels[label.Text] = true
 			}
@@ -499,8 +499,8 @@ func TestSyncConfirmViewSummarizesAndRequiresExplicitSyncAction(t *testing.T) {
 				buttons[button.Text] = button
 			}
 		}
-		test.Tap(buttons["Back"])
-		test.Tap(buttons["Sync"])
+		fynetest.Tap(buttons["Back"])
+		fynetest.Tap(buttons["Sync"])
 	})
 	require.True(t, disabled)
 	for _, label := range []string{
@@ -525,7 +525,7 @@ func TestSyncConfirmViewSummarizesAndRequiresExplicitSyncAction(t *testing.T) {
 }
 
 func TestSyncConfirmViewUsesDoneWhenNoOperationsRemain(t *testing.T) {
-	app := test.NewApp()
+	app := fynetest.NewApp()
 	t.Cleanup(app.Quit)
 	window := app.NewWindow("Sync")
 	t.Cleanup(window.Close)
@@ -541,12 +541,12 @@ func TestSyncConfirmViewUsesDoneWhenNoOperationsRemain(t *testing.T) {
 	fyne.DoAndWait(func() {
 		view := newSyncConfirmView("fedora", pawsync.VaultReference{}, pawsync.VaultReference{}, local, remote, plan, func() {}, func() { t.Error("must not start an empty sync") }, func() { called = true })
 		window.SetContent(view.view)
-		for _, object := range test.LaidOutObjects(view.view) {
+		for _, object := range fynetest.LaidOutObjects(view.view) {
 			if label, ok := object.(*widget.Label); ok {
 				labels[label.Text] = true
 			}
 		}
-		test.Tap(view.sync)
+		fynetest.Tap(view.sync)
 		buttonText = view.sync.Text
 	})
 	require.True(t, labels["Already in sync"])
@@ -558,20 +558,20 @@ func TestSyncConfirmViewUsesDoneWhenNoOperationsRemain(t *testing.T) {
 }
 
 func TestSyncReviewIdenticalVaultsDoneCompletes(t *testing.T) {
-	app := test.NewApp()
+	app := fynetest.NewApp()
 	t.Cleanup(app.Quit)
 	var completed, canceled bool
 	var buttonText string
 	var labels = make(map[string]bool)
 	fyne.DoAndWait(func() {
 		view := newSyncReviewView("fedora", pawsync.VaultReference{}, pawsync.VaultReference{}, nil, &pawsync.Manifest{}, &pawsync.Manifest{}, &pawsync.Plan{}, func() { canceled = true }, func() { completed = true })
-		for _, object := range test.LaidOutObjects(view.view) {
+		for _, object := range fynetest.LaidOutObjects(view.view) {
 			if label, ok := object.(*widget.Label); ok {
 				labels[label.Text] = true
 			}
 		}
 		buttonText = view.review.Text
-		test.Tap(view.review)
+		fynetest.Tap(view.review)
 	})
 	require.Equal(t, "Done", buttonText)
 	require.True(t, labels["Already in sync"])
@@ -580,7 +580,7 @@ func TestSyncReviewIdenticalVaultsDoneCompletes(t *testing.T) {
 }
 
 func TestSyncConfirmViewAllSkippedPlanDoesNotStartTransfer(t *testing.T) {
-	app := test.NewApp()
+	app := fynetest.NewApp()
 	t.Cleanup(app.Quit)
 	window := app.NewWindow("Sync")
 	t.Cleanup(window.Close)
@@ -603,7 +603,7 @@ func TestSyncConfirmViewAllSkippedPlanDoesNotStartTransfer(t *testing.T) {
 		)
 		window.SetContent(view.view)
 		window.Resize(fyne.NewSize(320, 540))
-		for _, object := range test.LaidOutObjects(view.view) {
+		for _, object := range fynetest.LaidOutObjects(view.view) {
 			if label, ok := object.(*widget.Label); ok {
 				labels[label.Text] = true
 				if label.Text == "1 item skipped." {
@@ -611,7 +611,7 @@ func TestSyncConfirmViewAllSkippedPlanDoesNotStartTransfer(t *testing.T) {
 				}
 			}
 		}
-		test.Tap(view.sync)
+		fynetest.Tap(view.sync)
 		buttonText = view.sync.Text
 	})
 	require.True(t, labels["No changes selected"])
@@ -628,7 +628,7 @@ func reviewHash(value int) string {
 }
 
 func TestSyncNavigationWaitsForSessionShutdown(t *testing.T) {
-	test.NewTempApp(t)
+	fynetest.NewTempApp(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	run := &syncConnectRun{
 		ctx:    ctx,
@@ -658,7 +658,7 @@ func TestSyncNavigationWaitsForSessionShutdown(t *testing.T) {
 }
 
 func TestSyncVaultActionOpensConnectForUnlockedVault(t *testing.T) {
-	driver := test.NewApp()
+	driver := fynetest.NewApp()
 	t.Cleanup(driver.Quit)
 	window := driver.NewWindow("Sync")
 	t.Cleanup(window.Close)
@@ -668,6 +668,7 @@ func TestSyncVaultActionOpensConnectForUnlockedVault(t *testing.T) {
 	require.NoError(t, err)
 	a := &app{
 		win:   window,
+		state: &model.AppState{Settings: model.NewDefaultSettings()},
 		vault: vault,
 		main:  container.NewVScroll(widget.NewLabel("Vault")),
 	}
@@ -686,11 +687,11 @@ func TestSyncVaultActionOpensConnectForUnlockedVault(t *testing.T) {
 }
 
 func TestCloneOpensConnectWithoutLocalVault(t *testing.T) {
-	driver := test.NewApp()
+	driver := fynetest.NewApp()
 	t.Cleanup(driver.Quit)
 	window := driver.NewWindow("Clone")
 	t.Cleanup(window.Close)
-	a := &app{win: window}
+	a := &app{win: window, state: &model.AppState{Settings: model.NewDefaultSettings()}}
 
 	var run *syncConnectRun
 	fyne.DoAndWait(func() {
@@ -709,7 +710,7 @@ func connectViewText(t *testing.T, view fyne.CanvasObject) string {
 	t.Helper()
 	var text string
 	fyne.DoAndWait(func() {
-		for _, object := range test.LaidOutObjects(view) {
+		for _, object := range fynetest.LaidOutObjects(view) {
 			if label, ok := object.(*widget.Label); ok {
 				text += label.Text + "\n"
 			}
