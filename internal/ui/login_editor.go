@@ -188,8 +188,7 @@ func NewLoginEditor(ctx context.Context, item *model.Item, faviconSettings model
 	editor.headerTitle = newText(title, titleStyle)
 	header := newPageHeader(editor.BackButton, editor.headerTitle, editor.SaveButton)
 	body := container.New(layout.NewCustomPaddedVBoxLayout(pawSize(pawSizeNameFormSpacing)), editor.form)
-	pagePadding := pawSize(pawSizeNamePagePadding)
-	editor.View = container.New(layout.NewCustomPaddedLayout(pawSize(pawSizeNameFormSpacing), pagePadding, pagePadding, pagePadding), container.NewBorder(header, nil, nil, nil, container.NewVScroll(body)))
+	editor.View = newSecondaryPage(header, nil, container.NewVScroll(body))
 	return editor, nil
 }
 

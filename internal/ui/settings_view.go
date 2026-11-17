@@ -31,6 +31,7 @@ const (
 // SettingsView displays the application's immediately saved settings.
 type SettingsView struct {
 	View              fyne.CanvasObject
+	section           fyne.CanvasObject
 	BackButton        *iconButton
 	state             *model.AppState
 	storage           *storage.FileStorage
@@ -123,7 +124,10 @@ func NewSettingsView(state *model.AppState, store *storage.FileStorage, window f
 		settingsSection("Appearance", e.row("Theme", "", icons.SunMoon, appearance)),
 		settingsSection("About", about),
 	)
-	e.View = newSecondaryPage(newPageHeader(e.BackButton, newText("Settings", titleStyle), nil), nil, container.NewVScroll(content))
+	header := newPageHeader(e.BackButton, newText("Settings", titleStyle), nil)
+	scroll := container.NewVScroll(content)
+	e.section = container.NewBorder(header, nil, nil, nil, scroll)
+	e.View = newSecondaryPage(header, nil, scroll)
 	return e
 }
 

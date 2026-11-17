@@ -27,11 +27,9 @@ func newPageHeader(back, title, trailing fyne.CanvasObject) fyne.CanvasObject {
 	return container.NewBorder(nil, nil, back, trailing, title)
 }
 
-// newSecondaryPage gives secondary views one shared header position and page margin.
+// newSecondaryPage places fixed controls around the page body.
 func newSecondaryPage(header, footer, content fyne.CanvasObject) fyne.CanvasObject {
-	page := container.NewBorder(header, footer, nil, nil, content)
-	padding := pawSize(pawSizeNamePagePadding)
-	return container.New(layout.NewCustomPaddedLayout(padding, padding, padding, padding), page)
+	return container.NewBorder(header, footer, nil, nil, content)
 }
 
 // newDetailField places a caption above a read-only value and its actions.

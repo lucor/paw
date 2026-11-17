@@ -216,9 +216,9 @@ func (a *app) makeCurrentVaultView() fyne.CanvasObject {
 	categories := []EntryCategory{{ID: "all", Label: "All items", Icon: icons.List}, {ID: "login", Label: "Logins", Icon: icons.Login}, {ID: "password", Label: "Passwords", Icon: icons.Password}, {ID: "note", Label: "Notes", Icon: icons.Note}, {ID: "ssh", Label: "SSH keys", Icon: icons.SSH}}
 	settings := NewSettingsView(a.state, a.storage, a.win)
 	settings.configureAutoLock = a.configureAutoLock
-	a.connectAboutNavigation(settings)
+	settings.openAbout = func() { a.showAboutPawView(a.main) }
 	settings.BackButton.Hide()
-	return NewEntryList(EntryListOptions{Settings: settings.View, VaultName: name, VaultAppearance: currentAppearance, Vaults: choices, VaultActions: a.makeVaultActions(), Entries: rows, Categories: categories, Search: filter.Name, Category: categoryIDs[filter.ItemType], Codes: a.codesView.View, SectionState: &a.vaultSection, AddEntry: func(kind EntryKind) {
+	return NewEntryList(EntryListOptions{Settings: settings.section, VaultName: name, VaultAppearance: currentAppearance, Vaults: choices, VaultActions: a.makeVaultActions(), Entries: rows, Categories: categories, Search: filter.Name, Category: categoryIDs[filter.ItemType], Codes: a.codesView.View, SectionState: &a.vaultSection, AddEntry: func(kind EntryKind) {
 		switch kind {
 		case EntryNote:
 			a.addItem(model.NoteItemType)

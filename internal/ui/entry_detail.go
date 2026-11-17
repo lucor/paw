@@ -14,7 +14,6 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
-	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 	"go.lucor.dev/cxf"
@@ -216,8 +215,7 @@ func newEntryDetailWithActions(
 		bodyObjects = append([]fyne.CanvasObject{widget.NewSeparator()}, bodyObjects...)
 	}
 	body := newDetailScrollableContent(bodyObjects, metadata)
-	pagePadding := theme.Size(theme.SizeNamePadding) * 2
-	page := container.New(layout.NewCustomPaddedLayout(pagePadding, pagePadding, pagePadding, pagePadding), container.NewBorder(header, nil, nil, nil, container.NewVScroll(body)))
+	page := newSecondaryPage(header, nil, container.NewVScroll(body))
 	return page, clear, nil
 }
 

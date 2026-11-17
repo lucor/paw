@@ -10,8 +10,6 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/layout"
-	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 	"go.lucor.dev/cxf"
 	"go.lucor.dev/paw/internal/ui/assets/icons"
@@ -78,9 +76,7 @@ func newCodesView(ctx context.Context, entries []codesEntry, opener codeEntryOpe
 	count := newText(codeCountLabel(len(view.displays)), bodyStyle)
 	count.Wrapping = fyne.TextWrapOff
 	heading := container.NewBorder(nil, nil, newText("Verification codes", headingStyle), count, nil)
-	padding := theme.Size(theme.SizeNamePadding)
-	body := container.New(layout.NewCustomPaddedLayout(padding, padding, padding, padding), container.NewBorder(heading, nil, nil, nil, content))
-	view.View = body
+	view.View = container.NewBorder(heading, nil, nil, nil, content)
 	if len(view.displays) > 0 {
 		go view.run(ctx)
 	}

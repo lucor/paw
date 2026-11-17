@@ -104,7 +104,9 @@ func NewCreateVault(back func(), create func(name, password string, appearance m
 		container.New(layout.NewCustomPaddedLayout(pawSize(pawSizeNamePagePadding), pawSize(pawSizeNamePagePadding), 0, 0), container.NewCenter(previewObject)),
 		form,
 	)
-	formPage := newSecondaryPage(header, footer, container.NewVScroll(fields))
+	formInset := pawSize(pawSizeNamePagePadding)
+	formContent := container.New(layout.NewCustomPaddedLayout(0, 0, formInset, formInset), fields)
+	formPage := newSecondaryPage(header, footer, container.NewVScroll(formContent))
 	screen := container.NewStack(formPage)
 	previewButton.OnTapped = func() {
 		appearancePage := newVaultAppearanceView(name.Text, appearance, func(updated model.VaultAppearance) {

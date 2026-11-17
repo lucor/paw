@@ -125,7 +125,8 @@ func TestVaultAppearancePreviewHasCompactGapOnNarrowWindow(t *testing.T) {
 func TestSecondaryViewsShareHeaderPosition(t *testing.T) {
 	test.NewTempApp(t)
 	window := test.NewTempWindow(t, nil)
-	window.Resize(fyne.NewSize(440, 800))
+	loginEditor := newTestLoginEditor(t, loginEditorFixture(t), false)
+	widths := []float32{320, 440}
 	views := []struct {
 		title string
 		view  fyne.CanvasObject
@@ -136,39 +137,44 @@ func TestSecondaryViewsShareHeaderPosition(t *testing.T) {
 		{title: "Restore from backup", view: auditPage("Restore from backup", func() {}, container.NewVScroll(container.NewVBox()))},
 		{title: "Password Audit", view: auditPage("Password Audit", func() {}, container.NewVScroll(container.NewVBox()))},
 		{title: "Settings", view: NewSettingsView(nil, nil, window).View},
+		{title: "Vault settings", view: NewVaultSettingsView("Personal", model.DefaultVaultAppearance(), func() {}, func() {}, func() {}, func() {})},
+		{title: "Edit login", view: loginEditor.View},
 	}
-	var expectedBack, expectedTitle fyne.Position
-	for index, page := range views {
-		window.SetContent(page.view)
-		var backPosition, titlePosition fyne.Position
-		var foundBack, foundTitle bool
-		for _, object := range test.LaidOutObjects(page.view) {
-			switch object := object.(type) {
-			case *widget.Button:
-				if object.Icon == icons.Back {
-					backPosition = fyne.CurrentApp().Driver().AbsolutePositionForObject(object)
-					foundBack = true
-				}
-			case *iconButton:
-				if object.Icon == icons.Back {
-					backPosition = fyne.CurrentApp().Driver().AbsolutePositionForObject(object)
-					foundBack = true
-				}
-			case *widget.Label:
-				if object.Text == page.title {
-					titlePosition = fyne.CurrentApp().Driver().AbsolutePositionForObject(object)
-					foundTitle = true
+	for _, width := range widths {
+		window.Resize(fyne.NewSize(width, 800))
+		var expectedBack, expectedTitle fyne.Position
+		for index, page := range views {
+			window.SetContent(page.view)
+			var backPosition, titlePosition fyne.Position
+			var foundBack, foundTitle bool
+			for _, object := range test.LaidOutObjects(page.view) {
+				switch object := object.(type) {
+				case *widget.Button:
+					if object.Icon == icons.Back {
+						backPosition = fyne.CurrentApp().Driver().AbsolutePositionForObject(object)
+						foundBack = true
+					}
+				case *iconButton:
+					if object.Icon == icons.Back {
+						backPosition = fyne.CurrentApp().Driver().AbsolutePositionForObject(object)
+						foundBack = true
+					}
+				case *widget.Label:
+					if object.Text == page.title {
+						titlePosition = fyne.CurrentApp().Driver().AbsolutePositionForObject(object)
+						foundTitle = true
+					}
 				}
 			}
+			require.True(t, foundBack, "%s back button should be in the shared header", page.title)
+			require.True(t, foundTitle, "%s title should be in the shared header", page.title)
+			if index == 0 {
+				expectedBack, expectedTitle = backPosition, titlePosition
+				continue
+			}
+			require.Equal(t, expectedBack, backPosition, "%s back position at width %g", page.title, width)
+			require.Equal(t, expectedTitle, titlePosition, "%s title position at width %g", page.title, width)
 		}
-		require.True(t, foundBack, "%s back button should be in the shared header", page.title)
-		require.True(t, foundTitle, "%s title should be in the shared header", page.title)
-		if index == 0 {
-			expectedBack, expectedTitle = backPosition, titlePosition
-			continue
-		}
-		require.Equal(t, expectedBack, backPosition, "%s back position", page.title)
-		require.Equal(t, expectedTitle, titlePosition, "%s title position", page.title)
 	}
 }
 

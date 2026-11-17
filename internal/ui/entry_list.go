@@ -10,7 +10,6 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 	"go.lucor.dev/paw/internal/model"
@@ -239,8 +238,7 @@ func NewEntryList(options EntryListOptions) fyne.CanvasObject {
 	}
 	vaultHeader := container.NewBorder(nil, nil, nil, controls, vaultControl)
 	listHeader := container.NewVBox(input, container.NewBorder(nil, nil, categoryDisplay, count))
-	pagePadding := pawSize(pawSizeNamePagePadding)
-	page := container.New(layout.NewCustomPaddedLayout(pagePadding, pagePadding, pagePadding, pagePadding), container.NewBorder(listHeader, nil, nil, nil, container.NewStack(list, container.NewCenter(empty))))
+	page := container.NewBorder(listHeader, nil, nil, nil, container.NewStack(list, container.NewCenter(empty)))
 	navigation := NewNavigation(NavigationItem{icons.Vault, icons.VaultActive}, NavigationItem{icons.Codes, icons.CodesActive}, NavigationItem{icons.Settings, icons.SettingsActive})
 	pages := []fyne.CanvasObject{page, options.Codes, options.Settings}
 	content := container.NewStack(page)
@@ -269,7 +267,7 @@ func NewEntryList(options EntryListOptions) fyne.CanvasObject {
 		navigation.Select(selectedSection)
 	}
 	refresh()
-	main := container.NewBorder(vaultHeader, nil, nil, nil, content)
+	main := newSecondaryPage(vaultHeader, nil, content)
 	return container.NewBorder(nil, container.NewVBox(widget.NewSeparator(), navigation), nil, nil, main)
 }
 

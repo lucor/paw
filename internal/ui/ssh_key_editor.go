@@ -177,8 +177,7 @@ func NewSSHKeyEditor(item *model.Item, isNew bool) (*SSHKeyEditor, error) {
 	editor.headerTitle = newText(title, titleStyle)
 	header := newPageHeader(editor.BackButton, editor.headerTitle, editor.SaveButton)
 	body := container.New(layout.NewCustomPaddedVBoxLayout(pawSize(pawSizeNameFormSpacing)), editor.form, editor.AddToAgent, section)
-	pagePadding := pawSize(pawSizeNamePagePadding)
-	editor.View = container.New(layout.NewCustomPaddedLayout(pawSize(pawSizeNameFormSpacing), pagePadding, pagePadding, pagePadding), container.NewBorder(header, nil, nil, nil, container.NewVScroll(body)))
+	editor.View = newSecondaryPage(header, nil, container.NewVScroll(body))
 	return editor, nil
 }
 

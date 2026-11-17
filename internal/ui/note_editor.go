@@ -87,8 +87,7 @@ func NewNoteEditor(item *model.Item, isNew bool) (*NoteEditor, error) {
 	notesLabel := container.New(layout.NewCustomPaddedLayout(0, 0, theme.Size(theme.SizeNamePadding), 0), newText("Notes", formLabelStyle))
 	notesField := container.NewBorder(notesLabel, nil, nil, nil, editor.Notes)
 	body := container.New(layout.NewBorderLayout(titleField, nil, nil, nil), titleField, notesField)
-	pagePadding := pawSize(pawSizeNamePagePadding)
-	editor.View = container.New(layout.NewCustomPaddedLayout(pawSize(pawSizeNameFormSpacing), pagePadding, pagePadding, pagePadding), container.NewBorder(header, nil, nil, nil, body))
+	editor.View = newSecondaryPage(header, nil, body)
 	return editor, nil
 }
 

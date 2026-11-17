@@ -6,7 +6,6 @@ package ui
 import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/widget"
 	"go.lucor.dev/paw/internal/model"
 )
@@ -60,7 +59,5 @@ func NewSelectVault(vaults []VaultChoice, addVault func()) fyne.CanvasObject {
 		container.NewBorder(nil, nil, nil, newVaultOptions(addVault), newText("Your vaults", headingStyle)),
 		newText("Select a vault to open.", bodyStyle),
 	)
-	pagePadding := pawSize(pawSizeNamePagePadding)
-	return container.New(layout.NewCustomPaddedLayout(pagePadding, pagePadding, pagePadding, pagePadding),
-		container.NewBorder(header, nil, nil, nil, list))
+	return newSecondaryPage(header, nil, list)
 }
