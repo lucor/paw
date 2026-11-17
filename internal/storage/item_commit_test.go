@@ -63,7 +63,7 @@ func TestDeleteItemCleansAttachmentsAfterCommitAndPreservesUnknownFiles(t *testi
 	require.NoError(t, err)
 	dir := filepath.Join(itemsDirectoryName, filesystemID(item.ID), filesDirectoryName)
 	require.NoError(t, root.WriteFile(filepath.Join(dir, "unknown!.age"), []byte("preserve"), 0600))
-	staged := filepath.Join(dir, ".paw-attachment-0123456789abcdef01234567.tmp")
+	staged := filepath.Join(dir, "."+attachmentFilename(file.ID)+"123456789")
 	require.NoError(t, root.WriteFile(staged, []byte("encrypted staging"), 0600))
 	require.NoError(t, root.Close())
 	require.NoError(t, store.DeleteItem(vault, item.ID))
