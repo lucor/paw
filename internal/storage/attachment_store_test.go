@@ -143,24 +143,33 @@ func TestAttachmentCleanupRemovesOnlyRecognizedStagingFilesAndClosesDirectory(t 
 	item.ID = itemID
 	filesDir := filepath.Join(itemsDirectoryName, filesystemID(itemID), filesDirectoryName)
 	require.NoError(t, root.Mkdir(filesDir, 0700))
-	staged := filepath.Join(filesDir, ".paw-attachment-0123456789abcdef01234567.tmp")
-	require.NoError(t, root.WriteFile(staged, []byte("encrypted staging data"), 0600))
-	unknown := filepath.Join(filesDir, ".paw-attachment-not-a-token.tmp")
+	atomicStaged := filepath.Join(filesDir, "."+attachmentFilename(testAttachmentID(t))+"123456789")
+	require.NoError(t, root.WriteFile(atomicStaged, []byte("encrypted staging data"), 0600))
+	legacyStaged := []string{
+		filepath.Join(filesDir, ".paw-attachment-0123456789abcdef01234567.tmp"),
+		filepath.Join(filesDir, ".paw-0123456789abcdef01234567"),
+	}
+	for _, name := range legacyStaged {
+		require.NoError(t, root.WriteFile(name, []byte("preserve"), 0600))
+	}
+	unknown := filepath.Join(filesDir, ".unknown.tmp")
 	require.NoError(t, root.WriteFile(unknown, []byte("preserve"), 0600))
-	uppercase := filepath.Join(filesDir, ".paw-attachment-ABCDEF0123456789ABCDEF01.tmp")
-	require.NoError(t, root.WriteFile(uppercase, []byte("preserve"), 0600))
 
 	(&FileStorage{}).cleanupItemAttachmentsBestEffort(root, item)
-	_, err = root.Lstat(staged)
+	for _, name := range legacyStaged {
+		got, err := root.ReadFile(name)
+		require.NoError(t, err)
+		require.Equal(t, []byte("preserve"), got)
+	}
+	_, err = root.Lstat(atomicStaged)
 	require.ErrorIs(t, err, os.ErrNotExist)
 	got, err := root.ReadFile(unknown)
 	require.NoError(t, err)
 	require.Equal(t, []byte("preserve"), got)
-	got, err = root.ReadFile(uppercase)
-	require.NoError(t, err)
-	require.Equal(t, []byte("preserve"), got)
 	require.NoError(t, root.Remove(unknown))
-	require.NoError(t, root.Remove(uppercase))
+	for _, name := range legacyStaged {
+		require.NoError(t, root.Remove(name))
+	}
 	require.NoError(t, root.Remove(filesDir), "cleanup must close its directory handle")
 }
 

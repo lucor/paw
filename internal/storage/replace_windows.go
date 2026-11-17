@@ -6,12 +6,12 @@
 package storage
 
 import (
-	"crypto/rand"
-	"encoding/hex"
 	"errors"
 	"io"
+	"math/rand/v2"
 	"os"
 	"path/filepath"
+	"strconv"
 )
 
 // atomicWrite stages beside the destination and propagates rename failures without deleting it.
@@ -20,11 +20,7 @@ func atomicWrite(root *os.Root, name string, write func(io.Writer) error) error 
 	var tempName string
 	var temp *os.File
 	for range 10 {
-		var token [12]byte
-		if _, err := rand.Read(token[:]); err != nil {
-			return err
-		}
-		tempName = filepath.Join(dir, ".paw-"+hex.EncodeToString(token[:]))
+		tempName = filepath.Join(dir, "."+filepath.Base(name)+strconv.FormatInt(rand.Int64(), 10))
 		var err error
 		temp, err = root.OpenFile(tempName, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
 		if !os.IsExist(err) {

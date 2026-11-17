@@ -4,8 +4,6 @@
 package storage
 
 import (
-	"crypto/rand"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -86,44 +84,23 @@ func storeVerifiedAttachment(root *os.Root, key *paw.Key, itemID, fileID string,
 		return 0, "", fmt.Errorf("cannot inspect attachment destination: %w", err)
 	}
 
-	tempName, temp, err := createAttachmentTemp(filesRoot)
-	if err != nil {
-		return 0, "", fmt.Errorf("cannot create encrypted attachment temporary: %w", err)
-	}
-	closed := false
-	published := false
-	defer func() {
-		if !published {
-			if !closed {
-				resultErr = errors.Join(resultErr, temp.Close())
-			}
-			resultErr = errors.Join(resultErr, filesRoot.Remove(tempName))
+	err = atomicWrite(filesRoot, finalName, func(writer io.Writer) error {
+		size, digest, err = encryptAttachment(key, writer, src)
+		if err != nil {
+			return err
 		}
-	}()
-
-	size, digest, err = encryptAttachment(key, temp, src)
-	if err != nil {
-		return 0, "", err
-	}
-	if expected != nil {
-		if expected.ID != fileID || expected.DecryptedSize != size || expected.IntegrityHash != digest {
-			return 0, "", fmt.Errorf("attachment content does not match metadata")
+		if expected != nil && (expected.ID != fileID || expected.DecryptedSize != size || expected.IntegrityHash != digest) {
+			return fmt.Errorf("attachment content does not match metadata")
 		}
-	}
-	if err := temp.Sync(); err != nil {
-		return 0, "", fmt.Errorf("cannot sync encrypted attachment: %w", err)
-	}
-	if err := temp.Close(); err != nil {
-		closed = true
-		return 0, "", fmt.Errorf("cannot close encrypted attachment: %w", err)
-	}
-	closed = true
-	if err := filesRoot.Link(tempName, finalName); err != nil {
+		if _, err := filesRoot.Lstat(finalName); err == nil {
+			return fmt.Errorf("attachment already exists")
+		} else if !errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("cannot inspect attachment destination: %w", err)
+		}
+		return nil
+	})
+	if err != nil {
 		return 0, "", fmt.Errorf("cannot publish encrypted attachment: %w", err)
-	}
-	published = true
-	if err := filesRoot.Remove(tempName); err != nil {
-		return 0, "", fmt.Errorf("attachment published but temporary cleanup failed: %w", err)
 	}
 	if err := syncDirectory(filesRoot, "."); err != nil {
 		return 0, "", fmt.Errorf("attachment published but directory sync failed: %w", err)
@@ -132,24 +109,4 @@ func storeVerifiedAttachment(root *os.Root, key *paw.Key, itemID, fileID string,
 		return 0, "", fmt.Errorf("attachment published but Item directory sync failed: %w", err)
 	}
 	return size, digest, nil
-}
-
-// createAttachmentTemp creates a private encrypted staging file without replacing another entry.
-func createAttachmentTemp(root *os.Root) (string, *os.File, error) {
-	for range 10 {
-		var token [12]byte
-		if _, err := rand.Read(token[:]); err != nil {
-			return "", nil, err
-		}
-		name := ".paw-attachment-" + hex.EncodeToString(token[:]) + ".tmp"
-		file, err := root.OpenFile(name, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
-		if errors.Is(err, os.ErrExist) {
-			continue
-		}
-		if err != nil {
-			return "", nil, err
-		}
-		return name, file, nil
-	}
-	return "", nil, os.ErrExist
 }

@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -523,15 +524,11 @@ func (s *FileStorage) cleanupItemAttachmentsBestEffort(root *os.Root, item *mode
 }
 
 func isAttachmentTempName(name string) bool {
-	const prefix, suffix = ".paw-attachment-", ".tmp"
-	if len(name) != len(prefix)+24+len(suffix) || !strings.HasPrefix(name, prefix) || !strings.HasSuffix(name, suffix) {
+	base, suffix, ok := strings.Cut(strings.TrimPrefix(name, "."), ".age")
+	if !strings.HasPrefix(name, ".") || !ok || !isFilesystemVaultID(base) || suffix == "" {
 		return false
 	}
-	token := name[len(prefix) : len(prefix)+24]
-	if strings.ToLower(token) != token {
-		return false
-	}
-	_, err := hex.DecodeString(token)
+	_, err := strconv.ParseUint(suffix, 10, 64)
 	return err == nil
 }
 

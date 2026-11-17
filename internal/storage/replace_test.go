@@ -9,6 +9,8 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -29,6 +31,10 @@ func TestAtomicWriteReplacesBesideDestination(t *testing.T) {
 			if entry.Name() == "vault.age" {
 				continue
 			}
+			tempName := entry.Name()
+			require.True(t, strings.HasPrefix(tempName, ".vault.age"))
+			_, err = strconv.ParseUint(strings.TrimPrefix(tempName, ".vault.age"), 10, 64)
+			require.NoError(t, err)
 			info, err := entry.Info()
 			require.NoError(t, err)
 			if runtime.GOOS != "windows" {
