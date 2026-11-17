@@ -6,6 +6,9 @@ package storage
 import (
 	"encoding/base32"
 	"encoding/base64"
+	"fmt"
+	"io"
+	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -139,6 +142,41 @@ func lockFilePath(s *FileStorage) string {
 // logFilePath returns the application log file path.
 func logFilePath(s *FileStorage) string {
 	return filepath.Join(s.Root(), logFileName)
+}
+
+// OpenLogFile opens the application log in append mode, or the configured override.
+func (s *FileStorage) OpenLogFile(override string) (io.WriteCloser, error) {
+	path := logFilePath(s)
+	if override != "" {
+		path = override
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return nil, err
+	}
+	return os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
+}
+
+// PrepareAgentSocket removes a stale socket and ensures its parent directory exists.
+func (s *FileStorage) PrepareAgentSocket() (string, error) {
+	path := socketAgentPath(s)
+	if runtime.GOOS == "windows" {
+		return path, nil
+	}
+	if err := s.root.Remove(socketFileName); err != nil && !os.IsNotExist(err) {
+		return "", err
+	}
+	return path, nil
+}
+
+// WriteNativeManifest writes a browser integration manifest to its OS-selected location.
+func (s *FileStorage) WriteNativeManifest(path string, data []byte) error {
+	if !filepath.IsAbs(path) {
+		return fmt.Errorf("native manifest path must be absolute")
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return err
+	}
+	return os.WriteFile(path, data, 0o600)
 }
 
 // isVaultID reports whether value is a canonical Paw 128-bit Base64url ID.

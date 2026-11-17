@@ -58,10 +58,6 @@ func main() {
 
 func run() int {
 	at := &appType{args: os.Args}
-	if logger := makeLogger(); logger != nil {
-		defer logger.Close()
-	}
-
 	// handle application start: CLI, GUI
 	if at.IsCLI() && at.IsMobile() {
 		fmt.Fprintln(os.Stderr, "CLI app is unsupported on this OS")
@@ -76,17 +72,22 @@ func run() int {
 
 	fyneApp := app.NewWithID(ui.AppID)
 	fyneApp.SetIcon(icon.PawIcon)
-	s, err := makeStorage(at, fyneApp)
+	s, err := storage.NewAppStorage(fyneApp)
 	if err != nil {
 		slog.Error("could not initialize storage", "component", "app", "error", err)
 		fmt.Fprintf(os.Stderr, "Paw could not start: %v\n", err)
 		return 1
 	}
 	defer s.Close()
+	if logFile := configureLogger(s, at.IsMobile(), os.Stderr); logFile != nil {
+		defer logFile.Close()
+	}
 
 	// Write the native manifests to support browser native messaging for the current OS
 	// TODO: this should be once at installation time
-	browser.WriteNativeManifests()
+	if err := browser.WriteNativeManifests(s); err != nil {
+		slog.Warn("could not install browser manifests", "component", "app", "error", err)
+	}
 
 	// Handle message from browser extension
 	if at.IsMessageFromBrowserExtension() {
@@ -104,12 +105,12 @@ func run() int {
 	}
 
 	// check for running instance looking at the health service
-	if ui.HealthServiceCheck(s.LockFilePath()) {
+	if ui.HealthServiceCheck(s) {
 		fmt.Fprintln(os.Stderr, "Paw GUI is already running")
 		return 1
 	}
 	// start the health service
-	go ui.HealthService(s.LockFilePath())
+	go ui.HealthService(s)
 
 	// agent could be already running (e.g. from CLI)
 	// if not, start it
@@ -121,7 +122,12 @@ func run() int {
 
 	// start the GUI agent if not already running
 	if agentType.IsZero() {
-		go agent.Run(agent.NewGUI(), s.SocketAgentPath())
+		socketPath, err := s.PrepareAgentSocket()
+		if err != nil {
+			slog.Error("could not prepare agent socket", "component", "app", "error", err)
+		} else {
+			go agent.Run(agent.NewGUI(), socketPath)
+		}
 	}
 
 	// create window and run the app
@@ -133,29 +139,30 @@ func run() int {
 	return 0
 }
 
-// makeLogger configures application logging and returns the log file closer.
-// When file logging cannot start it falls back to stderr, so startup never fails.
-func makeLogger() io.Closer {
-	closer, err := logging.Init()
-	if err == nil {
-		return closer
+func configureLogger(store *storage.FileStorage, mobile bool, stderr io.Writer) io.Closer {
+	if mobile {
+		if err := logging.Configure(stderr); err != nil {
+			configureFallbackLogger(stderr)
+			slog.Warn("could not configure logger", "component", "app", "error", err)
+		}
+		return nil
 	}
-	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, nil)))
-	slog.Warn("could not initialize file logging", "component", "app", "error", err)
-	return nil
+
+	logFile, err := store.OpenLogFile(os.Getenv("PAW_LOG_FILE"))
+	if err != nil {
+		configureFallbackLogger(stderr)
+		slog.Warn("could not initialize file logging", "component", "app", "error", err)
+		return nil
+	}
+	if err := logging.Configure(logFile); err != nil {
+		_ = logFile.Close()
+		configureFallbackLogger(stderr)
+		slog.Warn("could not configure logger", "component", "app", "error", err)
+		return nil
+	}
+	return logFile
 }
 
-// makeStorage create the storage
-func makeStorage(at *appType, fyneApp fyne.App) (*storage.FileStorage, error) {
-	root := ""
-	if !at.IsMobile() {
-		return storage.NewFileStorage(root)
-	}
-	// Fyne selects the private application directory on mobile.
-	uri := fyneApp.Storage().RootURI()
-	if uri == nil || uri.Scheme() != "file" || uri.Authority() != "" || uri.Query() != "" || uri.Fragment() != "" {
-		return nil, fmt.Errorf("application storage must provide a local file URI")
-	}
-	root = uri.Path()
-	return storage.NewFileStorage(root)
+func configureFallbackLogger(stderr io.Writer) {
+	slog.SetDefault(slog.New(slog.NewTextHandler(stderr, nil)))
 }

@@ -9,10 +9,10 @@ import (
 	"io"
 	"log"
 	"net"
-	"os"
 	"time"
 
 	"go.lucor.dev/paw/internal/paw"
+	"go.lucor.dev/paw/internal/storage"
 )
 
 const (
@@ -34,7 +34,7 @@ func handleConnection(conn net.Conn) {
 // HealthService starts a health service that listens on a random port.
 // In the current implementation is used only to avoid starting multiple
 // instances of the app.
-func HealthService(lockFile string) (net.Listener, error) {
+func HealthService(store *storage.FileStorage) (net.Listener, error) {
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		log.Println("could not start health service:", err)
@@ -42,7 +42,7 @@ func HealthService(lockFile string) (net.Listener, error) {
 	}
 	defer listener.Close()
 
-	err = os.WriteFile(lockFile, []byte(listener.Addr().String()), 0644)
+	err = store.WriteHealthAddress(listener.Addr().String())
 	if err != nil {
 		log.Println("could not write health service lock file:", err)
 		return nil, err
@@ -58,12 +58,12 @@ func HealthService(lockFile string) (net.Listener, error) {
 }
 
 // HealthServiceCheck checks if the health service is running.
-func HealthServiceCheck(lockFile string) bool {
-	address, err := os.ReadFile(lockFile)
+func HealthServiceCheck(store *storage.FileStorage) bool {
+	address, err := store.ReadHealthAddress()
 	if err != nil {
 		return false
 	}
-	conn, err := net.DialTimeout("tcp", string(address), timeout)
+	conn, err := net.DialTimeout("tcp", address, timeout)
 	if err != nil {
 		return false
 	}

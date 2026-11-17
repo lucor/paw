@@ -7,40 +7,21 @@ package logging
 import (
 	"fmt"
 	"io"
+	"log"
 	"log/slog"
 	"os"
-	"path/filepath"
 	"strings"
-
-	"go.lucor.dev/paw/internal/paw"
 )
 
-// Init configures the default logger from the PAW_LOG_LEVEL and PAW_LOG_FILE environment variables.
-func Init() (io.Closer, error) {
+// Configure sets the application logger to write to the supplied destination.
+func Configure(writer io.Writer) error {
 	level, err := parseLevel(os.Getenv("PAW_LOG_LEVEL"))
 	if err != nil {
-		return nil, err
+		return err
 	}
-	path := os.Getenv("PAW_LOG_FILE")
-	if path == "" {
-		parent := os.Getenv(paw.ENV_HOME)
-		if parent == "" {
-			parent, err = os.UserHomeDir()
-			if err != nil {
-				return nil, fmt.Errorf("get Paw home directory: %w", err)
-			}
-		}
-		path = filepath.Join(parent, ".paw", "paw.log")
-	}
-	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
-		return nil, fmt.Errorf("create Paw log directory: %w", err)
-	}
-	file, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0600)
-	if err != nil {
-		return nil, fmt.Errorf("open Paw log file: %w", err)
-	}
-	slog.SetDefault(slog.New(slog.NewTextHandler(file, &slog.HandlerOptions{Level: level})))
-	return file, nil
+	slog.SetDefault(slog.New(slog.NewTextHandler(writer, &slog.HandlerOptions{Level: level})))
+	log.SetOutput(writer)
+	return nil
 }
 
 func parseLevel(value string) (slog.Level, error) {

@@ -8,10 +8,13 @@ package storage
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sync"
 
+	"fyne.io/fyne/v2"
 	"go.lucor.dev/paw/internal/paw"
 )
 
@@ -37,6 +40,32 @@ func NewFileStorage(root string) (*FileStorage, error) {
 	}
 	root = filepath.Join(parent, ".paw")
 	return newFileStorage(root)
+}
+
+// NewAppStorage opens Paw's configured application directory.
+func NewAppStorage(app fyne.App) (*FileStorage, error) {
+	root, err := appStorageRoot(app, runtime.GOOS)
+	if err != nil {
+		return nil, err
+	}
+	if root == "" {
+		return NewFileStorage("")
+	}
+	return NewFileStorage(root)
+}
+
+func appStorageRoot(app fyne.App, goos string) (string, error) {
+	if goos != "android" && goos != "ios" {
+		return "", nil
+	}
+	if app == nil {
+		return "", fmt.Errorf("mobile application storage is unavailable")
+	}
+	uri := app.Storage().RootURI()
+	if uri == nil || uri.Scheme() != "file" || uri.Authority() != "" || uri.Query() != "" || uri.Fragment() != "" || uri.Path() == "" {
+		return "", fmt.Errorf("application storage must provide a local file URI")
+	}
+	return uri.Path(), nil
 }
 
 // newFileStorage creates and opens the application directory.
@@ -65,6 +94,30 @@ func newFileStorage(root string) (*FileStorage, error) {
 
 // Close releases the application directory handle.
 func (s *FileStorage) Close() error { return s.root.Close() }
+
+// WriteHealthAddress stores the local service address used to detect another instance.
+func (s *FileStorage) WriteHealthAddress(address string) error {
+	file, err := s.root.OpenFile(lockFileName, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o600)
+	if err != nil {
+		return err
+	}
+	if _, err := file.WriteString(address); err != nil {
+		_ = file.Close()
+		return err
+	}
+	return file.Close()
+}
+
+// ReadHealthAddress reads the local service address used to detect another instance.
+func (s *FileStorage) ReadHealthAddress() (string, error) {
+	file, err := s.root.Open(lockFileName)
+	if err != nil {
+		return "", err
+	}
+	defer file.Close()
+	data, err := io.ReadAll(file)
+	return string(data), err
+}
 
 // Root returns the Paw data directory.
 func (s *FileStorage) Root() string {

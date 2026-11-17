@@ -11,6 +11,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.lucor.dev/paw/internal/storage"
 )
 
 func TestWriteNativeManifests(t *testing.T) {
@@ -32,7 +33,10 @@ func TestWriteNativeManifests(t *testing.T) {
 	}
 
 	t.Run("chrome", func(t *testing.T) {
-		err := WriteNativeManifests()
+		store, err := storage.NewFileStorage(t.TempDir())
+		require.NoError(t, err)
+		t.Cleanup(func() { require.NoError(t, store.Close()) })
+		err = WriteNativeManifests(store)
 		require.NoError(t, err)
 		locations, err := chromeNativeManifestLocations()
 		require.NoError(t, err)
@@ -43,7 +47,10 @@ func TestWriteNativeManifests(t *testing.T) {
 	})
 
 	t.Run("firefox", func(t *testing.T) {
-		err := WriteNativeManifests()
+		store, err := storage.NewFileStorage(t.TempDir())
+		require.NoError(t, err)
+		t.Cleanup(func() { require.NoError(t, store.Close()) })
+		err = WriteNativeManifests(store)
 		require.NoError(t, err)
 		locations, err := chromeNativeManifestLocations()
 		require.NoError(t, err)

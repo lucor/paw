@@ -4,11 +4,14 @@
 package browser
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
 	"text/template"
+
+	"go.lucor.dev/paw/internal/storage"
 )
 
 const nativeMessagingManifestFileName = "paw.json"
@@ -49,7 +52,10 @@ func getPawExecutablePath() (string, error) {
 // WriteNativeManifests writes native manifests
 // Currently only chrome and firefox on linux are supported.
 // TODO add support for macOS, windows and mobile.
-func WriteNativeManifests() error {
+func WriteNativeManifests(store *storage.FileStorage) error {
+	if runtime.GOOS != "linux" {
+		return nil
+	}
 	pawPath, err := getPawExecutablePath()
 	if err != nil {
 		return err
@@ -60,35 +66,30 @@ func WriteNativeManifests() error {
 	if err != nil {
 		return err
 	}
-	writeNativeManifest(firefoxManifestTpl, firefoxData, firefoxNativeManifestLocations)
+	if err := writeNativeManifest(store, firefoxManifestTpl, firefoxData, firefoxNativeManifestLocations); err != nil {
+		return err
+	}
 
 	chromeData := manifestTplData{Path: pawPath, ExtensionIDs: chromeExtensionIDs}
 	chromeNativeManifestLocations, err := chromeNativeManifestLocations()
 	if err != nil {
 		return err
 	}
-	writeNativeManifest(chromeManifestTpl, chromeData, chromeNativeManifestLocations)
-	return nil
+	return writeNativeManifest(store, chromeManifestTpl, chromeData, chromeNativeManifestLocations)
 }
 
-func writeNativeManifest(tpl string, data manifestTplData, locations []string) error {
+func writeNativeManifest(store *storage.FileStorage, tpl string, data manifestTplData, locations []string) error {
 	tmpl, err := template.New("manifest").Parse(tpl)
 	if err != nil {
 		return err
 	}
 
 	for _, location := range locations {
-
-		_ = os.MkdirAll(filepath.Dir(location), 0700)
-
-		file, err := os.Create(location)
-		if err != nil {
+		var contents bytes.Buffer
+		if err := tmpl.Execute(&contents, data); err != nil {
 			return err
 		}
-		defer file.Close()
-
-		err = tmpl.Execute(file, data)
-		if err != nil {
+		if err := store.WriteNativeManifest(location, contents.Bytes()); err != nil {
 			return err
 		}
 	}

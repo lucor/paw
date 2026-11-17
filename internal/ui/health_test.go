@@ -5,18 +5,19 @@ package ui
 
 import (
 	"net"
-	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"go.lucor.dev/paw/internal/storage"
 )
 
 func TestHealthServiceCheckWithoutAddress(t *testing.T) {
-	lockFile := filepath.Join(t.TempDir(), "paw.lock")
-	require.False(t, HealthServiceCheck(lockFile))
-	require.NoError(t, os.WriteFile(lockFile, nil, 0o600))
-	require.False(t, HealthServiceCheck(lockFile))
+	store, err := storage.NewFileStorage(t.TempDir())
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, store.Close()) })
+	require.False(t, HealthServiceCheck(store))
+	require.NoError(t, store.WriteHealthAddress(""))
+	require.False(t, HealthServiceCheck(store))
 }
 
 func TestHealthServiceCheckConn(t *testing.T) {

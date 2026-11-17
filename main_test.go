@@ -4,13 +4,15 @@
 package main
 
 import (
-	"io"
+	"bytes"
+	"log"
 	"log/slog"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"go.lucor.dev/paw/internal/storage"
 	"go.lucor.dev/paw/internal/ui"
 )
 
@@ -19,31 +21,26 @@ func TestDefaultWindowDimensions(t *testing.T) {
 	require.Equal(t, 640, ui.DefaultWindowHeight)
 }
 
-func TestMakeLogger(t *testing.T) {
-	t.Cleanup(func() { slog.SetDefault(slog.New(slog.NewTextHandler(io.Discard, nil))) })
-	t.Run("falls back to stderr", func(t *testing.T) {
-		blocked := filepath.Join(t.TempDir(), "blocked")
-		require.NoError(t, os.WriteFile(blocked, nil, 0600))
-		t.Setenv("PAW_LOG_FILE", filepath.Join(blocked, "paw.log"))
-		read, write, err := os.Pipe()
-		require.NoError(t, err)
-		original := os.Stderr
-		os.Stderr = write
-		t.Cleanup(func() { os.Stderr = original })
-		logger := makeLogger()
-		require.Nil(t, logger)
-		require.NoError(t, write.Close())
-		output, err := io.ReadAll(read)
-		require.NoError(t, err)
-		require.Contains(t, string(output), "could not initialize file logging")
+func TestConfigureLoggerDoesNotWriteFileOnMobile(t *testing.T) {
+	previousLogger := slog.Default()
+	previousOutput := log.Writer()
+	t.Cleanup(func() {
+		slog.SetDefault(previousLogger)
+		log.SetOutput(previousOutput)
 	})
-	t.Run("opens the configured file", func(t *testing.T) {
-		path := filepath.Join(t.TempDir(), "paw.log")
-		t.Setenv("PAW_LOG_FILE", path)
-		logger := makeLogger()
-		require.NotNil(t, logger)
-		require.NoError(t, logger.Close())
-		_, err := os.Stat(path)
-		require.NoError(t, err)
-	})
+
+	root := t.TempDir()
+	store, err := storage.NewFileStorage(root)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, store.Close()) })
+	logPath := filepath.Join(root, "mobile.log")
+	t.Setenv("PAW_LOG_FILE", logPath)
+	t.Setenv("PAW_LOG_LEVEL", "")
+
+	var stderr bytes.Buffer
+	require.Nil(t, configureLogger(store, true, &stderr))
+	slog.Warn("mobile diagnostic")
+	require.Contains(t, stderr.String(), "mobile diagnostic")
+	_, err = os.Stat(logPath)
+	require.ErrorIs(t, err, os.ErrNotExist)
 }
