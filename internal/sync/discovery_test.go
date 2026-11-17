@@ -65,7 +65,7 @@ func TestPeerFromEntry(t *testing.T) {
 func TestDiscoveryStartStop(t *testing.T) {
 	server := &testDiscoveryServer{}
 	d := NewDiscovery("test-id", "Test", 17417, "fingerprint")
-	d.register = func(instance, service, domain string, port int, txt []string, ifaces []net.Interface) (discoveryServer, error) {
+	d.register = func(instance, service, domain string, port int, txt []string) (discoveryServer, error) {
 		require.Equal(t, "test-id", instance)
 		require.Equal(t, serviceName, service)
 		require.Equal(t, "local.", domain)
@@ -85,7 +85,7 @@ func TestDiscoveryStartStop(t *testing.T) {
 
 func TestDiscoveryStartBrowsingDoesNotAdvertise(t *testing.T) {
 	d := NewDiscovery("test-id", "Clone target", 17417, "fingerprint")
-	d.register = func(string, string, string, int, []string, []net.Interface) (discoveryServer, error) {
+	d.register = func(string, string, string, int, []string) (discoveryServer, error) {
 		t.Fatal("browse-only discovery must not register an mDNS service")
 		return nil, nil
 	}
@@ -100,7 +100,7 @@ func TestDiscoveryStartBrowsingDoesNotAdvertise(t *testing.T) {
 func TestDiscoveryStopsWhenContextIsCanceled(t *testing.T) {
 	server := &testDiscoveryServer{}
 	d := NewDiscovery("test-id", "Test", 17417, "fingerprint")
-	d.register = func(string, string, string, int, []string, []net.Interface) (discoveryServer, error) {
+	d.register = func(string, string, string, int, []string) (discoveryServer, error) {
 		return server, nil
 	}
 	ctx, cancel := context.WithCancel(context.Background())

@@ -12,6 +12,7 @@ import (
 	"sync"
 
 	"github.com/libp2p/zeroconf/v2"
+	"go.lucor.dev/paw/internal/netif"
 )
 
 const serviceName = "_paw-sync._tcp"
@@ -39,7 +40,7 @@ type Discovery struct {
 	queryDone   chan struct{}
 	stop        context.CancelFunc
 	mu          sync.Mutex
-	register    func(string, string, string, int, []string, []net.Interface) (discoveryServer, error)
+	register    func(string, string, string, int, []string) (discoveryServer, error)
 }
 
 type discoveryServer interface{ Shutdown() }
@@ -47,10 +48,12 @@ type discoveryServer interface{ Shutdown() }
 // NewDiscovery creates LAN discovery for an instance identifier and display name.
 func NewDiscovery(id, name string, port int, fingerprint string) *Discovery {
 	return &Discovery{
-		id: id, name: name, port: port, fingerprint: fingerprint, peers: make(chan Peer, 8),
-		register: func(instance, service, domain string, port int, text []string, ifaces []net.Interface) (discoveryServer, error) {
-			return zeroconf.Register(instance, service, domain, port, text, ifaces)
-		},
+		id:          id,
+		name:        name,
+		port:        port,
+		fingerprint: fingerprint,
+		peers:       make(chan Peer, 8),
+		register:    registerService,
 	}
 }
 
@@ -81,7 +84,7 @@ func (d *Discovery) start(ctx context.Context, advertise bool) error {
 	var server discoveryServer
 	var err error
 	if advertise {
-		server, err = d.register(d.id, serviceName, "local.", d.port, []string{"name=" + d.name, "version=" + protocolVersion, "fingerprint=" + d.fingerprint}, nil)
+		server, err = d.register(d.id, serviceName, "local.", d.port, []string{"name=" + d.name, "version=" + protocolVersion, "fingerprint=" + d.fingerprint})
 		if err != nil {
 			logger.Warn("could not register mDNS service", "error", err)
 			return fmt.Errorf("register mDNS service: %w", err)
@@ -122,30 +125,40 @@ func (d *Discovery) Stop() error {
 }
 
 func (d *Discovery) query(ctx context.Context) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 	logger := slog.With("component", "sync.discovery")
 	logger.Debug("mDNS browser started", "device", d.name)
 	defer logger.Debug("mDNS browser stopped", "device", d.name)
 	seen := make(map[string]struct{})
 	entries := make(chan *zeroconf.ServiceEntry, 16)
-	ifaces, err := net.Interfaces()
+	snapshot, err := netif.Snapshot()
 	if err != nil {
 		logger.Warn("could not list interfaces for mDNS", "error", err)
 		return
 	}
-	selectedIfaces := make([]net.Interface, 0, len(ifaces))
-	for _, iface := range ifaces {
-		if iface.Flags&net.FlagUp != 0 && iface.Flags&net.FlagMulticast != 0 && iface.Flags&net.FlagLoopback == 0 {
-			selectedIfaces = append(selectedIfaces, iface)
-		}
+	ifaces, _ := selectDiscoveryAddresses(snapshot)
+	if len(ifaces) == 0 {
+		logger.Warn("could not list interfaces for mDNS", "error", "no active multicast interface")
+		return
 	}
-	logger.Debug("browsing mDNS interfaces", "count", len(selectedIfaces))
+	logger.Debug("browsing mDNS interfaces", "count", len(ifaces))
+	// Separate browsers let IPv4 continue when IPv6 sockets are unavailable.
+	var browsers sync.WaitGroup
+	for _, traffic := range []zeroconf.IPType{zeroconf.IPv4, zeroconf.IPv6} {
+		browsers.Add(1)
+		go func() {
+			defer browsers.Done()
+			browseFamily(ctx, traffic, ifaces, entries)
+		}()
+	}
 	go func() {
-		if err := zeroconf.Browse(ctx, serviceName, "local.", entries,
-			zeroconf.SelectIPTraffic(zeroconf.IPv4AndIPv6),
-			zeroconf.SelectIfaces(selectedIfaces),
-		); err != nil && ctx.Err() == nil {
-			logger.Debug("mDNS browse failed", "error", err)
-		}
+		browsers.Wait()
+		close(entries)
+	}()
+	defer func() {
+		cancel()
+		browsers.Wait()
 	}()
 	for {
 		select {
@@ -163,6 +176,36 @@ func (d *Discovery) query(ctx context.Context) {
 			logger.Debug("Sync device discovered", "device", peer.Name, "port", peer.Port, "addresses", len(peer.IPs))
 			if !publishDiscoveredPeer(ctx, d.peers, seen, peer) {
 				return
+			}
+		}
+	}
+}
+
+// browseFamily forwards one IP family's results while keeping its socket errors independent.
+func browseFamily(ctx context.Context, traffic zeroconf.IPType, ifaces []net.Interface, output chan<- *zeroconf.ServiceEntry) {
+	entries := make(chan *zeroconf.ServiceEntry)
+	done := make(chan error, 1)
+	go func() {
+		done <- zeroconf.Browse(ctx, serviceName, "local.", entries,
+			zeroconf.SelectIPTraffic(traffic),
+			zeroconf.SelectIfaces(ifaces),
+		)
+	}()
+	for {
+		select {
+		case err := <-done:
+			if err != nil && ctx.Err() == nil {
+				slog.Warn("mDNS browse failed", "component", "sync.discovery", "traffic", traffic, "error", err)
+			}
+			return
+		case entry, ok := <-entries:
+			if !ok {
+				entries = nil
+				continue
+			}
+			select {
+			case output <- entry:
+			case <-ctx.Done():
 			}
 		}
 	}

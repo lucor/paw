@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"go.lucor.dev/paw/internal/model"
+	"go.lucor.dev/paw/internal/netif"
 	"go.lucor.dev/paw/internal/storage"
 )
 
@@ -253,24 +254,25 @@ func (s *Session) Port() int {
 
 // ConnectionLink returns a link for the active listener using a LAN address.
 func (s *Session) ConnectionLink() (string, error) {
-	interfaces, err := net.Interfaces()
+	interfaces, err := netif.Snapshot()
 	if err != nil {
 		return "", err
 	}
-	for _, iface := range interfaces {
+	for _, item := range interfaces {
+		iface := item.Interface
 		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
 			continue
 		}
-		addresses, err := iface.Addrs()
-		if err != nil {
-			continue
-		}
-		for _, address := range addresses {
+		for _, address := range item.Addrs {
 			ipNet, ok := address.(*net.IPNet)
 			if !ok || !ipNet.IP.IsGlobalUnicast() || ipNet.IP.IsLinkLocalUnicast() {
 				continue
 			}
-			return ConnectionLink{Host: ipNet.IP.String(), Port: s.Port(), Fingerprint: Fingerprint(s.public)}.String(), nil
+			return ConnectionLink{
+				Host:        ipNet.IP.String(),
+				Port:        s.Port(),
+				Fingerprint: Fingerprint(s.public),
+			}.String(), nil
 		}
 	}
 	return "", fmt.Errorf("no connectable network address is available")
