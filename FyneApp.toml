@@ -6,6 +6,10 @@ Icon = "logo/paw.png"
 Name = "Paw"
 ID = "dev.lucor.paw"
 Version = "0.32.0"
+[AdaptiveIcon]
+Foreground = "assets/icon-foreground.png"
+Background = "assets/icon-background.png"
+Monochrome = "assets/icon-monochrome.png"
 
 [Source]
 Repo = "https://github.com/lucor/paw"
