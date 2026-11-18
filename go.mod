@@ -2,6 +2,9 @@ module go.lucor.dev/paw
 
 go 1.27.0
 
+// fix(mobile): scroll focused entry into view https://github.com/fyne-io/fyne/pull/6679
+replace fyne.io/fyne/v2 => github.com/lucor/fyne/v2 v2.4.2-0.20261118173301-2ec12856bbee
+
 require (
 	filippo.io/age v1.3.2
 	fyne.io/fyne/v2 v2.8.2
