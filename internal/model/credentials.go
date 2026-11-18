@@ -5,9 +5,16 @@ import (
 	json "encoding/json/v2"
 	"errors"
 	"fmt"
+	"slices"
 
 	"go.lucor.dev/cxf"
 )
+
+// CustomFieldsGroup pairs a CXF custom-fields credential with its item position.
+type CustomFieldsGroup struct {
+	Index      int
+	Credential cxf.CustomFields
+}
 
 // Credentials holds the first supported credential of each type and its position.
 type Credentials struct {
@@ -19,6 +26,7 @@ type Credentials struct {
 	TOTPIndex      int
 	SSHKey         *cxf.SSHKey
 	SSHKeyIndex    int
+	CustomFields   []CustomFieldsGroup
 }
 
 // DecodeCredentials reads supported credentials once, keeping their original positions.
@@ -70,9 +78,128 @@ func DecodeCredentials(raws []jsontext.Value) (Credentials, error) {
 			}
 			decoded.SSHKey = &credential
 			decoded.SSHKeyIndex = index
+		case cxf.CredentialTypeCustomFields:
+			var credential cxf.CustomFields
+			if err := json.Unmarshal(raw, &credential); err != nil {
+				return decoded, err
+			}
+			decoded.CustomFields = append(decoded.CustomFields, CustomFieldsGroup{Index: index, Credential: credential})
 		}
 	}
 	return decoded, nil
+}
+
+// CustomFields returns every custom-fields credential in item order.
+func (item *Item) CustomFields() ([]CustomFieldsGroup, error) {
+	decoded, err := DecodeCredentials(item.Credentials)
+	return decoded.CustomFields, err
+}
+
+// AppendCustomFields appends a validated custom-fields credential.
+func (item *Item) AppendCustomFields(credential cxf.CustomFields) error {
+	if err := credential.Validate(); err != nil {
+		return fmt.Errorf("invalid custom-fields credential: %w", err)
+	}
+	encoded, err := json.Marshal(credential, json.Deterministic(true))
+	if err != nil {
+		return errors.New("cannot encode custom-fields credential")
+	}
+	item.Credentials = append(item.Credentials, encoded)
+	return nil
+}
+
+// ReplaceCustomFields replaces the custom-fields credential at its item index.
+func (item *Item) ReplaceCustomFields(index int, credential cxf.CustomFields) error {
+	if index < 0 || index >= len(item.Credentials) {
+		return errors.New("credential index out of range")
+	}
+	if err := credential.Validate(); err != nil {
+		return fmt.Errorf("invalid custom-fields credential: %w", err)
+	}
+	typeName, err := cxf.CredentialTypeOf(item.Credentials[index])
+	if err != nil {
+		return err
+	}
+	if typeName != cxf.CredentialTypeCustomFields {
+		return errors.New("credential at index is not custom-fields")
+	}
+	encoded, err := json.Marshal(credential, json.Deterministic(true))
+	if err != nil {
+		return errors.New("cannot encode custom-fields credential")
+	}
+	var previousCredential cxf.CustomFields
+	if err := json.Unmarshal(item.Credentials[index], &previousCredential); err != nil {
+		return err
+	}
+	previousTyped, err := json.Marshal(previousCredential, json.Deterministic(true))
+	if err != nil {
+		return errors.New("cannot encode existing custom-fields credential")
+	}
+	if string(previousTyped) == string(encoded) {
+		return nil
+	}
+	encoded, err = preserveCustomFieldsUnknown(item.Credentials[index], encoded)
+	if err != nil {
+		return fmt.Errorf("cannot preserve custom-fields properties: %w", err)
+	}
+	if string(item.Credentials[index]) != string(encoded) {
+		item.Credentials[index] = encoded
+	}
+	return nil
+}
+
+// RemoveCustomFields removes the custom-fields credential at its item index.
+func (item *Item) RemoveCustomFields(index int) error {
+	if index < 0 || index >= len(item.Credentials) {
+		return errors.New("credential index out of range")
+	}
+	typeName, err := cxf.CredentialTypeOf(item.Credentials[index])
+	if err != nil {
+		return err
+	}
+	if typeName != cxf.CredentialTypeCustomFields {
+		return errors.New("credential at index is not custom-fields")
+	}
+	item.Credentials = append(item.Credentials[:index], item.Credentials[index+1:]...)
+	return nil
+}
+
+// preserveCustomFieldsUnknown retains unmodeled properties for one replaced group.
+func preserveCustomFieldsUnknown(previous, replacement []byte) ([]byte, error) {
+	var oldGroup, newGroup map[string]jsontext.Value
+	if err := json.Unmarshal(previous, &oldGroup); err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal(replacement, &newGroup); err != nil {
+		return nil, err
+	}
+	mergeUnknown(oldGroup, newGroup, []string{"type", "id", "label", "fields", "extensions"})
+	var oldFields, newFields []map[string]jsontext.Value
+	if err := json.Unmarshal(oldGroup["fields"], &oldFields); err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal(newGroup["fields"], &newFields); err != nil {
+		return nil, err
+	}
+	for index := 0; index < len(oldFields) && index < len(newFields); index++ {
+		mergeUnknown(oldFields[index], newFields[index], []string{"id", "fieldType", "value", "label", "extensions"})
+	}
+	fields, err := json.Marshal(newFields, json.Deterministic(true))
+	if err != nil {
+		return nil, err
+	}
+	newGroup["fields"] = fields
+	return json.Marshal(newGroup, json.Deterministic(true))
+}
+
+func mergeUnknown(previous, replacement map[string]jsontext.Value, known []string) {
+	for key, value := range previous {
+		if !slices.Contains(known, key) {
+			if _, exists := replacement[key]; !exists {
+				replacement[key] = value
+			}
+		}
+	}
 }
 
 // BasicAuth reads the first basic-auth credential and its position.

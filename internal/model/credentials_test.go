@@ -46,6 +46,9 @@ func TestCredentialAccessAndUpdates(t *testing.T) {
 
 func TestCredentialMissingAndMalformed(t *testing.T) {
 	item := &Item{}
+	groups, err := item.CustomFields()
+	require.NoError(t, err)
+	require.Empty(t, groups)
 	_, index, err := item.BasicAuth()
 	require.NoError(t, err)
 	require.Equal(t, -1, index)
@@ -57,6 +60,95 @@ func TestCredentialMissingAndMalformed(t *testing.T) {
 	_, err = DecodeCredentials([]jsontext.Value{jsontext.Value(`{`)})
 	require.Error(t, err)
 }
+
+func TestCustomFieldsAccessAndMutationPreserveItemData(t *testing.T) {
+	item, err := NewLogin("Example", "alice", "saved", PasswordSettings{Mode: paw.CustomPassword})
+	require.NoError(t, err)
+	item.Subtitle = ptr("login subtitle")
+	item.Scope = &cxf.CredentialScope{URLs: []string{"https://example.test"}, AndroidApps: []cxf.AndroidAppID{}}
+	first := cxf.CustomFields{
+		Type: cxf.CredentialTypeCustomFields,
+		ID:   ptr("Z3JvdXAx"), Label: "Repeated",
+		Fields: []cxf.EditableField{
+			{ID: ptr("ZmllbGQx"), FieldType: cxf.FieldTypeConcealedString, Value: "secret", Label: "Token", Extensions: []jsontext.Value{jsontext.Value(`{"name":"example.test/field","data":1}`)}},
+			{FieldType: "future-field", Value: "opaque", Extensions: []jsontext.Value{jsontext.Value(`{"name":"example.test/value"}`)}},
+		},
+		Extensions: []jsontext.Value{jsontext.Value(`{"name":"example.test/group","enabled":true}`)},
+	}
+	second := cxf.CustomFields{Type: cxf.CredentialTypeCustomFields, Fields: []cxf.EditableField{}}
+	require.NoError(t, item.AppendCustomFields(first))
+	item.Credentials[1] = jsontext.Value(`{"type":"custom-fields","id":"Z3JvdXAx","label":"Repeated","fields":[{"id":"ZmllbGQx","fieldType":"concealed-string","value":"secret","label":"Token","extensions":[{"name":"example.test/field","data":1}],"futureField":{"keep":true}},{"fieldType":"future-field","value":"opaque","extensions":[{"name":"example.test/value"}]}],"extensions":[{"name":"example.test/group","enabled":true}],"futureGroup":{"retain":{"x":1}}}`)
+	unknown := jsontext.Value(`{"type":"future-credential","opaque":{"keep":true}}`)
+	item.Credentials = append(item.Credentials, unknown)
+	require.NoError(t, item.AppendCustomFields(second))
+	groups, err := item.CustomFields()
+	require.NoError(t, err)
+	require.Len(t, groups, 2)
+	require.Equal(t, 1, groups[0].Index)
+	require.Equal(t, 3, groups[1].Index)
+	require.Equal(t, "Repeated", groups[0].Credential.Label)
+	require.Empty(t, groups[1].Credential.Label)
+	require.Equal(t, first, groups[0].Credential)
+	require.NoError(t, item.Validate())
+
+	beforeUnrelated := append(jsontext.Value(nil), item.Credentials[0]...)
+	replacement := first
+	replacement.Label = "Updated"
+	replacement.Fields = append([]cxf.EditableField(nil), first.Fields...)
+	replacement.Fields[0].Value = "updated-secret"
+	require.NoError(t, item.ReplaceCustomFields(groups[0].Index, replacement))
+	require.Equal(t, beforeUnrelated, item.Credentials[0])
+	require.Equal(t, unknown, item.Credentials[2])
+	var raw map[string]jsontext.Value
+	require.NoError(t, json.Unmarshal(item.Credentials[1], &raw))
+	require.JSONEq(t, `{"retain":{"x":1}}`, string(raw["futureGroup"]))
+	var rawFields []map[string]jsontext.Value
+	require.NoError(t, json.Unmarshal(raw["fields"], &rawFields))
+	require.JSONEq(t, `{"keep":true}`, string(rawFields[0]["futureField"]))
+	require.NoError(t, item.Validate())
+
+	unchanged := append(jsontext.Value(nil), item.Credentials[1]...)
+	groups, err = item.CustomFields()
+	require.NoError(t, err)
+	require.NoError(t, item.ReplaceCustomFields(groups[0].Index, groups[0].Credential))
+	require.Equal(t, unchanged, item.Credentials[1], "unchanged values retain their original JSON")
+	require.NoError(t, item.RemoveCustomFields(groups[0].Index))
+	require.Equal(t, unknown, item.Credentials[1])
+	groups, err = item.CustomFields()
+	require.NoError(t, err)
+	require.Len(t, groups, 1)
+	require.Equal(t, 2, groups[0].Index)
+	require.NoError(t, item.Validate())
+
+	encoded, err := json.Marshal(item, json.Deterministic(true))
+	require.NoError(t, err)
+	var restored Item
+	require.NoError(t, json.Unmarshal(encoded, &restored))
+	require.Equal(t, item.Metadata.Type, restored.Metadata.Type)
+	require.Equal(t, item.Title, restored.Title)
+	require.Equal(t, item.Subtitle, restored.Subtitle)
+	require.Equal(t, item.Scope, restored.Scope)
+	require.Equal(t, item.Credentials, restored.Credentials)
+}
+
+func TestCustomFieldsOperationsValidateGroupsAndIndices(t *testing.T) {
+	item, err := NewNote("Example", "body")
+	require.NoError(t, err)
+	valid := cxf.CustomFields{Type: cxf.CredentialTypeCustomFields, Fields: []cxf.EditableField{}}
+	require.Error(t, item.AppendCustomFields(cxf.CustomFields{Type: cxf.CredentialTypeCustomFields}))
+	require.NoError(t, item.AppendCustomFields(valid))
+	require.Error(t, item.ReplaceCustomFields(0, valid), "note credential is not a custom-fields group")
+	require.Error(t, item.ReplaceCustomFields(4, valid))
+	require.Error(t, item.RemoveCustomFields(0))
+	require.Error(t, item.RemoveCustomFields(4))
+	groups, err := item.CustomFields()
+	require.NoError(t, err)
+	require.Len(t, groups, 1)
+	require.Equal(t, 1, groups[0].Index)
+	require.NoError(t, item.Validate())
+}
+
+func ptr(value string) *string { return &value }
 
 func TestPasswordFieldPreservesOtherExtensions(t *testing.T) {
 	previous := &cxf.EditableField{FieldType: cxf.FieldTypeConcealedString, Value: "original", Extensions: []jsontext.Value{
