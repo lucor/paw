@@ -8,7 +8,7 @@ Paw stores your data locally in files encrypted with [age](https://age-encryptio
 
 Free and open source.
 
-Paw provides a desktop app and command-line interface in a single binary. Run `paw` to open the desktop app or `paw cli` to use the command line. Both access the same local vaults.
+Paw provides a desktop app and command-line interface in a single binary, plus an Android app. Run `paw` to open the desktop app or `paw cli` to use the command line. Both access the same local vaults.
 
 See the [documentation](https://paw.pm/docs/) for installation and usage instructions.
 
@@ -26,7 +26,8 @@ See the [documentation](https://paw.pm/docs/) for installation and usage instruc
 
 ## Main features
 
-* Cross-platform desktop application for Linux, macOS, Windows, and FreeBSD
+* Desktop application for Linux, macOS, Windows, and FreeBSD
+* Android app for arm64 devices
 * Desktop GUI and CLI modes from the same executable
 * Hybrid post-quantum age encryption (X25519 and ML-KEM-768)
 * Vault synchronization and cloning directly between devices on the local network
@@ -44,7 +45,6 @@ See the [documentation](https://paw.pm/docs/) for installation and usage instruc
 * CXF import from other password managers
 * Support for more CXF credential types, including passkeys, credit cards, API keys, Wi-Fi credentials, and identity documents
 * Email masking support
-* Mobile app
 
 ## Installation
 
@@ -69,7 +69,11 @@ On Linux, a current Homebrew installation with Linux cask support is required. T
 
 ### Download a release
 
-Download the latest stable packages from the [Releases page](https://github.com/lucor/paw/releases/latest). Packages are available for Linux (amd64 and arm64), macOS (Intel and Apple Silicon), Windows (amd64), and FreeBSD (amd64 and arm64).
+Download the latest stable packages from the [Releases page](https://github.com/lucor/paw/releases/latest). Packages are available for Linux (amd64 and arm64), macOS (Intel and Apple Silicon), Windows (amd64), FreeBSD (amd64 and arm64), and Android (arm64).
+
+#### Android
+
+Download the arm64 `.apk` from the [Releases page](https://github.com/lucor/paw/releases/latest) to your device and open it to install Paw. Android may ask you to allow the browser or file manager opening the APK to install unknown apps. Enable **Allow from this source**, return to the APK, and complete the installation. You can turn off this permission afterward.
 
 #### Linux
 

@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.33.0 - 18 Nov 2026
+
+### Added
+
+- android: build and publish arm64 APKs.
+- android: add adaptive launcher icons.
+- sync: discover and connect to nearby devices on Android over IPv4 and IPv6.
+- settings: configure the local device name shown during sync.
+
+### Changed
+
+- mobile: store app data in the Fyne application directory and avoid creating log files.
+- storage: support attachment operations on Android.
+- ui: hide the desktop menu on mobile and align page margins consistently.
+
 ## 0.32.0 - 16 Nov 2026
 
 ### Added
