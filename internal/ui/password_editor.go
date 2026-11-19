@@ -38,6 +38,7 @@ type PasswordEditor struct {
 	titleError     *widget.Label
 	headerTitle    *widget.Label
 	form           *widget.Form
+	customFields   *customFieldsEditor
 }
 
 // NewPasswordEditor builds the create or edit screen for a Password item.
@@ -55,6 +56,10 @@ func NewPasswordEditor(item *model.Item, isNew bool) (*PasswordEditor, error) {
 	if decoded.BasicAuth == nil {
 		return nil, errors.New("password credential is missing")
 	}
+	customFields, err := newCustomFieldsEditor(item)
+	if err != nil {
+		return nil, err
+	}
 
 	secret := ""
 	if decoded.BasicAuth.Password != nil {
@@ -67,6 +72,7 @@ func NewPasswordEditor(item *model.Item, isNew bool) (*PasswordEditor, error) {
 		Title:          widget.NewEntry(),
 		Password:       NewPasswordField(),
 		titleError:     newErrorText(""),
+		customFields:   customFields,
 	}
 	if !isNew {
 		editor.Title.SetText(item.Title)
@@ -90,6 +96,7 @@ func NewPasswordEditor(item *model.Item, isNew bool) (*PasswordEditor, error) {
 	editor.form = widget.NewForm(
 		widget.NewFormItem("Title", container.NewVBox(editor.Title, editor.titleError)),
 		widget.NewFormItem("Password", editor.Password),
+		widget.NewFormItem("Custom fields", editor.customFields.View),
 	)
 	editor.form.Orientation = widget.Vertical
 	editor.BackButton = newIconButton("Back", icons.Back, nil)
@@ -131,6 +138,9 @@ func (e *PasswordEditor) UpdatedItem() (*model.Item, error) {
 	if err := updated.SetBasicAuth(e.basicAuthIndex, credential); err != nil {
 		return nil, err
 	}
+	if err := e.customFields.Apply(updated); err != nil {
+		return nil, err
+	}
 	if err := updated.Validate(); err != nil {
 		return nil, err
 	}
@@ -143,7 +153,8 @@ func (e *PasswordEditor) IsDirty() bool {
 		e.Password.Entry.Text != e.initialSecret ||
 		e.PasswordSpec.Mode != e.initialMode ||
 		e.PasswordSpec.Length != e.initialLength ||
-		e.PasswordSpec.Format != e.initialFormat
+		e.PasswordSpec.Format != e.initialFormat ||
+		e.customFields.IsDirty()
 }
 
 // HasValidationErrors reports whether the editor displays a field error.

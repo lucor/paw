@@ -78,7 +78,11 @@ func TestLoginEditorControlsAndInteractions(t *testing.T) {
 	for index, item := range editor.form.Items {
 		formLabels[index] = item.Text
 	}
-	require.Equal(t, []string{"Title", "Username", "Password", "Website", "Authenticator key", "Notes"}, formLabels)
+	require.Equal(t, []string{"Title", "Username", "Password", "Website", "Authenticator key", "Notes", "Custom fields"}, formLabels)
+	customFieldSelect := findSelect(editor.customFields.View)
+	require.NotNil(t, customFieldSelect)
+	require.Equal(t, []string{"Text", "Hidden"}, customFieldSelect.Options)
+	require.Equal(t, "+ Add field", customFieldSelect.PlaceHolder)
 	for _, object := range test.LaidOutObjects(editor.View) {
 		_, isNavigation := object.(*Navigation)
 		require.False(t, isNavigation, "entry editor should hide bottom navigation")

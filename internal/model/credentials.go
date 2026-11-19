@@ -108,8 +108,9 @@ func (item *Item) AppendCustomFields(credential cxf.CustomFields) error {
 	return nil
 }
 
-// ReplaceCustomFields replaces the custom-fields credential at its item index.
-func (item *Item) ReplaceCustomFields(index int, credential cxf.CustomFields) error {
+// ReplaceCustomFields replaces a group at its item index. originalFields gives
+// the old position of each replacement field, or -1 for a new field.
+func (item *Item) ReplaceCustomFields(index int, credential cxf.CustomFields, originalFields []int) error {
 	if index < 0 || index >= len(item.Credentials) {
 		return errors.New("credential index out of range")
 	}
@@ -135,10 +136,17 @@ func (item *Item) ReplaceCustomFields(index int, credential cxf.CustomFields) er
 	if err != nil {
 		return errors.New("cannot encode existing custom-fields credential")
 	}
-	if string(previousTyped) == string(encoded) {
+	if len(originalFields) != len(credential.Fields) {
+		return errors.New("missing original field positions")
+	}
+	identity := true
+	for index, original := range originalFields {
+		identity = identity && index == original
+	}
+	if identity && string(previousTyped) == string(encoded) {
 		return nil
 	}
-	encoded, err = preserveCustomFieldsUnknown(item.Credentials[index], encoded)
+	encoded, err = preserveCustomFieldsUnknown(item.Credentials[index], encoded, originalFields)
 	if err != nil {
 		return fmt.Errorf("cannot preserve custom-fields properties: %w", err)
 	}
@@ -165,7 +173,7 @@ func (item *Item) RemoveCustomFields(index int) error {
 }
 
 // preserveCustomFieldsUnknown retains unmodeled properties for one replaced group.
-func preserveCustomFieldsUnknown(previous, replacement []byte) ([]byte, error) {
+func preserveCustomFieldsUnknown(previous, replacement []byte, originalFields []int) ([]byte, error) {
 	var oldGroup, newGroup map[string]jsontext.Value
 	if err := json.Unmarshal(previous, &oldGroup); err != nil {
 		return nil, err
@@ -181,8 +189,16 @@ func preserveCustomFieldsUnknown(previous, replacement []byte) ([]byte, error) {
 	if err := json.Unmarshal(newGroup["fields"], &newFields); err != nil {
 		return nil, err
 	}
-	for index := 0; index < len(oldFields) && index < len(newFields); index++ {
-		mergeUnknown(oldFields[index], newFields[index], []string{"id", "fieldType", "value", "label", "extensions"})
+	used := make([]bool, len(oldFields))
+	for newIndex, oldIndex := range originalFields {
+		if oldIndex == -1 {
+			continue
+		}
+		if oldIndex < 0 || oldIndex >= len(oldFields) || used[oldIndex] {
+			return nil, errors.New("invalid original field position")
+		}
+		used[oldIndex] = true
+		mergeUnknown(oldFields[oldIndex], newFields[newIndex], []string{"id", "fieldType", "value", "label", "extensions"})
 	}
 	fields, err := json.Marshal(newFields, json.Deterministic(true))
 	if err != nil {

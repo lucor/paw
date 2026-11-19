@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/test"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
@@ -43,15 +44,22 @@ func TestNoteEditorControlsAndInteractions(t *testing.T) {
 			labels = append(labels, label.Text)
 		}
 		_, isNavigation := object.(*Navigation)
-		_, isSelect := object.(*widget.Select)
 		require.False(t, isNavigation)
-		require.False(t, isSelect)
 	}
 	require.ElementsMatch(t, []string{"Title", "Notes"}, labels)
-	shortHeight := editor.Notes.Size().Height
+	require.NotNil(t, findSelect(editor.customFields.View))
+	var body *container.Scroll
+	for _, object := range test.LaidOutObjects(editor.View) {
+		if scroll, ok := object.(*container.Scroll); ok {
+			body = scroll
+			break
+		}
+	}
+	require.NotNil(t, body)
+	shortHeight := body.Size().Height
 	window.Resize(fyne.NewSize(430, 926))
-	require.Greater(t, editor.Notes.Size().Height, shortHeight,
-		"the notes editor should grow with the available window height")
+	require.Greater(t, body.Size().Height, shortHeight,
+		"the notes page body should grow with the available window height")
 }
 
 func TestNoteEditorTabOrderStartsWithTitle(t *testing.T) {

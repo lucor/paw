@@ -52,6 +52,7 @@ type LoginEditor struct {
 	titleError     *widget.Label
 	websiteError   *widget.Label
 	totpError      *widget.Label
+	customFields   *customFieldsEditor
 }
 
 // NewLoginEditor builds the create or edit screen for a Login item.
@@ -68,6 +69,10 @@ func NewLoginEditor(ctx context.Context, item *model.Item, faviconSettings model
 	}
 	if decoded.BasicAuth == nil {
 		return nil, fmt.Errorf("login credential is missing")
+	}
+	customFields, err := newCustomFieldsEditor(item)
+	if err != nil {
+		return nil, err
 	}
 
 	editor := &LoginEditor{
@@ -92,6 +97,7 @@ func NewLoginEditor(ctx context.Context, item *model.Item, faviconSettings model
 		titleError:   newErrorText(""),
 		websiteError: newErrorText(""),
 		totpError:    newErrorText(""),
+		customFields: customFields,
 	}
 	username, password := "", ""
 	if decoded.BasicAuth.Username != nil {
@@ -173,6 +179,7 @@ func NewLoginEditor(ctx context.Context, item *model.Item, faviconSettings model
 		widget.NewFormItem("Website", container.NewVBox(editor.Website, editor.websiteError)),
 		widget.NewFormItem("Authenticator key", container.NewVBox(totpRow, editor.totpError)),
 		widget.NewFormItem("Notes", editor.Notes),
+		widget.NewFormItem("Custom fields", editor.customFields.View),
 	)
 	editor.form.Orientation = widget.Vertical
 	editor.BackButton = newIconButton("Back", icons.Back, nil)
@@ -248,6 +255,9 @@ func (e *LoginEditor) UpdatedItem() (*model.Item, error) {
 	if err := e.putTOTP(updated); err != nil {
 		return nil, err
 	}
+	if err := e.customFields.Apply(updated); err != nil {
+		return nil, err
+	}
 	if err := updated.Validate(); err != nil {
 		return nil, err
 	}
@@ -263,6 +273,7 @@ func (e *LoginEditor) IsDirty() bool {
 		e.TOTPSecret.Text != e.initial.totp ||
 		e.totpSettings != e.initial.totpSettings ||
 		e.Notes.Text != e.initial.notes ||
+		e.customFields.IsDirty() ||
 		e.PasswordSpec.Mode != e.initial.passwordMode ||
 		e.PasswordSpec.Length != e.initial.passwordLength ||
 		e.PasswordSpec.Format != e.initial.passwordFormat

@@ -48,12 +48,14 @@ func TestSSHKeyEditorControlsAndPrivateKeyDisclosure(t *testing.T) {
 	for index, item := range editor.form.Items {
 		labels[index] = item.Text
 	}
-	require.Equal(t, []string{"Title", "Key passphrase"}, labels)
+	require.Equal(t, []string{"Title", "Key passphrase", "Custom fields"}, labels)
+	customFieldSelect := findSelect(editor.customFields.View)
+	require.NotNil(t, customFieldSelect)
+	require.Equal(t, []string{"Text", "Hidden"}, customFieldSelect.Options)
+	require.Equal(t, "+ Add field", customFieldSelect.PlaceHolder)
 	for _, object := range test.LaidOutObjects(editor.View) {
 		_, isNavigation := object.(*Navigation)
-		_, isSelect := object.(*widget.Select)
 		require.False(t, isNavigation)
-		require.False(t, isSelect)
 	}
 	test.Tap(editor.RevealPassphraseButton)
 	require.False(t, editor.Passphrase.Password, "the passphrase should be visible after Show")

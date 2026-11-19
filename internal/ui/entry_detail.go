@@ -36,19 +36,15 @@ func NewEntryDetail(ctx context.Context, item *model.Item, window fyne.Window, b
 }
 
 func newEntryDetailWithClear(ctx context.Context, item *model.Item, window fyne.Window, back, edit, deleteEntry func()) (fyne.CanvasObject, func(), error) {
-	return newEntryDetailWithActions(ctx, item, window, back, edit, deleteEntry, false, 0, nil, nil, nil)
+	return newEntryDetailWithActions(ctx, item, window, back, edit, deleteEntry, false, 0, nil, nil)
 }
 
 func newEntryDetailWithHistory(ctx context.Context, item *model.Item, window fyne.Window, back, edit, deleteEntry, openHistory func()) (fyne.CanvasObject, func(), error) {
-	return newEntryDetailWithActions(ctx, item, window, back, edit, deleteEntry, false, 0, openHistory, nil, nil)
-}
-
-func newEntryDetailWithHistoryAndAttachments(ctx context.Context, item *model.Item, window fyne.Window, back, edit, deleteEntry, openHistory func(), attachments *attachmentDetailActions) (fyne.CanvasObject, func(), error) {
-	return newEntryDetailWithActions(ctx, item, window, back, edit, deleteEntry, false, 0, openHistory, nil, attachments)
+	return newEntryDetailWithActions(ctx, item, window, back, edit, deleteEntry, false, 0, openHistory, nil)
 }
 
 func newHistoricalEntryDetailWithClear(ctx context.Context, item *model.Item, window fyne.Window, capturedAt uint64, back, restore func()) (fyne.CanvasObject, func(), error) {
-	return newEntryDetailWithActions(ctx, item, window, back, nil, nil, true, capturedAt, nil, restore, nil)
+	return newEntryDetailWithActions(ctx, item, window, back, nil, nil, true, capturedAt, nil, restore)
 }
 
 func newEntryDetailWithActions(
@@ -59,7 +55,6 @@ func newEntryDetailWithActions(
 	historical bool,
 	capturedAt uint64,
 	openHistory, restore func(),
-	attachments *attachmentDetailActions,
 ) (fyne.CanvasObject, func(), error) {
 	if err := item.Validate(); err != nil {
 		return nil, nil, err
@@ -132,16 +127,9 @@ func newEntryDetailWithActions(
 			appendDetailSection(&bodyObjects, newDetailMultilineField("Notes", noteValue, copyNotes))
 		}
 	}
-	if attachments != nil && !historical {
-		appendDetailSection(&bodyObjects, newAttachmentDetailSection(window, *attachments))
-	} else if historical && (item.Metadata.Type == model.NoteItemType || item.Metadata.Type == model.LoginItemType) {
-		files, err := item.Files()
-		if err != nil {
-			return nil, nil, fmt.Errorf("cannot read historical attachment metadata: %w", err)
-		}
-		if len(files) > 0 {
-			appendDetailSection(&bodyObjects, newHistoricalAttachmentSection(files))
-		}
+	customFields := detailCustomFields(decoded.CustomFields, &clearSensitive)
+	if customFields != nil {
+		appendDetailSection(&bodyObjects, customFields)
 	}
 	var clearOnce sync.Once
 	clear := func() {
@@ -235,7 +223,7 @@ func detailSSHKey(window fyne.Window, title string, credential cxf.SSHKey, passp
 	}
 	algorithm := newText(strings.ToUpper(strings.TrimPrefix(credential.KeyType, "ssh-")), bodyStyle)
 	algorithm.Wrapping = fyne.TextWrapOff
-	appendDetailSection(&details, container.NewBorder(nil, nil, newText("SSH key", captionStyle), algorithm, nil))
+	appendDetailSection(&details, container.NewBorder(nil, nil, newText("SSH key", sectionTitleStyle), algorithm, nil))
 	fingerprintValue := newText(fingerprint, bodyStyle)
 	fingerprintValue.TextStyle.Monospace = true
 	fingerprintValue.Wrapping = fyne.TextWrapBreak
@@ -265,6 +253,87 @@ func detailSSHKey(window fyne.Window, title string, credential cxf.SSHKey, passp
 	appendDetailSection(&details, container.NewVBox(privateHeader, privateSurface))
 	secrets = append(secrets, privateValue)
 	return details, secrets, nil
+}
+
+func detailCustomFields(groups []model.CustomFieldsGroup, clearSensitive *[]*detailSecret) fyne.CanvasObject {
+	var ungrouped []fyne.CanvasObject
+	var named []model.CustomFieldsGroup
+	for _, group := range groups {
+		if group.Credential.Label == "" {
+			for _, field := range group.Credential.Fields {
+				if object, secret := detailCustomField(field); object != nil {
+					ungrouped = append(ungrouped, object)
+					if secret != nil {
+						*clearSensitive = append(*clearSensitive, secret)
+					}
+				}
+			}
+			continue
+		}
+		named = append(named, group)
+	}
+
+	sections := make([]fyne.CanvasObject, 0, 2)
+	if len(ungrouped) > 0 {
+		sections = append(sections, container.NewVBox(ungrouped...))
+	}
+	var accordionItems []*widget.AccordionItem
+	for _, group := range named {
+		var fields []fyne.CanvasObject
+		for _, field := range group.Credential.Fields {
+			if object, secret := detailCustomField(field); object != nil {
+				fields = append(fields, object)
+				if secret != nil {
+					*clearSensitive = append(*clearSensitive, secret)
+				}
+			}
+		}
+		if len(fields) == 0 {
+			fields = append(fields, newText("Empty", captionStyle))
+		}
+		item := widget.NewAccordionItem(group.Credential.Label, container.NewVBox(fields...))
+		item.Open = true
+		accordionItems = append(accordionItems, item)
+	}
+	if len(accordionItems) > 0 {
+		accordion := widget.NewAccordion(accordionItems...)
+		accordion.MultiOpen = true
+		if len(ungrouped) > 0 {
+			sections = append(sections, widget.NewSeparator())
+		}
+		sections = append(sections, accordion)
+	}
+	if len(sections) == 0 {
+		return nil
+	}
+	return container.NewVBox(sections...)
+}
+
+func detailCustomField(field cxf.EditableField) (fyne.CanvasObject, *detailSecret) {
+	if field.Label == "" && field.Value == "" {
+		return nil, nil
+	}
+	if field.FieldType == cxf.FieldTypeConcealedString {
+		if field.Value == "" {
+			if field.Label == "" {
+				return newText("", bodyStyle), nil
+			}
+			return newDetailField(field.Label, newText("", bodyStyle)), nil
+		}
+		return detailSecretField(field.Label, field.Value)
+	}
+	value := newText(field.Value, bodyStyle)
+	value.Wrapping = fyne.TextWrapBreak
+	value.Selectable = true
+	copyLabel := field.Label
+	if copyLabel == "" {
+		copyLabel = "value"
+	}
+	copy := newIconButton("Copy "+copyLabel, icons.Copy, func() { detailCopy(copyLabel, field.Value) })
+	if field.Label == "" {
+		return container.NewBorder(nil, nil, nil, copy, value), nil
+	}
+	return newDetailField(field.Label, value, copy), nil
 }
 
 func sshKeyFilename(title string) string {
@@ -350,5 +419,5 @@ func detailTOTP(ctx context.Context, credential cxf.TOTP) (*TOTPDisplay, fyne.Ca
 		return nil, nil
 	}
 	go display.Run(ctx)
-	return display, container.NewVBox(newText("Verification code", captionStyle), display.View())
+	return display, container.NewVBox(newText("Verification code", sectionTitleStyle), display.View())
 }

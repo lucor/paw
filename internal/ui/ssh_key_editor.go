@@ -60,6 +60,7 @@ type SSHKeyEditor struct {
 	titleError       *widget.Label
 	headerTitle      *widget.Label
 	form             *widget.Form
+	customFields     *customFieldsEditor
 }
 
 // NewSSHKeyEditor builds the create or edit screen for an SSH key item.
@@ -81,6 +82,10 @@ func NewSSHKeyEditor(item *model.Item, isNew bool) (*SSHKeyEditor, error) {
 	if decoded.SSHKey == nil || decoded.BasicAuth == nil {
 		return nil, errors.New("SSH key credentials are incomplete")
 	}
+	customFields, err := newCustomFieldsEditor(item)
+	if err != nil {
+		return nil, err
+	}
 	_, public, fingerprint, err := model.FormatSSHKey(*decoded.SSHKey)
 	if err != nil {
 		return nil, err
@@ -101,7 +106,7 @@ func NewSSHKeyEditor(item *model.Item, isNew bool) (*SSHKeyEditor, error) {
 		fingerprintLabel: newText(fingerprint, bodyStyle),
 		keyType:          newText(strings.ToUpper(strings.TrimPrefix(decoded.SSHKey.KeyType, "ssh-")), bodyStyle),
 		publicPreview:    newText(compactSSHPreview(public), bodyStyle),
-		privateBox:       container.NewVBox(), titleError: newErrorText(""),
+		privateBox:       container.NewVBox(), titleError: newErrorText(""), customFields: customFields,
 	}
 	if !isNew {
 		editor.Title.SetText(item.Title)
@@ -146,6 +151,7 @@ func NewSSHKeyEditor(item *model.Item, isNew bool) (*SSHKeyEditor, error) {
 	editor.form = widget.NewForm(
 		widget.NewFormItem("Title", container.NewVBox(titleRow, editor.titleError)),
 		widget.NewFormItem("Key passphrase", passphraseRow),
+		widget.NewFormItem("Custom fields", editor.customFields.View),
 	)
 	editor.form.Orientation = widget.Vertical
 	editor.CopyFingerprintButton = copyFingerprint
@@ -291,7 +297,7 @@ func (e *SSHKeyEditor) KeyChanged() bool {
 
 // IsDirty reports whether any editable SSH-key value changed.
 func (e *SSHKeyEditor) IsDirty() bool {
-	return e.Title.Text != e.initialTitle || e.Passphrase.Text != e.initialPass ||
+	return e.Title.Text != e.initialTitle || e.Passphrase.Text != e.initialPass || e.customFields.IsDirty() ||
 		e.AddToAgent.Checked != e.initialAgent || e.KeyChanged()
 }
 
@@ -321,6 +327,9 @@ func (e *SSHKeyEditor) UpdatedItem() (*model.Item, error) {
 		return nil, err
 	}
 	if err := updated.SetBasicAuth(e.basicAuthIndex, credential); err != nil {
+		return nil, err
+	}
+	if err := e.customFields.Apply(updated); err != nil {
 		return nil, err
 	}
 	if err := updated.Validate(); err != nil {

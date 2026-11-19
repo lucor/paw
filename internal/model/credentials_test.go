@@ -96,7 +96,7 @@ func TestCustomFieldsAccessAndMutationPreserveItemData(t *testing.T) {
 	replacement.Label = "Updated"
 	replacement.Fields = append([]cxf.EditableField(nil), first.Fields...)
 	replacement.Fields[0].Value = "updated-secret"
-	require.NoError(t, item.ReplaceCustomFields(groups[0].Index, replacement))
+	require.NoError(t, item.ReplaceCustomFields(groups[0].Index, replacement, []int{0, 1}))
 	require.Equal(t, beforeUnrelated, item.Credentials[0])
 	require.Equal(t, unknown, item.Credentials[2])
 	var raw map[string]jsontext.Value
@@ -110,7 +110,7 @@ func TestCustomFieldsAccessAndMutationPreserveItemData(t *testing.T) {
 	unchanged := append(jsontext.Value(nil), item.Credentials[1]...)
 	groups, err = item.CustomFields()
 	require.NoError(t, err)
-	require.NoError(t, item.ReplaceCustomFields(groups[0].Index, groups[0].Credential))
+	require.NoError(t, item.ReplaceCustomFields(groups[0].Index, groups[0].Credential, []int{0, 1}))
 	require.Equal(t, unchanged, item.Credentials[1], "unchanged values retain their original JSON")
 	require.NoError(t, item.RemoveCustomFields(groups[0].Index))
 	require.Equal(t, unknown, item.Credentials[1])
@@ -137,8 +137,8 @@ func TestCustomFieldsOperationsValidateGroupsAndIndices(t *testing.T) {
 	valid := cxf.CustomFields{Type: cxf.CredentialTypeCustomFields, Fields: []cxf.EditableField{}}
 	require.Error(t, item.AppendCustomFields(cxf.CustomFields{Type: cxf.CredentialTypeCustomFields}))
 	require.NoError(t, item.AppendCustomFields(valid))
-	require.Error(t, item.ReplaceCustomFields(0, valid), "note credential is not a custom-fields group")
-	require.Error(t, item.ReplaceCustomFields(4, valid))
+	require.Error(t, item.ReplaceCustomFields(0, valid, nil), "note credential is not a custom-fields group")
+	require.Error(t, item.ReplaceCustomFields(4, valid, nil))
 	require.Error(t, item.RemoveCustomFields(0))
 	require.Error(t, item.RemoveCustomFields(4))
 	groups, err := item.CustomFields()
@@ -146,6 +146,25 @@ func TestCustomFieldsOperationsValidateGroupsAndIndices(t *testing.T) {
 	require.Len(t, groups, 1)
 	require.Equal(t, 1, groups[0].Index)
 	require.NoError(t, item.Validate())
+}
+
+func TestReplaceCustomFieldsPreservesUnknownPropertiesOfRemainingField(t *testing.T) {
+	item, err := NewNote("Example", "body")
+	require.NoError(t, err)
+	item.Credentials = append(item.Credentials, jsontext.Value(`{"type":"custom-fields","fields":[{"id":"ZmllbGQx","fieldType":"string","value":"remove","future":{"owner":"removed"}},{"id":"ZmllbGQy","fieldType":"string","value":"keep","future":{"owner":"kept"}}]}`))
+
+	groups, err := item.CustomFields()
+	require.NoError(t, err)
+	replacement := groups[0].Credential
+	replacement.Fields = []cxf.EditableField{{ID: ptr("ZmllbGQy"), FieldType: cxf.FieldTypeString, Value: "updated"}}
+	require.NoError(t, item.ReplaceCustomFields(groups[0].Index, replacement, []int{1}))
+
+	var raw map[string]jsontext.Value
+	require.NoError(t, json.Unmarshal(item.Credentials[1], &raw))
+	var fields []map[string]jsontext.Value
+	require.NoError(t, json.Unmarshal(raw["fields"], &fields))
+	require.Len(t, fields, 1)
+	require.JSONEq(t, `{"owner":"kept"}`, string(fields[0]["future"]))
 }
 
 func ptr(value string) *string { return &value }

@@ -38,14 +38,6 @@ func newAttachmentDetailSection(window fyne.Window, actions attachmentDetailActi
 	return container.NewVBox(content...)
 }
 
-func newHistoricalAttachmentSection(files []cxf.File) fyne.CanvasObject {
-	content := []fyne.CanvasObject{newText(fmt.Sprintf("Attachments · %d", len(files)), captionStyle)}
-	for _, file := range files {
-		content = append(content, newAttachmentRow(nil, file, nil, nil))
-	}
-	return container.NewVBox(content...)
-}
-
 func newAttachmentRow(window fyne.Window, file cxf.File, saveAttachment, removeAttachment func(cxf.File)) fyne.CanvasObject {
 	row := NewActionRow(file.Name, formatAttachmentSize(file.DecryptedSize), icons.File, nil)
 	row.SetFlat(true)

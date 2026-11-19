@@ -35,7 +35,7 @@ func newSecondaryPage(header, footer, content fyne.CanvasObject) fyne.CanvasObje
 // newDetailField places a caption above a read-only value and its actions.
 func newDetailField(label string, value fyne.CanvasObject, actions ...fyne.CanvasObject) fyne.CanvasObject {
 	return container.NewVBox(
-		newText(label, captionStyle),
+		newText(label, sectionTitleStyle),
 		container.NewBorder(nil, nil, nil, detailActions(actions...), value),
 	)
 }
@@ -43,14 +43,14 @@ func newDetailField(label string, value fyne.CanvasObject, actions ...fyne.Canva
 // newDetailMultilineField places actions beside a caption above wrapped content.
 func newDetailMultilineField(label string, value fyne.CanvasObject, actions ...fyne.CanvasObject) fyne.CanvasObject {
 	return container.NewVBox(
-		container.NewBorder(nil, nil, newText(label, captionStyle), detailActions(actions...), nil),
+		container.NewBorder(nil, nil, newText(label, sectionTitleStyle), detailActions(actions...), nil),
 		value,
 	)
 }
 
 // newDetailFieldHeader aligns a field caption with its right-side actions.
 func newDetailFieldHeader(label string, actions ...fyne.CanvasObject) fyne.CanvasObject {
-	return container.NewBorder(nil, nil, newText(label, captionStyle), detailActions(actions...), nil)
+	return container.NewBorder(nil, nil, newText(label, sectionTitleStyle), detailActions(actions...), nil)
 }
 
 // detailActions keeps field actions in a consistent horizontal row.
@@ -110,6 +110,10 @@ func detailSecretField(label, value string) (fyne.CanvasObject, *detailSecret) {
 	if value == "" {
 		return nil, nil
 	}
+	displayLabel := label != ""
+	if label == "" {
+		label = "value"
+	}
 	secret := &detailSecret{value: value, label: label, mask: "••••••••••••"}
 	secret.text = newText(secret.mask, bodyStyle)
 	secret.text.Wrapping = fyne.TextWrapBreak
@@ -117,7 +121,12 @@ func detailSecretField(label, value string) (fyne.CanvasObject, *detailSecret) {
 	secret.button = show
 	show.OnTapped = secret.Toggle
 	copy := newIconButton("Copy "+label, icons.Copy, func() { detailCopy(label, secret.value) })
-	field := newDetailField(label, secret.text, show, copy)
+	var field fyne.CanvasObject
+	if displayLabel {
+		field = newDetailField(label, secret.text, show, copy)
+	} else {
+		field = container.NewBorder(nil, nil, nil, detailActions(show, copy), secret.text)
+	}
 	return field, secret
 }
 

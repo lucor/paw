@@ -10,7 +10,6 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/test"
 	"fyne.io/fyne/v2/theme"
-	"fyne.io/fyne/v2/widget"
 	"github.com/stretchr/testify/require"
 	"go.lucor.dev/cxf"
 	"go.lucor.dev/paw/internal/model"
@@ -43,12 +42,14 @@ func TestPasswordEditorControlsAndInteractions(t *testing.T) {
 	for index, item := range editor.form.Items {
 		labels[index] = item.Text
 	}
-	require.Equal(t, []string{"Title", "Password"}, labels)
+	require.Equal(t, []string{"Title", "Password", "Custom fields"}, labels)
+	customFieldSelect := findSelect(editor.customFields.View)
+	require.NotNil(t, customFieldSelect)
+	require.Equal(t, []string{"Text", "Hidden"}, customFieldSelect.Options)
+	require.Equal(t, "+ Add field", customFieldSelect.PlaceHolder)
 	for _, object := range test.LaidOutObjects(editor.View) {
 		_, isNavigation := object.(*Navigation)
-		_, isSelect := object.(*widget.Select)
 		require.False(t, isNavigation)
-		require.False(t, isSelect)
 	}
 }
 

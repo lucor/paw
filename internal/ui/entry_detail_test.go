@@ -368,6 +368,98 @@ func TestEntryDetailOmitsEmptyOptionalFieldsAndPreservesLongNote(t *testing.T) {
 	t.Fatal("note copy action not found")
 }
 
+func TestEntryDetailGroupsCustomFieldsAndPreservesItem(t *testing.T) {
+	test.NewTempApp(t)
+	window := test.NewTempWindow(t, nil)
+	item, err := model.NewNote("Example", "note")
+	require.NoError(t, err)
+	require.NoError(t, item.AppendCustomFields(cxf.CustomFields{
+		Type:   cxf.CredentialTypeCustomFields,
+		Label:  "Recovery codes",
+		Fields: []cxf.EditableField{{FieldType: cxf.FieldTypeString, Label: "Code", Value: "first"}},
+	}))
+	require.NoError(t, item.AppendCustomFields(cxf.CustomFields{
+		Type: cxf.CredentialTypeCustomFields,
+		Fields: []cxf.EditableField{
+			{FieldType: cxf.FieldTypeString, Value: "Ungrouped value"},
+			{FieldType: cxf.FieldTypeConcealedString, Value: "synthetic-secret"},
+		},
+	}))
+	require.NoError(t, item.AppendCustomFields(cxf.CustomFields{
+		Type:   cxf.CredentialTypeCustomFields,
+		Label:  "Account details",
+		Fields: []cxf.EditableField{{FieldType: cxf.FieldTypeString, Label: "Customer ID", Value: "CUST-1"}},
+	}))
+	require.NoError(t, item.AppendCustomFields(cxf.CustomFields{
+		Type:   cxf.CredentialTypeCustomFields,
+		Label:  "Empty section",
+		Fields: []cxf.EditableField{{FieldType: cxf.FieldTypeString}},
+	}))
+	require.NoError(t, item.AppendCustomFields(cxf.CustomFields{
+		Type:   cxf.CredentialTypeCustomFields,
+		Fields: []cxf.EditableField{},
+	}))
+	credentials := slices.Clone(item.Credentials)
+
+	view, err := NewEntryDetail(context.Background(), item, window, func() {}, func() {}, func() {})
+	require.NoError(t, err)
+	window.SetContent(view)
+	window.Resize(fyne.NewSize(320, 700))
+	texts := auditTexts(view)
+	require.NotContains(t, texts, "Custom fields")
+	require.Contains(t, texts, "Empty")
+	require.Contains(t, texts, "Ungrouped value")
+	require.NotContains(t, texts, "Custom field")
+	require.NotContains(t, texts, "Attachments ·")
+	require.NotContains(t, texts, "No attachments")
+	require.Equal(t, credentials, item.Credentials)
+
+	var accordion *widget.Accordion
+	for _, object := range test.LaidOutObjects(view) {
+		if candidate, ok := object.(*widget.Accordion); ok {
+			accordion = candidate
+			break
+		}
+	}
+	require.NotNil(t, accordion)
+	require.True(t, accordion.MultiOpen)
+	require.LessOrEqual(t, accordion.Size().Width, float32(320))
+	require.Len(t, accordion.Items, 3)
+	require.Equal(t, "Recovery codes", accordion.Items[0].Title)
+	require.Equal(t, "Account details", accordion.Items[1].Title)
+	require.Equal(t, "Empty section", accordion.Items[2].Title)
+	require.True(t, accordion.Items[0].Open)
+	require.True(t, accordion.Items[1].Open)
+	require.True(t, accordion.Items[2].Open)
+
+	firstHeader := detailButton(view, "Recovery codes")
+	require.NotNil(t, firstHeader)
+	test.Tap(firstHeader)
+	require.False(t, accordion.Items[0].Open)
+	require.True(t, accordion.Items[1].Open)
+	test.Tap(firstHeader)
+	require.True(t, accordion.Items[0].Open)
+
+	require.NotContains(t, auditTexts(view), "synthetic-secret")
+	for _, object := range test.LaidOutObjects(view) {
+		if button, ok := object.(*iconButton); ok && button.AccessibilityLabel() == "Copy value" {
+			test.Tap(button)
+			if fyne.CurrentApp().Clipboard().Content() == "synthetic-secret" {
+				break
+			}
+		}
+	}
+	require.Equal(t, "synthetic-secret", fyne.CurrentApp().Clipboard().Content())
+	showSecret := detailIconButton(view, "Show value")
+	require.NotNil(t, showSecret)
+	test.Tap(showSecret)
+	require.Contains(t, auditTexts(view), "synthetic-secret")
+	hideSecret := detailIconButton(view, "Hide value")
+	require.NotNil(t, hideSecret)
+	test.Tap(hideSecret)
+	require.NotContains(t, auditTexts(view), "synthetic-secret")
+}
+
 func TestEntryDetailTOTPCopyUsesCXFParameters(t *testing.T) {
 	test.NewTempApp(t)
 	window := test.NewTempWindow(t, nil)
@@ -690,6 +782,7 @@ func TestEntryDetailLoginSeparatesVisibleFields(t *testing.T) {
 	}
 	require.NotNil(t, firstSeparator)
 	require.NotNil(t, firstField)
+	require.True(t, firstField.TextStyle.Bold)
 	separatorPosition := fyne.CurrentApp().Driver().AbsolutePositionForObject(firstSeparator)
 	fieldPosition := fyne.CurrentApp().Driver().AbsolutePositionForObject(firstField)
 	require.LessOrEqual(t, separatorPosition.Y+firstSeparator.Size().Height, fieldPosition.Y)

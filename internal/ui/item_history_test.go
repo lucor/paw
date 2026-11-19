@@ -111,9 +111,9 @@ func TestHistoricalItemDetailReusesSupportedItemPresentation(t *testing.T) {
 			require.Contains(t, strings.Join(texts, "\n"), historyContext)
 			require.Contains(t, texts, item.Title)
 			if kind == "login" || kind == "note" {
-				require.Contains(t, texts, "Attachments · 1")
-				require.Contains(t, texts, "historical document.pdf")
-				require.Contains(t, texts, "2.0 KiB")
+				require.NotContains(t, strings.Join(texts, "\n"), "Attachments")
+				require.NotContains(t, texts, "historical document.pdf")
+				require.NotContains(t, texts, "2.0 KiB")
 				require.NotContains(t, texts, "Save historical document.pdf")
 				require.NotContains(t, texts, "Remove historical document.pdf")
 			}

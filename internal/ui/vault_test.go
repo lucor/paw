@@ -144,7 +144,9 @@ func TestLoginEditUsesV2EditorWithoutTypeOrNavigation(t *testing.T) {
 
 	selectFound, navigationFound := false, false
 	for _, object := range test.LaidOutObjects(view) {
-		_, selectFound = object.(*widget.Select)
+		if selectWidget, ok := object.(*widget.Select); ok {
+			selectFound = !isCustomFieldTypeSelector(selectWidget)
+		}
 		_, navigationFound = object.(*Navigation)
 		if selectFound || navigationFound {
 			break
@@ -158,8 +160,9 @@ func TestLoginEditUsesV2EditorWithoutTypeOrNavigation(t *testing.T) {
 	require.NoError(t, err)
 	newView := a.makeEditItemView(newLogin, true)
 	for _, object := range test.LaidOutObjects(newView) {
-		_, isSelect := object.(*widget.Select)
-		require.False(t, isSelect, "New Login should use the v2 editor")
+		if selectWidget, ok := object.(*widget.Select); ok {
+			require.True(t, isCustomFieldTypeSelector(selectWidget), "New Login should not display an entry type selector")
+		}
 	}
 }
 
@@ -192,9 +195,10 @@ func TestSSHKeyEditUsesV2EditorWithoutTypeOrNavigation(t *testing.T) {
 			headerFound = true
 		}
 		_, isNavigation := object.(*Navigation)
-		_, isSelect := object.(*widget.Select)
 		require.False(t, isNavigation, "SSH editor should hide bottom navigation")
-		require.False(t, isSelect, "SSH type is fixed by the item")
+		if selectWidget, ok := object.(*widget.Select); ok {
+			require.True(t, isCustomFieldTypeSelector(selectWidget), "SSH type is fixed by the item")
+		}
 	}
 	require.True(t, headerFound)
 	require.True(t, buttons["Back"])
@@ -339,12 +343,17 @@ func TestPasswordAndNoteUseV2EditorsForCreateAndEdit(t *testing.T) {
 			window.SetContent(view)
 			for _, object := range test.LaidOutObjects(view) {
 				_, isNavigation := object.(*Navigation)
-				_, isSelect := object.(*widget.Select)
 				require.False(t, isNavigation, "edit forms should hide bottom navigation")
-				require.False(t, isSelect, "entry type should not be editable")
+				if selectWidget, ok := object.(*widget.Select); ok {
+					require.True(t, isCustomFieldTypeSelector(selectWidget), "entry type should not be editable")
+				}
 			}
 		}
 	}
+}
+
+func isCustomFieldTypeSelector(selectWidget *widget.Select) bool {
+	return len(selectWidget.Options) == 2 && selectWidget.Options[0] == "Text" && selectWidget.Options[1] == "Hidden"
 }
 
 func TestCreatingVaultStopsEntryUpdates(t *testing.T) {
