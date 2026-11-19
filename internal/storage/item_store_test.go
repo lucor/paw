@@ -29,6 +29,7 @@ func TestStoreCXFItem(t *testing.T) {
 	vault.Timestamp = 1
 	item, err := model.NewNote("Original title", "Synthetic note secret")
 	require.NoError(t, err)
+	item.Tags = []string{"work", "Personal"}
 	created := uint64(1700000000)
 	item.CreationAt, item.ModifiedAt = &created, &created
 	item.Extensions = append(item.Extensions, jsontext.Value(`{"name":"example.com/item","secret":"Private extension value"}`))
@@ -45,6 +46,7 @@ func TestStoreCXFItem(t *testing.T) {
 	require.NoError(t, storage.StoreItem(vault, other))
 	otherSummary := vault.Accounts[0].Items[1]
 	item.Title = "Renamed title"
+	item.Tags = []string{"work", "Personal", "edited"}
 	modified := created + 60
 	item.ModifiedAt = &modified
 	replacement, err := model.NewNote("Unused title", "Edited note secret")
@@ -58,6 +60,13 @@ func TestStoreCXFItem(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, history.Entries, "StoreItem must not create user-edit history")
 	assertStoredCXFItem(t, storage, vault, item)
+	require.Equal(t, item.Tags, vault.Accounts[0].Items[0].Tags)
+	item.Tags = []string{"Personal"}
+	require.NoError(t, storage.StoreItem(vault, item))
+	require.Equal(t, []string{"Personal"}, vault.Accounts[0].Items[0].Tags)
+	item.Tags = nil
+	require.NoError(t, storage.StoreItem(vault, item))
+	require.Nil(t, vault.Accounts[0].Items[0].Tags)
 	decoded := readStoredCXFVault(t, storage, vault)
 	require.Contains(t, decoded.Accounts[0].Extensions, vaultExtension)
 	require.Equal(t, vault.Header, decoded.Header)

@@ -87,6 +87,7 @@ func (item *Item) Summary() (*cxf.Item, error) {
 		Title:       item.Title,
 		Subtitle:    subtitle,
 		Scope:       scope,
+		Tags:        append([]string(nil), item.Tags...),
 		Credentials: []jsontext.Value{},
 		Extensions:  []jsontext.Value{extension},
 	}, nil

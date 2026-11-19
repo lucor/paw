@@ -218,7 +218,7 @@ func TestItemSummaryProjectsPublicFields(t *testing.T) {
 	require.NotNil(t, summary.Credentials)
 	require.Empty(t, summary.Credentials)
 	require.Nil(t, summary.Favorite)
-	require.Nil(t, summary.Tags)
+	require.Equal(t, []string{"work"}, summary.Tags)
 	require.Len(t, summary.Extensions, 1)
 	require.JSONEq(t, `{"name":"paw.pm/item","type":2,"favicon":{"host":"github.com","data":"aWNvbg==","format":"png"}}`, string(summary.Extensions[0]))
 
@@ -228,7 +228,7 @@ func TestItemSummaryProjectsPublicFields(t *testing.T) {
 	require.NotContains(t, string(encoded), "extension secret")
 	require.NotContains(t, string(encoded), "unknown secret")
 	require.NotContains(t, string(encoded), `"favorite"`)
-	require.NotContains(t, string(encoded), `"tags"`)
+	require.Contains(t, string(encoded), `"tags":["work"]`)
 
 	item.Title = "GitHub work"
 	renamed, err := item.Summary()
@@ -246,4 +246,26 @@ func TestItemSummaryRejectsInvalidItem(t *testing.T) {
 	summary, err := item.Summary()
 	require.ErrorContains(t, err, "item is nil")
 	require.Nil(t, summary)
+}
+
+func TestItemSummaryCopiesTags(t *testing.T) {
+	item, err := NewNote("Example", "body")
+	require.NoError(t, err)
+	item.Tags = []string{"Work", "personal", "Work"}
+	summary, err := item.Summary()
+	require.NoError(t, err)
+	require.Equal(t, item.Tags, summary.Tags)
+	summary.Tags[0] = "changed"
+	require.Equal(t, []string{"Work", "personal", "Work"}, item.Tags)
+
+	encoded, err := json.Marshal(summary, json.Deterministic(true))
+	require.NoError(t, err)
+	var decoded cxf.Item
+	require.NoError(t, json.Unmarshal(encoded, &decoded))
+	require.Equal(t, []string{"changed", "personal", "Work"}, decoded.Tags)
+
+	item.Tags = nil
+	emptySummary, err := item.Summary()
+	require.NoError(t, err)
+	require.Nil(t, emptySummary.Tags)
 }
