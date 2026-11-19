@@ -39,6 +39,7 @@ type PasswordEditor struct {
 	headerTitle    *widget.Label
 	form           *widget.Form
 	customFields   *customFieldsEditor
+	tags           *tagsEditor
 }
 
 // NewPasswordEditor builds the create or edit screen for a Password item.
@@ -60,6 +61,7 @@ func NewPasswordEditor(item *model.Item, isNew bool) (*PasswordEditor, error) {
 	if err != nil {
 		return nil, err
 	}
+	tags := newTagsEditor(item, nil)
 
 	secret := ""
 	if decoded.BasicAuth.Password != nil {
@@ -73,6 +75,7 @@ func NewPasswordEditor(item *model.Item, isNew bool) (*PasswordEditor, error) {
 		Password:       NewPasswordField(),
 		titleError:     newErrorText(""),
 		customFields:   customFields,
+		tags:           tags,
 	}
 	if !isNew {
 		editor.Title.SetText(item.Title)
@@ -97,6 +100,7 @@ func NewPasswordEditor(item *model.Item, isNew bool) (*PasswordEditor, error) {
 		widget.NewFormItem("Title", container.NewVBox(editor.Title, editor.titleError)),
 		widget.NewFormItem("Password", editor.Password),
 		widget.NewFormItem("Custom fields", editor.customFields.View),
+		widget.NewFormItem("Tags", editor.tags.View),
 	)
 	editor.form.Orientation = widget.Vertical
 	editor.BackButton = newIconButton("Back", icons.Back, nil)
@@ -141,6 +145,7 @@ func (e *PasswordEditor) UpdatedItem() (*model.Item, error) {
 	if err := e.customFields.Apply(updated); err != nil {
 		return nil, err
 	}
+	e.tags.Apply(updated)
 	if err := updated.Validate(); err != nil {
 		return nil, err
 	}
@@ -154,7 +159,8 @@ func (e *PasswordEditor) IsDirty() bool {
 		e.PasswordSpec.Mode != e.initialMode ||
 		e.PasswordSpec.Length != e.initialLength ||
 		e.PasswordSpec.Format != e.initialFormat ||
-		e.customFields.IsDirty()
+		e.customFields.IsDirty() ||
+		e.tags.IsDirty()
 }
 
 // HasValidationErrors reports whether the editor displays a field error.

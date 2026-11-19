@@ -53,6 +53,7 @@ type LoginEditor struct {
 	websiteError   *widget.Label
 	totpError      *widget.Label
 	customFields   *customFieldsEditor
+	tags           *tagsEditor
 }
 
 // NewLoginEditor builds the create or edit screen for a Login item.
@@ -74,6 +75,7 @@ func NewLoginEditor(ctx context.Context, item *model.Item, faviconSettings model
 	if err != nil {
 		return nil, err
 	}
+	tags := newTagsEditor(item, nil)
 
 	editor := &LoginEditor{
 		item:           item,
@@ -98,6 +100,7 @@ func NewLoginEditor(ctx context.Context, item *model.Item, faviconSettings model
 		websiteError: newErrorText(""),
 		totpError:    newErrorText(""),
 		customFields: customFields,
+		tags:         tags,
 	}
 	username, password := "", ""
 	if decoded.BasicAuth.Username != nil {
@@ -180,6 +183,7 @@ func NewLoginEditor(ctx context.Context, item *model.Item, faviconSettings model
 		widget.NewFormItem("Authenticator key", container.NewVBox(totpRow, editor.totpError)),
 		widget.NewFormItem("Notes", editor.Notes),
 		widget.NewFormItem("Custom fields", editor.customFields.View),
+		widget.NewFormItem("Tags", editor.tags.View),
 	)
 	editor.form.Orientation = widget.Vertical
 	editor.BackButton = newIconButton("Back", icons.Back, nil)
@@ -258,6 +262,7 @@ func (e *LoginEditor) UpdatedItem() (*model.Item, error) {
 	if err := e.customFields.Apply(updated); err != nil {
 		return nil, err
 	}
+	e.tags.Apply(updated)
 	if err := updated.Validate(); err != nil {
 		return nil, err
 	}
@@ -274,6 +279,7 @@ func (e *LoginEditor) IsDirty() bool {
 		e.totpSettings != e.initial.totpSettings ||
 		e.Notes.Text != e.initial.notes ||
 		e.customFields.IsDirty() ||
+		e.tags.IsDirty() ||
 		e.PasswordSpec.Mode != e.initial.passwordMode ||
 		e.PasswordSpec.Length != e.initial.passwordLength ||
 		e.PasswordSpec.Format != e.initial.passwordFormat

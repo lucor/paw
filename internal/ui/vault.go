@@ -244,6 +244,9 @@ func (a *app) makeCurrentVaultView() fyne.CanvasObject {
 }
 
 func availableItemTags(vault *model.Vault) []string {
+	if vault == nil {
+		return nil
+	}
 	unique := make(map[string]struct{})
 	for _, account := range vault.Accounts {
 		for _, item := range account.Items {

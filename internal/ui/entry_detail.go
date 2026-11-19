@@ -131,6 +131,9 @@ func newEntryDetailWithActions(
 	if customFields != nil {
 		appendDetailSection(&bodyObjects, customFields)
 	}
+	if len(item.Tags) > 0 {
+		appendDetailSection(&bodyObjects, newDetailField("Tags", newText(strings.Join(item.Tags, ", "), bodyStyle)))
+	}
 	var clearOnce sync.Once
 	clear := func() {
 		clearOnce.Do(func() {

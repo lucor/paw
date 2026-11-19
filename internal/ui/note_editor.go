@@ -33,6 +33,7 @@ type NoteEditor struct {
 	titleError   *widget.Label
 	headerTitle  *widget.Label
 	customFields *customFieldsEditor
+	tags         *tagsEditor
 }
 
 // NewNoteEditor builds the create or edit screen for a Note item.
@@ -54,14 +55,17 @@ func NewNoteEditor(item *model.Item, isNew bool) (*NoteEditor, error) {
 	if err != nil {
 		return nil, err
 	}
+	tags := newTagsEditor(item, nil)
 
 	editor := &NoteEditor{
-		item:       item,
-		note:       decoded.Note,
-		noteIndex:  decoded.NoteIndex,
-		Title:      widget.NewEntry(),
-		Notes:      widget.NewMultiLineEntry(),
-		titleError: newErrorText(""), customFields: customFields,
+		item:         item,
+		note:         decoded.Note,
+		noteIndex:    decoded.NoteIndex,
+		Title:        widget.NewEntry(),
+		Notes:        widget.NewMultiLineEntry(),
+		titleError:   newErrorText(""),
+		customFields: customFields,
+		tags:         tags,
 	}
 	if !isNew {
 		editor.Title.SetText(item.Title)
@@ -92,7 +96,8 @@ func NewNoteEditor(item *model.Item, isNew bool) (*NoteEditor, error) {
 	notesLabel := container.New(layout.NewCustomPaddedLayout(0, 0, theme.Size(theme.SizeNamePadding), 0), newText("Notes", formLabelStyle))
 	notesField := container.NewBorder(notesLabel, nil, nil, nil, editor.Notes)
 	customFieldsLabel := container.New(layout.NewCustomPaddedLayout(0, 0, theme.Size(theme.SizeNamePadding), 0), newText("Custom fields", formLabelStyle))
-	body := container.NewVScroll(container.NewVBox(titleField, notesField, customFieldsLabel, editor.customFields.View))
+	tagsLabel := container.New(layout.NewCustomPaddedLayout(0, 0, theme.Size(theme.SizeNamePadding), 0), newText("Tags", formLabelStyle))
+	body := container.NewVScroll(container.NewVBox(titleField, notesField, customFieldsLabel, editor.customFields.View, tagsLabel, editor.tags.View))
 	editor.View = newSecondaryPage(header, nil, body)
 	return editor, nil
 }
@@ -116,6 +121,7 @@ func (e *NoteEditor) UpdatedItem() (*model.Item, error) {
 	if err := e.customFields.Apply(updated); err != nil {
 		return nil, err
 	}
+	e.tags.Apply(updated)
 	if err := updated.Validate(); err != nil {
 		return nil, err
 	}
@@ -124,7 +130,7 @@ func (e *NoteEditor) UpdatedItem() (*model.Item, error) {
 
 // IsDirty reports whether the user changed the title or note content.
 func (e *NoteEditor) IsDirty() bool {
-	return e.Title.Text != e.initialTitle || e.Notes.Text != e.initialNotes || e.customFields.IsDirty()
+	return e.Title.Text != e.initialTitle || e.Notes.Text != e.initialNotes || e.customFields.IsDirty() || e.tags.IsDirty()
 }
 
 // HasValidationErrors reports whether the editor displays a field error.

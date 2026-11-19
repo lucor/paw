@@ -42,7 +42,7 @@ func TestPasswordEditorControlsAndInteractions(t *testing.T) {
 	for index, item := range editor.form.Items {
 		labels[index] = item.Text
 	}
-	require.Equal(t, []string{"Title", "Password", "Custom fields"}, labels)
+	require.Equal(t, []string{"Title", "Password", "Custom fields", "Tags"}, labels)
 	customFieldSelect := findSelect(editor.customFields.View)
 	require.NotNil(t, customFieldSelect)
 	require.Equal(t, []string{"Text", "Hidden"}, customFieldSelect.Options)

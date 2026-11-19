@@ -40,6 +40,7 @@ func (a *app) makeSSHKeyEditView(original *model.Item, isNew bool) fyne.CanvasOb
 		dialog.ShowError(err, a.win)
 		return a.main
 	}
+	editor.tags.SetSuggestions(availableItemTags(a.vault))
 	editor.ConnectWindow(a.win)
 	a.sshEditor = editor
 	returnBack := func() {
@@ -99,6 +100,7 @@ func (a *app) makeLoginEditView(original *model.Item, isNew bool) fyne.CanvasObj
 		dialog.ShowError(err, a.win)
 		return a.main
 	}
+	editor.tags.SetSuggestions(availableItemTags(a.vault))
 	returnBack := func() {
 		if isNew {
 			a.showCurrentVaultView()
@@ -137,6 +139,7 @@ func (a *app) makePasswordEditView(original *model.Item, isNew bool) fyne.Canvas
 		dialog.ShowError(err, a.win)
 		return a.main
 	}
+	editor.tags.SetSuggestions(availableItemTags(a.vault))
 	returnBack := func() {
 		if isNew {
 			a.showCurrentVaultView()
@@ -176,6 +179,7 @@ func (a *app) makeNoteEditView(original *model.Item, isNew bool) fyne.CanvasObje
 		dialog.ShowError(err, a.win)
 		return a.main
 	}
+	editor.tags.SetSuggestions(availableItemTags(a.vault))
 	returnBack := func() {
 		if isNew {
 			a.showCurrentVaultView()

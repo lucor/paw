@@ -746,6 +746,24 @@ func TestEntryDetailGolden(t *testing.T) {
 	}
 }
 
+func TestEntryDetailDisplaysTags(t *testing.T) {
+	test.NewTempApp(t)
+	item := detailFixture(t)
+	item.Tags = []string{"Personal", "work"}
+	window := test.NewTempWindow(t, nil)
+	view, err := newTestEntryDetail(context.Background(), item, window)
+	require.NoError(t, err)
+	window.SetContent(view)
+	labels := make(map[string]bool)
+	for _, object := range test.LaidOutObjects(view) {
+		if label, ok := object.(*widget.Label); ok {
+			labels[label.Text] = true
+		}
+	}
+	require.True(t, labels["Tags"])
+	require.True(t, labels["Personal, work"])
+}
+
 func TestEntryDetailLoginSeparatesVisibleFields(t *testing.T) {
 	test.NewTempApp(t)
 	window := test.NewTempWindow(t, nil)

@@ -78,7 +78,7 @@ func TestLoginEditorControlsAndInteractions(t *testing.T) {
 	for index, item := range editor.form.Items {
 		formLabels[index] = item.Text
 	}
-	require.Equal(t, []string{"Title", "Username", "Password", "Website", "Authenticator key", "Notes", "Custom fields"}, formLabels)
+	require.Equal(t, []string{"Title", "Username", "Password", "Website", "Authenticator key", "Notes", "Custom fields", "Tags"}, formLabels)
 	customFieldSelect := findSelect(editor.customFields.View)
 	require.NotNil(t, customFieldSelect)
 	require.Equal(t, []string{"Text", "Hidden"}, customFieldSelect.Options)
