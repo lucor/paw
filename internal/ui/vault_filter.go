@@ -6,4 +6,5 @@ import "go.lucor.dev/paw/internal/model"
 type vaultFilterOptions struct {
 	Name     string
 	ItemType model.ItemType
+	Tag      string
 }

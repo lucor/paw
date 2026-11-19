@@ -16,6 +16,7 @@ import (
 	"fyne.io/fyne/v2/test"
 	"fyne.io/fyne/v2/widget"
 	"github.com/stretchr/testify/require"
+	"go.lucor.dev/cxf"
 
 	"go.lucor.dev/paw/internal/model"
 	"go.lucor.dev/paw/internal/paw"
@@ -58,6 +59,21 @@ func TestAuditReadsPasswordsFromCXFItems(t *testing.T) {
 		require.Equal(t, 0, finding.Score)
 		require.Equal(t, 2, finding.ReuseCount)
 	}
+}
+
+func TestAvailableItemTagsAreUniqueSortedAndVaultScoped(t *testing.T) {
+	firstKey, err := paw.MakeOneTimeKey()
+	require.NoError(t, err)
+	first, err := model.NewVault(firstKey, "First")
+	require.NoError(t, err)
+	secondKey, err := paw.MakeOneTimeKey()
+	require.NoError(t, err)
+	second, err := model.NewVault(secondKey, "Second")
+	require.NoError(t, err)
+	first.Accounts[0].Items = []cxf.Item{{Tags: []string{"work", "Personal", "work", ""}}}
+	second.Accounts[0].Items = []cxf.Item{{Tags: []string{"other"}}}
+	require.Equal(t, []string{"Personal", "work"}, availableItemTags(first))
+	require.Equal(t, []string{"other"}, availableItemTags(second))
 }
 
 type auditBreachClient struct {

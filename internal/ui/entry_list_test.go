@@ -38,6 +38,43 @@ func TestEntryListGolden(t *testing.T) {
 	}
 }
 
+func TestEntryListSearchAndTagFilterCompose(t *testing.T) {
+	test.NewTempApp(t)
+	options := entryListFixture()
+	options.Entries[0].Tags = []string{"work", "github-team"}
+	options.Entries[1].Tags = []string{"personal"}
+	options.Tags = []string{"github-team", "personal", "work"}
+	tabs := NewEntryList(options)
+	window := test.NewTempWindow(t, tabs)
+	window.Resize(fyne.NewSize(360, 650))
+	var search *widget.Entry
+	var tagSelect *widget.Select
+	var list *widget.List
+	for _, object := range test.LaidOutObjects(tabs) {
+		switch value := object.(type) {
+		case *widget.Entry:
+			search = value
+		case *widget.Select:
+			tagSelect = value
+		case *widget.List:
+			list = value
+		}
+	}
+	require.NotNil(t, tagSelect)
+	require.NotNil(t, list)
+	require.Greater(t, tagSelect.Size().Width, float32(0))
+	tagSelect.SetSelected("work")
+	require.Equal(t, 1, list.Length())
+	search.SetText("GITHUB")
+	require.Equal(t, 1, list.Length())
+	search.SetText("personal")
+	require.Zero(t, list.Length())
+	search.SetText("")
+	require.Equal(t, 1, list.Length(), "clearing text keeps the tag filter")
+	tagSelect.ClearSelected()
+	require.Equal(t, 5, list.Length())
+}
+
 func TestEntryCategoryMenuGolden(t *testing.T) {
 	for _, variant := range []fyne.ThemeVariant{theme.VariantLight, theme.VariantDark} {
 		t.Run(variantName(variant), func(t *testing.T) {
@@ -128,8 +165,8 @@ func TestEntryListSearchAndNavigation(t *testing.T) {
 	options := entryListFixture()
 	opened := false
 	options.Entries[0].Open = func() { opened = true }
-	var savedSearch, savedCategory string
-	options.OnFilterChanged = func(search, category string) { savedSearch, savedCategory = search, category }
+	var savedSearch, savedCategory, savedTag string
+	options.OnFilterChanged = func(search, category, tag string) { savedSearch, savedCategory, savedTag = search, category, tag }
 	tabs := NewEntryList(options)
 	window := test.NewTempWindow(t, tabs)
 	window.Resize(fyne.NewSize(440, 650))
@@ -178,6 +215,7 @@ func TestEntryListSearchAndNavigation(t *testing.T) {
 	require.True(t, opened)
 	require.Equal(t, "GIT", savedSearch)
 	require.Equal(t, "login", savedCategory)
+	require.Empty(t, savedTag)
 	search.SetText("deploy")
 	require.Zero(t, list.Length())
 	require.Equal(t, "0 items", count.Text)

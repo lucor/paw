@@ -56,6 +56,35 @@ func TestNewVault(t *testing.T) {
 	require.Equal(t, vault.Header, *decoded)
 }
 
+func TestVaultFilterItemsSearchesTextAndExactTag(t *testing.T) {
+	key, err := paw.MakeOneTimeKey()
+	require.NoError(t, err)
+	vault, err := NewVault(key, "Personal")
+	require.NoError(t, err)
+	work, err := NewNote("GitHub", "development account")
+	require.NoError(t, err)
+	work.Tags = []string{"work", "GitHub-Team"}
+	personal, err := NewNote("Other", "personal account")
+	require.NoError(t, err)
+	personal.Tags = []string{"workshop"}
+	for _, item := range []*Item{work, personal} {
+		summary, err := item.Summary()
+		require.NoError(t, err)
+		vault.Accounts[0].Items = append(vault.Accounts[0].Items, *summary)
+	}
+	results, err := vault.FilterItems("GITHUB", 0)
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	require.Equal(t, work.ID, results[0].ID)
+	results, err = vault.FilterItems("", 0, "work")
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	require.Equal(t, work.ID, results[0].ID)
+	results, err = vault.FilterItems("personal", 0, "work")
+	require.NoError(t, err)
+	require.Empty(t, results)
+}
+
 // TestVaultMetadataIsCachedAndMarshaled checks metadata stays in memory and edits reach the extension.
 func TestVaultMetadataIsCachedAndMarshaled(t *testing.T) {
 	key, err := paw.MakeOneTimeKey()

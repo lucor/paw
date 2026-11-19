@@ -5,6 +5,7 @@ package ui
 
 import (
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 
@@ -19,6 +20,7 @@ import (
 // EntryRow contains the public summary displayed in the vault list.
 type EntryRow struct {
 	Title, Subtitle, Category string
+	Tags                      []string
 	Icon                      fyne.Resource
 	Open                      func()
 }
@@ -48,11 +50,13 @@ type EntryListOptions struct {
 	Entries          []EntryRow
 	Categories       []EntryCategory
 	Search, Category string
+	Tags             []string
+	Tag              string
 	AddVault         func()
 	AddEntry         func(EntryKind)
 	Codes            fyne.CanvasObject
 	Settings         fyne.CanvasObject
-	OnFilterChanged  func(search, category string)
+	OnFilterChanged  func(search, category, tag string)
 	SectionState     *int
 }
 
@@ -61,7 +65,7 @@ func NewEntryList(options EntryListOptions) fyne.CanvasObject {
 	entries := append([]EntryRow(nil), options.Entries...)
 	sort.SliceStable(entries, func(i, j int) bool { return strings.ToLower(entries[i].Title) < strings.ToLower(entries[j].Title) })
 	var visible []EntryRow
-	search, category := options.Search, options.Category
+	search, category, tag := options.Search, options.Category, options.Tag
 	if category == "" {
 		category = "all"
 	}
@@ -103,12 +107,28 @@ func NewEntryList(options EntryListOptions) fyne.CanvasObject {
 		return options.Categories[0]
 	}
 	selectedCategory := categoryFor(category)
+	var changed func()
+	tagSelect := widget.NewSelect(options.Tags, nil)
+	tagSelect.PlaceHolder = "Filter by tag"
+	clearTag := widget.NewButton("Clear tag", func() { tagSelect.ClearSelected() })
+	clearTag.Importance = widget.LowImportance
+	if tag == "" {
+		clearTag.Hide()
+	}
+	tagSelect.OnChanged = func(value string) {
+		tag = value
+		if value == "" {
+			clearTag.Hide()
+		} else {
+			clearTag.Show()
+		}
+		changed()
+	}
 	count := newText("0 items", bodyStyle)
 	count.Wrapping = fyne.TextWrapOff
 	categoryIcon := widget.NewIcon(selectedCategory.Icon)
 	categoryLabel := newText(selectedCategory.Label, bodyStyle)
 	categoryLabel.Wrapping = fyne.TextWrapOff
-	var changed func()
 	categoryButton := widget.NewButton("", nil)
 	categoryButton.OnTapped = func() {
 		var menu *widget.PopUp
@@ -129,7 +149,16 @@ func NewEntryList(options EntryListOptions) fyne.CanvasObject {
 		visible = nil
 		query := strings.ToLower(strings.TrimSpace(search))
 		for _, entry := range entries {
-			if (category == "all" || entry.Category == category) && strings.Contains(strings.ToLower(entry.Title+" "+entry.Subtitle), query) {
+			textMatches := query == "" || strings.Contains(strings.ToLower(entry.Title+" "+entry.Subtitle), query)
+			if query != "" && !textMatches {
+				for _, value := range entry.Tags {
+					if strings.Contains(strings.ToLower(value), query) {
+						textMatches = true
+						break
+					}
+				}
+			}
+			if (category == "all" || entry.Category == category) && textMatches && (tag == "" || slices.Contains(entry.Tags, tag)) {
 				visible = append(visible, entry)
 			}
 		}
@@ -166,8 +195,11 @@ func NewEntryList(options EntryListOptions) fyne.CanvasObject {
 	changed = func() {
 		refresh()
 		if options.OnFilterChanged != nil {
-			options.OnFilterChanged(search, category)
+			options.OnFilterChanged(search, category, tag)
 		}
+	}
+	if tag != "" && slices.Contains(options.Tags, tag) {
+		tagSelect.SetSelected(tag)
 	}
 	input.OnChanged = func(value string) {
 		search = value
@@ -237,7 +269,11 @@ func NewEntryList(options EntryListOptions) fyne.CanvasObject {
 		more.Hide()
 	}
 	vaultHeader := container.NewBorder(nil, nil, nil, controls, vaultControl)
-	listHeader := container.NewVBox(input, container.NewBorder(nil, nil, categoryDisplay, count))
+	listHeaderObjects := []fyne.CanvasObject{input, container.NewBorder(nil, nil, categoryDisplay, count)}
+	if len(options.Tags) > 0 {
+		listHeaderObjects = append(listHeaderObjects, container.NewBorder(nil, nil, nil, clearTag, tagSelect))
+	}
+	listHeader := container.NewVBox(listHeaderObjects...)
 	page := container.NewBorder(listHeader, nil, nil, nil, container.NewStack(list, container.NewCenter(empty)))
 	navigation := NewNavigation(NavigationItem{icons.Vault, icons.VaultActive}, NavigationItem{icons.Codes, icons.CodesActive}, NavigationItem{icons.Settings, icons.SettingsActive})
 	pages := []fyne.CanvasObject{page, options.Codes, options.Settings}

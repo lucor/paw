@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"sort"
 	"time"
 
 	"fyne.io/fyne/v2"
@@ -168,7 +169,7 @@ func (a *app) makeCurrentVaultView() fyne.CanvasObject {
 			if summary.Subtitle != nil {
 				subtitle = *summary.Subtitle
 			}
-			rows = append(rows, EntryRow{Title: summary.Title, Subtitle: subtitle, Category: categoryIDs[kind], Icon: summaryIcon(&summary), Open: func() { openItem(&summary) }})
+			rows = append(rows, EntryRow{Title: summary.Title, Subtitle: subtitle, Category: categoryIDs[kind], Tags: summary.Tags, Icon: summaryIcon(&summary), Open: func() { openItem(&summary) }})
 			if kind != model.LoginItemType {
 				continue
 			}
@@ -188,6 +189,7 @@ func (a *app) makeCurrentVaultView() fyne.CanvasObject {
 			codeEntries = append(codeEntries, codesEntry{Title: summary.Title, Username: username, ItemID: summary.ID, Icon: summaryIcon(&summary), Credential: *credentials.TOTP})
 		}
 	}
+	tags := availableItemTags(vault)
 	codesContext, codesCancel := context.WithCancel(context.Background())
 	a.codesCancel = codesCancel
 	a.codesView = newCodesView(codesContext, codeEntries, a)
@@ -218,7 +220,7 @@ func (a *app) makeCurrentVaultView() fyne.CanvasObject {
 	settings.configureAutoLock = a.configureAutoLock
 	settings.openAbout = func() { a.showAboutPawView(a.main) }
 	settings.BackButton.Hide()
-	return NewEntryList(EntryListOptions{Settings: settings.section, VaultName: name, VaultAppearance: currentAppearance, Vaults: choices, VaultActions: a.makeVaultActions(), Entries: rows, Categories: categories, Search: filter.Name, Category: categoryIDs[filter.ItemType], Codes: a.codesView.View, SectionState: &a.vaultSection, AddEntry: func(kind EntryKind) {
+	return NewEntryList(EntryListOptions{Settings: settings.section, VaultName: name, VaultAppearance: currentAppearance, Vaults: choices, VaultActions: a.makeVaultActions(), Entries: rows, Categories: categories, Tags: tags, Tag: filter.Tag, Search: filter.Name, Category: categoryIDs[filter.ItemType], Codes: a.codesView.View, SectionState: &a.vaultSection, AddEntry: func(kind EntryKind) {
 		switch kind {
 		case EntryNote:
 			a.addItem(model.NoteItemType)
@@ -229,8 +231,9 @@ func (a *app) makeCurrentVaultView() fyne.CanvasObject {
 		case EntrySSH:
 			a.addItem(model.SSHKeyItemType)
 		}
-	}, AddVault: a.showAddVaultView, OnFilterChanged: func(search, category string) {
+	}, AddVault: a.showAddVaultView, OnFilterChanged: func(search, category, tag string) {
 		filter.Name = search
+		filter.Tag = tag
 		for kind, id := range categoryIDs {
 			if id == category {
 				filter.ItemType = kind
@@ -238,4 +241,23 @@ func (a *app) makeCurrentVaultView() fyne.CanvasObject {
 			}
 		}
 	}})
+}
+
+func availableItemTags(vault *model.Vault) []string {
+	unique := make(map[string]struct{})
+	for _, account := range vault.Accounts {
+		for _, item := range account.Items {
+			for _, tag := range item.Tags {
+				if tag != "" {
+					unique[tag] = struct{}{}
+				}
+			}
+		}
+	}
+	tags := make([]string, 0, len(unique))
+	for tag := range unique {
+		tags = append(tags, tag)
+	}
+	sort.Strings(tags)
+	return tags
 }

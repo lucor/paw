@@ -4,6 +4,7 @@ import (
 	"encoding/json/jsontext"
 	json "encoding/json/v2"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -121,7 +122,7 @@ func (vault *Vault) CreationAt() (*uint64, error) {
 }
 
 // FilterItems returns summaries matching title text and item type.
-func (vault *Vault) FilterItems(name string, itemType ItemType) ([]cxf.Item, error) {
+func (vault *Vault) FilterItems(name string, itemType ItemType, tag ...string) ([]cxf.Item, error) {
 	if err := vault.Validate(); err != nil {
 		return nil, err
 	}
@@ -129,7 +130,10 @@ func (vault *Vault) FilterItems(name string, itemType ItemType) ([]cxf.Item, err
 	items := make([]cxf.Item, 0, len(vault.Accounts[0].Items))
 	for index := range vault.Accounts[0].Items {
 		item := &vault.Accounts[0].Items[index]
-		if name != "" && !strings.Contains(strings.ToLower(item.Title), name) {
+		if name != "" && !matchesItemText(item, name) {
+			continue
+		}
+		if len(tag) > 0 && tag[0] != "" && !slices.Contains(item.Tags, tag[0]) {
 			continue
 		}
 		typeOfItem, err := ItemTypeOf(item)
@@ -142,6 +146,22 @@ func (vault *Vault) FilterItems(name string, itemType ItemType) ([]cxf.Item, err
 		items = append(items, *item)
 	}
 	return items, nil
+}
+
+func matchesItemText(item *cxf.Item, query string) bool {
+	text := strings.ToLower(item.Title)
+	if item.Subtitle != nil {
+		text += " " + strings.ToLower(*item.Subtitle)
+	}
+	if strings.Contains(text, query) {
+		return true
+	}
+	for _, tag := range item.Tags {
+		if strings.Contains(strings.ToLower(tag), query) {
+			return true
+		}
+	}
+	return false
 }
 
 // Validate checks the CXF document and Paw vault rules.
