@@ -6,9 +6,12 @@ package cli
 import (
 	"bytes"
 	"context"
+	"encoding/json/jsontext"
+	json "encoding/json/v2"
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	"go.lucor.dev/cxf"
@@ -68,7 +71,7 @@ func TestShowTOTPSecretIsMaskedAndExplicitlySelectable(t *testing.T) {
 	var output bytes.Buffer
 	cmd := &ShowCmd{command: &command{out: &output}, itemPath: itemPath{itemType: model.LoginItemType}}
 	require.NoError(t, cmd.showItem(context.Background(), item))
-	require.Contains(t, output.String(), "TOTP secret: ********")
+	require.NotContains(t, output.String(), "TOTP secret:")
 	require.NotContains(t, output.String(), "JBSWY3DPEHPK3PXP")
 	value, err := itemField(item, model.LoginItemType, "TOTP secret")
 	require.NoError(t, err)
@@ -77,6 +80,76 @@ func TestShowTOTPSecretIsMaskedAndExplicitlySelectable(t *testing.T) {
 	output.Reset()
 	require.NoError(t, cmd.showItem(context.Background(), item))
 	require.Contains(t, output.String(), "TOTP secret: JBSWY3DPEHPK3PXP")
+}
+
+func TestShowJSONIncludesSecretsAndSelectedTOTP(t *testing.T) {
+	item, err := model.NewLogin("Example", "alice", "password", model.PasswordSettings{Mode: paw.CustomPassword})
+	require.NoError(t, err)
+	item.Credentials = append(item.Credentials, []byte(`{"type":"totp","secret":"OBQXO","period":30,"digits":6,"algorithm":"sha1"}`))
+	var output bytes.Buffer
+	cmd := &ShowCmd{
+		command:  &command{out: &output, now: func() time.Time { return time.Date(2024, 2, 9, 23, 3, 59, 0, time.UTC) }},
+		itemPath: itemPath{itemType: model.LoginItemType},
+		json:     true,
+	}
+	require.NoError(t, cmd.showItem(context.Background(), item))
+	require.Contains(t, output.String(), `"password":"password"`)
+	require.Contains(t, output.String(), `"secret":"OBQXO"`)
+	require.NotContains(t, output.String(), "003475")
+	output.Reset()
+	cmd.field = "totp"
+	require.NoError(t, cmd.showItem(context.Background(), item))
+	require.Equal(t, "\"003475\"\n", output.String())
+}
+
+func TestShowJSONUsesCXFValuesAndOmitsUnknownExtensions(t *testing.T) {
+	item, err := model.NewLogin("Example", "alice", "secret", model.PasswordSettings{Mode: paw.CustomPassword})
+	require.NoError(t, err)
+	item.Tags = []string{"personal"}
+	require.NoError(t, item.AppendCustomFields(cxf.CustomFields{
+		Type:  cxf.CredentialTypeCustomFields,
+		ID:    stringPointer("Z3JvdXA"),
+		Label: "API",
+		Fields: []cxf.EditableField{{
+			ID:        stringPointer("ZmllbGQ"),
+			FieldType: cxf.FieldTypeConcealedString,
+			Label:     "Token",
+			Value:     "custom-secret",
+		}},
+	}))
+	item.Credentials = append(item.Credentials,
+		jsontext.Value(`{"type":"unknown","secret":"unknown-secret"}`),
+		jsontext.Value(`{"type":"custom-fields","fields":[],"extensions":[{"secret":"extension-secret"}]}`),
+	)
+	var output bytes.Buffer
+	cmd := &ShowCmd{
+		command:  &command{out: &output},
+		itemPath: itemPath{itemType: model.LoginItemType},
+		json:     true,
+	}
+	require.NoError(t, cmd.showItem(context.Background(), item))
+	var decoded map[string]any
+	require.NoError(t, json.Unmarshal(output.Bytes(), &decoded))
+	require.Equal(t, "secret", decoded["password"])
+	require.Equal(t, []any{"personal"}, decoded["tags"])
+	require.NotContains(t, output.String(), "unknown-secret")
+	require.NotContains(t, output.String(), "extension-secret")
+	require.Contains(t, output.String(), "custom-secret")
+}
+
+func TestShowRejectsIncompatibleSelectors(t *testing.T) {
+	for _, testCase := range []struct {
+		args []string
+		want string
+	}{
+		{[]string{"show", "--username", "--password", "Personal/login/example"}, "select only one field"},
+		{[]string{"show", "--totp", "--field", "username", "Personal/login/example"}, "select only one field"},
+		{[]string{"show", "--reveal", "--password", "Personal/login/example"}, "--reveal cannot be combined with a field selector"},
+		{[]string{"show", "--json", "--clip", "Personal/login/example"}, "--json cannot be combined with --clip"},
+	} {
+		_, _, err := executeWithInput(t, testCase.args, newShowCommand(&command{}), "")
+		require.ErrorContains(t, err, testCase.want)
+	}
 }
 
 func TestShowSSHPrivateKeyAndPassphraseAreMasked(t *testing.T) {

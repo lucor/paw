@@ -14,6 +14,8 @@ import (
 	urfave "github.com/urfave/cli/v3"
 	"go.lucor.dev/cxf"
 	"go.lucor.dev/paw/internal/model"
+	"go.lucor.dev/paw/internal/otp"
+	"go.lucor.dev/paw/internal/paw"
 )
 
 const (
@@ -28,6 +30,7 @@ type ShowCmd struct {
 	clipboard bool
 	reveal    bool
 	field     string
+	json      bool
 }
 
 // newShowCommand constructs the item-display command.
@@ -48,6 +51,22 @@ func newShowCommand(base *command) *urfave.Command {
 				Name:  "reveal",
 				Usage: "Display secret values in cleartext",
 			},
+			&urfave.BoolFlag{
+				Name:  "json",
+				Usage: "Display item details as JSON, including secrets",
+			},
+			&urfave.BoolFlag{
+				Name:  "username",
+				Usage: "Display only the username",
+			},
+			&urfave.BoolFlag{
+				Name:  "password",
+				Usage: "Display only the password",
+			},
+			&urfave.BoolFlag{
+				Name:  "totp",
+				Usage: "Generate and display the current TOTP code",
+			},
 			&urfave.StringFlag{
 				Name:  "field",
 				Usage: "Display only the named field value",
@@ -62,10 +81,40 @@ func newShowCommand(base *command) *urfave.Command {
 			if c.IsSet("field") && c.String("field") == "" {
 				return fmt.Errorf("--field requires a field name")
 			}
+			var selectors []string
+			for _, name := range []string{"username", "password", "totp"} {
+				if c.Bool(name) {
+					selectors = append(selectors, name)
+				}
+			}
+			if c.IsSet("field") {
+				selectors = append(selectors, c.String("field"))
+			}
+			if len(selectors) > 1 {
+				return fmt.Errorf("select only one field")
+			}
+			if c.Bool("reveal") && len(selectors) != 0 {
+				return fmt.Errorf("--reveal cannot be combined with a field selector")
+			}
+			if c.Bool("json") && c.Bool("clip") {
+				return fmt.Errorf("--json cannot be combined with --clip")
+			}
 			if c.Bool("clip") && c.Bool("reveal") {
 				return fmt.Errorf("--clip cannot be combined with --reveal")
 			}
-			cmd := &ShowCmd{command: base, itemPath: path, sessionID: c.String("session"), clipboard: c.Bool("clip"), reveal: c.Bool("reveal"), field: c.String("field")}
+			selector := ""
+			if len(selectors) == 1 {
+				selector = selectors[0]
+			}
+			cmd := &ShowCmd{
+				command:   base,
+				itemPath:  path,
+				sessionID: c.String("session"),
+				clipboard: c.Bool("clip"),
+				reveal:    c.Bool("reveal"),
+				field:     selector,
+				json:      c.Bool("json"),
+			}
 			return cmd.Run(ctx)
 		}),
 	}
@@ -99,7 +148,7 @@ func (cmd *ShowCmd) Run(ctx context.Context) error {
 // showItem writes a readable representation of an item to the command output.
 func (cmd *ShowCmd) showItem(ctx context.Context, item *model.Item) error {
 	if cmd.field != "" {
-		value, err := itemField(item, cmd.itemType, cmd.field)
+		value, err := itemFieldAt(item, cmd.itemType, cmd.field, cmd.currentTime())
 		if err != nil {
 			return err
 		}
@@ -109,6 +158,14 @@ func (cmd *ShowCmd) showItem(ctx context.Context, item *model.Item) error {
 			}
 			fmt.Fprintln(cmd.errOut, "[✓] field copied to clipboard")
 			return nil
+		}
+		if cmd.json {
+			encoded, err := json.Marshal(value)
+			if err != nil {
+				return fmt.Errorf("could not encode field as JSON: %w", err)
+			}
+			_, err = fmt.Fprintln(cmd.out, string(encoded))
+			return err
 		}
 		_, err = fmt.Fprint(cmd.out, value)
 		return err
@@ -123,6 +180,14 @@ func (cmd *ShowCmd) showItem(ctx context.Context, item *model.Item) error {
 		}
 		fmt.Fprintf(cmd.errOut, "[✓] %s copied to clipboard\n", label)
 		return nil
+	}
+	if cmd.json {
+		encoded, err := json.Marshal(showJSON{Item: item, itemType: cmd.itemType})
+		if err != nil {
+			return fmt.Errorf("could not encode item as JSON: %w", err)
+		}
+		_, err = fmt.Fprintln(cmd.out, string(encoded))
+		return err
 	}
 	switch cmd.itemType {
 	case model.LoginItemType:
@@ -151,7 +216,9 @@ func (cmd *ShowCmd) showItem(ctx context.Context, item *model.Item) error {
 					return err
 				}
 				fmt.Fprintln(cmd.out, "TOTP: configured")
-				fmt.Fprintf(cmd.out, "TOTP secret: %s\n", safeTerminalText(secretValue(totp.Secret, cmd.reveal)))
+				if cmd.reveal {
+					fmt.Fprintf(cmd.out, "TOTP secret: %s\n", safeTerminalText(totp.Secret))
+				}
 				fmt.Fprintf(cmd.out, "TOTP algorithm: %s\n", safeTerminalText(totp.Algorithm))
 				fmt.Fprintf(cmd.out, "TOTP digits: %d\n", totp.Digits)
 				fmt.Fprintf(cmd.out, "TOTP period: %d seconds\n", totp.Period)
@@ -324,9 +391,13 @@ func itemDefaultSecret(item *model.Item, itemType model.ItemType) (string, strin
 }
 
 func itemField(item *model.Item, itemType model.ItemType, name string) (string, error) {
+	return itemFieldAt(item, itemType, name, time.Now())
+}
+
+func itemFieldAt(item *model.Item, itemType model.ItemType, name string, now time.Time) (string, error) {
 	var values []string
 	add := func(label, value string) {
-		if strings.EqualFold(label, name) {
+		if canonicalFieldName(label) == canonicalFieldName(name) {
 			values = append(values, value)
 		}
 	}
@@ -348,6 +419,15 @@ func itemField(item *model.Item, itemType model.ItemType, name string) (string, 
 		}
 		if credential.Password != nil {
 			add("password", credential.Password.Value)
+		}
+		if itemType == model.LoginItemType {
+			note, index, err := item.Note()
+			if err != nil {
+				return "", err
+			}
+			if index >= 0 {
+				add("note", note.Content.Value)
+			}
 		}
 	case model.NoteItemType:
 		note, index, err := item.Note()
@@ -394,7 +474,14 @@ func itemField(item *model.Item, itemType model.ItemType, name string) (string, 
 		if err := json.Unmarshal(raw, &totp); err != nil {
 			return "", err
 		}
-		add("TOTP secret", totp.Secret)
+		add("totp-secret", totp.Secret)
+		if canonicalFieldName(name) == "totp" {
+			code, err := generateTOTPCode(totp, now)
+			if err != nil {
+				return "", fmt.Errorf("could not generate TOTP code: %w", err)
+			}
+			add("totp", code)
+		}
 	}
 	groups, err := item.CustomFields()
 	if err != nil {
@@ -416,4 +503,44 @@ func itemField(item *model.Item, itemType model.ItemType, name string) (string, 
 		return "", fmt.Errorf("field %q is ambiguous; use Section/Field", name)
 	}
 	return values[0], nil
+}
+
+func canonicalFieldName(name string) string {
+	name = strings.ToLower(name)
+	switch name {
+	case "totp secret", "totp-secret":
+		return "totp-secret"
+	default:
+		return name
+	}
+}
+
+func (cmd *ShowCmd) currentTime() time.Time {
+	if cmd.now != nil {
+		return cmd.now()
+	}
+	return time.Now()
+}
+
+func generateTOTPCode(credential cxf.TOTP, now time.Time) (string, error) {
+	if credential.Secret == "" {
+		return "", fmt.Errorf("secret is empty")
+	}
+	if credential.Period == 0 {
+		return "", fmt.Errorf("period must be greater than zero")
+	}
+	if credential.Digits == 0 || credential.Digits > 10 {
+		return "", fmt.Errorf("digit count must be between 1 and 10")
+	}
+	algorithm := strings.ToUpper(credential.Algorithm)
+	switch algorithm {
+	case "SHA1", "SHA256", "SHA512":
+	default:
+		return "", fmt.Errorf("unsupported algorithm %q", credential.Algorithm)
+	}
+	code, err := otp.TOTPFromBase32(paw.TOTPHash(algorithm).Hasher(), credential.Secret, now.UTC(), int(credential.Period), int(credential.Digits))
+	if err != nil {
+		return "", err
+	}
+	return code, nil
 }
