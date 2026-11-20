@@ -23,6 +23,13 @@ func TestFprint(t *testing.T) {
 	require.ErrorIs(t, Fprint(&limitWriter{remaining: 5}, node), io.ErrClosedPipe)
 }
 
+func TestFprintEscapesTerminalControlCharacters(t *testing.T) {
+	var output bytes.Buffer
+	err := Fprint(&output, Node{Value: "paw\x1b[31m", Child: []Node{{Value: "item\x07"}}})
+	require.NoError(t, err)
+	require.Equal(t, "paw\\u001b[31m\n└── item\\u0007\n", output.String())
+}
+
 type failingWriter struct{}
 
 func (failingWriter) Write([]byte) (int, error) { return 0, io.ErrClosedPipe }

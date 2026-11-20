@@ -193,6 +193,84 @@ func TestCommandsWithAgentSession(t *testing.T) {
 	for _, want := range []string{"login", "web", "note", "memo", "password", "secret", "ssh_key", "deploy"} {
 		require.Contains(t, output, want)
 	}
+	loginPath := vaultPath + "/login/web"
+	_, _, err = executeWithInput(t, []string{"edit", "--session", session, "--field", "API/Token", "--type", "hidden", loginPath}, newCommand(s), "  synthetic-token\n")
+	require.NoError(t, err)
+	unchanged, _, err := executeWithInput(t, []string{"edit", "--session", session, "--field", "API/Token", loginPath}, newCommand(s), "  synthetic-token\n")
+	require.NoError(t, err)
+	require.Contains(t, unchanged, "unchanged")
+	shown, _, err := executeWithInput(t, []string{"show", "--session", session, loginPath}, newCommand(s), "")
+	require.NoError(t, err)
+	require.Contains(t, shown, "Token: ********")
+	require.NotContains(t, shown, "synthetic-token")
+	fieldValue, _, err := executeWithInput(t, []string{"show", "--session", session, "--field", "API/Token", loginPath}, newCommand(s), "")
+	require.NoError(t, err)
+	require.Equal(t, "  synthetic-token\n", fieldValue)
+	revealed, _, err := executeWithInput(t, []string{"show", "--session", session, "--reveal", loginPath}, newCommand(s), "")
+	require.NoError(t, err)
+	require.Contains(t, revealed, "Token:   synthetic-token\n")
+	clipboardBase := &command{
+		storage:     s,
+		agentClient: func(string) (agent.PawAgent, error) { return client, nil },
+	}
+	var copied string
+	clipboardBase.clipboard = func(_ context.Context, value []byte) error { copied = string(value); return nil }
+	clipOut, clipErr, err := executeWithInput(t, []string{"show", "--session", session, "--field", "API/Token", "--clip", loginPath}, newShowCommand(clipboardBase), "")
+	require.NoError(t, err)
+	require.Empty(t, clipOut)
+	require.Contains(t, clipErr, "copied")
+	require.NotContains(t, clipErr, "synthetic-token")
+	require.Equal(t, "  synthetic-token\n", copied)
+	_, _, err = executeWithInput(t, []string{"edit", "--session", session, "--tag", "development", loginPath}, newCommand(s), "")
+	require.NoError(t, err)
+	_, _, err = executeWithInput(t, []string{"edit", "--session", session, "--tag", "development", vaultPath + "/note/memo"}, newCommand(s), "")
+	require.NoError(t, err)
+	_, _, err = executeWithInput(t, []string{"edit", "--session", session, "--tag", "development", "--remove", loginPath}, newCommand(s), "")
+	require.NoError(t, err)
+	loaded, err = store.LoadVault(vaultID, key)
+	require.NoError(t, err)
+	loginSummary, err := loaded.FindItem("web", model.LoginItemType)
+	require.NoError(t, err)
+	updatedLogin, err := store.LoadItem(loaded, loginSummary.ID)
+	require.NoError(t, err)
+	require.Empty(t, updatedLogin.Tags)
+	custom, err := updatedLogin.CustomFields()
+	require.NoError(t, err)
+	require.Equal(t, "  synthetic-token\n", custom[0].Credential.Fields[0].Value)
+	noteSummary, err := loaded.FindItem("memo", model.NoteItemType)
+	require.NoError(t, err)
+	updatedMemo, err := store.LoadItem(loaded, noteSummary.ID)
+	require.NoError(t, err)
+	require.Equal(t, []string{"development"}, updatedMemo.Tags)
+	filtered, _, err := executeWithInput(t, []string{"list", "--session", session, vaultPath + "/*", "--tag", "development"}, newCommand(s), "")
+	require.NoError(t, err)
+	require.Contains(t, filtered, "memo")
+	require.NotContains(t, filtered, "web")
+	renamed, _, err := executeWithInput(t, []string{"edit", "--session", session, "--name", "renamed memo", vaultPath + "/note/memo"}, newCommand(s), "")
+	require.NoError(t, err)
+	require.Contains(t, renamed, "renamed memo")
+	_, _, err = executeWithInput(t, []string{"edit", "--session", session, "--name", "example", vaultPath + "/note/renamed memo"}, newCommand(s), "")
+	require.ErrorContains(t, err, "same name already exists")
+	loaded, err = store.LoadVault(vaultID, key)
+	require.NoError(t, err)
+	_, err = loaded.FindItem("renamed memo", model.NoteItemType)
+	require.NoError(t, err)
+	aliasPath := vaultPath + "/note/alias-test"
+	addedByAlias, _, err := executeWithInput(t, []string{"insert", "--session", session, "--tag", "automation", "--tag", "release", aliasPath}, newCommand(s), "alias note\n")
+	require.NoError(t, err)
+	require.Contains(t, addedByAlias, "added")
+	loaded, err = store.LoadVault(vaultID, key)
+	require.NoError(t, err)
+	aliasSummary, err := loaded.FindItem("alias-test", model.NoteItemType)
+	require.NoError(t, err)
+	addedItem, err := store.LoadItem(loaded, aliasSummary.ID)
+	require.NoError(t, err)
+	require.Equal(t, []string{"automation", "release"}, addedItem.Tags)
+	removedByAlias, _, err := executeWithInput(t, []string{"remove", "--session", session, aliasPath}, newCommand(s), "y\n")
+	require.NoError(t, err)
+	require.Contains(t, removedByAlias, "removed")
+	loaded, err = store.LoadVault(vaultID, key)
+	require.NoError(t, err)
 
 	t.Run("clipboard", func(t *testing.T) {
 		calls := 0
@@ -204,10 +282,11 @@ func TestCommandsWithAgentSession(t *testing.T) {
 			return nil
 		}
 		args := []string{"show", "-c", "--session", session, vaultPath + "/password/secret"}
-		out, _, err := executeWithInput(t, args, newShowCommand(base), "")
+		out, errOut, err := executeWithInput(t, args, newShowCommand(base), "")
 		require.NoError(t, err)
 		require.Equal(t, 1, calls)
-		require.Contains(t, out, "copied")
+		require.Empty(t, out)
+		require.Contains(t, errOut, "copied")
 		require.NotContains(t, out, auth.Password.Value)
 		failure := errors.New("clipboard unavailable")
 		base.clipboard = func(context.Context, []byte) error { return failure }
@@ -254,6 +333,8 @@ func TestCommandsWithAgentSession(t *testing.T) {
 		_, _, err = executeWithInput(t, []string{"agent", "start"}, newAgentCommand(base), "")
 		require.NoError(t, err)
 		require.True(t, started)
+		_, err = os.Lstat(s.SocketAgentPath())
+		require.ErrorIs(t, err, os.ErrNotExist)
 		base.agentClient = func(string) (agent.PawAgent, error) { return client, nil }
 		out, _, err = executeWithInput(t, []string{"lock", "personal"}, newLockCommand(base), "")
 		require.NoError(t, err)

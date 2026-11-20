@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"unicode"
 )
 
 type Node struct {
@@ -23,7 +24,7 @@ func Print(node Node) {
 
 // Fprint renders a tree to w.
 func Fprint(w io.Writer, node Node) error {
-	if _, err := fmt.Fprintln(w, node.Value); err != nil {
+	if _, err := fmt.Fprintln(w, safeText(node.Value)); err != nil {
 		return err
 	}
 	return print(w, node.Child, "")
@@ -47,7 +48,7 @@ func print(w io.Writer, nodes []Node, prefix string) error {
 			nodePrefix = "└──"
 		}
 
-		if _, err := fmt.Fprintf(w, "%s%s %s\n", prefix, nodePrefix, node.Value); err != nil {
+		if _, err := fmt.Fprintf(w, "%s%s %s\n", prefix, nodePrefix, safeText(node.Value)); err != nil {
 			return err
 		}
 		if err := print(w, node.Child, childPrefix); err != nil {
@@ -55,6 +56,18 @@ func print(w io.Writer, nodes []Node, prefix string) error {
 		}
 	}
 	return nil
+}
+
+func safeText(value string) string {
+	var safe strings.Builder
+	for _, r := range value {
+		if unicode.IsControl(r) {
+			fmt.Fprintf(&safe, "\\u%04x", r)
+			continue
+		}
+		safe.WriteRune(r)
+	}
+	return safe.String()
 }
 
 func dirEntryToNode(dir string, tn *Node) {

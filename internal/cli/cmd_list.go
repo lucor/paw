@@ -18,25 +18,35 @@ type ListCmd struct {
 	*command
 	sessionID string
 	itemPath
+	tag string
 }
 
 // newListCommand constructs the vault and item listing command.
 func newListCommand(base *command) *urfave.Command {
 	return &urfave.Command{
 		Name:        "ls",
-		Usage:       "Lists vaults and items",
+		Usage:       "Lists vaults and items (alias: list)",
 		ArgsUsage:   "[VAULT/ITEM_TYPE/ITEM_NAME]",
 		Description: vaultReferenceHelp,
-		Flags:       []urfave.Flag{sessionFlag()},
+		Aliases:     []string{"list"},
+		Flags: []urfave.Flag{
+			sessionFlag(),
+			&urfave.StringFlag{
+				Name:  "tag",
+				Usage: "Filter items by exact vault tag",
+			},
+		},
 		Action: withArgs(0, 1, func(ctx context.Context, c *urfave.Command) error {
 			base := base.forInvocation(c)
-			cmd := &ListCmd{command: base, sessionID: c.String("session")}
+			cmd := &ListCmd{command: base, sessionID: c.String("session"), tag: c.String("tag")}
 			if c.Args().Present() {
 				path, err := parseItemPath(c.Args().First(), itemPathOptions{wildcard: true})
 				if err != nil {
 					return err
 				}
 				cmd.itemPath = path
+			} else if cmd.tag != "" {
+				return fmt.Errorf("--tag requires a vault or item path")
 			}
 			return cmd.Run(ctx)
 		}),
@@ -87,7 +97,7 @@ func (cmd *ListCmd) items() ([]tree.Node, error) {
 		return nil, err
 	}
 
-	items, err := vault.FilterItems(cmd.itemName, cmd.itemType)
+	items, err := vault.FilterItems(cmd.itemName, cmd.itemType, cmd.tag)
 	if err != nil {
 		return nil, err
 	}

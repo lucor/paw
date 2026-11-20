@@ -211,13 +211,13 @@ func (cmd *historyCmd) restore(index int) error {
 		return err
 	}
 	if !changed {
-		fmt.Fprintf(cmd.out, "[✓] item %q is already at that version\n", cmd.itemName)
+		fmt.Fprintf(cmd.out, "[✓] item %q is already at that version\n", safeTerminalText(cmd.itemName))
 		return nil
 	}
 	appState.Modified = now
 	if err := cmd.storage.StoreAppState(appState); err != nil {
 		return err
 	}
-	fmt.Fprintf(cmd.out, "[✓] item %q restored from %s\n", cmd.itemName, capturedAt)
+	fmt.Fprintf(cmd.out, "[✓] item %q restored from %s\n", safeTerminalText(cmd.itemName), capturedAt)
 	return nil
 }

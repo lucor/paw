@@ -7,6 +7,9 @@ import (
 	"context"
 	"crypto"
 	"fmt"
+	"sort"
+	"strings"
+	"unicode/utf8"
 
 	urfave "github.com/urfave/cli/v3"
 	"go.lucor.dev/cxf"
@@ -23,20 +26,50 @@ type AddCmd struct {
 	sessionID string
 	itemPath
 	importPath string
+	tags       []string
 }
 
 // newAddCommand constructs the item-add command.
 func newAddCommand(base *command) *urfave.Command {
 	return &urfave.Command{
-		Name: "add", Usage: "Adds an item to the vault", ArgsUsage: "VAULT/ITEM_TYPE/ITEM_NAME", Description: vaultReferenceHelp,
-		Flags: []urfave.Flag{sessionFlag(), &urfave.StringFlag{Name: "input", Aliases: []string{"i"}, Usage: "Import an SSH key from FILE"}},
+		Name:        "add",
+		Aliases:     []string{"insert"},
+		Usage:       "Adds an item to the vault (alias: insert)",
+		ArgsUsage:   "VAULT/ITEM_TYPE/ITEM_NAME",
+		Description: vaultReferenceHelp,
+		Flags: []urfave.Flag{
+			sessionFlag(),
+			&urfave.StringSliceFlag{
+				Name:  "tag",
+				Usage: "Associate a tag with the new item; may be repeated",
+			},
+			&urfave.StringFlag{
+				Name:    "input",
+				Aliases: []string{"i"},
+				Usage:   "Import an SSH key from FILE",
+			},
+		},
 		Action: withArgs(1, 1, func(ctx context.Context, c *urfave.Command) error {
 			base := base.forInvocation(c)
 			path, err := parseItemPath(c.Args().First(), itemPathOptions{fullPath: true})
 			if err != nil {
 				return err
 			}
-			return (&AddCmd{command: base, itemPath: path, sessionID: c.String("session"), importPath: c.String("input")}).Run(ctx)
+			tags := c.StringSlice("tag")
+			for index, tag := range tags {
+				tag = strings.TrimSpace(tag)
+				if tag == "" {
+					return fmt.Errorf("--tag cannot be empty")
+				}
+				tags[index] = tag
+			}
+			return (&AddCmd{
+				command:    base,
+				itemPath:   path,
+				sessionID:  c.String("session"),
+				importPath: c.String("input"),
+				tags:       tags,
+			}).Run(ctx)
 		}),
 	}
 }
@@ -68,9 +101,17 @@ func (cmd *AddCmd) Run(ctx context.Context) error {
 	var item *model.Item
 	switch cmd.itemType {
 	case model.NoteItemType:
-		content, err := cmd.prompter.ask("Note")
+		var content string
+		if cmd.prompter.interactive {
+			content, err = cmd.prompter.askMultiline("Note")
+		} else {
+			content, err = cmd.prompter.ask("Note")
+		}
 		if err != nil {
 			return err
+		}
+		if content == ":clear" {
+			content = ""
 		}
 		created, createErr := model.NewNote(cmd.itemName, content)
 		if createErr != nil {
@@ -97,6 +138,16 @@ func (cmd *AddCmd) Run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	for _, tag := range cmd.tags {
+		if !containsString(item.Tags, tag) {
+			item.Tags = append(item.Tags, tag)
+		}
+	}
+	if cmd.prompter.interactive {
+		if err := cmd.addOptionalData(item, vault); err != nil {
+			return err
+		}
+	}
 	if err := s.StoreItem(vault, item); err != nil {
 		return err
 	}
@@ -104,13 +155,299 @@ func (cmd *AddCmd) Run(ctx context.Context) error {
 	if err := s.StoreAppState(appState); err != nil {
 		return err
 	}
-	fmt.Fprintf(cmd.out, "[✓] item %q added\n", cmd.itemName)
+	fmt.Fprintf(cmd.out, "[✓] item %q added\n", safeTerminalText(cmd.itemName))
 	return nil
+}
+
+func (cmd *AddCmd) addOptionalData(item *model.Item, vault *model.Vault) error {
+	add, err := cmd.prompter.askYesNo("Add custom fields or tags?", false)
+	if err != nil || !add {
+		return err
+	}
+	for {
+		menu := "1. Add custom field  2. Add section  3. Manage tags  4. Done"
+		if cmd.itemType == model.LoginItemType {
+			menu = "1. Add custom field  2. Add section  3. Manage tags  4. Add authenticator  5. Done"
+		}
+		choice, err := cmd.prompter.ask(menu)
+		if err != nil {
+			return err
+		}
+		switch choice {
+		case "1":
+			field, err := cmd.readCustomField(false, cxf.EditableField{})
+			if err != nil {
+				return err
+			}
+			if strings.TrimSpace(field.Label) == "" {
+				return fmt.Errorf("field name cannot be empty")
+			}
+			section, err := cmd.prompter.ask("Section (leave empty for none)")
+			if err != nil {
+				return err
+			}
+			if err := appendField(item, section, field); err != nil {
+				return err
+			}
+		case "2":
+			name, err := cmd.prompter.ask("Section name")
+			if err != nil {
+				return err
+			}
+			if strings.TrimSpace(name) == "" {
+				fmt.Fprintln(cmd.errOut, "Section name cannot be empty")
+				continue
+			}
+			if err := item.AppendCustomFields(cxf.CustomFields{Type: cxf.CredentialTypeCustomFields, Label: name, Fields: []cxf.EditableField{}}); err != nil {
+				return err
+			}
+		case "3":
+			if err := cmd.manageNewItemTags(item, vault); err != nil {
+				return err
+			}
+		case "4":
+			if cmd.itemType != model.LoginItemType {
+				return nil
+			}
+			if err := cmd.addTOTP(item); err != nil {
+				return err
+			}
+		case "5":
+			if cmd.itemType == model.LoginItemType {
+				return nil
+			}
+			fmt.Fprintln(cmd.errOut, "Choose a number from 1 to 4")
+		case "":
+			return nil
+		default:
+			fmt.Fprintln(cmd.errOut, "Choose a number from 1 to 5")
+		}
+	}
+}
+
+func (cmd *AddCmd) addTOTP(item *model.Item) error {
+	credentials, err := model.DecodeCredentials(item.Credentials)
+	if err != nil {
+		return err
+	}
+	if credentials.TOTP != nil {
+		return fmt.Errorf("item already has an authenticator")
+	}
+	secret, err := cmd.prompter.askPassword("Authenticator secret")
+	if err != nil {
+		return err
+	}
+	if secret == "" {
+		return nil
+	}
+	credential := cxf.TOTP{
+		Type:      cxf.CredentialTypeTOTP,
+		Secret:    normalizeTOTPSecret(secret),
+		Algorithm: strings.ToLower(string(paw.TOTPHashDefault)),
+		Period:    uint16(paw.TOTPIntervalDefault),
+		Digits:    uint16(paw.TOTPDigitsDefault),
+	}
+	if err := configureTOTP(cmd.prompter, &credential); err != nil {
+		return err
+	}
+	if err := credential.Validate(); err != nil {
+		return fmt.Errorf("invalid authenticator secret: %w", err)
+	}
+	return item.SetTOTP(-1, credential)
+}
+
+func (cmd *AddCmd) manageNewItemTags(item *model.Item, vault *model.Vault) error {
+	tags := vaultTagNames(vault)
+	if len(tags) > 0 {
+		fmt.Fprintf(cmd.errOut, "Existing tags: %s\n", safeTerminalText(strings.Join(tags, ", ")))
+	}
+	for {
+		value, err := cmd.prompter.ask("Tag to associate (empty to finish)")
+		if err != nil || value == "" {
+			return err
+		}
+		value = strings.TrimSpace(value)
+		if value == "" {
+			return nil
+		}
+		if !containsString(item.Tags, value) {
+			item.Tags = append(item.Tags, value)
+		}
+	}
+}
+
+func vaultTagNames(vault *model.Vault) []string {
+	seen := make(map[string]bool)
+	var tags []string
+	if len(vault.Accounts) == 0 {
+		return tags
+	}
+	for _, item := range vault.Accounts[0].Items {
+		for _, tag := range item.Tags {
+			if !seen[tag] {
+				seen[tag] = true
+				tags = append(tags, tag)
+			}
+		}
+	}
+	sort.Strings(tags)
+	return tags
+}
+
+func containsString(values []string, value string) bool {
+	for _, existing := range values {
+		if existing == value {
+			return true
+		}
+	}
+	return false
+}
+
+func (cmd *AddCmd) readCustomField(editing bool, old cxf.EditableField) (cxf.EditableField, error) {
+	field := old
+	if editing {
+		update, err := cmd.prompter.askYesNo("Replace field value?", false)
+		if err != nil || !update {
+			return field, err
+		}
+		kind := customFieldType(field)
+		if strings.Contains(kind, "multiline") {
+			field.Value, err = cmd.readMultiline(kind == "hidden-multiline")
+			return field, err
+		}
+		var value string
+		if kind == "hidden" {
+			value, err = cmd.prompter.askPassword("Value (empty keeps the current value; :clear clears it)")
+		} else {
+			value, err = cmd.prompter.ask("Value (empty keeps the current value; :clear clears it)")
+		}
+		if value == ":clear" {
+			field.Value = ""
+		} else if value != "" {
+			field.Value = value
+		}
+		return field, err
+	}
+	labelPrompt := "Field name"
+	if editing {
+		labelPrompt = "Field name [" + safeTerminalText(old.Label) + "]"
+	}
+	label, err := cmd.prompter.ask(labelPrompt)
+	if err != nil {
+		return field, err
+	}
+	if label != "" {
+		field.Label = label
+	}
+	kind, err := cmd.prompter.ask("Type (text, hidden, multiline, hidden-multiline)")
+	if err != nil {
+		return field, err
+	}
+	if kind == "" && editing {
+		kind = customFieldType(field)
+	}
+	if kind == "" {
+		kind = "text"
+	}
+	if !validCustomFieldType(kind) {
+		return field, fmt.Errorf("unsupported custom field type %q", kind)
+	}
+	field.FieldType = cxf.FieldTypeString
+	if kind == "hidden" || kind == "hidden-multiline" {
+		field.FieldType = cxf.FieldTypeConcealedString
+	}
+	if strings.Contains(kind, "multiline") {
+		field.Value, err = cmd.readMultiline(kind == "hidden-multiline")
+	} else if kind == "hidden" {
+		value, e := cmd.prompter.askPassword("Value (empty keeps the current value)")
+		err = e
+		if value == ":clear" {
+			field.Value = ""
+		} else if value != "" {
+			field.Value = value
+		}
+	} else {
+		value, e := cmd.prompter.ask("Value (empty keeps the current value)")
+		err = e
+		if value == ":clear" {
+			field.Value = ""
+		} else if value != "" {
+			field.Value = value
+		}
+	}
+	return field, err
+}
+
+func (cmd *AddCmd) readMultiline(hidden bool) (string, error) {
+	var lines []string
+	for {
+		var line string
+		var err error
+		if hidden {
+			line, err = cmd.prompter.askPassword("Value line (enter . on a line to finish)")
+		} else {
+			line, err = cmd.prompter.ask("Value line (enter . on a line to finish)")
+		}
+		if err != nil {
+			return "", err
+		}
+		if line == "." {
+			return strings.Join(lines, "\n"), nil
+		}
+		lines = append(lines, line)
+	}
+}
+
+func appendField(item *model.Item, section string, field cxf.EditableField) error {
+	groups, err := item.CustomFields()
+	if err != nil {
+		return err
+	}
+	var destination *model.CustomFieldsGroup
+	for _, group := range groups {
+		if group.Credential.Label != section {
+			continue
+		}
+		if destination != nil && section != "" {
+			return fmt.Errorf("section %q is ambiguous", section)
+		}
+		if destination == nil {
+			destination = &group
+		}
+	}
+	if destination != nil {
+		original := make([]int, len(destination.Credential.Fields)+1)
+		for i := range destination.Credential.Fields {
+			original[i] = i
+		}
+		original[len(original)-1] = -1
+		destination.Credential.Fields = append(destination.Credential.Fields, field)
+		return item.ReplaceCustomFields(destination.Index, destination.Credential, original)
+	}
+	return item.AppendCustomFields(cxf.CustomFields{Type: cxf.CredentialTypeCustomFields, Label: section, Fields: []cxf.EditableField{field}})
+}
+
+func customFieldType(field cxf.EditableField) string {
+	long := strings.Contains(field.Value, "\n") || utf8.RuneCountInString(field.Value) > 160
+	if field.FieldType == cxf.FieldTypeConcealedString {
+		if long {
+			return "hidden-multiline"
+		}
+		return "hidden"
+	}
+	if long {
+		return "multiline"
+	}
+	return "text"
 }
 
 // newLogin prompts for login fields and builds a CXF item.
 func (cmd *AddCmd) newLogin() (*model.Item, error) {
 	url, err := cmd.prompter.ask("URL")
+	if err != nil {
+		return nil, err
+	}
+	url, err = normalizeLoginURL(url)
 	if err != nil {
 		return nil, err
 	}
@@ -127,7 +464,21 @@ func (cmd *AddCmd) newLogin() (*model.Item, error) {
 		return nil, err
 	}
 	item.Scope = &cxf.CredentialScope{URLs: []string{url}, AndroidApps: []cxf.AndroidAppID{}}
-	note, err := cmd.prompter.ask("Note")
+	var note string
+	if cmd.prompter.interactive {
+		addNote, err := cmd.prompter.askYesNo("Add a note?", false)
+		if err != nil {
+			return nil, err
+		}
+		if addNote {
+			note, err = cmd.prompter.askMultiline("Note")
+			if err == nil && note == ":clear" {
+				note = ""
+			}
+		}
+	} else {
+		note, err = cmd.prompter.ask("Note")
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -138,6 +489,17 @@ func (cmd *AddCmd) newLogin() (*model.Item, error) {
 		}
 	}
 	return item, nil
+}
+
+func normalizeLoginURL(value string) (string, error) {
+	loginURL := paw.NewLoginURL()
+	if err := loginURL.Set(value); err != nil {
+		return "", fmt.Errorf("enter a valid website address")
+	}
+	if loginURL.String() != "" && loginURL.URL().Scheme != "https" {
+		return "", fmt.Errorf("website must use HTTPS")
+	}
+	return loginURL.String(), nil
 }
 
 // newSSHKey imports or generates an SSH key and builds a CXF item.

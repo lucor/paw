@@ -33,21 +33,52 @@ func TestAddLoginSharesPromptInputWithPasswordGenerator(t *testing.T) {
 	require.Contains(t, prompts.String(), "Pin length")
 }
 
+func TestNormalizeLoginURLMatchesGUIValidation(t *testing.T) {
+	for _, testCase := range []struct {
+		value string
+		want  string
+		err   string
+	}{
+		{value: "", want: ""},
+		{value: "example.com", want: "https://example.com"},
+		{value: "https://example.com/login", want: "https://example.com/login"},
+		{value: "http://example.com", err: "website must use HTTPS"},
+		{value: "%", err: "enter a valid website address"},
+	} {
+		got, err := normalizeLoginURL(testCase.value)
+		if testCase.err != "" {
+			require.EqualError(t, err, testCase.err)
+			continue
+		}
+		require.NoError(t, err)
+		require.Equal(t, testCase.want, got)
+	}
+}
+
 func TestEditItemFields(t *testing.T) {
 	t.Run("login", func(t *testing.T) {
 		item, err := model.NewLogin("account", "alice", "old-password", model.PasswordSettings{Mode: paw.CustomPassword})
 		require.NoError(t, err)
 		item.Scope = &cxf.CredentialScope{URLs: []string{"https://example.com"}, AndroidApps: []cxf.AndroidAppID{}}
-		cmd := &EditCmd{command: &command{prompter: newPrompter(strings.NewReader("https://new.example.com\nalice-new\n3\n\nupdated note\n"), io.Discard)}}
+		cmd := &EditCmd{command: &command{prompter: newPrompter(strings.NewReader("https://new.example.com\nalice-new\n3\n\nupdated note\nn\n"), io.Discard)}}
 		require.NoError(t, cmd.editLogin(item))
 		auth, _, err := item.BasicAuth()
 		require.NoError(t, err)
 		note, _, err := item.Note()
 		require.NoError(t, err)
 		require.Equal(t, "https://new.example.com", item.Scope.URLs[0])
+		require.Len(t, item.Scope.URLs, 1)
 		require.Equal(t, "alice-new", auth.Username.Value)
 		require.Equal(t, paw.PinPassword, model.PasswordSettingsFromField(auth.Password).Mode)
 		require.Equal(t, "updated note", note.Content.Value)
+	})
+	t.Run("preserves additional URLs", func(t *testing.T) {
+		item, err := model.NewLogin("account", "alice", "password", model.PasswordSettings{Mode: paw.CustomPassword})
+		require.NoError(t, err)
+		item.Scope = &cxf.CredentialScope{URLs: []string{"https://primary.example", "https://secondary.example"}, AndroidApps: []cxf.AndroidAppID{}}
+		cmd := &EditCmd{command: &command{prompter: newPrompter(strings.NewReader("https://updated.example\nalice\n3\n\n\nn\n"), io.Discard)}}
+		require.NoError(t, cmd.editLogin(item))
+		require.Equal(t, []string{"https://updated.example", "https://secondary.example"}, item.Scope.URLs)
 	})
 	t.Run("password", func(t *testing.T) {
 		item, err := model.NewPassword("account", "old-value", model.PasswordSettings{Mode: paw.CustomPassword})
@@ -61,10 +92,259 @@ func TestEditItemFields(t *testing.T) {
 	})
 	t.Run("SSH key", func(t *testing.T) {
 		item := &model.Item{}
-		cmd := &EditCmd{command: &command{prompter: newPrompter(strings.NewReader("y\n"), io.Discard)}}
+		cmd := &EditCmd{command: &command{prompter: newPrompter(strings.NewReader("y\nn\n"), io.Discard)}}
 		require.NoError(t, cmd.editSSHKey(item))
 		require.True(t, item.Metadata.AddToAgent)
 	})
+}
+
+func TestInteractiveLoginEditCanKeepPassword(t *testing.T) {
+	item, err := model.NewLogin("account", "alice", "saved password", model.PasswordSettings{Mode: paw.CustomPassword})
+	require.NoError(t, err)
+	item.Scope = &cxf.CredentialScope{URLs: []string{"https://example.com"}}
+	p := newPrompter(strings.NewReader("\n\nn\nn\nn\n"), io.Discard)
+	p.interactive = true
+	cmd := &EditCmd{command: &command{prompter: p}}
+	require.NoError(t, cmd.editLogin(item))
+	credential, _, err := item.BasicAuth()
+	require.NoError(t, err)
+	require.Equal(t, "saved password", credential.Password.Value)
+}
+
+func TestInteractivePasswordEditCanKeepCurrentSecret(t *testing.T) {
+	item, err := model.NewPassword("account", "saved password", model.PasswordSettings{Mode: paw.CustomPassword})
+	require.NoError(t, err)
+	p := newPrompter(strings.NewReader("n\n"), io.Discard)
+	p.interactive = true
+	cmd := &EditCmd{command: &command{prompter: p}}
+	require.NoError(t, cmd.editPassword(item))
+	credential, _, err := item.BasicAuth()
+	require.NoError(t, err)
+	require.Equal(t, "saved password", credential.Password.Value)
+}
+
+func TestEditTOTPSecretPreservesSettingsAndCanRemoveCredential(t *testing.T) {
+	item, err := model.NewLogin("account", "alice", "password", model.PasswordSettings{Mode: paw.CustomPassword})
+	require.NoError(t, err)
+	original := cxf.TOTP{
+		Type:      cxf.CredentialTypeTOTP,
+		Secret:    "JBSWY3DPEHPK3PXP",
+		Algorithm: "sha256",
+		Period:    45,
+		Digits:    8,
+		Issuer:    "Example",
+	}
+	require.NoError(t, item.SetTOTP(-1, original))
+	p := newPrompter(strings.NewReader("y\nn\n"), io.Discard)
+	p.readPassword = func() ([]byte, error) { return []byte("jbsw-y3dp-ehpk3pxp"), nil }
+	cmd := &EditCmd{command: &command{prompter: p}}
+	require.NoError(t, cmd.editTOTP(item))
+	decoded, err := model.DecodeCredentials(item.Credentials)
+	require.NoError(t, err)
+	require.Equal(t, "JBSWY3DPEHPK3PXP", decoded.TOTP.Secret)
+	require.Equal(t, "sha256", decoded.TOTP.Algorithm)
+	require.Equal(t, uint16(45), decoded.TOTP.Period)
+	require.Equal(t, uint16(8), decoded.TOTP.Digits)
+	require.Equal(t, "Example", decoded.TOTP.Issuer)
+
+	p = newPrompter(strings.NewReader("y\n"), io.Discard)
+	p.readPassword = func() ([]byte, error) { return []byte(":clear"), nil }
+	cmd.prompter = p
+	require.NoError(t, cmd.editTOTP(item))
+	decoded, err = model.DecodeCredentials(item.Credentials)
+	require.NoError(t, err)
+	require.Nil(t, decoded.TOTP)
+
+	p = newPrompter(strings.NewReader("y\nn\n"), io.Discard)
+	p.readPassword = func() ([]byte, error) { return []byte("jbswy3dpehpk3pxp"), nil }
+	cmd.prompter = p
+	require.NoError(t, cmd.editTOTP(item))
+	decoded, err = model.DecodeCredentials(item.Credentials)
+	require.NoError(t, err)
+	require.Equal(t, "JBSWY3DPEHPK3PXP", decoded.TOTP.Secret)
+	require.Equal(t, "sha1", decoded.TOTP.Algorithm)
+	require.Equal(t, uint16(paw.TOTPIntervalDefault), decoded.TOTP.Period)
+	require.Equal(t, uint16(paw.TOTPDigitsDefault), decoded.TOTP.Digits)
+}
+
+func TestAddTOTPUsesDefaultsAndRejectsDuplicateCredentials(t *testing.T) {
+	item, err := model.NewLogin("account", "alice", "password", model.PasswordSettings{Mode: paw.CustomPassword})
+	require.NoError(t, err)
+	p := newPrompter(strings.NewReader("y\n4\nn\n5\n"), io.Discard)
+	p.readPassword = func() ([]byte, error) { return []byte("jbsw-y3dp-ehpk3pxp"), nil }
+	cmd := &AddCmd{
+		command:  &command{prompter: p},
+		itemPath: itemPath{itemType: model.LoginItemType},
+	}
+	require.NoError(t, cmd.addOptionalData(item, &model.Vault{}))
+	credentials, err := model.DecodeCredentials(item.Credentials)
+	require.NoError(t, err)
+	require.Equal(t, "JBSWY3DPEHPK3PXP", credentials.TOTP.Secret)
+	require.Equal(t, "sha1", credentials.TOTP.Algorithm)
+	require.Equal(t, uint16(paw.TOTPIntervalDefault), credentials.TOTP.Period)
+	require.Equal(t, uint16(paw.TOTPDigitsDefault), credentials.TOTP.Digits)
+	require.ErrorContains(t, cmd.addTOTP(item), "already has an authenticator")
+}
+
+func TestEditTOTPChangesSettingsWithoutReplacingSecret(t *testing.T) {
+	item, err := model.NewLogin("account", "alice", "password", model.PasswordSettings{Mode: paw.CustomPassword})
+	require.NoError(t, err)
+	original := cxf.TOTP{
+		Type:      cxf.CredentialTypeTOTP,
+		Secret:    "JBSWY3DPEHPK3PXP",
+		Algorithm: "sha1",
+		Period:    30,
+		Digits:    6,
+	}
+	require.NoError(t, item.SetTOTP(-1, original))
+	p := newPrompter(strings.NewReader("n\ny\nSHA512\n9\n47\n"), io.Discard)
+	cmd := &EditCmd{command: &command{prompter: p}}
+	require.NoError(t, cmd.editTOTP(item))
+	credentials, err := model.DecodeCredentials(item.Credentials)
+	require.NoError(t, err)
+	require.Equal(t, original.Secret, credentials.TOTP.Secret)
+	require.Equal(t, "sha512", credentials.TOTP.Algorithm)
+	require.Equal(t, uint16(9), credentials.TOTP.Digits)
+	require.Equal(t, uint16(47), credentials.TOTP.Period)
+}
+
+func TestEditCanImportReplacementSSHKey(t *testing.T) {
+	oldKey, err := sshkey.GenerateKey()
+	require.NoError(t, err)
+	oldCredential, err := model.EncodeSSHKey(oldKey.PrivateKey(), oldKey.PublicKey().Type(), "old")
+	require.NoError(t, err)
+	item, err := model.NewSSHKey("Deployment", oldCredential, "old passphrase", model.PasswordSettings{Mode: paw.CustomPassword})
+	require.NoError(t, err)
+	newKey, err := sshkey.GenerateKey()
+	require.NoError(t, err)
+	base := &command{
+		prompter: newPrompter(strings.NewReader(""), io.Discard),
+		readFile: func(string) ([]byte, error) { return newKey.MarshalPrivateKey(), nil },
+		errOut:   io.Discard,
+	}
+	cmd := &EditCmd{command: base, importPath: "replacement.key"}
+	require.NoError(t, cmd.replaceSSHKey(item))
+	credential, err := item.SSHKey()
+	require.NoError(t, err)
+	_, _, fingerprint, err := model.FormatSSHKey(credential)
+	require.NoError(t, err)
+	require.Equal(t, newKey.Fingerprint(), fingerprint)
+	auth, _, err := item.BasicAuth()
+	require.NoError(t, err)
+	require.Empty(t, auth.Password.Value)
+	generatedKey, err := sshkey.GenerateKey()
+	require.NoError(t, err)
+	base.generateSSHKey = func() (*generatedSSHKey, error) {
+		return &generatedSSHKey{
+			PrivateKey:  string(generatedKey.MarshalPrivateKey()),
+			PublicKey:   string(generatedKey.MarshalPublicKey()),
+			Fingerprint: generatedKey.Fingerprint(),
+		}, nil
+	}
+	cmd.importPath = ""
+	cmd.generateKey = true
+	require.NoError(t, cmd.replaceSSHKey(item))
+	credential, err = item.SSHKey()
+	require.NoError(t, err)
+	_, _, fingerprint, err = model.FormatSSHKey(credential)
+	require.NoError(t, err)
+	require.Equal(t, generatedKey.Fingerprint(), fingerprint)
+}
+
+func TestEditSSHKeyCanChangePassphraseWithoutReplacingKey(t *testing.T) {
+	key, err := sshkey.GenerateKey()
+	require.NoError(t, err)
+	credential, err := model.EncodeSSHKey(key.PrivateKey(), key.PublicKey().Type(), "key")
+	require.NoError(t, err)
+	item, err := model.NewSSHKey("Deployment", credential, "old passphrase", model.PasswordSettings{Mode: paw.CustomPassword})
+	require.NoError(t, err)
+	p := newPrompter(strings.NewReader("n\ny\n"), io.Discard)
+	p.readPassword = func() ([]byte, error) { return []byte("new passphrase"), nil }
+	cmd := &EditCmd{command: &command{prompter: p}}
+	require.NoError(t, cmd.editSSHKey(item))
+	auth, _, err := item.BasicAuth()
+	require.NoError(t, err)
+	require.Equal(t, "new passphrase", auth.Password.Value)
+	updated, err := item.SSHKey()
+	require.NoError(t, err)
+	_, _, fingerprint, err := model.FormatSSHKey(updated)
+	require.NoError(t, err)
+	require.Equal(t, key.Fingerprint(), fingerprint)
+}
+
+func TestInteractiveEditCanFinishWithoutOpeningStandardFields(t *testing.T) {
+	item, err := model.NewLogin("GitHub", "developer", "secret", model.PasswordSettings{Mode: paw.CustomPassword})
+	require.NoError(t, err)
+	input := strings.NewReader("2\n8\n4\n")
+	var output strings.Builder
+	cmd := &EditCmd{command: &command{prompter: newPrompter(input, &output), errOut: &output}}
+	require.NoError(t, cmd.editInteractive(item, &model.Vault{}))
+	require.Contains(t, output.String(), "Add field")
+	require.NotContains(t, output.String(), "Password:")
+}
+
+func TestInteractiveEditRenamesNote(t *testing.T) {
+	item, err := model.NewNote("Old title", "old note")
+	require.NoError(t, err)
+	key, err := paw.MakeOneTimeKey()
+	require.NoError(t, err)
+	vault, err := model.NewVault(key, "Personal")
+	require.NoError(t, err)
+	summary, err := item.Summary()
+	require.NoError(t, err)
+	vault.Accounts[0].Items = append(vault.Accounts[0].Items, *summary)
+	input := strings.NewReader("1\nNew title\ny\nupdated note\n.\n4\n")
+	var output strings.Builder
+	p := newPrompter(input, &output)
+	p.interactive = true
+	cmd := &EditCmd{
+		command:  &command{prompter: p, errOut: &output},
+		itemPath: itemPath{itemType: model.NoteItemType},
+	}
+	require.NoError(t, cmd.editInteractive(item, vault))
+	require.Equal(t, "New title", item.Title)
+	note, _, err := item.Note()
+	require.NoError(t, err)
+	require.Equal(t, "updated note", note.Content.Value)
+}
+
+func TestInteractiveEditReturnsStandardFieldErrors(t *testing.T) {
+	item, err := model.NewNote("Title", "note")
+	require.NoError(t, err)
+	key, err := paw.MakeOneTimeKey()
+	require.NoError(t, err)
+	vault, err := model.NewVault(key, "Personal")
+	require.NoError(t, err)
+	summary, err := item.Summary()
+	require.NoError(t, err)
+	vault.Accounts[0].Items = append(vault.Accounts[0].Items, *summary)
+	p := newPrompter(strings.NewReader("1\nRenamed\ny\n"), io.Discard)
+	p.interactive = true
+	cmd := &EditCmd{
+		command:  &command{prompter: p, errOut: io.Discard},
+		itemPath: itemPath{itemType: model.NoteItemType},
+	}
+	require.ErrorContains(t, cmd.editInteractive(item, vault), "could not read input")
+}
+
+func TestInteractiveNoteEditSupportsMultilineAndClear(t *testing.T) {
+	item, err := model.NewNote("Title", "original note")
+	require.NoError(t, err)
+	p := newPrompter(strings.NewReader("y\nfirst line\nsecond line\n.\n"), io.Discard)
+	p.interactive = true
+	cmd := &EditCmd{command: &command{prompter: p}}
+	require.NoError(t, cmd.editNote(item))
+	note, _, err := item.Note()
+	require.NoError(t, err)
+	require.Equal(t, "first line\nsecond line", note.Content.Value)
+
+	p = newPrompter(strings.NewReader("y\n:clear\n.\n"), io.Discard)
+	p.interactive = true
+	cmd.prompter = p
+	require.NoError(t, cmd.editNote(item))
+	note, _, err = item.Note()
+	require.NoError(t, err)
+	require.Empty(t, note.Content.Value)
 }
 
 func TestPasswordGeneratorUsesCommandStreams(t *testing.T) {

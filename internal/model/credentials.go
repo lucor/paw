@@ -172,6 +172,98 @@ func (item *Item) RemoveCustomFields(index int) error {
 	return nil
 }
 
+// MoveCustomField moves one field between custom-fields groups without decoding its raw CXF members.
+func (item *Item) MoveCustomField(sourceIndex, fieldIndex int, destinationSection string) error {
+	groups, err := item.CustomFields()
+	if err != nil {
+		return err
+	}
+	var source *CustomFieldsGroup
+	var destination *CustomFieldsGroup
+	for index := range groups {
+		if groups[index].Index == sourceIndex {
+			source = &groups[index]
+		}
+		if groups[index].Credential.Label == destinationSection {
+			if destination != nil && destinationSection != "" {
+				return errors.New("destination section is ambiguous")
+			}
+			if destination == nil {
+				destination = &groups[index]
+			}
+		}
+	}
+	if source == nil || fieldIndex < 0 || fieldIndex >= len(source.Credential.Fields) {
+		return errors.New("custom field index out of range")
+	}
+	if source.Credential.Label == destinationSection {
+		return nil
+	}
+	var sourceObject map[string]jsontext.Value
+	if err := json.Unmarshal(item.Credentials[sourceIndex], &sourceObject); err != nil {
+		return err
+	}
+	var sourceFields []jsontext.Value
+	if err := json.Unmarshal(sourceObject["fields"], &sourceFields); err != nil {
+		return err
+	}
+	moved := sourceFields[fieldIndex]
+	sourceFields = append(sourceFields[:fieldIndex], sourceFields[fieldIndex+1:]...)
+	encodedSourceFields, err := json.Marshal(sourceFields, json.Deterministic(true))
+	if err != nil {
+		return err
+	}
+	sourceObject["fields"] = encodedSourceFields
+	encodedSource, err := json.Marshal(sourceObject, json.Deterministic(true))
+	if err != nil {
+		return err
+	}
+	var destinationIndex int
+	var encodedDestination []byte
+	if destination != nil {
+		destinationIndex = destination.Index
+		var destinationObject map[string]jsontext.Value
+		if err := json.Unmarshal(item.Credentials[destinationIndex], &destinationObject); err != nil {
+			return err
+		}
+		var destinationFields []jsontext.Value
+		if err := json.Unmarshal(destinationObject["fields"], &destinationFields); err != nil {
+			return err
+		}
+		destinationFields = append(destinationFields, moved)
+		encodedDestinationFields, err := json.Marshal(destinationFields, json.Deterministic(true))
+		if err != nil {
+			return err
+		}
+		destinationObject["fields"] = encodedDestinationFields
+		encodedDestination, err = json.Marshal(destinationObject, json.Deterministic(true))
+		if err != nil {
+			return err
+		}
+	} else {
+		destinationObject := map[string]jsontext.Value{"type": jsontext.Value(`"custom-fields"`), "fields": jsontext.Value("[" + string(moved) + "]")}
+		if destinationSection != "" {
+			label, err := json.Marshal(destinationSection)
+			if err != nil {
+				return err
+			}
+			destinationObject["label"] = label
+		}
+		encodedDestination, err = json.Marshal(destinationObject, json.Deterministic(true))
+		if err != nil {
+			return err
+		}
+		destinationIndex = len(item.Credentials)
+	}
+	if destination != nil {
+		item.Credentials[destinationIndex] = encodedDestination
+	} else {
+		item.Credentials = append(item.Credentials, encodedDestination)
+	}
+	item.Credentials[sourceIndex] = encodedSource
+	return nil
+}
+
 // preserveCustomFieldsUnknown retains unmodeled properties for one replaced group.
 func preserveCustomFieldsUnknown(previous, replacement []byte, originalFields []int) ([]byte, error) {
 	var oldGroup, newGroup map[string]jsontext.Value
@@ -248,6 +340,39 @@ func (item *Item) SSHKey() (cxf.SSHKey, error) {
 	return *decoded.SSHKey, nil
 }
 
+// SetSSHKey replaces or appends an SSH key credential.
+func (item *Item) SetSSHKey(index int, credential cxf.SSHKey) error {
+	if index < -1 || index >= len(item.Credentials) {
+		return errors.New("credential index out of range")
+	}
+	if err := credential.Validate(); err != nil {
+		return fmt.Errorf("invalid SSH key credential: %w", err)
+	}
+	encoded, err := json.Marshal(credential, json.Deterministic(true))
+	if err != nil {
+		return errors.New("cannot encode SSH key credential")
+	}
+	if index < 0 {
+		item.Credentials = append(item.Credentials, encoded)
+		return nil
+	}
+	typeName, err := cxf.CredentialTypeOf(item.Credentials[index])
+	if err != nil {
+		return err
+	}
+	if typeName != cxf.CredentialTypeSSHKey {
+		return errors.New("credential at index is not an SSH key")
+	}
+	encoded, err = preserveCredentialProperties(item.Credentials[index], encoded, []string{
+		"type", "keyType", "privateKey", "keyComment", "creationDate", "expiryDate", "keyGenerationSource",
+	})
+	if err != nil {
+		return fmt.Errorf("cannot preserve SSH key properties: %w", err)
+	}
+	item.Credentials[index] = encoded
+	return nil
+}
+
 // SetBasicAuth replaces or appends a basic-auth credential.
 func (item *Item) SetBasicAuth(index int, credential cxf.BasicAuth) error {
 	if index < -1 || index >= len(item.Credentials) {
@@ -260,6 +385,10 @@ func (item *Item) SetBasicAuth(index int, credential cxf.BasicAuth) error {
 	if index < 0 {
 		item.Credentials = append(item.Credentials, encoded)
 	} else {
+		encoded, err = preserveCredentialUnknown(item.Credentials[index], encoded, []string{"type", "username", "password"})
+		if err != nil {
+			return fmt.Errorf("cannot preserve basic-auth properties: %w", err)
+		}
 		item.Credentials[index] = encoded
 	}
 	return nil
@@ -277,7 +406,88 @@ func (item *Item) SetNote(index int, note cxf.Note) error {
 	if index < 0 {
 		item.Credentials = append(item.Credentials, encoded)
 	} else {
+		encoded, err = preserveCredentialUnknown(item.Credentials[index], encoded, []string{"type", "content"})
+		if err != nil {
+			return fmt.Errorf("cannot preserve note properties: %w", err)
+		}
 		item.Credentials[index] = encoded
 	}
 	return nil
+}
+
+// SetTOTP replaces or appends a TOTP credential.
+func (item *Item) SetTOTP(index int, credential cxf.TOTP) error {
+	if index < -1 || index >= len(item.Credentials) {
+		return errors.New("credential index out of range")
+	}
+	if err := credential.Validate(); err != nil {
+		return fmt.Errorf("invalid TOTP credential: %w", err)
+	}
+	encoded, err := json.Marshal(credential, json.Deterministic(true))
+	if err != nil {
+		return errors.New("cannot encode TOTP credential")
+	}
+	if index < 0 {
+		item.Credentials = append(item.Credentials, encoded)
+		return nil
+	}
+	typeName, err := cxf.CredentialTypeOf(item.Credentials[index])
+	if err != nil {
+		return err
+	}
+	if typeName != cxf.CredentialTypeTOTP {
+		return errors.New("credential at index is not TOTP")
+	}
+	encoded, err = preserveCredentialProperties(item.Credentials[index], encoded, []string{
+		"type", "secret", "algorithm", "period", "digits", "issuer", "username",
+	})
+	if err != nil {
+		return fmt.Errorf("cannot preserve TOTP properties: %w", err)
+	}
+	item.Credentials[index] = encoded
+	return nil
+}
+
+func preserveCredentialUnknown(previous, replacement []byte, fields []string) ([]byte, error) {
+	var oldObject, newObject map[string]jsontext.Value
+	if err := json.Unmarshal(previous, &oldObject); err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal(replacement, &newObject); err != nil {
+		return nil, err
+	}
+	mergeUnknown(oldObject, newObject, fields)
+	for _, name := range fields[1:] {
+		oldRaw, oldOK := oldObject[name]
+		newRaw, newOK := newObject[name]
+		if !oldOK || !newOK || string(oldRaw) == "null" || string(newRaw) == "null" {
+			continue
+		}
+		var oldField, newField map[string]jsontext.Value
+		if err := json.Unmarshal(oldRaw, &oldField); err != nil {
+			return nil, err
+		}
+		if err := json.Unmarshal(newRaw, &newField); err != nil {
+			return nil, err
+		}
+		mergeUnknown(oldField, newField, []string{"id", "fieldType", "value", "label", "extensions"})
+		encoded, err := json.Marshal(newField, json.Deterministic(true))
+		if err != nil {
+			return nil, err
+		}
+		newObject[name] = encoded
+	}
+	return json.Marshal(newObject, json.Deterministic(true))
+}
+
+func preserveCredentialProperties(previous, replacement []byte, known []string) ([]byte, error) {
+	var oldObject, newObject map[string]jsontext.Value
+	if err := json.Unmarshal(previous, &oldObject); err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal(replacement, &newObject); err != nil {
+		return nil, err
+	}
+	mergeUnknown(oldObject, newObject, known)
+	return json.Marshal(newObject, json.Deterministic(true))
 }

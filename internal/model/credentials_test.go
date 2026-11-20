@@ -44,6 +44,50 @@ func TestCredentialAccessAndUpdates(t *testing.T) {
 	require.Equal(t, before, after)
 }
 
+func TestBasicAuthUpdatePreservesUnknownCredentialAndFieldMembers(t *testing.T) {
+	item, err := NewLogin("Example", "alice", "saved", PasswordSettings{Mode: paw.CustomPassword})
+	require.NoError(t, err)
+	item.Credentials[0] = jsontext.Value(`{"type":"basic-auth","username":{"fieldType":"string","value":"alice","futureField":{"keep":true}},"password":{"fieldType":"concealed-string","value":"saved","futureField":{"keep":true}},"futureCredential":{"retain":true}}`)
+	credential, index, err := item.BasicAuth()
+	require.NoError(t, err)
+	credential.Password.Value = "updated"
+	require.NoError(t, item.SetBasicAuth(index, credential))
+	var saved map[string]jsontext.Value
+	require.NoError(t, json.Unmarshal(item.Credentials[0], &saved))
+	require.Contains(t, string(saved["futureCredential"]), `"retain":true`)
+	require.Contains(t, string(saved["password"]), `"futureField":{"keep":true}`)
+	require.Contains(t, string(saved["username"]), `"futureField":{"keep":true}`)
+}
+
+func TestTOTPUpdatePreservesUnknownCredentialMembers(t *testing.T) {
+	item := &Item{Credentials: []jsontext.Value{
+		jsontext.Value(`{"type":"totp","secret":"JBSWY3DPEHPK3PXP","algorithm":"sha1","period":30,"digits":6,"futureCredential":{"keep":true}}`),
+	}}
+	decoded, err := DecodeCredentials(item.Credentials)
+	require.NoError(t, err)
+	decoded.TOTP.Secret = "MZXW6YTBOI"
+	require.NoError(t, item.SetTOTP(decoded.TOTPIndex, *decoded.TOTP))
+	var saved map[string]jsontext.Value
+	require.NoError(t, json.Unmarshal(item.Credentials[0], &saved))
+	require.Contains(t, string(saved["futureCredential"]), `"keep":true`)
+	require.Contains(t, string(saved["secret"]), "MZXW6YTBOI")
+}
+
+func TestSSHKeyUpdatePreservesUnknownCredentialMembers(t *testing.T) {
+	_, private, err := ed25519.GenerateKey(rand.Reader)
+	require.NoError(t, err)
+	credential, err := EncodeSSHKey(private, "ssh-ed25519", "updated")
+	require.NoError(t, err)
+	item := &Item{Credentials: []jsontext.Value{
+		jsontext.Value(`{"type":"ssh-key","keyType":"ssh-ed25519","privateKey":"` + credential.PrivateKey + `","keyComment":"original","futureCredential":{"keep":true}}`),
+	}}
+	require.NoError(t, item.SetSSHKey(0, credential))
+	var saved map[string]jsontext.Value
+	require.NoError(t, json.Unmarshal(item.Credentials[0], &saved))
+	require.Contains(t, string(saved["futureCredential"]), `"keep":true`)
+	require.Contains(t, string(saved["keyComment"]), "updated")
+}
+
 func TestCredentialMissingAndMalformed(t *testing.T) {
 	item := &Item{}
 	groups, err := item.CustomFields()
@@ -213,6 +257,24 @@ func TestSSHCredentialConversion(t *testing.T) {
 		require.Error(t, err)
 		require.NotContains(t, err.Error(), value)
 	}
+}
+
+func TestMoveCustomFieldPreservesRawCXFProperties(t *testing.T) {
+	item, err := NewLogin("Example", "alice", "saved", PasswordSettings{Mode: paw.CustomPassword})
+	require.NoError(t, err)
+	item.Credentials = append(item.Credentials,
+		jsontext.Value(`{"type":"custom-fields","label":"Source","fields":[{"fieldType":"string","value":"keep","label":"Name","futureField":{"retain":true}}],"futureGroup":{"source":true}}`),
+		jsontext.Value(`{"type":"custom-fields","label":"Destination","fields":[],"futureGroup":{"destination":true}}`),
+	)
+	require.NoError(t, item.MoveCustomField(1, 0, "Destination"))
+	require.Contains(t, string(item.Credentials[1]), `"futureGroup":{"source":true}`)
+	require.Contains(t, string(item.Credentials[2]), `"futureGroup":{"destination":true}`)
+	require.Contains(t, string(item.Credentials[2]), `"futureField":{"retain":true}`)
+	groups, err := item.CustomFields()
+	require.NoError(t, err)
+	require.Len(t, groups[0].Credential.Fields, 0)
+	require.Equal(t, "Destination", groups[1].Credential.Label)
+	require.Equal(t, "keep", groups[1].Credential.Fields[0].Value)
 }
 
 func TestFindItemUsesTitleAndCategory(t *testing.T) {

@@ -111,6 +111,12 @@ func TestInvalidArguments(t *testing.T) {
 		{[]string{"unlock", "-t", "invalid", "vault"}, "invalid value"},
 		{[]string{"show", "--unknown"}, "flag provided but not defined"},
 		{[]string{"show", "vault/unknown/item"}, "invalid item type"},
+		{[]string{"edit", "--name=", "vault/login/item"}, "--name cannot be empty"},
+		{[]string{"edit", "--input=", "vault/ssh_key/key"}, "--input requires a file path"},
+		{[]string{"edit", "--input=key.pem", "vault/login/item"}, "only supported for SSH key items"},
+		{[]string{"edit", "--generate-key", "vault/login/item"}, "only supported for SSH key items"},
+		{[]string{"edit", "--generate-key", "--input=key.pem", "vault/ssh_key/key"}, "cannot be combined"},
+		{[]string{"add", "--tag=", "vault/note/item"}, "--tag cannot be empty"},
 		{[]string{"sync"}, "invalid arguments"},
 		{[]string{"sync", "vault", "extra"}, "invalid arguments"},
 		{[]string{"ls", "vault/login/item/extra"}, "invalid vault item path"},
@@ -172,6 +178,11 @@ func TestOptionAliases(t *testing.T) {
 			})
 		}
 	}
+}
+
+func TestShowRejectsRevealWithClipboard(t *testing.T) {
+	_, _, err := executeWithInput(t, []string{"show", "--reveal", "--clip", "vault/login/item"}, newShowCommand(&command{}), "")
+	require.ErrorContains(t, err, "cannot be combined")
 }
 
 func TestHelpDoesNotExposeSession(t *testing.T) {

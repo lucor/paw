@@ -18,6 +18,7 @@ import (
 type prompter struct {
 	input        *bufio.Reader
 	output       io.Writer
+	interactive  bool
 	readPassword func() ([]byte, error)
 }
 
@@ -30,8 +31,9 @@ func newPrompter(input io.Reader, output io.Writer) *prompter {
 		reader = singleByteReader{input}
 	}
 	return &prompter{
-		input:  bufio.NewReader(reader),
-		output: output,
+		input:       bufio.NewReader(reader),
+		output:      output,
+		interactive: hasFD && term.IsTerminal(int(fd.Fd())),
 		readPassword: func() ([]byte, error) {
 			if !hasFD || !term.IsTerminal(int(fd.Fd())) {
 				return nil, fmt.Errorf("password input is not a terminal")
@@ -62,15 +64,36 @@ func (p *prompter) readLine() (string, error) {
 
 // ask displays a prompt and returns the entered line.
 func (p *prompter) ask(prompt string) (string, error) {
-	if _, err := fmt.Fprintf(p.output, "%s: ", prompt); err != nil {
+	if _, err := fmt.Fprintf(p.output, "%s: ", safeTerminalText(prompt)); err != nil {
 		return "", err
 	}
 	return p.readLine()
 }
 
+// askMultiline reads text until the user enters a period on its own line.
+func (p *prompter) askMultiline(prompt string) (string, error) {
+	if _, err := fmt.Fprintf(p.output, "%s (enter . on a line to finish; :clear clears it):\n", safeTerminalText(prompt)); err != nil {
+		return "", err
+	}
+	var lines []string
+	for {
+		line, err := p.readLine()
+		if err != nil {
+			return "", err
+		}
+		if line == "." {
+			if len(lines) == 1 && lines[0] == ":clear" {
+				return ":clear", nil
+			}
+			return strings.Join(lines, "\n"), nil
+		}
+		lines = append(lines, line)
+	}
+}
+
 // askWithDefault displays the previous value and keeps it when input is empty.
 func (p *prompter) askWithDefault(prompt, old string) (string, error) {
-	if _, err := fmt.Fprintf(p.output, "%s [%s]: ", prompt, old); err != nil {
+	if _, err := fmt.Fprintf(p.output, "%s [%s]: ", safeTerminalText(prompt), safeTerminalText(old)); err != nil {
 		return old, err
 	}
 	line, err := p.readLine()
@@ -82,7 +105,7 @@ func (p *prompter) askWithDefault(prompt, old string) (string, error) {
 
 // askPassword reads a password without echoing it to the terminal.
 func (p *prompter) askPassword(prompt string) (string, error) {
-	if _, err := fmt.Fprintf(p.output, "%s: ", prompt); err != nil {
+	if _, err := fmt.Fprintf(p.output, "%s: ", safeTerminalText(prompt)); err != nil {
 		return "", err
 	}
 	password, err := p.readPassword()
@@ -123,7 +146,7 @@ func (p *prompter) askYesNo(prompt string, defaultYes bool) (bool, error) {
 		def = "Y/n"
 	}
 	for {
-		if _, err := fmt.Fprintf(p.output, "%s [%s]: ", prompt, def); err != nil {
+		if _, err := fmt.Fprintf(p.output, "%s [%s]: ", safeTerminalText(prompt), def); err != nil {
 			return false, err
 		}
 		line, err := p.readLine()
@@ -144,7 +167,7 @@ func (p *prompter) askYesNo(prompt string, defaultYes bool) (bool, error) {
 // askIntWithDefaultAndRange reads an integer, applies a default, and enforces its bounds.
 func (p *prompter) askIntWithDefaultAndRange(prompt string, def, min, max int) (int, error) {
 	for {
-		if _, err := fmt.Fprintf(p.output, "%s [%d]: ", prompt, def); err != nil {
+		if _, err := fmt.Fprintf(p.output, "%s [%d]: ", safeTerminalText(prompt), def); err != nil {
 			return 0, err
 		}
 		line, err := p.readLine()
@@ -173,7 +196,7 @@ func (p *prompter) askPasswordMode(prompt string, options []paw.PasswordMode, de
 			break
 		}
 	}
-	if _, err := fmt.Fprintf(p.output, "%s [%s]:\n", prompt, options[defaultIdx]); err != nil {
+	if _, err := fmt.Fprintf(p.output, "%s [%s]:\n", safeTerminalText(prompt), options[defaultIdx]); err != nil {
 		return 0, err
 	}
 	for i, mode := range options {

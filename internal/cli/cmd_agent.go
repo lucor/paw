@@ -56,7 +56,11 @@ func (cmd *AgentCmd) Run(ctx context.Context) error {
 			}
 		}
 
-		return base.startAgent(s.SocketAgentPath())
+		socketPath, err := s.PrepareAgentSocket()
+		if err != nil {
+			return fmt.Errorf("could not prepare agent socket: %w", err)
+		}
+		return base.startAgent(socketPath)
 	case agentSessionsSubCmd:
 		c, err := base.agentClient(s.SocketAgentPath())
 		if err != nil {

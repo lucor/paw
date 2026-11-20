@@ -21,7 +21,8 @@ type RemoveCmd struct {
 func newRemoveCommand(base *command) *urfave.Command {
 	return &urfave.Command{
 		Name:        "rm",
-		Usage:       "Removes an item from the vault",
+		Aliases:     []string{"remove"},
+		Usage:       "Removes an item from the vault (alias: remove)",
 		ArgsUsage:   "VAULT/ITEM_TYPE/ITEM_NAME",
 		Description: vaultReferenceHelp,
 		Flags:       []urfave.Flag{sessionFlag()},
@@ -60,7 +61,7 @@ func (cmd *RemoveCmd) Run(ctx context.Context) error {
 		return err
 	}
 
-	msg := fmt.Sprintf("Are you sure you want to delete %q?", cmd.itemPath)
+	msg := fmt.Sprintf("Are you sure you want to delete %q?", safeTerminalText(cmd.itemPath.String()))
 	confirm, err := cmd.prompter.askYesNo(msg, false)
 	if err != nil {
 		return err
@@ -81,6 +82,6 @@ func (cmd *RemoveCmd) Run(ctx context.Context) error {
 		return err
 	}
 
-	fmt.Fprintf(cmd.out, "[✓] item %q removed\n", cmd.itemName)
+	fmt.Fprintf(cmd.out, "[✓] item %q removed\n", safeTerminalText(cmd.itemName))
 	return nil
 }
