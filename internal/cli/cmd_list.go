@@ -13,7 +13,7 @@ import (
 	"go.lucor.dev/paw/internal/tree"
 )
 
-// List lists the vaults content
+// ListCmd lists the vaults content
 type ListCmd struct {
 	*command
 	sessionID string
@@ -23,7 +23,8 @@ type ListCmd struct {
 
 // newListCommand constructs the vault and item listing command.
 func newListCommand(base *command) *urfave.Command {
-	return &urfave.Command{
+	cmd := &ListCmd{command: base}
+	c := &urfave.Command{
 		Name:        "ls",
 		Usage:       "Lists vaults and items (alias: list)",
 		ArgsUsage:   "[VAULT/ITEM_TYPE/ITEM_NAME]",
@@ -36,25 +37,33 @@ func newListCommand(base *command) *urfave.Command {
 				Usage: "Filter items by exact vault tag",
 			},
 		},
-		Action: withArgs(0, 1, func(ctx context.Context, c *urfave.Command) error {
-			base := base.forInvocation(c)
-			cmd := &ListCmd{command: base, sessionID: c.String("session"), tag: c.String("tag")}
-			if c.Args().Present() {
-				path, err := parseItemPath(c.Args().First(), itemPathOptions{wildcard: true})
-				if err != nil {
-					return err
-				}
-				cmd.itemPath = path
-			} else if cmd.tag != "" {
-				return fmt.Errorf("--tag requires a vault or item path")
-			}
-			return cmd.Run(ctx)
-		}),
 	}
+	c.Before = cmd.Validate
+	c.Action = cmd.Run
+	return c
+}
+
+// Validate checks the optional item path and tag filter.
+func (cmd *ListCmd) Validate(ctx context.Context, c *urfave.Command) (context.Context, error) {
+	if err := validateArgs(c, 0, 1); err != nil {
+		return ctx, err
+	}
+	cmd.sessionID = c.String("session")
+	cmd.tag = c.String("tag")
+	if c.Args().Present() {
+		path, err := parseItemPath(c.Args().First(), itemPathOptions{wildcard: true})
+		if err != nil {
+			return ctx, err
+		}
+		cmd.itemPath = path
+	} else if cmd.tag != "" {
+		return ctx, fmt.Errorf("--tag requires a vault or item path")
+	}
+	return ctx, nil
 }
 
 // Run lists the selected vaults or their items.
-func (cmd *ListCmd) Run(ctx context.Context) error {
+func (cmd *ListCmd) Run(ctx context.Context, _ *urfave.Command) error {
 	vaultNode, err := cmd.vaults()
 	if err != nil {
 		return err

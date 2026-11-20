@@ -263,6 +263,7 @@ func (cmd *SyncCmd) reviewReconciliation(
 	return cmd.executeReconciliation(ctx, session, peer, localItems, operations)
 }
 
+// unmatchedReconcileItems returns items that remain unpaired on either device.
 func unmatchedReconcileItems(
 	local, remote map[string]reconcileItem,
 	pairedLocal, pairedRemote map[string]bool,
@@ -282,6 +283,7 @@ func unmatchedReconcileItems(
 	return localOnly, remoteOnly
 }
 
+// oneSidedReconcileOperations plans copies for items present on only one device.
 func oneSidedReconcileOperations(
 	peerName string,
 	local, remote map[string]reconcileItem,
@@ -322,6 +324,7 @@ func oneSidedReconcileOperations(
 	return operations
 }
 
+// reviewReconcileTitleCandidates asks whether same-title items should be paired.
 func (cmd *SyncCmd) reviewReconcileTitleCandidates(
 	ctx context.Context,
 	peerName string,
@@ -414,6 +417,7 @@ func (cmd *SyncCmd) reviewReconcileTitleCandidates(
 	return nil
 }
 
+// askAmbiguousReconcileChoice waits for the user to skip or cancel matching.
 func (cmd *SyncCmd) askAmbiguousReconcileChoice(ctx context.Context, input <-chan syncInput) error {
 	for {
 		fmt.Fprint(cmd.out, "[s] Skip matching and keep the items separate, [q] cancel reconciliation: ")
@@ -442,6 +446,7 @@ type reconcileDiff struct {
 	remote string
 }
 
+// showReconcileComparison displays the differing fields of two candidate items.
 func (cmd *SyncCmd) showReconcileComparison(local, remote reconcileItem, peerName string) error {
 	rows, err := reconcileDifferences(local, remote)
 	if err != nil {
@@ -459,6 +464,7 @@ func (cmd *SyncCmd) showReconcileComparison(local, remote reconcileItem, peerNam
 	return table.Flush()
 }
 
+// reconcileDifferences returns the user-visible differences between two items.
 func reconcileDifferences(local, remote reconcileItem) ([]reconcileDiff, error) {
 	rows := make([]reconcileDiff, 0)
 	add := func(field, left, right string) {
@@ -494,6 +500,7 @@ func reconcileDifferences(local, remote reconcileItem) ([]reconcileDiff, error) 
 	return rows, nil
 }
 
+// compareReconcileCredentials appends differences between item credentials.
 func compareReconcileCredentials(rows *[]reconcileDiff, local, remote *model.Item) error {
 	localAuth, localAuthIndex, localAuthErr := local.BasicAuth()
 	remoteAuth, remoteAuthIndex, remoteAuthErr := remote.BasicAuth()
@@ -596,6 +603,7 @@ func compareReconcileCredentials(rows *[]reconcileDiff, local, remote *model.Ite
 	return nil
 }
 
+// reconcileOptionalString formats an optional string for comparison output.
 func reconcileOptionalString(value *string) string {
 	if value == nil {
 		return "[absent]"
@@ -603,6 +611,7 @@ func reconcileOptionalString(value *string) string {
 	return *value
 }
 
+// reconcileFavorite formats an optional favorite value for comparison output.
 func reconcileFavorite(value *bool) string {
 	if value == nil || !*value {
 		return "No"
@@ -610,6 +619,7 @@ func reconcileFavorite(value *bool) string {
 	return "Yes"
 }
 
+// reconcileEditableEqual compares editable fields by type and value.
 func reconcileEditableEqual(left, right *cxf.EditableField) bool {
 	if left == nil || right == nil {
 		return left == nil && right == nil
@@ -617,6 +627,7 @@ func reconcileEditableEqual(left, right *cxf.EditableField) bool {
 	return left.FieldType == right.FieldType && left.Value == right.Value
 }
 
+// reconcileEditableDisplay returns an editable field's value for comparison output.
 func reconcileEditableDisplay(field *cxf.EditableField) string {
 	if field == nil {
 		return ""
@@ -624,6 +635,7 @@ func reconcileEditableDisplay(field *cxf.EditableField) string {
 	return field.Value
 }
 
+// reconcileTOTPSecret returns an authenticator secret or an empty string.
 func reconcileTOTPSecret(credential *cxf.TOTP) string {
 	if credential == nil {
 		return ""
@@ -631,6 +643,7 @@ func reconcileTOTPSecret(credential *cxf.TOTP) string {
 	return credential.Secret
 }
 
+// reconcileTOTPUsername returns an authenticator username or an empty string.
 func reconcileTOTPUsername(credential *cxf.TOTP) string {
 	if credential == nil {
 		return ""
@@ -638,6 +651,7 @@ func reconcileTOTPUsername(credential *cxf.TOTP) string {
 	return credential.Username
 }
 
+// reconcileTOTPIssuer returns an authenticator issuer or an empty string.
 func reconcileTOTPIssuer(credential *cxf.TOTP) string {
 	if credential == nil {
 		return ""
@@ -645,6 +659,7 @@ func reconcileTOTPIssuer(credential *cxf.TOTP) string {
 	return credential.Issuer
 }
 
+// reconcileTOTPSettings formats authenticator timing and algorithm settings.
 func reconcileTOTPSettings(credential *cxf.TOTP) string {
 	if credential == nil {
 		return ""
@@ -652,6 +667,7 @@ func reconcileTOTPSettings(credential *cxf.TOTP) string {
 	return fmt.Sprintf("%d sec, %d digits, %s", credential.Period, credential.Digits, credential.Algorithm)
 }
 
+// reconcileSSHPrivateKey returns an SSH private key or an empty string.
 func reconcileSSHPrivateKey(credential *cxf.SSHKey) string {
 	if credential == nil {
 		return ""
@@ -659,6 +675,7 @@ func reconcileSSHPrivateKey(credential *cxf.SSHKey) string {
 	return credential.PrivateKey
 }
 
+// reconcileSSHKeyType returns an SSH key type or an empty string.
 func reconcileSSHKeyType(credential *cxf.SSHKey) string {
 	if credential == nil {
 		return ""
@@ -666,6 +683,7 @@ func reconcileSSHKeyType(credential *cxf.SSHKey) string {
 	return credential.KeyType
 }
 
+// reconcileSSHKeyComment returns an SSH key comment or an empty string.
 func reconcileSSHKeyComment(credential *cxf.SSHKey) string {
 	if credential == nil {
 		return ""
@@ -673,6 +691,7 @@ func reconcileSSHKeyComment(credential *cxf.SSHKey) string {
 	return credential.KeyComment
 }
 
+// reconcileSSHCreationDate returns the SSH key creation date when present.
 func reconcileSSHCreationDate(credential *cxf.SSHKey) *cxf.EditableField {
 	if credential == nil {
 		return nil
@@ -680,6 +699,7 @@ func reconcileSSHCreationDate(credential *cxf.SSHKey) *cxf.EditableField {
 	return credential.CreationDate
 }
 
+// reconcileSSHExpiryDate returns the SSH key expiry date when present.
 func reconcileSSHExpiryDate(credential *cxf.SSHKey) *cxf.EditableField {
 	if credential == nil {
 		return nil
@@ -687,6 +707,7 @@ func reconcileSSHExpiryDate(credential *cxf.SSHKey) *cxf.EditableField {
 	return credential.ExpiryDate
 }
 
+// reconcileSSHKeyGenerationSource returns the SSH key source when present.
 func reconcileSSHKeyGenerationSource(credential *cxf.SSHKey) *cxf.EditableField {
 	if credential == nil {
 		return nil
@@ -694,6 +715,7 @@ func reconcileSSHKeyGenerationSource(credential *cxf.SSHKey) *cxf.EditableField 
 	return credential.KeyGenerationSource
 }
 
+// reconcileOtherCredentials encodes credentials outside the standard types.
 func reconcileOtherCredentials(credentials []jsontext.Value) ([]byte, error) {
 	other := make([]jsontext.Value, 0)
 	for _, raw := range credentials {
@@ -711,6 +733,7 @@ func reconcileOtherCredentials(credentials []jsontext.Value) ([]byte, error) {
 	return json.Marshal(other)
 }
 
+// reconcileTime formats a timestamp for reconciliation output.
 func reconcileTime(timestamp *uint64) string {
 	if timestamp == nil {
 		return "Unknown"
@@ -718,10 +741,12 @@ func reconcileTime(timestamp *uint64) string {
 	return time.Unix(int64(*timestamp), 0).Local().Format("02 Jan 2006, 15:04")
 }
 
+// showReconcileSummary prints an item's side and modification time.
 func (cmd *SyncCmd) showReconcileSummary(side string, item reconcileItem) {
 	fmt.Fprintf(cmd.out, "  %s — Modified %s\n", side, reconcileTime(item.manifest.ModifiedAt))
 }
 
+// reconcileModifiedAt returns zero when the modification time is absent.
 func reconcileModifiedAt(timestamp *uint64) uint64 {
 	if timestamp == nil {
 		return 0
@@ -729,6 +754,7 @@ func reconcileModifiedAt(timestamp *uint64) uint64 {
 	return *timestamp
 }
 
+// askReconcileSyncDecision reads a valid sync decision from stdin.
 func (cmd *SyncCmd) askReconcileSyncDecision(ctx context.Context, input <-chan syncInput, kind pawsync.DifferenceKind, peer string) (pawsync.Decision, error) {
 	for {
 		for _, option := range syncDecisionMenu(kind, peer) {
@@ -755,6 +781,7 @@ func (cmd *SyncCmd) askReconcileSyncDecision(ctx context.Context, input <-chan s
 	}
 }
 
+// askReconcilePairDecision reads how to resolve a candidate item pair.
 func (cmd *SyncCmd) askReconcilePairDecision(ctx context.Context, input <-chan syncInput, suggested, peer string) (string, error) {
 	for {
 		fmt.Fprintf(cmd.out, "  [l] Keep this device's version and ID\n  [r] Keep %s's version and ID\n  [s] Reject this match and keep both IDs\n  [q] Cancel reconciliation\nChoice (suggested %s): ", peer, suggested)
@@ -777,6 +804,7 @@ func (cmd *SyncCmd) askReconcilePairDecision(ctx context.Context, input <-chan s
 	}
 }
 
+// reconcileHistoriesEquivalent compares item history entries without item IDs.
 func reconcileHistoriesEquivalent(local, remote *model.Item) (bool, error) {
 	localHistory, err := local.History()
 	if err != nil {
@@ -809,6 +837,7 @@ func reconcileHistoriesEquivalent(local, remote *model.Item) (bool, error) {
 	return true, nil
 }
 
+// reconcileSnapshotStateHash hashes a history snapshot independently of its ID.
 func reconcileSnapshotStateHash(snapshot *cxf.Item) (string, error) {
 	data, err := json.Marshal(snapshot)
 	if err != nil {
@@ -822,6 +851,7 @@ func reconcileSnapshotStateHash(snapshot *cxf.Item) (string, error) {
 	return item.StateHash()
 }
 
+// executeReconciliation applies reviewed copies and removes replaced IDs.
 func (cmd *SyncCmd) executeReconciliation(
 	ctx context.Context,
 	session reconcileSession,

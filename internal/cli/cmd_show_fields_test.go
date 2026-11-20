@@ -119,7 +119,7 @@ func TestShowJSONUsesCXFValuesAndOmitsUnknownExtensions(t *testing.T) {
 	}))
 	item.Credentials = append(item.Credentials,
 		jsontext.Value(`{"type":"unknown","secret":"unknown-secret"}`),
-		jsontext.Value(`{"type":"custom-fields","fields":[],"extensions":[{"secret":"extension-secret"}]}`),
+		jsontext.Value(`{"type":"custom-fields","fields":[],"extensions":[{"name":"example.com/unknown","secret":"extension-secret"}]}`),
 	)
 	var output bytes.Buffer
 	cmd := &ShowCmd{
@@ -147,7 +147,7 @@ func TestShowRejectsIncompatibleSelectors(t *testing.T) {
 		{[]string{"show", "--reveal", "--password", "Personal/login/example"}, "--reveal cannot be combined with a field selector"},
 		{[]string{"show", "--json", "--clip", "Personal/login/example"}, "--json cannot be combined with --clip"},
 	} {
-		_, _, err := executeWithInput(t, testCase.args, newShowCommand(&command{}), "")
+		_, _, err := executeSubcommand(t, testCase.args, newShowCommand, &command{}, "")
 		require.ErrorContains(t, err, testCase.want)
 	}
 }
@@ -265,7 +265,8 @@ func TestFailedFieldInputDoesNotApplyTagOrChangeField(t *testing.T) {
 func TestAddOptionalDataCanCreateSectionAndAssociateTag(t *testing.T) {
 	item, err := model.NewNote("Secure note", "content")
 	require.NoError(t, err)
-	prompts := newPrompter(strings.NewReader("y\n2\nAPI\n3\ndevelopment\n\n4\n"), &bytes.Buffer{})
+	prompts := testInteractivePrompter(t, "y\n2\nAPI\n3\ndevelopment\n\n4\n")
+	prompts.output = &bytes.Buffer{}
 	cmd := &AddCmd{command: &command{prompter: prompts}}
 	require.NoError(t, cmd.addOptionalData(item, &model.Vault{}))
 	groups, err := item.CustomFields()
@@ -280,7 +281,8 @@ func TestSectionRemovalConfirmsAndMovesFieldsWithoutDeletingThem(t *testing.T) {
 	item, err := model.NewNote("Secure note", "content")
 	require.NoError(t, err)
 	require.NoError(t, item.AppendCustomFields(cxf.CustomFields{Type: cxf.CredentialTypeCustomFields, Label: "API", Fields: []cxf.EditableField{{ID: stringPointer("ZmllbGQx"), FieldType: cxf.FieldTypeString, Label: "Token", Value: "kept"}}}))
-	prompts := newPrompter(strings.NewReader("3\n1\ny\n"), &bytes.Buffer{})
+	prompts := testInteractivePrompter(t, "3\n1\ny\n")
+	prompts.output = &bytes.Buffer{}
 	cmd := &EditCmd{command: &command{prompter: prompts, errOut: &bytes.Buffer{}}}
 	require.NoError(t, cmd.manageSections(item))
 	groups, err := item.CustomFields()

@@ -25,20 +25,33 @@ import (
 
 func execute(t *testing.T, args []string, s *storage.FileStorage) (string, error) {
 	t.Helper()
-	out, _, err := executeWithInput(t, args, newCommand(s), "")
+	out, _, err := executeWithInput(t, args, s, "")
 	return out, err
 }
 
-func executeWithInput(t *testing.T, args []string, cmd *urfave.Command, input string) (string, string, error) {
+func executeWithInput(t *testing.T, args []string, s *storage.FileStorage, input string) (string, string, error) {
 	t.Helper()
 	var out, errOut bytes.Buffer
-	cmd.Reader = strings.NewReader(input)
+	cmd := newCommand(s, strings.NewReader(input), &out, &errOut)
+	err := cmd.Run(context.Background(), append([]string{cmd.Name}, args...))
+	return out.String(), errOut.String(), err
+}
+
+func executeSubcommand(t *testing.T, args []string, constructor func(*command) *urfave.Command, base *command, input string) (string, string, error) {
+	t.Helper()
+	var out, errOut bytes.Buffer
+	in := strings.NewReader(input)
+	testCommand := *base
+	testCommand.out = &out
+	testCommand.errOut = &errOut
+	if testCommand.prompter == nil {
+		testCommand.prompter = newPrompter(in, &errOut)
+	}
+	cmd := constructor(&testCommand)
+	cmd.Reader = in
 	cmd.Writer = &out
 	cmd.ErrWriter = &errOut
-	if cmd.Name != "paw cli" {
-		args = args[1:]
-	}
-	err := cmd.Run(context.Background(), append([]string{cmd.Name}, args...))
+	err := cmd.Run(context.Background(), args)
 	return out.String(), errOut.String(), err
 }
 
@@ -156,7 +169,7 @@ func TestOptionAliases(t *testing.T) {
 	for _, tc := range cases {
 		for _, after := range []bool{false, true} {
 			t.Run(fmt.Sprintf("%s/%v/after=%t", tc.name, tc.flags, after), func(t *testing.T) {
-				cmd := newCommand(nil)
+				cmd := newCommand(nil, strings.NewReader(""), io.Discard, io.Discard)
 				checked := false
 				stop := errors.New("stop before command execution")
 				cmd.Command(tc.name).Before = func(ctx context.Context, c *urfave.Command) (context.Context, error) {
@@ -180,8 +193,42 @@ func TestOptionAliases(t *testing.T) {
 	}
 }
 
+func TestCommandHelpRunsWithoutTerminal(t *testing.T) {
+	for _, args := range [][]string{
+		{"rm", "--help"},
+		{"history", "show", "--help"},
+	} {
+		t.Run(strings.Join(args, "/"), func(t *testing.T) {
+			out, _, err := executeWithInput(t, args, nil, "")
+			require.NoError(t, err)
+			require.Contains(t, out, "USAGE:")
+		})
+	}
+}
+
+func TestMigratedCommandStaticValidation(t *testing.T) {
+	cases := []struct {
+		args []string
+		want string
+	}{
+		{[]string{"export", "--plaintext", "--encrypted", "vault", "backup"}, "choose exactly one export format"},
+		{[]string{"sync", "--clone", "--reconcile"}, "reconcile cannot be combined with clone"},
+		{[]string{"history", "show", "vault/note/item", "invalid"}, "invalid history index"},
+		{[]string{"agent", "sessions", "extra"}, "invalid arguments"},
+		{[]string{"attachment", "list", "vault/unknown/item"}, "invalid item type"},
+		{[]string{"edit", "--field=Token", "--type=unknown", "vault/login/item"}, "unsupported custom field type"},
+		{[]string{"restore"}, "invalid arguments"},
+	}
+	for _, tc := range cases {
+		t.Run(strings.Join(tc.args, "/"), func(t *testing.T) {
+			_, err := execute(t, tc.args, nil)
+			require.ErrorContains(t, err, tc.want)
+		})
+	}
+}
+
 func TestShowRejectsRevealWithClipboard(t *testing.T) {
-	_, _, err := executeWithInput(t, []string{"show", "--reveal", "--clip", "vault/login/item"}, newShowCommand(&command{}), "")
+	_, _, err := executeSubcommand(t, []string{"show", "--reveal", "--clip", "vault/login/item"}, newShowCommand, &command{}, "")
 	require.ErrorContains(t, err, "cannot be combined")
 }
 
@@ -209,7 +256,7 @@ func TestSessionFlag(t *testing.T) {
 		} {
 			t.Run(name+"/"+tc.name, func(t *testing.T) {
 				t.Setenv(paw.ENV_SESSION, "environment-session")
-				cmd := newCommand(nil)
+				cmd := newCommand(nil, strings.NewReader(""), io.Discard, io.Discard)
 				stop := errors.New("stop before command execution")
 				checked := false
 				cmd.Command(name).Before = func(ctx context.Context, c *urfave.Command) (context.Context, error) {
@@ -247,10 +294,17 @@ func TestVersion(t *testing.T) {
 	require.Equal(t, fmt.Sprintf("paw cli version %s\n", paw.Version()), out)
 }
 
+func TestCommandConstructorRoutesPromptDiagnostics(t *testing.T) {
+	out, diagnostics, err := executeWithInput(t, []string{"pwgen"}, nil, "2\n4\n")
+	require.ErrorContains(t, err, "interactive prompt requires stdin to be a terminal")
+	require.Empty(t, out)
+	require.Empty(t, diagnostics)
+}
+
 func TestSSHKeyImportFailureAndCancellation(t *testing.T) {
 	base := &command{readFile: os.ReadFile}
 	base.out = io.Discard
-	base.prompter = newPrompter(strings.NewReader("n\n"), io.Discard)
+	base.prompter = testInteractivePrompter(t, "n\n")
 	cmd := &AddCmd{command: base, importPath: filepath.Join(t.TempDir(), "missing-key")}
 	_, err := cmd.newSSHKey()
 	require.Error(t, err)

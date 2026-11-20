@@ -17,81 +17,109 @@ import (
 	"go.lucor.dev/paw/internal/storage"
 )
 
+// RestoreCmd restores a backup into a new vault.
+type RestoreCmd struct {
+	*command
+	backupPath string
+	name       string
+}
+
 // newRestoreCommand constructs the vault-restore command.
 func newRestoreCommand(base *command) *urfave.Command {
-	return &urfave.Command{Name: "restore", Usage: "Restore a Paw or CXF backup into a new vault", ArgsUsage: "BACKUP", Flags: []urfave.Flag{&urfave.StringFlag{Name: "name", Usage: "Name for the restored vault"}}, Action: withArgs(1, 1, func(ctx context.Context, c *urfave.Command) error {
-		base := base.forInvocation(c)
-		ctx, stop := signal.NotifyContext(ctx, os.Interrupt)
-		defer stop()
-		file, err := os.Open(c.Args().First())
-		if err != nil {
-			return fmt.Errorf("open backup: %w", err)
+	cmd := &RestoreCmd{command: base}
+	c := &urfave.Command{
+		Name:      "restore",
+		Usage:     "Restore a Paw or CXF backup into a new vault",
+		ArgsUsage: "BACKUP",
+		Flags:     []urfave.Flag{&urfave.StringFlag{Name: "name", Usage: "Name for the restored vault"}},
+	}
+	c.Before = cmd.Validate
+	c.Action = cmd.Run
+	return c
+}
+
+// Validate checks the backup argument and captures the requested vault name.
+func (cmd *RestoreCmd) Validate(ctx context.Context, c *urfave.Command) (context.Context, error) {
+	if err := validateArgs(c, 1, 1); err != nil {
+		return ctx, err
+	}
+	cmd.backupPath = c.Args().First()
+	cmd.name = c.String("name")
+	return ctx, nil
+}
+
+// Run reads a backup, confirms the restore, and creates the vault.
+func (cmd *RestoreCmd) Run(ctx context.Context, _ *urfave.Command) error {
+	ctx, stop := signal.NotifyContext(ctx, os.Interrupt)
+	defer stop()
+	file, err := os.Open(cmd.backupPath)
+	if err != nil {
+		return fmt.Errorf("open backup: %w", err)
+	}
+	defer file.Close()
+	var backup *storage.PawBackup
+	if strings.EqualFold(filepath.Ext(cmd.backupPath), ".paw") {
+		password, readErr := cmd.prompter.askPassword("Archive password")
+		if readErr != nil {
+			return readErr
 		}
-		defer file.Close()
-		var backup *storage.PawBackup
-		if strings.EqualFold(filepath.Ext(c.Args().First()), ".paw") {
-			password, readErr := base.prompter.askPassword("Archive password")
+		backup, err = storage.ReadPawArchive(ctx, file, password)
+	} else {
+		backup, err = storage.ReadPawBackup(ctx, file, "")
+		if errors.Is(err, storage.ErrBackupPasswordRequired) {
+			password, readErr := cmd.prompter.askPassword("Backup password")
 			if readErr != nil {
 				return readErr
 			}
-			backup, err = storage.ReadPawArchive(ctx, file, password)
-		} else {
-			backup, err = storage.ReadPawBackup(ctx, file, "")
-			if errors.Is(err, storage.ErrBackupPasswordRequired) {
-				password, readErr := base.prompter.askPassword("Backup password")
-				if readErr != nil {
-					return readErr
-				}
-				if _, err = file.Seek(0, 0); err != nil {
-					return err
-				}
-				backup, err = storage.ReadPawBackup(ctx, file, password)
-			}
-		}
-		if err != nil {
-			return err
-		}
-		defer backup.Close()
-		fmt.Fprintf(base.out, "Vault: %s\nCollections: %d\nCredentials: %d\n", backup.Name, backup.Collections, backup.Credentials)
-		if backup.CreationAt != nil {
-			fmt.Fprintf(base.out, "Created: %s\n", time.Unix(int64(*backup.CreationAt), 0).UTC().Format(time.RFC3339))
-		}
-		if backup.ExportedAt != 0 {
-			fmt.Fprintf(base.out, "CXF document date: %s\n", time.Unix(int64(backup.ExportedAt), 0).UTC().Format(time.RFC3339))
-		}
-		name := c.String("name")
-		if name == "" {
-			name, err = base.prompter.askWithDefault("New vault name", backup.Name)
-			if err != nil {
+			if _, err = file.Seek(0, 0); err != nil {
 				return err
 			}
+			backup, err = storage.ReadPawBackup(ctx, file, password)
 		}
-		confirmed, err := base.prompter.askYesNo("Create restored vault?", false)
-		if err != nil {
-			return err
-		}
-		if !confirmed {
-			return errCanceled
-		}
-		password, err := base.prompter.askPassword("New master password")
-		if err != nil {
-			return err
-		}
-		confirm, err := base.prompter.askPassword("Confirm new master password")
-		if err != nil {
-			return err
-		}
-		if password != confirm {
-			return fmt.Errorf("master passwords do not match")
-		}
-		vault, err := base.storage.Restore(ctx, backup, name, password)
-		if err != nil {
-			return err
-		}
-		if vault.Accounts[0].ID != backup.AccountID {
-			fmt.Fprintln(base.out, "The original vault ID is already in use. An independent copy was created.")
-		}
-		_, err = fmt.Fprintf(base.out, "Vault restored successfully: %s (Vault ID %s)\n", name, shortVaultID(vault.Accounts[0].ID))
+	}
+	if err != nil {
 		return err
-	})}
+	}
+	defer backup.Close()
+	fmt.Fprintf(cmd.out, "Vault: %s\nCollections: %d\nCredentials: %d\n", backup.Name, backup.Collections, backup.Credentials)
+	if backup.CreationAt != nil {
+		fmt.Fprintf(cmd.out, "Created: %s\n", time.Unix(int64(*backup.CreationAt), 0).UTC().Format(time.RFC3339))
+	}
+	if backup.ExportedAt != 0 {
+		fmt.Fprintf(cmd.out, "CXF document date: %s\n", time.Unix(int64(backup.ExportedAt), 0).UTC().Format(time.RFC3339))
+	}
+	name := cmd.name
+	if name == "" {
+		name, err = cmd.prompter.askWithDefault("New vault name", backup.Name)
+		if err != nil {
+			return err
+		}
+	}
+	confirmed, err := cmd.prompter.askYesNo("Create restored vault?", false)
+	if err != nil {
+		return err
+	}
+	if !confirmed {
+		return errCanceled
+	}
+	password, err := cmd.prompter.askPassword("New master password")
+	if err != nil {
+		return err
+	}
+	confirm, err := cmd.prompter.askPassword("Confirm new master password")
+	if err != nil {
+		return err
+	}
+	if password != confirm {
+		return fmt.Errorf("master passwords do not match")
+	}
+	vault, err := cmd.storage.Restore(ctx, backup, name, password)
+	if err != nil {
+		return err
+	}
+	if vault.Accounts[0].ID != backup.AccountID {
+		fmt.Fprintln(cmd.out, "The original vault ID is already in use. An independent copy was created.")
+	}
+	_, err = fmt.Fprintf(cmd.out, "Vault restored successfully: %s (Vault ID %s)\n", name, shortVaultID(vault.Accounts[0].ID))
+	return err
 }

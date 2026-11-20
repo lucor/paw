@@ -4,78 +4,147 @@
 package cli
 
 import (
-	"bufio"
 	"bytes"
-	"errors"
 	"io"
 	"os"
 	"strings"
 	"testing"
 
+	tea "charm.land/bubbletea/v2"
+	"charm.land/huh/v2"
 	"github.com/stretchr/testify/require"
 
 	"go.lucor.dev/paw/internal/paw"
 )
 
-func TestPrompterSequentialAnswers(t *testing.T) {
-	var out bytes.Buffer
-	p := newPrompter(strings.NewReader("alice\r\n\nmaybe\nY\nabc\n99\n8\n-1\n1\nlast"), &out)
+func TestPrompterRequiresTerminalForPrompt(t *testing.T) {
+	t.Setenv("TERM", "xterm-256color")
+	input := strings.NewReader("answer\n")
+	var output bytes.Buffer
+	p := newPrompter(input, &output)
+
+	_, err := p.ask("Username")
+	require.ErrorContains(t, err, "requires stdin to be a terminal")
+	require.Equal(t, len("answer\n"), input.Len(), "a prompt must not consume piped input")
+	require.Empty(t, output.String())
+}
+
+func TestRemoveChecksTerminalBeforeAction(t *testing.T) {
+	t.Setenv("TERM", "xterm-256color")
+	_, _, err := executeSubcommand(t, []string{"rm", "vault/note/example"}, newRemoveCommand, &command{}, "y\n")
+	require.ErrorContains(t, err, "requires stdin to be a terminal")
+}
+
+func TestPrompterRejectsTermDumb(t *testing.T) {
+	t.Setenv("TERM", "dumb")
+	p := newPrompter(strings.NewReader("answer\n"), io.Discard)
+	p.interactive = true
+	var output bytes.Buffer
+	p.output = &output
+
+	_, err := p.ask("Username")
+	require.ErrorContains(t, err, "not supported when TERM=dumb")
+	require.Empty(t, output.String())
+}
+
+func TestPrompterHuhInputAndDefault(t *testing.T) {
+	p := testInteractivePrompter(t, "alice\n\n")
 	value, err := p.ask("Username")
 	require.NoError(t, err)
 	require.Equal(t, "alice", value)
 	value, err = p.askWithDefault("Note", "old note")
 	require.NoError(t, err)
 	require.Equal(t, "old note", value)
+}
+
+func TestPrompterHonorsNoColor(t *testing.T) {
+	t.Setenv("NO_COLOR", "1")
+	p := testInteractivePrompter(t, "value\n")
+	var output bytes.Buffer
+	p.output = &output
+	_, err := p.ask("Name")
+	require.NoError(t, err)
+	require.NotContains(t, output.String(), "\x1b[")
+}
+
+func TestPrompterHuhConfirmAndSelection(t *testing.T) {
+	p := testInteractivePrompter(t, "Y\nn\n2\n")
 	yes, err := p.askYesNo("Continue?", false)
 	require.NoError(t, err)
 	require.True(t, yes)
-	n, err := p.askIntWithDefaultAndRange("Length", 12, 6, 64)
+	yes, err = p.askYesNo("Continue?", true)
 	require.NoError(t, err)
-	require.Equal(t, 8, n)
+	require.False(t, yes)
 	mode, err := p.askPasswordMode("Mode", []paw.PasswordMode{paw.RandomPassword, paw.PinPassword}, paw.RandomPassword)
 	require.NoError(t, err)
 	require.Equal(t, paw.PinPassword, mode)
-	value, err = p.ask("Last")
-	require.NoError(t, err)
-	require.Equal(t, "last", value)
-	_, err = p.ask("End")
-	require.ErrorIs(t, err, io.EOF)
-	require.Contains(t, out.String(), "Username: Note [old note]: Continue? [y/N]: ")
 }
 
-func TestPrompterDefaultsAndEOF(t *testing.T) {
-	for _, input := range []string{"", "invalid\n"} {
-		t.Run("confirm/"+input, func(t *testing.T) {
-			p := newPrompter(strings.NewReader(input), io.Discard)
-			_, err := p.askYesNo("Continue?", true)
-			require.ErrorIs(t, err, io.EOF)
-		})
-		t.Run("length/"+input, func(t *testing.T) {
-			p := newPrompter(strings.NewReader(input), io.Discard)
-			_, err := p.askIntWithDefaultAndRange("Length", 12, 6, 64)
-			require.ErrorIs(t, err, io.EOF)
-		})
-		t.Run("mode/"+input, func(t *testing.T) {
-			p := newPrompter(strings.NewReader(input), io.Discard)
-			_, err := p.askPasswordMode("Mode", []paw.PasswordMode{paw.RandomPassword}, paw.RandomPassword)
-			require.ErrorIs(t, err, io.EOF)
-		})
-	}
-	p := newPrompter(strings.NewReader("\n\n\n\n"), io.Discard)
-	yes, err := p.askYesNo("Continue?", true)
-	require.NoError(t, err)
-	require.True(t, yes)
-	yes, err = p.askYesNo("Continue?", false)
-	require.NoError(t, err)
-	require.False(t, yes)
+func TestPrompterHuhIntegerValidation(t *testing.T) {
+	p := testInteractivePrompter(t, "abc\n8\n")
 	n, err := p.askIntWithDefaultAndRange("Length", 12, 6, 64)
 	require.NoError(t, err)
-	require.Equal(t, 12, n)
-	mode, err := p.askPasswordMode("Mode", []paw.PasswordMode{paw.PinPassword}, paw.RandomPassword)
+	require.Equal(t, 8, n)
+}
+
+func TestPrompterHuhCancellation(t *testing.T) {
+	for name, key := range map[string]tea.Key{
+		"escape": {Code: tea.KeyEscape},
+		"ctrl+c": {Code: 'c', Mod: tea.ModCtrl},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Setenv("TERM", "xterm-256color")
+			p := newPrompter(strings.NewReader(""), io.Discard)
+			form := p.makeForm(huh.NewGroup(huh.NewInput()))
+			form.CancelCmd = tea.Interrupt
+			updated, cancel := form.Update(tea.KeyPressMsg(key))
+			require.Equal(t, huh.StateAborted, updated.(*huh.Form).State)
+			require.NotNil(t, cancel)
+		})
+	}
+}
+
+func testInteractivePrompter(t *testing.T, input string) *prompter {
+	t.Helper()
+	t.Setenv("TERM", "xterm-256color")
+	p := newPrompter(strings.NewReader(input), io.Discard)
+	p.terminalInput = singleByteReader{p.terminalInput}
+	p.interactive = true
+	// Command tests use scripted answers to exercise the command flow.
+	p.runForm = func(form *huh.Form) error {
+		return form.WithAccessible(true).Run()
+	}
+	return p
+}
+
+func TestPrompterEditsMultilineTextInExternalEditor(t *testing.T) {
+	editor := &testTextEditor{value: "first line\nsecond line\n"}
+	var output bytes.Buffer
+	p := newPrompter(strings.NewReader(""), &output)
+	p.editor = editor
+	value, err := p.editMultiline("Note", "existing note\n")
 	require.NoError(t, err)
-	require.Equal(t, paw.PinPassword, mode)
-	_, err = p.askPasswordMode("Mode", nil, paw.RandomPassword)
-	require.Error(t, err)
+	require.Equal(t, "existing note\n", editor.initial)
+	require.Equal(t, "first line\nsecond line", value)
+	require.Contains(t, output.String(), "Edit Note in your text editor")
+	_, err = os.Stat(editor.path)
+	require.ErrorIs(t, err, os.ErrNotExist, "temporary note file is removed after editing")
+}
+
+type testTextEditor struct {
+	initial string
+	path    string
+	value   string
+}
+
+func (e *testTextEditor) Edit(path string) error {
+	e.path = path
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	e.initial = string(content)
+	return os.WriteFile(path, []byte(e.value), 0o600)
 }
 
 func TestPrompterEditsMultilineTextInExternalEditor(t *testing.T) {
@@ -111,22 +180,18 @@ func (e *testTextEditor) Edit(path string) error {
 func TestPasswordConfirmation(t *testing.T) {
 	var out bytes.Buffer
 	p := newPrompter(strings.NewReader(""), &out)
+	p.output = &out
 	answers := []string{"first-secret", "different-secret", "confirmed-secret", "confirmed-secret"}
 	p.readPassword = func() ([]byte, error) {
-		if len(answers) == 0 {
-			return nil, io.EOF
-		}
-		answer := answers[0]
+		value := answers[0]
 		answers = answers[1:]
-		return []byte(answer), nil
+		return []byte(value), nil
 	}
 	password, err := p.askPasswordWithConfirm()
 	require.NoError(t, err)
 	require.Equal(t, "confirmed-secret", password)
 	require.Contains(t, out.String(), "Passwords do not match")
 	require.NotContains(t, out.String(), "secret")
-	_, err = p.askPasswordWithConfirm()
-	require.ErrorIs(t, err, io.EOF)
 }
 
 func TestPasswordRejectsNonTerminalInput(t *testing.T) {
@@ -134,40 +199,19 @@ func TestPasswordRejectsNonTerminalInput(t *testing.T) {
 	var out bytes.Buffer
 	p := newPrompter(input, &out)
 	_, err := p.askPassword("Password")
-	require.ErrorContains(t, err, "not a terminal")
+	require.ErrorContains(t, err, "requires stdin to be a terminal")
 	require.Equal(t, len("plaintext-secret\n"), input.Len())
 	require.NotContains(t, out.String(), "plaintext-secret")
 }
 
 func TestTerminalTextDoesNotReadAheadIntoPassword(t *testing.T) {
 	input := strings.NewReader("alice\nsecret\n")
-	p := &prompter{input: bufio.NewReader(singleByteReader{input}), output: io.Discard}
+	p := testInteractivePrompter(t, "alice\nsecret\n")
+	p.terminalInput = singleByteReader{input}
 	name, err := p.ask("Name")
 	require.NoError(t, err)
 	require.Equal(t, "alice", name)
 	remaining, err := io.ReadAll(input)
 	require.NoError(t, err)
 	require.Equal(t, "secret\n", string(remaining))
-}
-
-type failingInput struct{ err error }
-
-func (r failingInput) Read([]byte) (int, error) { return 0, r.err }
-
-type failingOutput struct{ err error }
-
-func (w failingOutput) Write([]byte) (int, error) { return 0, w.err }
-
-func TestPrompterIOErrors(t *testing.T) {
-	failure := errors.New("I/O failed")
-	p := newPrompter(failingInput{failure}, io.Discard)
-	_, err := p.ask("Name")
-	require.ErrorIs(t, err, failure)
-	p = newPrompter(strings.NewReader("answer\n"), failingOutput{failure})
-	_, err = p.ask("Name")
-	require.ErrorIs(t, err, failure)
-	p = newPrompter(strings.NewReader(""), io.Discard)
-	p.readPassword = func() ([]byte, error) { return nil, failure }
-	_, err = p.askPassword("Password")
-	require.ErrorIs(t, err, failure)
 }

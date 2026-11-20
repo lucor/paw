@@ -110,6 +110,8 @@ func TestShowIncludesAttachmentMetadataOnlyWhenPresent(t *testing.T) {
 func runAttachmentCLI(t *testing.T, base *command, args []string) (string, error) {
 	t.Helper()
 	var output bytes.Buffer
+	base.out = &output
+	base.errOut = &output
 	cmd := &urfave.Command{Name: "paw cli", Commands: []*urfave.Command{newAttachmentCommand(base)}}
 	cmd.Writer = &output
 	cmd.ErrWriter = &output

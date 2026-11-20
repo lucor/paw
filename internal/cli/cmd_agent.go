@@ -17,7 +17,7 @@ const (
 	agentSessionsSubCmd = "sessions"
 )
 
-// Agent manages the Paw agent
+// AgentCmd manages the Paw agent
 type AgentCmd struct {
 	*command
 	agentCommand string
@@ -25,25 +25,37 @@ type AgentCmd struct {
 
 // newAgentCommand constructs the agent-start command.
 func newAgentCommand(base *command) *urfave.Command {
+	start := &AgentCmd{command: base, agentCommand: agentStartSubCmd}
+	sessions := &AgentCmd{command: base, agentCommand: agentSessionsSubCmd}
 	return &urfave.Command{
 		Name:   "agent",
 		Usage:  "Manages the Paw agent",
 		Action: commandGroupAction,
 		Commands: []*urfave.Command{
-			{Name: "start", Usage: "Starts the agent", ArgsUsage: " ", Action: withArgs(0, 0, func(ctx context.Context, c *urfave.Command) error {
-				base := base.forInvocation(c)
-				return (&AgentCmd{command: base, agentCommand: agentStartSubCmd}).Run(ctx)
-			})},
-			{Name: "sessions", Usage: "Lists active sessions", ArgsUsage: " ", Action: withArgs(0, 0, func(ctx context.Context, c *urfave.Command) error {
-				base := base.forInvocation(c)
-				return (&AgentCmd{command: base, agentCommand: agentSessionsSubCmd}).Run(ctx)
-			})},
+			newAgentSubcommand("start", "Starts the agent", start),
+			newAgentSubcommand("sessions", "Lists active sessions", sessions),
 		},
 	}
 }
 
+// newAgentSubcommand registers one agent operation.
+func newAgentSubcommand(name, usage string, cmd *AgentCmd) *urfave.Command {
+	c := &urfave.Command{Name: name, Usage: usage, ArgsUsage: " "}
+	c.Before = cmd.Validate
+	c.Action = cmd.Run
+	return c
+}
+
+// Validate checks that an agent operation has no positional arguments.
+func (cmd *AgentCmd) Validate(ctx context.Context, c *urfave.Command) (context.Context, error) {
+	if err := validateArgs(c, 0, 0); err != nil {
+		return ctx, err
+	}
+	return ctx, nil
+}
+
 // Run starts the Paw agent using the selected socket path.
-func (cmd *AgentCmd) Run(ctx context.Context) error {
+func (cmd *AgentCmd) Run(ctx context.Context, _ *urfave.Command) error {
 	base := cmd.command
 	s := base.storage
 	switch cmd.agentCommand {

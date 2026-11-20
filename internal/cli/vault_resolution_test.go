@@ -78,7 +78,7 @@ func TestListVaultSelectionAndUniqueIDPrefixes(t *testing.T) {
 	prompter.readPassword = func() ([]byte, error) { return []byte("password"), nil }
 	var output bytes.Buffer
 	cmd := &ListCmd{command: &command{storage: store, prompter: prompter, out: &output}, vaultName: "Personal"}
-	require.NoError(t, cmd.Run(context.Background()))
+	require.NoError(t, cmd.Run(context.Background(), nil))
 	require.Contains(t, output.String(), "Personal ("+shortVaultID(vault.Accounts[0].ID)+")\n")
 	require.NotContains(t, output.String(), "paw/")
 	require.Contains(t, output.String(), "note")
@@ -102,7 +102,7 @@ func TestSyncRejectsAmbiguousVaultBeforeUnlock(t *testing.T) {
 	test.CreateVault(t, store, "Personal")
 	test.CreateVault(t, store, "Personal")
 	cmd := &SyncCmd{command: &command{storage: store, getenv: os.Getenv, prompter: newPrompter(strings.NewReader(""), nil)}, vaultName: "Personal"}
-	err = cmd.Run(context.Background())
+	err = cmd.Run(context.Background(), nil)
 	require.ErrorContains(t, err, "ambiguous vault")
 }
 

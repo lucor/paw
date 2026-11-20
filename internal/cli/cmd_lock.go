@@ -22,20 +22,29 @@ type LockCmd struct {
 
 // newLockCommand constructs the vault-lock command.
 func newLockCommand(base *command) *urfave.Command {
-	return &urfave.Command{
+	cmd := &LockCmd{command: base}
+	c := &urfave.Command{
 		Name:        "lock",
 		Usage:       "Locks a vault",
 		ArgsUsage:   "VAULT",
 		Description: vaultReferenceHelp,
-		Action: withArgs(1, 1, func(ctx context.Context, c *urfave.Command) error {
-			base := base.forInvocation(c)
-			return (&LockCmd{command: base, vaultName: c.Args().First()}).Run(ctx)
-		}),
 	}
+	c.Before = cmd.Validate
+	c.Action = cmd.Run
+	return c
+}
+
+// Validate checks that exactly one vault argument was provided.
+func (cmd *LockCmd) Validate(ctx context.Context, c *urfave.Command) (context.Context, error) {
+	if err := validateArgs(c, 1, 1); err != nil {
+		return ctx, err
+	}
+	cmd.vaultName = c.Args().First()
+	return ctx, nil
 }
 
 // Run locks the selected vault and removes its keys from the agent.
-func (cmd *LockCmd) Run(ctx context.Context) error {
+func (cmd *LockCmd) Run(ctx context.Context, _ *urfave.Command) error {
 	base := cmd.command
 	s := base.storage
 	info, err := base.resolveVaultInfo(cmd.vaultName)

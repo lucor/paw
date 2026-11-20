@@ -17,19 +17,27 @@ type PwGenCmd struct{ *command }
 
 // newPwGenCommand constructs the password-generation command.
 func newPwGenCommand(base *command) *urfave.Command {
-	return &urfave.Command{
+	cmd := &PwGenCmd{command: base}
+	c := &urfave.Command{
 		Name:      "pwgen",
 		Usage:     "Generates a password",
 		ArgsUsage: " ",
-		Action: withArgs(0, 0, func(ctx context.Context, c *urfave.Command) error {
-			base := base.forInvocation(c)
-			return (&PwGenCmd{command: base}).Run(ctx)
-		}),
 	}
+	c.Before = cmd.Validate
+	c.Action = cmd.Run
+	return c
+}
+
+// Validate checks that password generation has no positional arguments.
+func (cmd *PwGenCmd) Validate(ctx context.Context, c *urfave.Command) (context.Context, error) {
+	if err := validateArgs(c, 0, 0); err != nil {
+		return ctx, err
+	}
+	return ctx, nil
 }
 
 // Run generates a password and writes it to the command output.
-func (cmd *PwGenCmd) Run(ctx context.Context) error {
+func (cmd *PwGenCmd) Run(ctx context.Context, _ *urfave.Command) error {
 	modes := []paw.PasswordMode{
 		paw.RandomPassword,
 		paw.PassphrasePassword,

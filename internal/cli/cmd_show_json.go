@@ -17,6 +17,7 @@ type showJSON struct {
 	itemType model.ItemType
 }
 
+// MarshalJSON encodes the item in Paw's CLI JSON format.
 func (item showJSON) MarshalJSON() ([]byte, error) {
 	output := map[string]any{
 		"id":   item.ID,

@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -29,7 +30,7 @@ func Run(args []string, s *storage.FileStorage) error {
 		return fmt.Errorf("expected paw cli arguments")
 	}
 	argv := append([]string{"paw cli"}, args[2:]...)
-	err := newCommand(s).Run(context.Background(), argv)
+	err := newCommand(s, os.Stdin, os.Stdout, os.Stderr).Run(context.Background(), argv)
 	if errors.Is(err, errCanceled) {
 		return nil
 	}
@@ -41,9 +42,12 @@ var errCanceled = errors.New("command canceled")
 const vaultReferenceHelp = "VAULT can be a vault name, full ID, or unique ID prefix (at least 7 characters)."
 
 // newCommand builds the root CLI command and its subcommands.
-func newCommand(storage *storage.FileStorage) *urfave.Command {
+func newCommand(storage *storage.FileStorage, in io.Reader, out, errOut io.Writer) *urfave.Command {
 	base := &command{
 		storage:     storage,
+		prompter:    newPrompter(in, errOut),
+		out:         out,
+		errOut:      errOut,
 		agentClient: agent.NewClient,
 		startAgent: func(socketPath string) error {
 			a := agent.NewCLI()
@@ -69,9 +73,12 @@ func newCommand(storage *storage.FileStorage) *urfave.Command {
 		},
 	}
 	return &urfave.Command{
-		Name:   "paw cli",
-		Usage:  "The CLI application for Paw",
-		Action: requireSubcommand,
+		Name:      "paw cli",
+		Usage:     "The CLI application for Paw",
+		Action:    requireSubcommand,
+		Reader:    in,
+		Writer:    out,
+		ErrWriter: errOut,
 		// Keep exit handling in main, including errors returned by command.
 		ExitErrHandler: func(context.Context, *urfave.Command, error) {},
 		Commands: []*urfave.Command{
@@ -119,18 +126,6 @@ func commandGroupAction(_ context.Context, c *urfave.Command) error {
 		return fmt.Errorf("unknown %s subcommand %q.\n\nUsage:\n  %s <command> [arguments]\n\nCommands:%s\n\nRun '%s --help' for details", c.Name, c.Args().First(), c.FullName(), commands.String(), c.FullName())
 	}
 	return urfave.ShowSubcommandHelp(c)
-}
-
-// withArgs wraps an action with a positional argument count check.
-func withArgs(min, max int, action urfave.ActionFunc) urfave.ActionFunc {
-	return func(ctx context.Context, c *urfave.Command) error {
-		if n := c.Args().Len(); n < min {
-			return fmt.Errorf("invalid arguments: missing required arguments: %s\nUsage: %s %s", strings.TrimSpace(c.ArgsUsage), c.FullName(), strings.TrimSpace(c.ArgsUsage))
-		} else if n > max {
-			return fmt.Errorf("invalid arguments: unexpected arguments; usage: %s %s", c.FullName(), strings.TrimSpace(c.ArgsUsage))
-		}
-		return action(ctx, c)
-	}
 }
 
 type itemPath struct {

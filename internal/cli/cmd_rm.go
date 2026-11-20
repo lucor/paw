@@ -19,26 +19,36 @@ type RemoveCmd struct {
 
 // newRemoveCommand constructs the item-removal command.
 func newRemoveCommand(base *command) *urfave.Command {
-	return &urfave.Command{
+	cmd := &RemoveCmd{command: base}
+	c := &urfave.Command{
 		Name:        "rm",
 		Aliases:     []string{"remove"},
 		Usage:       "Removes an item from the vault (alias: remove)",
 		ArgsUsage:   "VAULT/ITEM_TYPE/ITEM_NAME",
 		Description: vaultReferenceHelp,
 		Flags:       []urfave.Flag{sessionFlag()},
-		Action: withArgs(1, 1, func(ctx context.Context, c *urfave.Command) error {
-			base := base.forInvocation(c)
-			path, err := parseItemPath(c.Args().First(), itemPathOptions{fullPath: true})
-			if err != nil {
-				return err
-			}
-			return (&RemoveCmd{command: base, itemPath: path, sessionID: c.String("session")}).Run(ctx)
-		}),
 	}
+	c.Before = cmd.Validate
+	c.Action = cmd.Run
+	return c
+}
+
+// Validate checks the item path before the terminal requirement is applied.
+func (cmd *RemoveCmd) Validate(ctx context.Context, c *urfave.Command) (context.Context, error) {
+	if err := validateArgs(c, 1, 1); err != nil {
+		return ctx, err
+	}
+	path, err := parseItemPath(c.Args().First(), itemPathOptions{fullPath: true})
+	if err != nil {
+		return ctx, err
+	}
+	cmd.itemPath = path
+	cmd.sessionID = c.String("session")
+	return cmd.command.requireTerminal(ctx, c)
 }
 
 // Run removes the selected item from its vault.
-func (cmd *RemoveCmd) Run(ctx context.Context) error {
+func (cmd *RemoveCmd) Run(ctx context.Context, _ *urfave.Command) error {
 	base := cmd.command
 	s := base.storage
 	appState, err := s.LoadAppState()

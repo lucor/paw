@@ -18,7 +18,9 @@ import (
 
 func TestAddLoginSharesPromptInputWithPasswordGenerator(t *testing.T) {
 	var prompts strings.Builder
-	base := &command{prompter: newPrompter(strings.NewReader("https://example.com\nalice\n3\n4\nexample note\n"), &prompts)}
+	p := testInteractivePrompter(t, "https://example.com\nalice\n4\n4\nn\n")
+	p.output = &prompts
+	base := &command{prompter: p}
 	item, err := (&AddCmd{command: base, itemPath: itemPath{itemName: "account"}}).newLogin()
 	require.NoError(t, err)
 	auth, _, err := item.BasicAuth()
@@ -27,9 +29,9 @@ func TestAddLoginSharesPromptInputWithPasswordGenerator(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "alice", auth.Username.Value)
 	require.Equal(t, "https://example.com", item.Scope.URLs[0])
-	require.Equal(t, "example note", note.Content.Value)
+	require.Empty(t, note.Content.Value)
 	require.Len(t, auth.Password.Value, 4)
-	require.Contains(t, prompts.String(), "Username:")
+	require.Contains(t, prompts.String(), "Username")
 	require.Contains(t, prompts.String(), "Pin length")
 }
 
@@ -55,22 +57,14 @@ func TestNormalizeLoginURLMatchesGUIValidation(t *testing.T) {
 	}
 }
 
-func TestEditItemFields(t *testing.T) {
+func TestEditItemPromptsRequireTTY(t *testing.T) {
 	t.Run("login", func(t *testing.T) {
 		item, err := model.NewLogin("account", "alice", "old-password", model.PasswordSettings{Mode: paw.CustomPassword})
 		require.NoError(t, err)
 		item.Scope = &cxf.CredentialScope{URLs: []string{"https://example.com"}, AndroidApps: []cxf.AndroidAppID{}}
-		cmd := &EditCmd{command: &command{prompter: newPrompter(strings.NewReader("https://new.example.com\nalice-new\n3\n\nupdated note\nn\n"), io.Discard)}}
-		require.NoError(t, cmd.editLogin(item))
-		auth, _, err := item.BasicAuth()
-		require.NoError(t, err)
-		note, _, err := item.Note()
-		require.NoError(t, err)
-		require.Equal(t, "https://new.example.com", item.Scope.URLs[0])
-		require.Len(t, item.Scope.URLs, 1)
-		require.Equal(t, "alice-new", auth.Username.Value)
-		require.Equal(t, paw.PinPassword, model.PasswordSettingsFromField(auth.Password).Mode)
-		require.Equal(t, "updated note", note.Content.Value)
+		cmd := &EditCmd{command: &command{prompter: newPrompter(strings.NewReader("https://new.example.com\nalice-new\n"), io.Discard)}}
+		require.ErrorContains(t, cmd.editLogin(item), "requires stdin to be a terminal")
+		require.Equal(t, []string{"https://example.com"}, item.Scope.URLs)
 	})
 	t.Run("preserves additional URLs", func(t *testing.T) {
 		item, err := model.NewLogin("account", "alice", "password", model.PasswordSettings{Mode: paw.CustomPassword})
@@ -84,17 +78,16 @@ func TestEditItemFields(t *testing.T) {
 		item, err := model.NewPassword("account", "old-value", model.PasswordSettings{Mode: paw.CustomPassword})
 		require.NoError(t, err)
 		cmd := &EditCmd{command: &command{prompter: newPrompter(strings.NewReader("3\n\n"), io.Discard)}}
-		require.NoError(t, cmd.editPassword(item))
+		require.ErrorContains(t, cmd.editPassword(item), "requires stdin to be a terminal")
 		auth, _, err := item.BasicAuth()
 		require.NoError(t, err)
-		require.Equal(t, paw.PinPassword, model.PasswordSettingsFromField(auth.Password).Mode)
-		require.Len(t, auth.Password.Value, paw.PinPasswordDefaultLength)
+		require.Equal(t, "old-value", auth.Password.Value)
 	})
 	t.Run("SSH key", func(t *testing.T) {
 		item := &model.Item{}
 		cmd := &EditCmd{command: &command{prompter: newPrompter(strings.NewReader("y\nn\n"), io.Discard)}}
-		require.NoError(t, cmd.editSSHKey(item))
-		require.True(t, item.Metadata.AddToAgent)
+		require.ErrorContains(t, cmd.editSSHKey(item), "requires stdin to be a terminal")
+		require.False(t, item.Metadata.AddToAgent)
 	})
 }
 
@@ -102,8 +95,7 @@ func TestInteractiveLoginEditCanKeepPassword(t *testing.T) {
 	item, err := model.NewLogin("account", "alice", "saved password", model.PasswordSettings{Mode: paw.CustomPassword})
 	require.NoError(t, err)
 	item.Scope = &cxf.CredentialScope{URLs: []string{"https://example.com"}}
-	p := newPrompter(strings.NewReader("\n\nn\nn\nn\n"), io.Discard)
-	p.interactive = true
+	p := testInteractivePrompter(t, "\n\nn\nn\nn\n")
 	cmd := &EditCmd{command: &command{prompter: p}}
 	require.NoError(t, cmd.editLogin(item))
 	credential, _, err := item.BasicAuth()
@@ -114,8 +106,7 @@ func TestInteractiveLoginEditCanKeepPassword(t *testing.T) {
 func TestInteractivePasswordEditCanKeepCurrentSecret(t *testing.T) {
 	item, err := model.NewPassword("account", "saved password", model.PasswordSettings{Mode: paw.CustomPassword})
 	require.NoError(t, err)
-	p := newPrompter(strings.NewReader("n\n"), io.Discard)
-	p.interactive = true
+	p := testInteractivePrompter(t, "n\n")
 	cmd := &EditCmd{command: &command{prompter: p}}
 	require.NoError(t, cmd.editPassword(item))
 	credential, _, err := item.BasicAuth()
@@ -135,7 +126,7 @@ func TestEditTOTPSecretPreservesSettingsAndCanRemoveCredential(t *testing.T) {
 		Issuer:    "Example",
 	}
 	require.NoError(t, item.SetTOTP(-1, original))
-	p := newPrompter(strings.NewReader("y\nn\n"), io.Discard)
+	p := testInteractivePrompter(t, "y\nn\n")
 	p.readPassword = func() ([]byte, error) { return []byte("jbsw-y3dp-ehpk3pxp"), nil }
 	cmd := &EditCmd{command: &command{prompter: p}}
 	require.NoError(t, cmd.editTOTP(item))
@@ -147,7 +138,7 @@ func TestEditTOTPSecretPreservesSettingsAndCanRemoveCredential(t *testing.T) {
 	require.Equal(t, uint16(8), decoded.TOTP.Digits)
 	require.Equal(t, "Example", decoded.TOTP.Issuer)
 
-	p = newPrompter(strings.NewReader("y\n"), io.Discard)
+	p = testInteractivePrompter(t, "y\n")
 	p.readPassword = func() ([]byte, error) { return []byte(":clear"), nil }
 	cmd.prompter = p
 	require.NoError(t, cmd.editTOTP(item))
@@ -155,7 +146,7 @@ func TestEditTOTPSecretPreservesSettingsAndCanRemoveCredential(t *testing.T) {
 	require.NoError(t, err)
 	require.Nil(t, decoded.TOTP)
 
-	p = newPrompter(strings.NewReader("y\nn\n"), io.Discard)
+	p = testInteractivePrompter(t, "y\nn\n")
 	p.readPassword = func() ([]byte, error) { return []byte("jbswy3dpehpk3pxp"), nil }
 	cmd.prompter = p
 	require.NoError(t, cmd.editTOTP(item))
@@ -170,7 +161,7 @@ func TestEditTOTPSecretPreservesSettingsAndCanRemoveCredential(t *testing.T) {
 func TestAddTOTPUsesDefaultsAndRejectsDuplicateCredentials(t *testing.T) {
 	item, err := model.NewLogin("account", "alice", "password", model.PasswordSettings{Mode: paw.CustomPassword})
 	require.NoError(t, err)
-	p := newPrompter(strings.NewReader("y\n4\nn\n5\n"), io.Discard)
+	p := testInteractivePrompter(t, "y\n4\nn\n5\n")
 	p.readPassword = func() ([]byte, error) { return []byte("jbsw-y3dp-ehpk3pxp"), nil }
 	cmd := &AddCmd{
 		command:  &command{prompter: p},
@@ -197,7 +188,7 @@ func TestEditTOTPChangesSettingsWithoutReplacingSecret(t *testing.T) {
 		Digits:    6,
 	}
 	require.NoError(t, item.SetTOTP(-1, original))
-	p := newPrompter(strings.NewReader("n\ny\nSHA512\n9\n47\n"), io.Discard)
+	p := testInteractivePrompter(t, "n\ny\nSHA512\n9\n47\n")
 	cmd := &EditCmd{command: &command{prompter: p}}
 	require.NoError(t, cmd.editTOTP(item))
 	credentials, err := model.DecodeCredentials(item.Credentials)
@@ -258,7 +249,7 @@ func TestEditSSHKeyCanChangePassphraseWithoutReplacingKey(t *testing.T) {
 	require.NoError(t, err)
 	item, err := model.NewSSHKey("Deployment", credential, "old passphrase", model.PasswordSettings{Mode: paw.CustomPassword})
 	require.NoError(t, err)
-	p := newPrompter(strings.NewReader("n\ny\n"), io.Discard)
+	p := testInteractivePrompter(t, "n\ny\n")
 	p.readPassword = func() ([]byte, error) { return []byte("new passphrase"), nil }
 	cmd := &EditCmd{command: &command{prompter: p}}
 	require.NoError(t, cmd.editSSHKey(item))
@@ -275,9 +266,10 @@ func TestEditSSHKeyCanChangePassphraseWithoutReplacingKey(t *testing.T) {
 func TestInteractiveEditCanFinishWithoutOpeningStandardFields(t *testing.T) {
 	item, err := model.NewLogin("GitHub", "developer", "secret", model.PasswordSettings{Mode: paw.CustomPassword})
 	require.NoError(t, err)
-	input := strings.NewReader("2\n8\n4\n")
 	var output strings.Builder
-	cmd := &EditCmd{command: &command{prompter: newPrompter(input, &output), errOut: &output}}
+	p := testInteractivePrompter(t, "2\n8\n4\n")
+	p.output = &output
+	cmd := &EditCmd{command: &command{prompter: p, errOut: &output}}
 	require.NoError(t, cmd.editInteractive(item, &model.Vault{}))
 	require.Contains(t, output.String(), "Add field")
 	require.NotContains(t, output.String(), "Password:")
@@ -293,10 +285,10 @@ func TestInteractiveEditRenamesNote(t *testing.T) {
 	summary, err := item.Summary()
 	require.NoError(t, err)
 	vault.Accounts[0].Items = append(vault.Accounts[0].Items, *summary)
-	input := strings.NewReader("1\nNew title\ny\n4\n")
+	input := "1\nNew title\ny\n4\n"
 	var output strings.Builder
-	p := newPrompter(input, &output)
-	p.interactive = true
+	p := testInteractivePrompter(t, input)
+	p.output = &output
 	p.editor = &testTextEditor{value: "updated note\n"}
 	cmd := &EditCmd{
 		command:  &command{prompter: p, errOut: &output},
@@ -320,19 +312,17 @@ func TestInteractiveEditReturnsStandardFieldErrors(t *testing.T) {
 	require.NoError(t, err)
 	vault.Accounts[0].Items = append(vault.Accounts[0].Items, *summary)
 	p := newPrompter(strings.NewReader("1\nRenamed\ny\n"), io.Discard)
-	p.interactive = true
 	cmd := &EditCmd{
 		command:  &command{prompter: p, errOut: io.Discard},
 		itemPath: itemPath{itemType: model.NoteItemType},
 	}
-	require.ErrorContains(t, cmd.editInteractive(item, vault), "could not read input")
+	require.ErrorContains(t, cmd.editInteractive(item, vault), "requires stdin to be a terminal")
 }
 
 func TestInteractiveNoteEditSupportsMultilineAndClear(t *testing.T) {
 	item, err := model.NewNote("Title", "original note")
 	require.NoError(t, err)
-	p := newPrompter(strings.NewReader("y\n"), io.Discard)
-	p.interactive = true
+	p := testInteractivePrompter(t, "y\n")
 	p.editor = &testTextEditor{value: "first line\nsecond line\n"}
 	cmd := &EditCmd{command: &command{prompter: p}}
 	require.NoError(t, cmd.editNote(item))
@@ -340,8 +330,7 @@ func TestInteractiveNoteEditSupportsMultilineAndClear(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "first line\nsecond line", note.Content.Value)
 
-	p = newPrompter(strings.NewReader("y\n"), io.Discard)
-	p.interactive = true
+	p = testInteractivePrompter(t, "y\n")
 	p.editor = &testTextEditor{value: ""}
 	cmd.prompter = p
 	require.NoError(t, cmd.editNote(item))
@@ -350,12 +339,11 @@ func TestInteractiveNoteEditSupportsMultilineAndClear(t *testing.T) {
 	require.Empty(t, note.Content.Value)
 }
 
-func TestPasswordGeneratorUsesCommandStreams(t *testing.T) {
-	out, prompts, err := executeWithInput(t, []string{"pwgen"}, newPwGenCommand(&command{}), "2\n4\n")
-	require.NoError(t, err)
-	require.Len(t, strings.TrimSpace(out), 4)
-	require.Contains(t, prompts, "Password type")
-	require.NotContains(t, out, "Password type")
+func TestPasswordGeneratorRequiresTTYForPrompts(t *testing.T) {
+	out, prompts, err := executeSubcommand(t, []string{"pwgen"}, newPwGenCommand, &command{}, "2\n4\n")
+	require.ErrorContains(t, err, "requires stdin to be a terminal")
+	require.Empty(t, out)
+	require.Empty(t, prompts)
 }
 
 func TestPasswordGeneratorModes(t *testing.T) {
@@ -365,13 +353,13 @@ func TestPasswordGeneratorModes(t *testing.T) {
 		mode        paw.PasswordMode
 		length      int
 	}{
-		{"random", "1\n8\ny\n", paw.RandomPassword, 8},
-		{"pin", "3\n4\n", paw.PinPassword, 4},
-		{"passphrase", "2\n3\n", paw.PassphrasePassword, 3},
-		{"custom", "0\n", paw.CustomPassword, 13},
+		{"random", "2\n8\ny\n", paw.RandomPassword, 8},
+		{"pin", "4\n4\n", paw.PinPassword, 4},
+		{"passphrase", "3\n3\n", paw.PassphrasePassword, 3},
+		{"custom", "1\n", paw.CustomPassword, 13},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			p := newPrompter(strings.NewReader(tc.input), io.Discard)
+			p := testInteractivePrompter(t, tc.input)
 			p.readPassword = func() ([]byte, error) { return []byte("custom-secret"), nil }
 			password, err := (&PwGenCmd{command: &command{prompter: p}}).Pwgen(modes, paw.RandomPassword)
 			require.NoError(t, err)
@@ -395,7 +383,7 @@ func TestPasswordGeneratorModes(t *testing.T) {
 func TestSSHKeyOperationsAreInjected(t *testing.T) {
 	generated, err := sshkey.GenerateKey()
 	require.NoError(t, err)
-	base := &command{prompter: newPrompter(strings.NewReader("n\n"), io.Discard), out: io.Discard}
+	base := &command{prompter: testInteractivePrompter(t, "n\n"), out: io.Discard}
 	base.generateSSHKey = func() (*generatedSSHKey, error) {
 		return &generatedSSHKey{PrivateKey: string(generated.MarshalPrivateKey()), PublicKey: string(generated.MarshalPublicKey()), Fingerprint: generated.Fingerprint()}, nil
 	}

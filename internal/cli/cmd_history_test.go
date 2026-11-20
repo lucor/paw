@@ -4,13 +4,11 @@
 package cli
 
 import (
-	"io"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
-	urfave "github.com/urfave/cli/v3"
 	"go.lucor.dev/paw/internal/model"
 	"go.lucor.dev/paw/internal/storage"
 	"go.lucor.dev/paw/internal/test"
@@ -65,7 +63,7 @@ func TestItemHistoryRestoreUsesNewestFirstIndexAndConfirms(t *testing.T) {
 	require.NoError(t, store.StoreItem(vault, item))
 	path := storage.FormatVaultID(vault.Accounts[0].ID) + "/note/Current"
 
-	base.prompter = historyPrompter("n\n")
+	base.prompter = historyPrompter(t, "n\n")
 	canceled, err := executeWithHistoryBase(t, base, []string{"history", "restore", path, "0"})
 	require.NoError(t, err)
 	require.Contains(t, canceled, "restore canceled")
@@ -73,7 +71,7 @@ func TestItemHistoryRestoreUsesNewestFirstIndexAndConfirms(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "Current", current.Title)
 
-	base.prompter = historyPrompter("y\n")
+	base.prompter = historyPrompter(t, "y\n")
 	base.now = func() time.Time { return time.Unix(300, 0).UTC() }
 	restored, err := executeWithHistoryBase(t, base, []string{"history", "restore", path, "0"})
 	require.NoError(t, err)
@@ -110,7 +108,7 @@ func historyCLIFixture(t *testing.T) (*storage.FileStorage, *model.Vault, *model
 	require.NoError(t, store.StoreItem(vault, item))
 	base := &command{
 		storage:  store,
-		prompter: historyPrompter(""),
+		prompter: historyPrompter(t, ""),
 		now:      time.Now,
 	}
 	return store, vault, item, base
@@ -118,13 +116,13 @@ func historyCLIFixture(t *testing.T) (*storage.FileStorage, *model.Vault, *model
 
 func executeWithHistoryBase(t *testing.T, base *command, args []string) (string, error) {
 	t.Helper()
-	cliCommand := &urfave.Command{Name: "paw cli", Commands: []*urfave.Command{newHistoryCommand(base)}}
-	out, _, err := executeWithInput(t, args, cliCommand, "")
+	out, _, err := executeSubcommand(t, args, newHistoryCommand, base, "")
 	return out, err
 }
 
-func historyPrompter(input string) *prompter {
-	prompter := newPrompter(strings.NewReader(input), io.Discard)
+func historyPrompter(t *testing.T, input string) *prompter {
+	t.Helper()
+	prompter := testInteractivePrompter(t, input)
 	prompter.readPassword = func() ([]byte, error) { return []byte("synthetic-password"), nil }
 	return prompter
 }

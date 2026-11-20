@@ -10,7 +10,7 @@ import (
 	urfave "github.com/urfave/cli/v3"
 )
 
-// Init initializes a vault
+// InitCmd initializes a vault
 type InitCmd struct {
 	*command
 	vaultName string
@@ -18,19 +18,28 @@ type InitCmd struct {
 
 // newInitCommand constructs the vault-initialization command.
 func newInitCommand(base *command) *urfave.Command {
-	return &urfave.Command{
+	cmd := &InitCmd{command: base}
+	c := &urfave.Command{
 		Name:      "init",
 		Usage:     "Initializes a vault",
 		ArgsUsage: "VAULT_NAME",
-		Action: withArgs(1, 1, func(ctx context.Context, c *urfave.Command) error {
-			base := base.forInvocation(c)
-			return (&InitCmd{command: base, vaultName: c.Args().First()}).Run(ctx)
-		}),
+		Before:    cmd.Validate,
+		Action:    cmd.Run,
 	}
+	return c
+}
+
+// Validate checks that a vault name was provided.
+func (cmd *InitCmd) Validate(ctx context.Context, c *urfave.Command) (context.Context, error) {
+	if err := validateArgs(c, 1, 1); err != nil {
+		return ctx, err
+	}
+	cmd.vaultName = c.Args().First()
+	return ctx, nil
 }
 
 // Run initializes a new vault using the supplied command input.
-func (cmd *InitCmd) Run(ctx context.Context) error {
+func (cmd *InitCmd) Run(ctx context.Context, _ *urfave.Command) error {
 	base := cmd.command
 	s := base.storage
 	fmt.Fprintf(cmd.out, "Initializing vault %q\n", cmd.vaultName)

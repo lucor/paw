@@ -25,21 +25,31 @@ type UnlockCmd struct {
 
 // newUnlockCommand constructs the vault-unlock command.
 func newUnlockCommand(base *command) *urfave.Command {
-	return &urfave.Command{
+	cmd := &UnlockCmd{command: base}
+	c := &urfave.Command{
 		Name:        "unlock",
 		Usage:       "Unlocks a vault and returns a session ID",
 		ArgsUsage:   "VAULT",
 		Description: vaultReferenceHelp,
 		Flags:       []urfave.Flag{&urfave.DurationFlag{Name: "lifetime", Aliases: []string{"t"}, Usage: "Maximum session lifetime (zero means no expiry)"}},
-		Action: withArgs(1, 1, func(ctx context.Context, c *urfave.Command) error {
-			base := base.forInvocation(c)
-			return (&UnlockCmd{command: base, vaultName: c.Args().First(), life: c.Duration("lifetime")}).Run(ctx)
-		}),
 	}
+	c.Before = cmd.Validate
+	c.Action = cmd.Run
+	return c
+}
+
+// Validate checks the vault argument and captures the requested lifetime.
+func (cmd *UnlockCmd) Validate(ctx context.Context, c *urfave.Command) (context.Context, error) {
+	if err := validateArgs(c, 1, 1); err != nil {
+		return ctx, err
+	}
+	cmd.vaultName = c.Args().First()
+	cmd.life = c.Duration("lifetime")
+	return ctx, nil
 }
 
 // Run unlocks the selected vault and restores its agent keys when configured.
-func (cmd *UnlockCmd) Run(ctx context.Context) error {
+func (cmd *UnlockCmd) Run(ctx context.Context, _ *urfave.Command) error {
 	base := cmd.command
 	s := base.storage
 	c, err := base.agentClient(s.SocketAgentPath())

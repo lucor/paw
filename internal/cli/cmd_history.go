@@ -18,61 +18,110 @@ import (
 
 // newHistoryCommand constructs the item-history command group.
 func newHistoryCommand(base *command) *urfave.Command {
-	return &urfave.Command{
+	cmd := &HistoryCommand{command: base, operation: historyDefault}
+	c := &urfave.Command{
 		Name:        "history",
 		Usage:       "Lists and restores item history",
 		ArgsUsage:   "VAULT/ITEM_TYPE/ITEM_NAME",
 		Description: vaultReferenceHelp,
 		Flags:       []urfave.Flag{sessionFlag()},
-		Action: func(ctx context.Context, c *urfave.Command) error {
-			if !c.Args().Present() {
-				return urfave.ShowSubcommandHelp(c)
-			}
-			if c.Args().Len() != 1 {
-				return fmt.Errorf("unexpected arguments; usage: %s <VAULT/ITEM_TYPE/ITEM_NAME>", c.FullName())
-			}
-			if !strings.Contains(c.Args().First(), "/") {
-				return fmt.Errorf("unknown history subcommand %q; use 'list', 'show', or 'restore'", c.Args().First())
-			}
-			return runHistoryList(base, ctx, c)
-		},
 		Commands: []*urfave.Command{
-			{Name: "list", Usage: "Lists item history", ArgsUsage: "VAULT/ITEM_TYPE/ITEM_NAME", Description: vaultReferenceHelp, Action: withArgs(1, 1, func(ctx context.Context, c *urfave.Command) error {
-				return runHistoryList(base, ctx, c)
-			})},
-			{Name: "show", Usage: "Shows a historical item version", ArgsUsage: "VAULT/ITEM_TYPE/ITEM_NAME INDEX", Description: vaultReferenceHelp, Action: withArgs(2, 2, func(ctx context.Context, c *urfave.Command) error {
-				cmd, err := newHistoryCmd(base, c)
-				if err != nil {
-					return err
-				}
-				index, err := historyIndex(c.Args().Get(1))
-				if err != nil {
-					return err
-				}
-				return cmd.show(ctx, index)
-			})},
-			{Name: "restore", Usage: "Restores a historical item version", ArgsUsage: "VAULT/ITEM_TYPE/ITEM_NAME INDEX", Description: vaultReferenceHelp, Action: withArgs(2, 2, func(ctx context.Context, c *urfave.Command) error {
-				cmd, err := newHistoryCmd(base, c)
-				if err != nil {
-					return err
-				}
-				index, err := historyIndex(c.Args().Get(1))
-				if err != nil {
-					return err
-				}
-				return cmd.restore(index)
-			})},
+			newHistorySubcommand(base, "list", "Lists item history", historyList),
+			newHistorySubcommand(base, "show", "Shows a historical item version", historyShow),
+			newHistorySubcommand(base, "restore", "Restores a historical item version", historyRestore),
 		},
 	}
+	c.Before = cmd.Validate
+	c.Action = cmd.Run
+	return c
 }
 
-// runHistoryList lists the history for the addressed vault item.
-func runHistoryList(base *command, ctx context.Context, c *urfave.Command) error {
-	cmd, err := newHistoryCmd(base, c)
-	if err != nil {
-		return err
+const (
+	historyDefault = "default"
+	historyList    = "list"
+	historyShow    = "show"
+	historyRestore = "restore"
+)
+
+// HistoryCommand implements history's legacy default listing and subcommands.
+type HistoryCommand struct {
+	*command
+	operation  string
+	history    *historyCmd
+	index      int
+	cliCommand *urfave.Command
+}
+
+// newHistorySubcommand builds one history operation command.
+func newHistorySubcommand(base *command, name, usage, operation string) *urfave.Command {
+	cmd := &HistoryCommand{command: base, operation: operation}
+	argsUsage := "VAULT/ITEM_TYPE/ITEM_NAME"
+	if operation != historyList {
+		argsUsage += " INDEX"
 	}
-	return cmd.list()
+	c := &urfave.Command{
+		Name:        name,
+		Usage:       usage,
+		ArgsUsage:   argsUsage,
+		Description: vaultReferenceHelp,
+	}
+	c.Before = cmd.Validate
+	c.Action = cmd.Run
+	return c
+}
+
+// Validate checks history arguments and parses the selected item path and index.
+func (cmd *HistoryCommand) Validate(ctx context.Context, c *urfave.Command) (context.Context, error) {
+	cmd.cliCommand = c
+	if cmd.operation == historyDefault {
+		if c.Args().Len() == 0 {
+			return ctx, nil
+		}
+		if c.Args().First() == historyList || c.Args().First() == historyShow || c.Args().First() == historyRestore {
+			return ctx, nil
+		}
+		if err := validateArgs(c, 1, 1); err != nil {
+			return ctx, fmt.Errorf("unexpected arguments; usage: %s <VAULT/ITEM_TYPE/ITEM_NAME>", c.FullName())
+		}
+		if !strings.Contains(c.Args().First(), "/") {
+			return ctx, fmt.Errorf("unknown history subcommand %q; use 'list', 'show', or 'restore'", c.Args().First())
+		}
+	} else if cmd.operation == historyList {
+		if err := validateArgs(c, 1, 1); err != nil {
+			return ctx, err
+		}
+	} else if err := validateArgs(c, 2, 2); err != nil {
+		return ctx, err
+	}
+	path, err := parseItemPath(c.Args().First(), itemPathOptions{fullPath: true})
+	if err != nil {
+		return ctx, err
+	}
+	cmd.history = &historyCmd{command: cmd.command, sessionID: c.String("session"), itemPath: path}
+	if cmd.operation == historyShow || cmd.operation == historyRestore {
+		cmd.index, err = historyIndex(c.Args().Get(1))
+		if err != nil {
+			return ctx, err
+		}
+	}
+	return ctx, nil
+}
+
+// Run lists, shows, or restores the selected history version.
+func (cmd *HistoryCommand) Run(ctx context.Context, _ *urfave.Command) error {
+	if cmd.operation == historyDefault && cmd.history == nil {
+		return urfave.ShowSubcommandHelp(cmd.cliCommand)
+	}
+	switch cmd.operation {
+	case historyDefault, historyList:
+		return cmd.history.list()
+	case historyShow:
+		return cmd.history.show(ctx, cmd.index)
+	case historyRestore:
+		return cmd.history.restore(cmd.index)
+	default:
+		return fmt.Errorf("unknown history operation %q", cmd.operation)
+	}
 }
 
 type historyCmd struct {
@@ -81,16 +130,7 @@ type historyCmd struct {
 	itemPath
 }
 
-// newHistoryCmd resolves the vault item and history options from a command invocation.
-func newHistoryCmd(base *command, c *urfave.Command) (*historyCmd, error) {
-	path, err := parseItemPath(c.Args().First(), itemPathOptions{fullPath: true})
-	if err != nil {
-		return nil, err
-	}
-	return &historyCmd{command: base.forInvocation(c), sessionID: c.String("session"), itemPath: path}, nil
-}
-
-// historyIndex parses a one-based history index and converts it to a zero-based index.
+// historyIndex parses a zero-based history index.
 func historyIndex(value string) (int, error) {
 	index, err := strconv.Atoi(value)
 	if err != nil || index < 0 {

@@ -39,7 +39,8 @@ type EditCmd struct {
 
 // newEditCommand constructs the item-edit command.
 func newEditCommand(base *command) *urfave.Command {
-	return &urfave.Command{
+	cmd := &EditCmd{command: base}
+	c := &urfave.Command{
 		Name:        "edit",
 		Usage:       "Edits an item; --field reads a custom field value from stdin",
 		ArgsUsage:   "VAULT/ITEM_TYPE/ITEM_NAME",
@@ -76,76 +77,84 @@ func newEditCommand(base *command) *urfave.Command {
 				Usage: "Generate a replacement SSH key",
 			},
 		},
-		Action: withArgs(1, 1, func(ctx context.Context, c *urfave.Command) error {
-			base := base.forInvocation(c)
-			path, err := parseItemPath(c.Args().First(), itemPathOptions{fullPath: true})
-			if err != nil {
-				return err
-			}
-			field, typeName, tag, name, remove := c.String("field"), c.String("type"), strings.TrimSpace(c.String("tag")), c.String("name"), c.Bool("remove")
-			if c.IsSet("field") && field == "" {
-				return fmt.Errorf("--field requires a field name")
-			}
-			if c.IsSet("tag") && tag == "" {
-				return fmt.Errorf("--tag requires a tag name")
-			}
-			if typeName != "" && field == "" {
-				return fmt.Errorf("--type requires --field")
-			}
-			if remove && typeName != "" {
-				return fmt.Errorf("--type cannot be combined with --remove")
-			}
-			if remove && field == "" && tag == "" {
-				return fmt.Errorf("--remove requires --field or --tag")
-			}
-			if field != "" && tag != "" && remove {
-				return fmt.Errorf("--remove cannot remove a field and tag in the same operation")
-			}
-			if c.IsSet("name") && strings.TrimSpace(name) == "" {
-				return fmt.Errorf("--name cannot be empty")
-			}
-			if name != "" && remove {
-				return fmt.Errorf("--name cannot be combined with --remove")
-			}
-			importPath := c.String("input")
-			if c.IsSet("input") && importPath == "" {
-				return fmt.Errorf("--input requires a file path")
-			}
-			if importPath != "" && path.itemType != model.SSHKeyItemType {
-				return fmt.Errorf("--input is only supported for SSH key items")
-			}
-			if importPath != "" && remove {
-				return fmt.Errorf("--input cannot be combined with --remove")
-			}
-			generateKey := c.Bool("generate-key")
-			if generateKey && path.itemType != model.SSHKeyItemType {
-				return fmt.Errorf("--generate-key is only supported for SSH key items")
-			}
-			if generateKey && importPath != "" {
-				return fmt.Errorf("--generate-key cannot be combined with --input")
-			}
-			if generateKey && remove {
-				return fmt.Errorf("--generate-key cannot be combined with --remove")
-			}
-			return (&EditCmd{
-				command:     base,
-				itemPath:    path,
-				sessionID:   c.String("session"),
-				field:       field,
-				typeName:    typeName,
-				tag:         tag,
-				name:        name,
-				importPath:  importPath,
-				generateKey: generateKey,
-				remove:      remove,
-				input:       c.Reader,
-			}).Run(ctx)
-		}),
 	}
+	c.Before = cmd.Validate
+	c.Action = cmd.Run
+	return c
+}
+
+// Validate checks the item path and edit flags.
+func (cmd *EditCmd) Validate(ctx context.Context, c *urfave.Command) (context.Context, error) {
+	if err := validateArgs(c, 1, 1); err != nil {
+		return ctx, err
+	}
+	path, err := parseItemPath(c.Args().First(), itemPathOptions{fullPath: true})
+	if err != nil {
+		return ctx, err
+	}
+	field, typeName, tag, name, remove := c.String("field"), c.String("type"), strings.TrimSpace(c.String("tag")), c.String("name"), c.Bool("remove")
+	if c.IsSet("field") && field == "" {
+		return ctx, fmt.Errorf("--field requires a field name")
+	}
+	if c.IsSet("tag") && tag == "" {
+		return ctx, fmt.Errorf("--tag requires a tag name")
+	}
+	if typeName != "" && field == "" {
+		return ctx, fmt.Errorf("--type requires --field")
+	}
+	if typeName != "" && !validCustomFieldType(typeName) {
+		return ctx, fmt.Errorf("unsupported custom field type %q", typeName)
+	}
+	if remove && typeName != "" {
+		return ctx, fmt.Errorf("--type cannot be combined with --remove")
+	}
+	if remove && field == "" && tag == "" {
+		return ctx, fmt.Errorf("--remove requires --field or --tag")
+	}
+	if field != "" && tag != "" && remove {
+		return ctx, fmt.Errorf("--remove cannot remove a field and tag in the same operation")
+	}
+	if c.IsSet("name") && strings.TrimSpace(name) == "" {
+		return ctx, fmt.Errorf("--name cannot be empty")
+	}
+	if name != "" && remove {
+		return ctx, fmt.Errorf("--name cannot be combined with --remove")
+	}
+	importPath := c.String("input")
+	if c.IsSet("input") && importPath == "" {
+		return ctx, fmt.Errorf("--input requires a file path")
+	}
+	if importPath != "" && path.itemType != model.SSHKeyItemType {
+		return ctx, fmt.Errorf("--input is only supported for SSH key items")
+	}
+	if importPath != "" && remove {
+		return ctx, fmt.Errorf("--input cannot be combined with --remove")
+	}
+	generateKey := c.Bool("generate-key")
+	if generateKey && path.itemType != model.SSHKeyItemType {
+		return ctx, fmt.Errorf("--generate-key is only supported for SSH key items")
+	}
+	if generateKey && importPath != "" {
+		return ctx, fmt.Errorf("--generate-key cannot be combined with --input")
+	}
+	if generateKey && remove {
+		return ctx, fmt.Errorf("--generate-key cannot be combined with --remove")
+	}
+	cmd.itemPath = path
+	cmd.sessionID = c.String("session")
+	cmd.field = field
+	cmd.typeName = typeName
+	cmd.tag = tag
+	cmd.name = name
+	cmd.importPath = importPath
+	cmd.generateKey = generateKey
+	cmd.remove = remove
+	cmd.input = c.Reader
+	return ctx, nil
 }
 
 // Run loads, updates, and stores a CXF item.
-func (cmd *EditCmd) Run(ctx context.Context) error {
+func (cmd *EditCmd) Run(ctx context.Context, _ *urfave.Command) error {
 	s := cmd.storage
 	appState, err := s.LoadAppState()
 	if err != nil {
@@ -218,6 +227,7 @@ func (cmd *EditCmd) Run(ctx context.Context) error {
 	return nil
 }
 
+// renameItem updates the item title and records the change in its vault.
 func (cmd *EditCmd) renameItem(item *model.Item, vault *model.Vault, name string) error {
 	if strings.TrimSpace(name) == "" {
 		return fmt.Errorf("item name cannot be empty")
@@ -238,6 +248,7 @@ func (cmd *EditCmd) renameItem(item *model.Item, vault *model.Vault, name string
 	return nil
 }
 
+// replaceSSHKey imports or generates a replacement SSH key.
 func (cmd *EditCmd) replaceSSHKey(item *model.Item) error {
 	var passphrase string
 	var privateKey crypto.PrivateKey
@@ -306,6 +317,7 @@ func (cmd *EditCmd) replaceSSHKey(item *model.Item) error {
 	return nil
 }
 
+// editInteractive prompts for changes to the item's standard fields.
 func (cmd *EditCmd) editInteractive(item *model.Item, vault *model.Vault) error {
 	for {
 		fmt.Fprintf(cmd.errOut, "Editing: %s\n", safeTerminalText(item.Title))
@@ -350,6 +362,7 @@ func (cmd *EditCmd) editInteractive(item *model.Item, vault *model.Vault) error 
 	}
 }
 
+// editTagsInteractive prompts the user to toggle item tags.
 func (cmd *EditCmd) editTagsInteractive(item *model.Item, vault *model.Vault) error {
 	tags := vaultTagNames(vault)
 	if len(tags) > 0 {
@@ -372,6 +385,7 @@ func (cmd *EditCmd) editTagsInteractive(item *model.Item, vault *model.Vault) er
 	}
 }
 
+// editCustomInteractive prompts for custom field changes.
 func (cmd *EditCmd) editCustomInteractive(item *model.Item) error {
 	for {
 		groups, err := item.CustomFields()
@@ -487,6 +501,7 @@ func (cmd *EditCmd) editCustomInteractive(item *model.Item) error {
 	}
 }
 
+// customFieldNumber returns a field's one-based position across all groups.
 func customFieldNumber(groups []model.CustomFieldsGroup, groupIndex, fieldIndex int) int {
 	number := fieldIndex + 1
 	for index := 0; index < groupIndex; index++ {
@@ -495,6 +510,7 @@ func customFieldNumber(groups []model.CustomFieldsGroup, groupIndex, fieldIndex 
 	return number
 }
 
+// chooseCustomField prompts for a field and returns its group and field indexes.
 func (cmd *EditCmd) chooseCustomField(groups []model.CustomFieldsGroup) (int, int, bool, error) {
 	var count int
 	for _, group := range groups {
@@ -521,6 +537,7 @@ func (cmd *EditCmd) chooseCustomField(groups []model.CustomFieldsGroup) (int, in
 	return 0, 0, false, nil
 }
 
+// replaceCustomGroup stores the updated fields for one custom field group.
 func replaceCustomGroup(item *model.Item, group model.CustomFieldsGroup) error {
 	original := make([]int, len(group.Credential.Fields))
 	for index := range original {
@@ -529,6 +546,7 @@ func replaceCustomGroup(item *model.Item, group model.CustomFieldsGroup) error {
 	return item.ReplaceCustomFields(group.Index, group.Credential, original)
 }
 
+// removeCustomField removes a field from its group while preserving other fields.
 func removeCustomField(item *model.Item, group model.CustomFieldsGroup, fieldIndex int) error {
 	group.Credential.Fields = append(group.Credential.Fields[:fieldIndex], group.Credential.Fields[fieldIndex+1:]...)
 	original := make([]int, len(group.Credential.Fields))
@@ -541,6 +559,7 @@ func removeCustomField(item *model.Item, group model.CustomFieldsGroup, fieldInd
 	return item.ReplaceCustomFields(group.Index, group.Credential, original)
 }
 
+// manageSections prompts for custom field section changes.
 func (cmd *EditCmd) manageSections(item *model.Item) error {
 	groups, err := item.CustomFields()
 	if err != nil {
@@ -611,6 +630,7 @@ func (cmd *EditCmd) manageSections(item *model.Item) error {
 	}
 }
 
+// editCustomAndTags applies the requested field or tag change from flags and stdin.
 func (cmd *EditCmd) editCustomAndTags(item *model.Item) error {
 	applyTag := func() {
 		if cmd.tag == "" {
@@ -738,6 +758,7 @@ func (cmd *EditCmd) editCustomAndTags(item *model.Item) error {
 	return err
 }
 
+// validCustomFieldType reports whether value names a supported custom field type.
 func validCustomFieldType(value string) bool {
 	switch value {
 	case "text", "hidden", "multiline", "hidden-multiline":
@@ -747,6 +768,7 @@ func validCustomFieldType(value string) bool {
 	}
 }
 
+// splitFieldPath separates an optional section from a custom field name.
 func splitFieldPath(value string) (string, string) {
 	section, field, ok := strings.Cut(value, "/")
 	if !ok {
@@ -855,6 +877,7 @@ func (cmd *EditCmd) editLogin(item *model.Item) error {
 	return nil
 }
 
+// editTOTP prompts for changes to the item's authenticator credential.
 func (cmd *EditCmd) editTOTP(item *model.Item) error {
 	credentials, err := model.DecodeCredentials(item.Credentials)
 	if err != nil {
@@ -909,6 +932,7 @@ func (cmd *EditCmd) editTOTP(item *model.Item) error {
 	return item.SetTOTP(credentials.TOTPIndex, totp)
 }
 
+// normalizeTOTPSecret removes spaces from a Base32 authenticator secret.
 func normalizeTOTPSecret(secret string) string {
 	return strings.ToUpper(strings.NewReplacer(" ", "", "\t", "", "\n", "", "\r", "", "-", "").Replace(secret))
 }
@@ -918,6 +942,7 @@ const (
 	totpIntervalMaximum = 60
 )
 
+// configureTOTP prompts for optional authenticator settings.
 func configureTOTP(prompter *prompter, credential *cxf.TOTP) error {
 	change, err := prompter.askYesNo("Change authenticator settings?", false)
 	if err != nil || !change {

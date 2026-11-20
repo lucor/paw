@@ -51,7 +51,8 @@ func renderSyncQR(code *qr.Code) string {
 
 // newSyncCommand constructs the vault-synchronization command.
 func newSyncCommand(base *command) *urfave.Command {
-	return &urfave.Command{
+	cmd := &SyncCmd{command: base}
+	c := &urfave.Command{
 		Name:        "sync",
 		Usage:       "Synchronize an unlocked vault with another Paw device",
 		ArgsUsage:   "VAULT",
@@ -61,26 +62,10 @@ func newSyncCommand(base *command) *urfave.Command {
 			&urfave.BoolFlag{Name: "clone", Usage: "Clone a vault from another device"},
 			&urfave.BoolFlag{Name: "reconcile", Usage: "Match and consolidate items with different IDs"},
 		},
-		Action: withArgs(0, 1, func(ctx context.Context, c *urfave.Command) error {
-			base := base.forInvocation(c)
-			if c.Bool("clone") && c.Args().Len() != 0 {
-				return fmt.Errorf("clone does not accept a vault argument")
-			}
-			if c.Bool("clone") && c.Bool("reconcile") {
-				return fmt.Errorf("reconcile cannot be combined with clone")
-			}
-			if !c.Bool("clone") && c.Args().Len() != 1 {
-				return fmt.Errorf("invalid arguments: a vault argument is required")
-			}
-			ctx, stop := signal.NotifyContext(ctx, os.Interrupt)
-			defer stop()
-			cmd := &SyncCmd{command: base, vaultName: c.Args().First(), link: c.String("link"), reconcile: c.Bool("reconcile")}
-			if c.Bool("clone") {
-				return cmd.runClone(ctx)
-			}
-			return cmd.Run(ctx)
-		}),
 	}
+	c.Before = cmd.Validate
+	c.Action = cmd.Run
+	return c
 }
 
 // SyncCmd coordinates one interactive Sync session for an existing unlocked vault.
@@ -89,10 +74,38 @@ type SyncCmd struct {
 	vaultName string
 	link      string
 	reconcile bool
+	clone     bool
+}
+
+// Validate checks the sync mode, arguments, and incompatible flags.
+func (cmd *SyncCmd) Validate(ctx context.Context, c *urfave.Command) (context.Context, error) {
+	if err := validateArgs(c, 0, 1); err != nil {
+		return ctx, err
+	}
+	clone, reconcile := c.Bool("clone"), c.Bool("reconcile")
+	if clone && c.Args().Len() != 0 {
+		return ctx, fmt.Errorf("clone does not accept a vault argument")
+	}
+	if clone && reconcile {
+		return ctx, fmt.Errorf("reconcile cannot be combined with clone")
+	}
+	if !clone && c.Args().Len() != 1 {
+		return ctx, fmt.Errorf("invalid arguments: a vault argument is required")
+	}
+	cmd.vaultName = c.Args().First()
+	cmd.link = c.String("link")
+	cmd.reconcile = reconcile
+	cmd.clone = clone
+	return ctx, nil
 }
 
 // Run starts vault synchronization and handles incoming or outgoing connections.
-func (cmd *SyncCmd) Run(ctx context.Context) (runErr error) {
+func (cmd *SyncCmd) Run(ctx context.Context, _ *urfave.Command) (runErr error) {
+	ctx, stop := signal.NotifyContext(ctx, os.Interrupt)
+	defer stop()
+	if cmd.clone {
+		return cmd.runClone(ctx)
+	}
 	key, err := cmd.loadVaultKey(cmd.vaultName, cmd.getenv(paw.ENV_SESSION))
 	if err != nil {
 		return fmt.Errorf("unlock vault: %w", err)

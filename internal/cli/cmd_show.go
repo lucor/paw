@@ -22,7 +22,7 @@ const (
 	clipboardWriteTimeout = 1 * time.Second
 )
 
-// Show shows an item details
+// ShowCmd shows an item details
 type ShowCmd struct {
 	*command
 	sessionID string
@@ -35,7 +35,8 @@ type ShowCmd struct {
 
 // newShowCommand constructs the item-display command.
 func newShowCommand(base *command) *urfave.Command {
-	return &urfave.Command{
+	cmd := &ShowCmd{command: base}
+	c := &urfave.Command{
 		Name:        "show",
 		Usage:       "Shows item details with secrets masked by default",
 		ArgsUsage:   "VAULT/ITEM_TYPE/ITEM_NAME",
@@ -72,56 +73,59 @@ func newShowCommand(base *command) *urfave.Command {
 				Usage: "Display only the named field value",
 			},
 		},
-		Action: withArgs(1, 1, func(ctx context.Context, c *urfave.Command) error {
-			base := base.forInvocation(c)
-			path, err := parseItemPath(c.Args().First(), itemPathOptions{fullPath: true})
-			if err != nil {
-				return err
-			}
-			if c.IsSet("field") && c.String("field") == "" {
-				return fmt.Errorf("--field requires a field name")
-			}
-			var selectors []string
-			for _, name := range []string{"username", "password", "totp"} {
-				if c.Bool(name) {
-					selectors = append(selectors, name)
-				}
-			}
-			if c.IsSet("field") {
-				selectors = append(selectors, c.String("field"))
-			}
-			if len(selectors) > 1 {
-				return fmt.Errorf("select only one field")
-			}
-			if c.Bool("reveal") && len(selectors) != 0 {
-				return fmt.Errorf("--reveal cannot be combined with a field selector")
-			}
-			if c.Bool("json") && c.Bool("clip") {
-				return fmt.Errorf("--json cannot be combined with --clip")
-			}
-			if c.Bool("clip") && c.Bool("reveal") {
-				return fmt.Errorf("--clip cannot be combined with --reveal")
-			}
-			selector := ""
-			if len(selectors) == 1 {
-				selector = selectors[0]
-			}
-			cmd := &ShowCmd{
-				command:   base,
-				itemPath:  path,
-				sessionID: c.String("session"),
-				clipboard: c.Bool("clip"),
-				reveal:    c.Bool("reveal"),
-				field:     selector,
-				json:      c.Bool("json"),
-			}
-			return cmd.Run(ctx)
-		}),
 	}
+	c.Before = cmd.Validate
+	c.Action = cmd.Run
+	return c
+}
+
+// Validate checks the item path and display flags.
+func (cmd *ShowCmd) Validate(ctx context.Context, c *urfave.Command) (context.Context, error) {
+	if err := validateArgs(c, 1, 1); err != nil {
+		return ctx, err
+	}
+	path, err := parseItemPath(c.Args().First(), itemPathOptions{fullPath: true})
+	if err != nil {
+		return ctx, err
+	}
+	if c.IsSet("field") && c.String("field") == "" {
+		return ctx, fmt.Errorf("--field requires a field name")
+	}
+	selectors := make([]string, 0, 4)
+	for _, name := range []string{"username", "password", "totp"} {
+		if c.Bool(name) {
+			selectors = append(selectors, name)
+		}
+	}
+	if c.IsSet("field") {
+		selectors = append(selectors, c.String("field"))
+	}
+	if len(selectors) > 1 {
+		return ctx, fmt.Errorf("select only one field")
+	}
+	if c.Bool("reveal") && len(selectors) != 0 {
+		return ctx, fmt.Errorf("--reveal cannot be combined with a field selector")
+	}
+	if c.Bool("json") && c.Bool("clip") {
+		return ctx, fmt.Errorf("--json cannot be combined with --clip")
+	}
+	if c.Bool("clip") && c.Bool("reveal") {
+		return ctx, fmt.Errorf("--clip cannot be combined with --reveal")
+	}
+	cmd.itemPath = path
+	cmd.sessionID = c.String("session")
+	cmd.clipboard = c.Bool("clip")
+	cmd.reveal = c.Bool("reveal")
+	cmd.json = c.Bool("json")
+	cmd.field = ""
+	if len(selectors) == 1 {
+		cmd.field = selectors[0]
+	}
+	return ctx, nil
 }
 
 // Run displays the selected item from its vault.
-func (cmd *ShowCmd) Run(ctx context.Context) error {
+func (cmd *ShowCmd) Run(ctx context.Context, _ *urfave.Command) error {
 	base := cmd.command
 	s := base.storage
 	key, err := cmd.loadVaultKey(cmd.vaultName, cmd.sessionID)
@@ -335,6 +339,7 @@ func (cmd *ShowCmd) showItem(ctx context.Context, item *model.Item) error {
 	return nil
 }
 
+// secretValue masks a secret unless reveal is enabled.
 func secretValue(value string, reveal bool) string {
 	if reveal {
 		return value
@@ -342,6 +347,7 @@ func secretValue(value string, reveal bool) string {
 	return "********"
 }
 
+// editableDisplayValue formats a custom field while masking hidden values.
 func editableDisplayValue(field *cxf.EditableField, reveal bool) string {
 	if field == nil {
 		return ""
@@ -352,6 +358,7 @@ func editableDisplayValue(field *cxf.EditableField, reveal bool) string {
 	return field.Value
 }
 
+// safeTerminalText escapes terminal control characters in untrusted text.
 func safeTerminalText(value string) string {
 	var safe strings.Builder
 	for _, r := range value {
@@ -364,12 +371,14 @@ func safeTerminalText(value string) string {
 	return safe.String()
 }
 
+// copyValue writes a value to the clipboard and schedules its removal.
 func (cmd *ShowCmd) copyValue(ctx context.Context, value string) error {
 	ctx, cancel := context.WithTimeout(ctx, clipboardWriteTimeout)
 	defer cancel()
 	return cmd.command.clipboard(ctx, []byte(value))
 }
 
+// itemDefaultSecret returns the default secret and its display label.
 func itemDefaultSecret(item *model.Item, itemType model.ItemType) (string, string, error) {
 	switch itemType {
 	case model.LoginItemType, model.PasswordItemType:
@@ -390,10 +399,12 @@ func itemDefaultSecret(item *model.Item, itemType model.ItemType) (string, strin
 	}
 }
 
+// itemField resolves a named field using the current time for generated values.
 func itemField(item *model.Item, itemType model.ItemType, name string) (string, error) {
 	return itemFieldAt(item, itemType, name, time.Now())
 }
 
+// itemFieldAt resolves a named field at the supplied time.
 func itemFieldAt(item *model.Item, itemType model.ItemType, name string, now time.Time) (string, error) {
 	var values []string
 	add := func(label, value string) {
@@ -505,6 +516,7 @@ func itemFieldAt(item *model.Item, itemType model.ItemType, name string, now tim
 	return values[0], nil
 }
 
+// canonicalFieldName normalizes aliases for standard item fields.
 func canonicalFieldName(name string) string {
 	name = strings.ToLower(name)
 	switch name {
@@ -515,6 +527,7 @@ func canonicalFieldName(name string) string {
 	}
 }
 
+// currentTime returns the command's configured clock time.
 func (cmd *ShowCmd) currentTime() time.Time {
 	if cmd.now != nil {
 		return cmd.now()
@@ -522,6 +535,7 @@ func (cmd *ShowCmd) currentTime() time.Time {
 	return time.Now()
 }
 
+// generateTOTPCode returns the current code for an authenticator credential.
 func generateTOTPCode(credential cxf.TOTP, now time.Time) (string, error) {
 	if credential.Secret == "" {
 		return "", fmt.Errorf("secret is empty")

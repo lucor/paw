@@ -5,7 +5,9 @@ package cli
 
 import (
 	"context"
+	"fmt"
 	"io"
+	"strings"
 	"time"
 
 	urfave "github.com/urfave/cli/v3"
@@ -39,19 +41,41 @@ type generatedSSHKey struct {
 	Fingerprint string
 }
 
+type pawCommand interface {
+	Validate(context.Context, *urfave.Command) (context.Context, error)
+	Run(context.Context, *urfave.Command) error
+}
+
+var (
+	_ pawCommand = (*AddCmd)(nil)
+	_ pawCommand = (*AgentCmd)(nil)
+	_ pawCommand = (*AttachmentCmd)(nil)
+	_ pawCommand = (*EditCmd)(nil)
+	_ pawCommand = (*ExportCmd)(nil)
+	_ pawCommand = (*HistoryCommand)(nil)
+	_ pawCommand = (*InitCmd)(nil)
+	_ pawCommand = (*ListCmd)(nil)
+	_ pawCommand = (*LockCmd)(nil)
+	_ pawCommand = (*PwGenCmd)(nil)
+	_ pawCommand = (*RemoveCmd)(nil)
+	_ pawCommand = (*RestoreCmd)(nil)
+	_ pawCommand = (*ShowCmd)(nil)
+	_ pawCommand = (*SyncCmd)(nil)
+	_ pawCommand = (*UnlockCmd)(nil)
+	_ pawCommand = (*VersionCmd)(nil)
+)
+
+// validateArgs checks that the number of positional arguments is within bounds.
+func validateArgs(c *urfave.Command, min, max int) error {
+	if n := c.Args().Len(); n < min {
+		return fmt.Errorf("invalid arguments: missing required arguments: %s\nUsage: %s %s", strings.TrimSpace(c.ArgsUsage), c.FullName(), strings.TrimSpace(c.ArgsUsage))
+	} else if n > max {
+		return fmt.Errorf("invalid arguments: unexpected arguments; usage: %s %s", c.FullName(), strings.TrimSpace(c.ArgsUsage))
+	}
+	return nil
+}
+
 // loadVault loads the selected vault.
 func (base *command) loadVault(key *paw.Key) (*model.Vault, error) {
 	return base.storage.LoadVault(base.vaultID, key)
-}
-
-// forInvocation binds streams after urfave has applied its inherited defaults.
-// A supplied prompter is retained so tests can inject password input too.
-func (cmd *command) forInvocation(c *urfave.Command) *command {
-	invocation := *cmd
-	invocation.out = c.Writer
-	invocation.errOut = c.ErrWriter
-	if invocation.prompter == nil {
-		invocation.prompter = newPrompter(c.Reader, c.ErrWriter)
-	}
-	return &invocation
 }

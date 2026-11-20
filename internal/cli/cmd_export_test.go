@@ -21,7 +21,7 @@ func TestExportCommandRejectsInvalidConfirmation(t *testing.T) {
 		index := 0
 		p.readPassword = func() ([]byte, error) { value := values[index]; index++; return []byte(value), nil }
 		path := filepath.Join(t.TempDir(), "credentials.cxf.age")
-		_, _, err := executeWithInput(t, []string{"export", "personal", path}, newExportCommand(&command{prompter: p}), "")
+		_, _, err := executeSubcommand(t, []string{"export", "personal", path}, newExportCommand, &command{prompter: p}, "")
 		require.Error(t, err)
 		_, err = os.Stat(path)
 		require.ErrorIs(t, err, os.ErrNotExist)
@@ -30,9 +30,14 @@ func TestExportCommandRejectsInvalidConfirmation(t *testing.T) {
 
 func TestExportCommandPlaintextRequiresConsent(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "credentials.cxf")
-	_, warning, err := executeWithInput(t, []string{"export", "--plaintext", "personal", path}, newExportCommand(&command{}), "n\n")
+	prompter := testInteractivePrompter(t, "n\n")
+	var promptOutput bytes.Buffer
+	prompter.output = &promptOutput
+	base := &command{prompter: prompter}
+	_, warning, err := executeSubcommand(t, []string{"export", "--plaintext", "personal", path}, newExportCommand, base, "")
 	require.ErrorIs(t, err, errCanceled)
-	require.Contains(t, warning, "credentials in plaintext")
+	require.Contains(t, promptOutput.String(), "credentials in plaintext")
+	require.Empty(t, warning)
 	_, err = os.Stat(path)
 	require.ErrorIs(t, err, os.ErrNotExist)
 }
@@ -49,19 +54,19 @@ func TestPawArchiveExportAndRestoreIncludesAttachments(t *testing.T) {
 		passwords = passwords[1:]
 		return []byte(value), nil
 	}
-	output, _, err := executeWithInput(t, []string{"export", "--paw", "Personal", archivePath}, newExportCommand(base), "")
+	output, _, err := executeSubcommand(t, []string{"export", "--paw", "Personal", archivePath}, newExportCommand, base, "")
 	require.NoError(t, err)
 	require.Contains(t, output, "Paw archive exported successfully.")
 	require.FileExists(t, archivePath)
 
 	passwords = []string{"archive-password", "new-master", "new-master"}
-	base.prompter = historyPrompter("y\n")
+	base.prompter = historyPrompter(t, "y\n")
 	base.prompter.readPassword = func() ([]byte, error) {
 		value := passwords[0]
 		passwords = passwords[1:]
 		return []byte(value), nil
 	}
-	_, _, err = executeWithInput(t, []string{"restore", "--name", "Imported", archivePath}, newRestoreCommand(base), "y\n")
+	_, _, err = executeSubcommand(t, []string{"restore", "--name", "Imported", archivePath}, newRestoreCommand, base, "y\n")
 	require.NoError(t, err)
 	vaults, err := store.Vaults()
 	require.NoError(t, err)

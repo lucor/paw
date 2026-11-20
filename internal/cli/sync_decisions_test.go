@@ -74,7 +74,7 @@ func TestSyncCommandRequiresExistingVault(t *testing.T) {
 	store, err := storage.NewFileStorage(t.TempDir())
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, store.Close()) })
-	_, _, err = executeWithInput(t, []string{"paw cli", "sync", "missing"}, newCommand(store), "")
+	_, _, err = executeWithInput(t, []string{"paw cli", "sync", "missing"}, store, "")
 	require.Error(t, err)
 	require.NotContains(t, strings.ToLower(fmt.Sprint(err)), "create vault")
 	require.NotErrorIs(t, err, context.Canceled)

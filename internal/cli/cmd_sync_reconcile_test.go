@@ -149,13 +149,14 @@ func TestReconcileFlagAcceptsPositionAfterVaultArgument(t *testing.T) {
 	store, err := storage.NewFileStorage(t.TempDir())
 	require.NoError(t, err)
 	defer store.Close()
-	_, _, err = executeWithInput(
+	_, _, err = executeSubcommand(
 		t,
 		[]string{"sync", "Personal", "--reconcile"},
-		newSyncCommand(&command{
+		newSyncCommand,
+		&command{
 			storage: store,
 			getenv:  func(string) string { return "" },
-		}),
+		},
 		"",
 	)
 	require.ErrorContains(t, err, `vault "Personal" does not exist`)

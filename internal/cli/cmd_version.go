@@ -6,21 +6,42 @@ package cli
 import (
 	"context"
 	"fmt"
+	"io"
 
 	urfave "github.com/urfave/cli/v3"
 
 	"go.lucor.dev/paw/internal/paw"
 )
 
+type VersionCmd struct {
+	version string
+	writer  io.Writer
+}
+
 // newVersionCommand constructs the version-display command.
 func newVersionCommand() *urfave.Command {
-	return &urfave.Command{
+	cmd := &VersionCmd{version: paw.Version()}
+	c := &urfave.Command{
 		Name:      "version",
 		Usage:     "Prints version information",
 		ArgsUsage: " ",
-		Action: withArgs(0, 0, func(ctx context.Context, c *urfave.Command) error {
-			_, err := fmt.Fprintf(c.Writer, "paw cli version %s\n", paw.Version())
-			return err
-		}),
 	}
+	c.Before = cmd.Validate
+	c.Action = cmd.Run
+	return c
+}
+
+// Validate checks that version has no positional arguments.
+func (cmd *VersionCmd) Validate(ctx context.Context, c *urfave.Command) (context.Context, error) {
+	if err := validateArgs(c, 0, 0); err != nil {
+		return ctx, err
+	}
+	cmd.writer = c.Writer
+	return ctx, nil
+}
+
+// Run writes the CLI version to the configured output.
+func (cmd *VersionCmd) Run(ctx context.Context, _ *urfave.Command) error {
+	_, err := fmt.Fprintf(cmd.writer, "paw cli version %s\n", cmd.version)
+	return err
 }

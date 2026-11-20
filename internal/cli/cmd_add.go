@@ -7,6 +7,7 @@ import (
 	"context"
 	"crypto"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"unicode/utf8"
@@ -31,7 +32,8 @@ type AddCmd struct {
 
 // newAddCommand constructs the item-add command.
 func newAddCommand(base *command) *urfave.Command {
-	return &urfave.Command{
+	cmd := &AddCmd{command: base}
+	c := &urfave.Command{
 		Name:        "add",
 		Aliases:     []string{"insert"},
 		Usage:       "Adds an item to the vault (alias: insert)",
@@ -49,33 +51,37 @@ func newAddCommand(base *command) *urfave.Command {
 				Usage:   "Import an SSH key from FILE",
 			},
 		},
-		Action: withArgs(1, 1, func(ctx context.Context, c *urfave.Command) error {
-			base := base.forInvocation(c)
-			path, err := parseItemPath(c.Args().First(), itemPathOptions{fullPath: true})
-			if err != nil {
-				return err
-			}
-			tags := c.StringSlice("tag")
-			for index, tag := range tags {
-				tag = strings.TrimSpace(tag)
-				if tag == "" {
-					return fmt.Errorf("--tag cannot be empty")
-				}
-				tags[index] = tag
-			}
-			return (&AddCmd{
-				command:    base,
-				itemPath:   path,
-				sessionID:  c.String("session"),
-				importPath: c.String("input"),
-				tags:       tags,
-			}).Run(ctx)
-		}),
 	}
+	c.Before = cmd.Validate
+	c.Action = cmd.Run
+	return c
+}
+
+// Validate checks the item path and add flags.
+func (cmd *AddCmd) Validate(ctx context.Context, c *urfave.Command) (context.Context, error) {
+	if err := validateArgs(c, 1, 1); err != nil {
+		return ctx, err
+	}
+	path, err := parseItemPath(c.Args().First(), itemPathOptions{fullPath: true})
+	if err != nil {
+		return ctx, err
+	}
+	tags := c.StringSlice("tag")
+	for index, tag := range tags {
+		tags[index] = strings.TrimSpace(tag)
+		if tags[index] == "" {
+			return ctx, fmt.Errorf("--tag cannot be empty")
+		}
+	}
+	cmd.itemPath = path
+	cmd.sessionID = c.String("session")
+	cmd.importPath = c.String("input")
+	cmd.tags = tags
+	return ctx, nil
 }
 
 // Run creates and stores a CXF item in the selected vault.
-func (cmd *AddCmd) Run(ctx context.Context) error {
+func (cmd *AddCmd) Run(ctx context.Context, _ *urfave.Command) error {
 	s := cmd.storage
 	appState, err := s.LoadAppState()
 	if err != nil {
@@ -136,7 +142,7 @@ func (cmd *AddCmd) Run(ctx context.Context) error {
 		return err
 	}
 	for _, tag := range cmd.tags {
-		if !containsString(item.Tags, tag) {
+		if !slices.Contains(item.Tags, tag) {
 			item.Tags = append(item.Tags, tag)
 		}
 	}
@@ -156,6 +162,7 @@ func (cmd *AddCmd) Run(ctx context.Context) error {
 	return nil
 }
 
+// addOptionalData prompts for custom fields, tags, and authenticator data.
 func (cmd *AddCmd) addOptionalData(item *model.Item, vault *model.Vault) error {
 	add, err := cmd.prompter.askYesNo("Add custom fields or tags?", false)
 	if err != nil || !add {
@@ -222,6 +229,7 @@ func (cmd *AddCmd) addOptionalData(item *model.Item, vault *model.Vault) error {
 	}
 }
 
+// addTOTP prompts for and attaches an authenticator credential.
 func (cmd *AddCmd) addTOTP(item *model.Item) error {
 	credentials, err := model.DecodeCredentials(item.Credentials)
 	if err != nil {
@@ -253,6 +261,7 @@ func (cmd *AddCmd) addTOTP(item *model.Item) error {
 	return item.SetTOTP(-1, credential)
 }
 
+// manageNewItemTags prompts for tags to associate with a new item.
 func (cmd *AddCmd) manageNewItemTags(item *model.Item, vault *model.Vault) error {
 	tags := vaultTagNames(vault)
 	if len(tags) > 0 {
@@ -267,12 +276,13 @@ func (cmd *AddCmd) manageNewItemTags(item *model.Item, vault *model.Vault) error
 		if value == "" {
 			return nil
 		}
-		if !containsString(item.Tags, value) {
+		if !slices.Contains(item.Tags, value) {
 			item.Tags = append(item.Tags, value)
 		}
 	}
 }
 
+// vaultTagNames returns the sorted, unique tags used in a vault.
 func vaultTagNames(vault *model.Vault) []string {
 	seen := make(map[string]bool)
 	var tags []string
@@ -291,15 +301,7 @@ func vaultTagNames(vault *model.Vault) []string {
 	return tags
 }
 
-func containsString(values []string, value string) bool {
-	for _, existing := range values {
-		if existing == value {
-			return true
-		}
-	}
-	return false
-}
-
+// readCustomField prompts for a custom field and its value.
 func (cmd *AddCmd) readCustomField(editing bool, old cxf.EditableField) (cxf.EditableField, error) {
 	field := old
 	if editing {
@@ -375,6 +377,7 @@ func (cmd *AddCmd) readCustomField(editing bool, old cxf.EditableField) (cxf.Edi
 	return field, err
 }
 
+// readMultiline reads lines until a period-only line is entered.
 func (cmd *AddCmd) readMultiline(hidden bool) (string, error) {
 	var lines []string
 	for {
@@ -395,6 +398,7 @@ func (cmd *AddCmd) readMultiline(hidden bool) (string, error) {
 	}
 }
 
+// appendField adds a custom field to the requested section.
 func appendField(item *model.Item, section string, field cxf.EditableField) error {
 	groups, err := item.CustomFields()
 	if err != nil {
@@ -424,6 +428,7 @@ func appendField(item *model.Item, section string, field cxf.EditableField) erro
 	return item.AppendCustomFields(cxf.CustomFields{Type: cxf.CredentialTypeCustomFields, Label: section, Fields: []cxf.EditableField{field}})
 }
 
+// customFieldType returns the display type for a custom field.
 func customFieldType(field cxf.EditableField) string {
 	long := strings.Contains(field.Value, "\n") || utf8.RuneCountInString(field.Value) > 160
 	if field.FieldType == cxf.FieldTypeConcealedString {
@@ -488,6 +493,7 @@ func (cmd *AddCmd) newLogin() (*model.Item, error) {
 	return item, nil
 }
 
+// normalizeLoginURL adds HTTPS to a host-only URL and validates its scheme.
 func normalizeLoginURL(value string) (string, error) {
 	loginURL := paw.NewLoginURL()
 	if err := loginURL.Set(value); err != nil {
