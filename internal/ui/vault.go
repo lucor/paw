@@ -220,27 +220,45 @@ func (a *app) makeCurrentVaultView() fyne.CanvasObject {
 	settings.configureAutoLock = a.configureAutoLock
 	settings.openAbout = func() { a.showAboutPawView(a.main) }
 	settings.BackButton.Hide()
-	return NewEntryList(EntryListOptions{Settings: settings.section, VaultName: name, VaultAppearance: currentAppearance, Vaults: choices, VaultActions: a.makeVaultActions(), Entries: rows, Categories: categories, Tags: tags, Tag: filter.Tag, Search: filter.Name, Category: categoryIDs[filter.ItemType], Codes: a.codesView.View, SectionState: &a.vaultSection, AddEntry: func(kind EntryKind) {
-		switch kind {
-		case EntryNote:
-			a.addItem(model.NoteItemType)
-		case EntryPassword:
-			a.addItem(model.PasswordItemType)
-		case EntryLogin:
-			a.addItem(model.LoginItemType)
-		case EntrySSH:
-			a.addItem(model.SSHKeyItemType)
-		}
-	}, AddVault: a.showAddVaultView, OnFilterChanged: func(search, category, tag string) {
-		filter.Name = search
-		filter.Tag = tag
-		for kind, id := range categoryIDs {
-			if id == category {
-				filter.ItemType = kind
-				break
+	return NewEntryList(EntryListOptions{
+		Settings:        settings.section,
+		VaultName:       name,
+		VaultAppearance: currentAppearance,
+		Vaults:          choices,
+		VaultActions:    a.makeVaultActions(),
+		Entries:         rows,
+		Categories:      categories,
+		Tags:            tags,
+		Tag:             filter.Tag,
+		Search:          filter.Name,
+		Category:        categoryIDs[filter.ItemType],
+		Codes:           a.codesView.View,
+		SectionState:    &a.vaultSection,
+		SetTagFilter:    &a.filterListByTag,
+		AddEntry: func(kind EntryKind) {
+			switch kind {
+			case EntryNote:
+				a.addItem(model.NoteItemType)
+			case EntryPassword:
+				a.addItem(model.PasswordItemType)
+			case EntryLogin:
+				a.addItem(model.LoginItemType)
+			case EntrySSH:
+				a.addItem(model.SSHKeyItemType)
 			}
-		}
-	}})
+		},
+		AddVault: a.showAddVaultView,
+		OnFilterChanged: func(search, category, tag string) {
+			filter.Name = search
+			filter.Tag = tag
+			for kind, id := range categoryIDs {
+				if id == category {
+					filter.ItemType = kind
+					break
+				}
+			}
+		},
+	})
 }
 
 func availableItemTags(vault *model.Vault) []string {

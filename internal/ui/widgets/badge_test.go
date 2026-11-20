@@ -55,3 +55,20 @@ func TestBadgeDoesNotStretchToAllocatedContainer(t *testing.T) {
 		t.Fatalf("background position = %v, want centered at %v", got, wantPosition)
 	}
 }
+
+func TestBadgeActionStaysInsideBadgeBounds(t *testing.T) {
+	test.NewTempApp(t)
+	called := false
+	badge := NewBadge("Personal", color.NRGBA{}, color.NRGBA{A: 255})
+	badge.SetAction(func() { called = true })
+	renderer := badge.CreateRenderer()
+	badge.Resize(badge.MinSize())
+	renderer.Layout(badge.Size())
+	if badge.Action.Position().X < 0 || badge.Action.Position().X+badge.Action.Size().Width > badge.Size().Width {
+		t.Fatal("badge action is outside the badge bounds")
+	}
+	test.Tap(badge.Action)
+	if !called {
+		t.Fatal("badge action was not invoked")
+	}
+}

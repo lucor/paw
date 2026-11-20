@@ -36,24 +36,25 @@ type LoginEditor struct {
 	Notes          *widget.Entry
 	PasswordSpec   *paw.PasswordSpec
 
-	item           *model.Item
-	initial        loginEditorValues
-	basicAuth      *cxf.BasicAuth
-	basicAuthIndex int
-	note           *cxf.Note
-	noteIndex      int
-	totp           *cxf.TOTP
-	totpIndex      int
-	totpSettings   cxf.TOTP
-	form           *widget.Form
-	headerTitle    *widget.Label
-	favicon        *iconPreview
-	faviconValue   *model.Favicon
-	titleError     *widget.Label
-	websiteError   *widget.Label
-	totpError      *widget.Label
-	customFields   *customFieldsEditor
-	tags           *tagsEditor
+	item             *model.Item
+	initial          loginEditorValues
+	basicAuth        *cxf.BasicAuth
+	basicAuthIndex   int
+	note             *cxf.Note
+	noteIndex        int
+	totp             *cxf.TOTP
+	totpIndex        int
+	totpSettings     cxf.TOTP
+	form             *widget.Form
+	headerTitle      *widget.Label
+	favicon          *iconPreview
+	faviconValue     *model.Favicon
+	titleError       *widget.Label
+	websiteError     *widget.Label
+	totpError        *widget.Label
+	customFields     *customFieldsEditor
+	customDisclosure *customFieldsDisclosure
+	tags             *tagsEditor
 }
 
 // NewLoginEditor builds the create or edit screen for a Login item.
@@ -76,6 +77,7 @@ func NewLoginEditor(ctx context.Context, item *model.Item, faviconSettings model
 		return nil, err
 	}
 	tags := newTagsEditor(item, nil)
+	customDisclosure := newCustomFieldsDisclosure(customFields)
 
 	editor := &LoginEditor{
 		item:           item,
@@ -89,19 +91,21 @@ func NewLoginEditor(ctx context.Context, item *model.Item, faviconSettings model
 			Type: cxf.CredentialTypeTOTP, Algorithm: strings.ToLower(string(paw.TOTPHashDefault)),
 			Period: uint16(paw.TOTPIntervalDefault), Digits: uint16(paw.TOTPDigitsDefault),
 		},
-		Title:        widget.NewEntry(),
-		Username:     widget.NewEntry(),
-		Password:     NewPasswordField(),
-		Website:      NewLoginURLEntry(ctx, "", faviconSettings),
-		TOTPSecret:   widget.NewPasswordEntry(),
-		Notes:        widget.NewMultiLineEntry(),
-		favicon:      newIconPreview(icons.Globe),
-		titleError:   newErrorText(""),
-		websiteError: newErrorText(""),
-		totpError:    newErrorText(""),
-		customFields: customFields,
-		tags:         tags,
+		Title:            widget.NewEntry(),
+		Username:         widget.NewEntry(),
+		Password:         NewPasswordField(),
+		Website:          NewLoginURLEntry(ctx, "", faviconSettings),
+		TOTPSecret:       widget.NewPasswordEntry(),
+		Notes:            widget.NewMultiLineEntry(),
+		favicon:          newIconPreview(icons.Globe),
+		titleError:       newErrorText(""),
+		websiteError:     newErrorText(""),
+		totpError:        newErrorText(""),
+		customFields:     customFields,
+		customDisclosure: customDisclosure,
+		tags:             tags,
 	}
+	editor.Notes.SetMinRowsVisible(3)
 	username, password := "", ""
 	if decoded.BasicAuth.Username != nil {
 		username = decoded.BasicAuth.Username.Value
@@ -175,6 +179,7 @@ func NewLoginEditor(ctx context.Context, item *model.Item, faviconSettings model
 
 	titleRow := container.NewBorder(nil, nil, newEntryIconPreview(editor.favicon), nil, editor.Title)
 	totpRow := container.NewBorder(nil, nil, nil, editor.TOTPSettings, editor.TOTPSecret)
+	optionalFields := container.NewVBox(editor.customDisclosure.View, widget.NewSeparator(), editor.tags.View)
 	editor.form = widget.NewForm(
 		widget.NewFormItem("Title", container.NewVBox(titleRow, editor.titleError)),
 		widget.NewFormItem("Username", editor.Username),
@@ -182,8 +187,7 @@ func NewLoginEditor(ctx context.Context, item *model.Item, faviconSettings model
 		widget.NewFormItem("Website", container.NewVBox(editor.Website, editor.websiteError)),
 		widget.NewFormItem("Authenticator key", container.NewVBox(totpRow, editor.totpError)),
 		widget.NewFormItem("Notes", editor.Notes),
-		widget.NewFormItem("Custom fields", editor.customFields.View),
-		widget.NewFormItem("Tags", editor.tags.View),
+		widget.NewFormItem("", optionalFields),
 	)
 	editor.form.Orientation = widget.Vertical
 	editor.BackButton = newIconButton("Back", icons.Back, nil)

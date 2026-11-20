@@ -64,6 +64,12 @@ func TestLoginEditorControlsAndInteractions(t *testing.T) {
 	fyne.DoAndWait(func() { settingsIcon = buttons["Authenticator settings"].Icon.Name() })
 	require.Equal(t, icons.Settings2.Name(), settingsIcon)
 	require.True(t, editor.Password.Entry.Password, "password should use Fyne's native masked entry")
+	notesHeight := editor.Notes.MinSize().Height
+	threeRows := widget.NewMultiLineEntry()
+	threeRows.SetMinRowsVisible(3)
+	require.Equal(t, threeRows.MinSize().Height, notesHeight, "optional login notes should start with three visible rows")
+	editor.Notes.SetText(strings.Repeat("long optional note\n", 40))
+	require.Equal(t, notesHeight, editor.Notes.MinSize().Height, "long optional notes should scroll inside the entry")
 	require.NotNil(t, editor.TOTPSecret.Validator, "TOTP secret uses native focus-loss validation")
 	require.NotNil(t, editor.TOTPSecret.ActionItem, "TOTP secret uses the native password reveal control")
 	require.Less(t, editor.GenerateButton.Size().Height, editor.Password.Size().Height,
@@ -78,11 +84,11 @@ func TestLoginEditorControlsAndInteractions(t *testing.T) {
 	for index, item := range editor.form.Items {
 		formLabels[index] = item.Text
 	}
-	require.Equal(t, []string{"Title", "Username", "Password", "Website", "Authenticator key", "Notes", "Custom fields", "Tags"}, formLabels)
-	customFieldSelect := findSelect(editor.customFields.View)
-	require.NotNil(t, customFieldSelect)
-	require.Equal(t, []string{"Text", "Hidden"}, customFieldSelect.Options)
-	require.Equal(t, "+ Add field", customFieldSelect.PlaceHolder)
+	require.Equal(t, []string{"Title", "Username", "Password", "Website", "Authenticator key", "Notes", ""}, formLabels)
+	require.NotContains(t, auditTexts(editor.View), "Tags")
+	addField := findButtonByText(t, editor.customFields.View, "Add field")
+	require.NotNil(t, addField)
+	require.Equal(t, icons.ListPlus.Name(), addField.Icon.Name())
 	for _, object := range test.LaidOutObjects(editor.View) {
 		_, isNavigation := object.(*Navigation)
 		require.False(t, isNavigation, "entry editor should hide bottom navigation")
@@ -504,6 +510,7 @@ func TestLoginEditorGolden(t *testing.T) {
 			editor := newTestLoginEditor(t, loginEditorFixture(t), false)
 			window.SetContent(editor.View)
 			window.Resize(fyne.NewSize(430, 926))
+			test.LaidOutObjects(editor.View)
 			test.AssertImageMatches(t, "login-editor-"+variantName(variant)+".png", window.Canvas().Capture())
 		})
 	}

@@ -14,6 +14,7 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
+	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 	"go.lucor.dev/cxf"
@@ -36,15 +37,15 @@ func NewEntryDetail(ctx context.Context, item *model.Item, window fyne.Window, b
 }
 
 func newEntryDetailWithClear(ctx context.Context, item *model.Item, window fyne.Window, back, edit, deleteEntry func()) (fyne.CanvasObject, func(), error) {
-	return newEntryDetailWithActions(ctx, item, window, back, edit, deleteEntry, false, 0, nil, nil)
+	return newEntryDetailWithActions(ctx, item, window, back, edit, deleteEntry, false, 0, nil, nil, nil)
 }
 
-func newEntryDetailWithHistory(ctx context.Context, item *model.Item, window fyne.Window, back, edit, deleteEntry, openHistory func()) (fyne.CanvasObject, func(), error) {
-	return newEntryDetailWithActions(ctx, item, window, back, edit, deleteEntry, false, 0, openHistory, nil)
+func newEntryDetailWithHistory(ctx context.Context, item *model.Item, window fyne.Window, back, edit, deleteEntry, openHistory func(), openTag func(string)) (fyne.CanvasObject, func(), error) {
+	return newEntryDetailWithActions(ctx, item, window, back, edit, deleteEntry, false, 0, openHistory, nil, openTag)
 }
 
 func newHistoricalEntryDetailWithClear(ctx context.Context, item *model.Item, window fyne.Window, capturedAt uint64, back, restore func()) (fyne.CanvasObject, func(), error) {
-	return newEntryDetailWithActions(ctx, item, window, back, nil, nil, true, capturedAt, nil, restore)
+	return newEntryDetailWithActions(ctx, item, window, back, nil, nil, true, capturedAt, nil, restore, nil)
 }
 
 func newEntryDetailWithActions(
@@ -54,7 +55,7 @@ func newEntryDetailWithActions(
 	back, edit, deleteEntry func(),
 	historical bool,
 	capturedAt uint64,
-	openHistory, restore func(),
+	openHistory, restore func(), openTag func(string),
 ) (fyne.CanvasObject, func(), error) {
 	if err := item.Validate(); err != nil {
 		return nil, nil, err
@@ -82,11 +83,24 @@ func newEntryDetailWithActions(
 	var bodyObjects []fyne.CanvasObject
 	var clearSensitive []*detailSecret
 	var clearDisplays []*TOTPDisplay
+	var detailPage fyne.CanvasObject
+	var bodyScroll *container.Scroll
+	var fullValueView *detailFullValueView
+	openFullValue := func(title, value string, monospace bool, download func(string)) {
+		offset := bodyScroll.Offset
+		fullValueView = newDetailFullValueView(title, value, monospace, func() {
+			fullValueView.Clear()
+			fullValueView = nil
+			window.SetContent(detailPage)
+			bodyScroll.ScrollToOffset(offset)
+		}, download)
+		window.SetContent(fullValueView.View)
+	}
 	if item.Metadata.Type == model.SSHKeyItemType {
 		if decoded.SSHKey == nil {
 			return nil, nil, fmt.Errorf("SSH key credential is missing")
 		}
-		sshDetails, secrets, err := detailSSHKey(window, item.Title, *decoded.SSHKey, decoded.BasicAuth)
+		sshDetails, secrets, err := detailSSHKey(window, item.Title, *decoded.SSHKey, decoded.BasicAuth, openFullValue)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -120,24 +134,26 @@ func newEntryDetailWithActions(
 			appendDetailSection(&bodyObjects, view)
 		}
 		if note := decoded.Note; note != nil && note.Content.Value != "" {
+			noteValue := newDetailTextPreview(note.Content.Value, func() {
+				openFullValue("Notes", note.Content.Value, false, nil)
+			})
 			copyNotes := newIconButton("Copy Notes", icons.Copy, func() { detailCopy("Notes", note.Content.Value) })
-			noteValue := newText(preserveLineEdgeSpaces(note.Content.Value), bodyStyle)
-			noteValue.Wrapping = fyne.TextWrapBreak
-			noteValue.Selectable = true
 			appendDetailSection(&bodyObjects, newDetailMultilineField("Notes", noteValue, copyNotes))
 		}
 	}
-	customFields := detailCustomFields(decoded.CustomFields, &clearSensitive)
+	customFields, customSecrets := detailCustomFields(decoded.CustomFields, openFullValue)
+	clearSensitive = append(clearSensitive, customSecrets...)
 	if customFields != nil {
 		appendDetailSection(&bodyObjects, customFields)
-	}
-	if len(item.Tags) > 0 {
-		appendDetailSection(&bodyObjects, newDetailField("Tags", newText(strings.Join(item.Tags, ", "), bodyStyle)))
 	}
 	var clearOnce sync.Once
 	clear := func() {
 		clearOnce.Do(func() {
 			clearDetailSecrets(clearSensitive)
+			if fullValueView != nil {
+				fullValueView.Clear()
+				fullValueView = nil
+			}
 			for _, display := range clearDisplays {
 				display.Clear()
 			}
@@ -187,10 +203,6 @@ func newEntryDetailWithActions(
 		value := formatDetailTimestamp(*date.value)
 		dates = append(dates, date.label+" · "+value)
 	}
-	var metadata fyne.CanvasObject
-	if len(dates) > 0 {
-		metadata = newDetailMetadata(dates)
-	}
 	var footerAction fyne.CanvasObject
 	if !historical {
 		if history, err := item.History(); err == nil && len(history.Entries) > 0 && openHistory != nil {
@@ -199,18 +211,51 @@ func newEntryDetailWithActions(
 			footerAction = historyButton
 		}
 	}
-	if footerAction != nil {
-		metadata = container.NewBorder(nil, nil, nil, footerAction, metadata)
+	metadataRows := make([]fyne.CanvasObject, 0, 3)
+	if len(item.Tags) > 0 {
+		tagButtons := make([]fyne.CanvasObject, 0, len(item.Tags))
+		for _, tag := range item.Tags {
+			button := widget.NewButton(tag, func() {
+				if openTag != nil {
+					openTag(tag)
+				}
+			})
+			button.Importance = widget.LowImportance
+			tagButtons = append(tagButtons, button)
+		}
+		tags := container.New(&tagWrapLayout{gap: theme.Size(theme.SizeNamePadding)}, tagButtons...)
+		tagIcon := widget.NewIcon(icons.Tag)
+		metadataRows = append(metadataRows, container.NewBorder(nil, nil, tagIcon, nil, tags))
+	}
+	if len(dates) > 0 {
+		if len(item.Tags) > 0 {
+			metadataRows = append(metadataRows, widget.NewSeparator())
+		}
+		dateRow := newDetailMetadata(dates)
+		if footerAction != nil {
+			dateRow = container.NewBorder(nil, nil, nil, footerAction, dateRow)
+			footerAction = nil
+		}
+		metadataRows = append(metadataRows, dateRow)
+	} else if footerAction != nil {
+		metadataRows = append(metadataRows, container.NewBorder(nil, nil, nil, footerAction, nil))
+	}
+	var metadata fyne.CanvasObject
+	if len(metadataRows) == 1 {
+		metadata = metadataRows[0]
+	} else if len(metadataRows) > 1 {
+		metadata = container.New(layout.NewCustomPaddedVBoxLayout(theme.Size(theme.SizeNamePadding)), metadataRows...)
 	}
 	if len(bodyObjects) > 0 {
 		bodyObjects = append([]fyne.CanvasObject{widget.NewSeparator()}, bodyObjects...)
 	}
 	body := newDetailScrollableContent(bodyObjects, metadata)
-	page := newSecondaryPage(header, nil, container.NewVScroll(body))
-	return page, clear, nil
+	bodyScroll = container.NewVScroll(body)
+	detailPage = newSecondaryPage(header, nil, bodyScroll)
+	return detailPage, clear, nil
 }
 
-func detailSSHKey(window fyne.Window, title string, credential cxf.SSHKey, passphrase *cxf.BasicAuth) ([]fyne.CanvasObject, []*detailSecret, error) {
+func detailSSHKey(window fyne.Window, title string, credential cxf.SSHKey, passphrase *cxf.BasicAuth, openFullValue func(string, string, bool, func(string))) ([]fyne.CanvasObject, []*detailSecret, error) {
 	privateText, publicText, fingerprint, err := model.FormatSSHKey(credential)
 	if err != nil {
 		return nil, nil, err
@@ -241,33 +286,36 @@ func detailSSHKey(window fyne.Window, title string, credential cxf.SSHKey, passp
 	copyPublic := newIconButton("Copy public key", icons.Copy, func() { detailCopy("Public key", publicText) })
 	downloadPublic := newIconButton("Download public key", icons.Download, func() { detailDownload(window, filename+".pub", publicText) })
 	appendDetailSection(&details, newDetailMultilineField("Public key", publicKey, copyPublic, downloadPublic))
-	privateBody := newText("", bodyStyle)
-	privateBody.TextStyle.Monospace = true
-	privateBody.Wrapping = fyne.TextWrapBreak
-	privateBody.Selectable = true
-	toggle := newIconButton("Show private key", icons.Show, nil)
-	privateSurface := widget.NewCard("", "", nil)
-	privateSurface.Hide()
-	privateValue := &detailSecret{value: privateText, text: privateBody, button: toggle, label: "private key", surface: privateSurface}
-	toggle.OnTapped = privateValue.Toggle
+	privateValue := &detailSecret{value: privateText, label: "private key"}
 	copyPrivate := newIconButton("Copy private key", icons.Copy, func() { detailCopy("Private key", privateValue.value) })
-	downloadPrivate := newIconButton("Download private key", icons.Download, func() { detailDownload(window, filename+".key", privateValue.value) })
-	privateHeader := newDetailFieldHeader("Private key", toggle, copyPrivate, downloadPrivate)
-	appendDetailSection(&details, container.NewVBox(privateHeader, privateSurface))
+	downloadPrivate := newIconButton("Download private key", icons.Download, func() {
+		detailDownload(window, filename+".key", privateValue.value)
+	})
+	toggle := newIconButton("Show private key", icons.Show, func() {
+		openFullValue("Private key", privateValue.value, true, func(value string) {
+			detailDownload(window, filename+".key", value)
+		})
+	})
+	appendDetailSection(&details, newDetailFieldHeader("Private key", toggle, copyPrivate, downloadPrivate))
 	secrets = append(secrets, privateValue)
 	return details, secrets, nil
 }
 
-func detailCustomFields(groups []model.CustomFieldsGroup, clearSensitive *[]*detailSecret) fyne.CanvasObject {
+// detailCustomFields renders the groups and returns their reveal controls for cleanup.
+func detailCustomFields(groups []model.CustomFieldsGroup, openFullValue func(string, string, bool, func(string))) (fyne.CanvasObject, []*detailSecret) {
+	var secrets []*detailSecret
 	var ungrouped []fyne.CanvasObject
 	var named []model.CustomFieldsGroup
 	for _, group := range groups {
 		if group.Credential.Label == "" {
 			for _, field := range group.Credential.Fields {
-				if object, secret := detailCustomField(field); object != nil {
+				if object, secret := detailCustomField(field, openFullValue); object != nil {
+					if len(ungrouped) > 0 {
+						ungrouped = append(ungrouped, widget.NewSeparator())
+					}
 					ungrouped = append(ungrouped, object)
 					if secret != nil {
-						*clearSensitive = append(*clearSensitive, secret)
+						secrets = append(secrets, secret)
 					}
 				}
 			}
@@ -280,41 +328,48 @@ func detailCustomFields(groups []model.CustomFieldsGroup, clearSensitive *[]*det
 	if len(ungrouped) > 0 {
 		sections = append(sections, container.NewVBox(ungrouped...))
 	}
-	var accordionItems []*widget.AccordionItem
+	if len(ungrouped) > 0 && len(named) > 0 {
+		sections = append(sections, widget.NewSeparator())
+	}
 	for _, group := range named {
 		var fields []fyne.CanvasObject
 		for _, field := range group.Credential.Fields {
-			if object, secret := detailCustomField(field); object != nil {
+			if object, secret := detailCustomField(field, openFullValue); object != nil {
+				if len(fields) > 0 {
+					fields = append(fields, widget.NewSeparator())
+				}
 				fields = append(fields, object)
 				if secret != nil {
-					*clearSensitive = append(*clearSensitive, secret)
+					secrets = append(secrets, secret)
 				}
 			}
 		}
 		if len(fields) == 0 {
 			fields = append(fields, newText("Empty", captionStyle))
 		}
-		item := widget.NewAccordionItem(group.Credential.Label, container.NewVBox(fields...))
+		item := widget.NewAccordionItem(group.Credential.Label, container.NewPadded(container.NewVBox(fields...)))
 		item.Open = true
-		accordionItems = append(accordionItems, item)
-	}
-	if len(accordionItems) > 0 {
-		accordion := widget.NewAccordion(accordionItems...)
-		accordion.MultiOpen = true
-		if len(ungrouped) > 0 {
-			sections = append(sections, widget.NewSeparator())
-		}
-		sections = append(sections, accordion)
+		accordion := widget.NewAccordion(item)
+		sections = append(sections, newCustomFieldsSectionCard(accordion))
 	}
 	if len(sections) == 0 {
-		return nil
+		return nil, nil
 	}
-	return container.NewVBox(sections...)
+	return container.NewVBox(sections...), secrets
 }
 
-func detailCustomField(field cxf.EditableField) (fyne.CanvasObject, *detailSecret) {
+func detailCustomField(field cxf.EditableField, openFullValue func(string, string, bool, func(string))) (fyne.CanvasObject, *detailSecret) {
 	if field.Label == "" && field.Value == "" {
 		return nil, nil
+	}
+	if field.FieldType == cxf.FieldTypeConcealedString && isLongText(field.Value) {
+		title := field.Label
+		if title == "" {
+			title = "Custom field"
+		}
+		value := &detailSecret{value: field.Value, label: title}
+		eye := newIconButton("Show "+title, icons.Show, func() { openFullValue(title, value.value, false, nil) })
+		return newDetailFieldHeader(field.Label, eye), value
 	}
 	if field.FieldType == cxf.FieldTypeConcealedString {
 		if field.Value == "" {
@@ -333,6 +388,10 @@ func detailCustomField(field cxf.EditableField) (fyne.CanvasObject, *detailSecre
 		copyLabel = "value"
 	}
 	copy := newIconButton("Copy "+copyLabel, icons.Copy, func() { detailCopy(copyLabel, field.Value) })
+	if isLongText(field.Value) {
+		preview := newDetailTextPreview(field.Value, func() { openFullValue(copyLabel, field.Value, false, nil) })
+		return newDetailField(field.Label, preview, copy), nil
+	}
 	if field.Label == "" {
 		return container.NewBorder(nil, nil, nil, copy, value), nil
 	}

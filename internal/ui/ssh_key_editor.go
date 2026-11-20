@@ -61,6 +61,7 @@ type SSHKeyEditor struct {
 	headerTitle      *widget.Label
 	form             *widget.Form
 	customFields     *customFieldsEditor
+	customDisclosure *customFieldsDisclosure
 	tags             *tagsEditor
 }
 
@@ -88,6 +89,7 @@ func NewSSHKeyEditor(item *model.Item, isNew bool) (*SSHKeyEditor, error) {
 		return nil, err
 	}
 	tags := newTagsEditor(item, nil)
+	customDisclosure := newCustomFieldsDisclosure(customFields)
 	_, public, fingerprint, err := model.FormatSSHKey(*decoded.SSHKey)
 	if err != nil {
 		return nil, err
@@ -108,7 +110,8 @@ func NewSSHKeyEditor(item *model.Item, isNew bool) (*SSHKeyEditor, error) {
 		fingerprintLabel: newText(fingerprint, bodyStyle),
 		keyType:          newText(strings.ToUpper(strings.TrimPrefix(decoded.SSHKey.KeyType, "ssh-")), bodyStyle),
 		publicPreview:    newText(compactSSHPreview(public), bodyStyle),
-		privateBox:       container.NewVBox(), titleError: newErrorText(""), customFields: customFields, tags: tags,
+		privateBox:       container.NewVBox(), titleError: newErrorText(""), customFields: customFields,
+		customDisclosure: customDisclosure, tags: tags,
 	}
 	if !isNew {
 		editor.Title.SetText(item.Title)
@@ -153,8 +156,6 @@ func NewSSHKeyEditor(item *model.Item, isNew bool) (*SSHKeyEditor, error) {
 	editor.form = widget.NewForm(
 		widget.NewFormItem("Title", container.NewVBox(titleRow, editor.titleError)),
 		widget.NewFormItem("Key passphrase", passphraseRow),
-		widget.NewFormItem("Custom fields", editor.customFields.View),
-		widget.NewFormItem("Tags", editor.tags.View),
 	)
 	editor.form.Orientation = widget.Vertical
 	editor.CopyFingerprintButton = copyFingerprint
@@ -185,7 +186,8 @@ func NewSSHKeyEditor(item *model.Item, isNew bool) (*SSHKeyEditor, error) {
 	}
 	editor.headerTitle = newText(title, titleStyle)
 	header := newPageHeader(editor.BackButton, editor.headerTitle, editor.SaveButton)
-	body := container.New(layout.NewCustomPaddedVBoxLayout(pawSize(pawSizeNameFormSpacing)), editor.form, editor.AddToAgent, section)
+	optionalFields := container.NewVBox(editor.customDisclosure.View, widget.NewSeparator(), editor.tags.View)
+	body := container.New(layout.NewCustomPaddedVBoxLayout(pawSize(pawSizeNameFormSpacing)), editor.form, editor.AddToAgent, section, optionalFields)
 	editor.View = newSecondaryPage(header, nil, container.NewVScroll(body))
 	return editor, nil
 }

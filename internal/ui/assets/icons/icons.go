@@ -153,6 +153,14 @@ var (
 	Image = themed("image")
 	// Hash identifies TOTP algorithms.
 	Hash = themed("hash")
+	// Form identifies custom-field actions.
+	Form = themed("form")
+	// ListPlus identifies adding a custom field.
+	ListPlus = themed("list-plus")
+	// Tag identifies an item tag.
+	Tag = themed("tag")
+	// TagPlus adds a tag to an item.
+	TagPlus = themed("tag-plus")
 	// Binary identifies TOTP digits.
 	Binary = themed("binary")
 	// SunMoon identifies theme settings.

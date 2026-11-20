@@ -415,6 +415,43 @@ func TestVaultEntryListWiring(t *testing.T) {
 	t.Fatal("entry list was not rendered")
 }
 
+func TestSwitchingVaultsClearsActiveTagFilters(t *testing.T) {
+	test.NewTempApp(t)
+	window := test.NewTempWindow(t, nil)
+	store, err := storage.NewFileStorage(t.TempDir())
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, store.Close()) })
+
+	firstKey, err := paw.MakeOneTimeKey()
+	require.NoError(t, err)
+	first, err := model.NewVault(firstKey, "First")
+	require.NoError(t, err)
+	secondKey, err := paw.MakeOneTimeKey()
+	require.NoError(t, err)
+	second, err := model.NewVault(secondKey, "Second")
+	require.NoError(t, err)
+	firstID, secondID := first.Accounts[0].ID, second.Accounts[0].ID
+	require.NoError(t, store.UpdateVaultIdentity(first, "First", model.DefaultVaultAppearance()))
+	require.NoError(t, store.UpdateVaultIdentity(second, "Second", model.DefaultVaultAppearance()))
+
+	a := &app{
+		win:           window,
+		main:          container.NewVScroll(nil),
+		storage:       store,
+		vault:         first,
+		vaultID:       firstID,
+		unlockedVault: map[string]*model.Vault{firstID: first, secondID: second},
+		filter: map[string]*vaultFilterOptions{
+			firstID:  {Tag: "work"},
+			secondID: {Tag: "personal"},
+		},
+	}
+	a.setVaultView(second, secondID)
+
+	require.Empty(t, a.filter[firstID].Tag)
+	require.Empty(t, a.filter[secondID].Tag)
+}
+
 // TestSelectVaultKeepsIDAndDisplayName checks selection uses the ID and shows the name.
 func TestSelectVaultKeepsIDAndDisplayName(t *testing.T) {
 	appDriver := test.NewApp()

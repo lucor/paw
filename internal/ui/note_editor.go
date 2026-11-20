@@ -25,15 +25,16 @@ type NoteEditor struct {
 	Title      *widget.Entry
 	Notes      *widget.Entry
 
-	item         *model.Item
-	initialTitle string
-	initialNotes string
-	note         *cxf.Note
-	noteIndex    int
-	titleError   *widget.Label
-	headerTitle  *widget.Label
-	customFields *customFieldsEditor
-	tags         *tagsEditor
+	item             *model.Item
+	initialTitle     string
+	initialNotes     string
+	note             *cxf.Note
+	noteIndex        int
+	titleError       *widget.Label
+	headerTitle      *widget.Label
+	customFields     *customFieldsEditor
+	customDisclosure *customFieldsDisclosure
+	tags             *tagsEditor
 }
 
 // NewNoteEditor builds the create or edit screen for a Note item.
@@ -56,17 +57,20 @@ func NewNoteEditor(item *model.Item, isNew bool) (*NoteEditor, error) {
 		return nil, err
 	}
 	tags := newTagsEditor(item, nil)
+	customDisclosure := newCustomFieldsDisclosure(customFields)
 
 	editor := &NoteEditor{
-		item:         item,
-		note:         decoded.Note,
-		noteIndex:    decoded.NoteIndex,
-		Title:        widget.NewEntry(),
-		Notes:        widget.NewMultiLineEntry(),
-		titleError:   newErrorText(""),
-		customFields: customFields,
-		tags:         tags,
+		item:             item,
+		note:             decoded.Note,
+		noteIndex:        decoded.NoteIndex,
+		Title:            widget.NewEntry(),
+		Notes:            widget.NewMultiLineEntry(),
+		titleError:       newErrorText(""),
+		customFields:     customFields,
+		customDisclosure: customDisclosure,
+		tags:             tags,
 	}
+	editor.Notes.SetMinRowsVisible(6)
 	if !isNew {
 		editor.Title.SetText(item.Title)
 	}
@@ -95,9 +99,7 @@ func NewNoteEditor(item *model.Item, isNew bool) (*NoteEditor, error) {
 	titleField = container.New(layout.NewCustomPaddedLayout(0, 0, theme.Size(theme.SizeNamePadding), 0), titleField)
 	notesLabel := container.New(layout.NewCustomPaddedLayout(0, 0, theme.Size(theme.SizeNamePadding), 0), newText("Notes", formLabelStyle))
 	notesField := container.NewBorder(notesLabel, nil, nil, nil, editor.Notes)
-	customFieldsLabel := container.New(layout.NewCustomPaddedLayout(0, 0, theme.Size(theme.SizeNamePadding), 0), newText("Custom fields", formLabelStyle))
-	tagsLabel := container.New(layout.NewCustomPaddedLayout(0, 0, theme.Size(theme.SizeNamePadding), 0), newText("Tags", formLabelStyle))
-	body := container.NewVScroll(container.NewVBox(titleField, notesField, customFieldsLabel, editor.customFields.View, tagsLabel, editor.tags.View))
+	body := container.NewVScroll(container.NewVBox(titleField, notesField, editor.customDisclosure.View, widget.NewSeparator(), editor.tags.View))
 	editor.View = newSecondaryPage(header, nil, body)
 	return editor, nil
 }

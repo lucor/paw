@@ -11,6 +11,8 @@ import (
 	"fyne.io/fyne/v2/widget"
 	"github.com/stretchr/testify/require"
 	"go.lucor.dev/paw/internal/model"
+	"go.lucor.dev/paw/internal/ui/assets/icons"
+	"go.lucor.dev/paw/internal/ui/widgets"
 )
 
 func TestTagsEditorAddsSuggestedTagsAndRemovesTags(t *testing.T) {
@@ -20,18 +22,71 @@ func TestTagsEditorAddsSuggestedTagsAndRemovesTags(t *testing.T) {
 	editor := newTagsEditor(item, []string{"Personal", "Work"})
 	window := fynetest.NewTempWindow(t, editor.View)
 	window.Resize(fyne.NewSize(320, 400))
+	require.Equal(t, "Add tag", editor.addButton.Text)
+	require.Equal(t, icons.TagPlus.Name(), editor.addButton.Icon.Name())
 
+	fynetest.Tap(findButtonByText(t, editor.View, "Add tag"))
 	editor.input.SetText("Work")
-	fynetest.Tap(findButtonByText(t, editor.View, "Add"))
 	require.Equal(t, []string{"Work"}, editor.tags)
 	require.Empty(t, editor.input.Text)
 	require.True(t, editor.IsDirty())
 
-	remove := findDeleteAction(editor.View)
-	require.NotNil(t, remove)
-	fynetest.Tap(remove)
+	chip := findTagBadge(editor.View)
+	require.NotNil(t, chip)
+	require.Equal(t, "×", chip.Action.Text)
+	fynetest.Tap(chip.Action)
 	require.Empty(t, editor.tags)
 	require.False(t, editor.IsDirty())
+}
+
+func TestTagsEditorAddsNewTagOnSubmitAndCancels(t *testing.T) {
+	fynetest.NewTempApp(t)
+	item, err := model.NewNote("Example", "note")
+	require.NoError(t, err)
+	editor := newTagsEditor(item, nil)
+	window := fynetest.NewTempWindow(t, editor.View)
+
+	fynetest.Tap(findButtonByText(t, editor.View, "Add tag"))
+	require.Same(t, editor.input, window.Canvas().Focused())
+	editor.input.SetText("Personal")
+	editor.input.OnSubmitted(editor.input.Text)
+	require.Equal(t, []string{"Personal"}, editor.tags)
+	require.False(t, editor.inputRow.Visible())
+
+	fynetest.Tap(findButtonByText(t, editor.View, "Add tag"))
+	editor.input.SetText("Temporary")
+	editor.cancelAdd()
+	require.Equal(t, []string{"Personal"}, editor.tags)
+	require.False(t, editor.inputRow.Visible())
+}
+
+func findTagBadge(object fyne.CanvasObject) *widgets.Badge {
+	if badge, ok := object.(*widgets.Badge); ok {
+		return badge
+	}
+	if group, ok := object.(*fyne.Container); ok {
+		for _, child := range group.Objects {
+			if badge := findTagBadge(child); badge != nil {
+				return badge
+			}
+		}
+	}
+	return nil
+}
+
+func TestTagChipsWrapInNarrowEditor(t *testing.T) {
+	fynetest.NewTempApp(t)
+	item, err := model.NewNote("Example", "note")
+	require.NoError(t, err)
+	item.Tags = []string{"Personal", "Recovery", "Travel"}
+	editor := newTagsEditor(item, nil)
+	fynetest.NewTempWindow(t, editor.View)
+	editor.View.Resize(fyne.NewSize(180, 140))
+	wrap := editor.rows.Objects[0].(*fyne.Container)
+	wrap.Resize(fyne.NewSize(180, 120))
+	first := wrap.Objects[0].Position()
+	second := wrap.Objects[1].Position()
+	require.NotEqual(t, first.Y, second.Y, "chips should continue on another row when they do not fit")
 }
 
 func TestItemEditorsSaveTagsForEveryCategory(t *testing.T) {
@@ -62,7 +117,7 @@ func TestItemEditorsSaveTagsForEveryCategory(t *testing.T) {
 		editor := editor
 		t.Run(editor.name, func(t *testing.T) {
 			editor.tags.input.SetText("team")
-			editor.tags.add()
+			editor.tags.addTag()
 			require.True(t, editor.tags.IsDirty())
 			updated, err := editor.save()
 			require.NoError(t, err)

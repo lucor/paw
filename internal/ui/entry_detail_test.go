@@ -28,6 +28,7 @@ import (
 	"go.lucor.dev/paw/internal/model"
 	"go.lucor.dev/paw/internal/otp"
 	"go.lucor.dev/paw/internal/paw"
+	"go.lucor.dev/paw/internal/ui/assets/icons"
 )
 
 func newTestEntryDetail(ctx context.Context, item *model.Item, window fyne.Window) (fyne.CanvasObject, error) {
@@ -139,7 +140,7 @@ func TestEntryDetailSSHKeyDisclosureAndActions(t *testing.T) {
 			require.NotEqual(t, "Edit", object.Text)
 		}
 	}
-	for _, label := range []string{"Show private key", "Copy fingerprint", "Copy public key", "Download public key", "Copy private key", "Download private key", "Entry actions"} {
+	for _, label := range []string{"Show private key", "Copy private key", "Download private key", "Copy fingerprint", "Copy public key", "Download public key", "Entry actions"} {
 		require.Contains(t, buttons, label)
 	}
 
@@ -151,9 +152,21 @@ func TestEntryDetailSSHKeyDisclosureAndActions(t *testing.T) {
 	require.Equal(t, publicKey, fyne.CurrentApp().Clipboard().Content())
 	test.Tap(buttons["Copy private key"])
 	require.Contains(t, fyne.CurrentApp().Clipboard().Content(), "BEGIN OPENSSH PRIVATE KEY")
+	test.Tap(buttons["Download private key"])
+	privateSaveDialog := window.Canvas().Overlays().Top()
+	require.NotNil(t, privateSaveDialog)
+	window.Canvas().Overlays().Remove(privateSaveDialog)
 	test.Tap(buttons["Show private key"])
-	require.Contains(t, strings.Join(auditTexts(view), "\n"), "BEGIN OPENSSH PRIVATE KEY")
-	test.Tap(buttons["Show private key"])
+	fullView := window.Content()
+	require.Contains(t, strings.Join(auditTexts(fullView), "\n"), "BEGIN OPENSSH PRIVATE KEY")
+	fullButtons := detailIconButtons(t, fullView)
+	test.Tap(fullButtons["Copy Private key"])
+	require.Contains(t, fyne.CurrentApp().Clipboard().Content(), "BEGIN OPENSSH PRIVATE KEY")
+	test.Tap(fullButtons["Download Private key"])
+	require.NotNil(t, window.Canvas().Overlays().Top())
+	window.Canvas().Overlays().Remove(window.Canvas().Overlays().Top())
+	test.Tap(fullButtons["Back"])
+	require.Same(t, view, window.Content())
 	require.NotContains(t, strings.Join(auditTexts(view), "\n"), "BEGIN OPENSSH PRIVATE KEY")
 	test.Tap(buttons["Download public key"])
 	saveDialog := window.Canvas().Overlays().Top()
@@ -349,6 +362,7 @@ func TestEntryDetailOmitsEmptyOptionalFieldsAndPreservesLongNote(t *testing.T) {
 	note := detailItemFixture(t, "note")
 	noteView, err := NewEntryDetail(context.Background(), note, window, func() {}, func() {}, func() {})
 	require.NoError(t, err)
+	window.SetContent(noteView)
 	var noteBody *widget.Label
 	for _, object := range test.LaidOutObjects(noteView) {
 		if label, ok := object.(*widget.Label); ok && strings.HasPrefix(label.Text, "\u00a0\u00a0line one\u00a0\u00a0") {
@@ -357,15 +371,86 @@ func TestEntryDetailOmitsEmptyOptionalFieldsAndPreservesLongNote(t *testing.T) {
 	}
 	require.NotNil(t, noteBody)
 	require.Equal(t, fyne.TextWrapBreak, noteBody.Wrapping)
-	require.Equal(t, "\u00a0\u00a0line one\u00a0\u00a0\nline two with a long unbroken value: abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz", noteBody.Text)
-	for _, object := range test.LaidOutObjects(noteView) {
-		if button, ok := object.(*iconButton); ok && button.AccessibilityLabel() == "Copy Notes" {
-			test.Tap(button)
-			require.Equal(t, "  line one  \nline two with a long unbroken value: abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz", fyne.CurrentApp().Clipboard().Content())
-			return
-		}
+	noteValue := "  line one  \nline two with a long unbroken value: abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz"
+	preview, truncated := detailTextPreview(noteValue)
+	require.False(t, truncated)
+	require.Equal(t, preserveLineEdgeSpaces(preview), noteBody.Text)
+	showMore := detailButton(noteView, "Show more")
+	require.Nil(t, showMore)
+	copyNotes := detailIconButton(noteView, "Copy Notes")
+	require.NotNil(t, copyNotes)
+	test.Tap(copyNotes)
+	require.Equal(t, noteValue, fyne.CurrentApp().Clipboard().Content())
+}
+
+func TestEntryDetailLongNotesUsePreviewFullViewAndCopyOriginal(t *testing.T) {
+	for _, kind := range []string{"note", "login optional notes"} {
+		t.Run(kind, func(t *testing.T) {
+			test.NewTempApp(t)
+			window := test.NewTempWindow(t, nil)
+			value := "  first line  \n" + strings.Repeat("long note text ", 18) + "\nlast line  "
+			var item *model.Item
+			var err error
+			if kind == "note" {
+				item, err = model.NewNote("Long note", value)
+			} else {
+				item, err = model.NewLogin("Long notes", "user", "secret", model.PasswordSettings{Mode: paw.CustomPassword})
+				if err == nil {
+					err = item.SetNote(-1, cxf.Note{Type: cxf.CredentialTypeNote, Content: cxf.EditableField{FieldType: cxf.FieldTypeString, Value: value}})
+				}
+			}
+			require.NoError(t, err)
+			view, clear, err := newEntryDetailWithClear(context.Background(), item, window, func() {}, func() {}, func() {})
+			require.NoError(t, err)
+			window.SetContent(view)
+			window.Resize(fyne.NewSize(360, 520))
+			defer clear()
+
+			preview, truncated := detailTextPreview(value)
+			require.True(t, truncated)
+			previewText := strings.ReplaceAll(strings.Join(auditTexts(view), "\n"), "\u00a0", " ")
+			require.Contains(t, previewText, strings.TrimSpace(preview))
+			showMore := detailButton(view, "Show more")
+			require.NotNil(t, showMore)
+			require.Nil(t, showMore.Icon)
+			require.Equal(t, widget.LowImportance, showMore.Importance)
+			copyNotes := detailIconButton(view, "Copy Notes")
+			require.NotNil(t, copyNotes)
+			test.Tap(copyNotes)
+			require.Equal(t, value, fyne.CurrentApp().Clipboard().Content())
+
+			mainScroll := findDetailScroll(t, view)
+			mainScroll.ScrollToOffset(fyne.NewPos(0, 12))
+			offset := mainScroll.Offset
+			test.Tap(showMore)
+			fullView := window.Content()
+			require.Contains(t, auditTexts(fullView), preserveLineEdgeSpaces(value))
+			test.Tap(detailIconButton(fullView, "Copy Notes"))
+			require.Equal(t, value, fyne.CurrentApp().Clipboard().Content())
+			test.Tap(detailIconButton(fullView, "Back"))
+			require.Same(t, view, window.Content())
+			require.Equal(t, offset, mainScroll.Offset)
+		})
 	}
-	t.Fatal("note copy action not found")
+}
+
+func TestDetailTextPreviewLimitsLongValues(t *testing.T) {
+	test.NewTempApp(t)
+	long := strings.Repeat("界", multilineThreshold+1)
+	preview, truncated := detailTextPreview(long)
+	require.True(t, truncated)
+	require.Equal(t, detailPreviewMaxRunes+1, len([]rune(preview)))
+	require.Equal(t, "…", string([]rune(preview)[len([]rune(preview))-1:]))
+
+	shortMultiline := "first\nsecond"
+	preview, truncated = detailTextPreview(shortMultiline)
+	require.False(t, truncated)
+	require.Equal(t, shortMultiline, preview)
+
+	tallMultiline := strings.Join([]string{"one", "two", "three", "four", "five", "six"}, "\n")
+	preview, truncated = detailTextPreview(tallMultiline)
+	require.True(t, truncated)
+	require.Equal(t, "one\ntwo\nthree\nfour\nfive…", preview)
 }
 
 func TestEntryDetailGroupsCustomFieldsAndPreservesItem(t *testing.T) {
@@ -414,31 +499,27 @@ func TestEntryDetailGroupsCustomFieldsAndPreservesItem(t *testing.T) {
 	require.NotContains(t, texts, "No attachments")
 	require.Equal(t, credentials, item.Credentials)
 
-	var accordion *widget.Accordion
+	var accordions []*widget.Accordion
 	for _, object := range test.LaidOutObjects(view) {
 		if candidate, ok := object.(*widget.Accordion); ok {
-			accordion = candidate
-			break
+			accordions = append(accordions, candidate)
 		}
 	}
-	require.NotNil(t, accordion)
-	require.True(t, accordion.MultiOpen)
-	require.LessOrEqual(t, accordion.Size().Width, float32(320))
-	require.Len(t, accordion.Items, 3)
-	require.Equal(t, "Recovery codes", accordion.Items[0].Title)
-	require.Equal(t, "Account details", accordion.Items[1].Title)
-	require.Equal(t, "Empty section", accordion.Items[2].Title)
-	require.True(t, accordion.Items[0].Open)
-	require.True(t, accordion.Items[1].Open)
-	require.True(t, accordion.Items[2].Open)
+	require.Len(t, accordions, 3)
+	for index, title := range []string{"Recovery codes", "Account details", "Empty section"} {
+		require.LessOrEqual(t, accordions[index].Size().Width, float32(320))
+		require.Len(t, accordions[index].Items, 1)
+		require.Equal(t, title, accordions[index].Items[0].Title)
+		require.True(t, accordions[index].Items[0].Open)
+	}
 
 	firstHeader := detailButton(view, "Recovery codes")
 	require.NotNil(t, firstHeader)
 	test.Tap(firstHeader)
-	require.False(t, accordion.Items[0].Open)
-	require.True(t, accordion.Items[1].Open)
+	require.False(t, accordions[0].Items[0].Open)
+	require.True(t, accordions[1].Items[0].Open)
 	test.Tap(firstHeader)
-	require.True(t, accordion.Items[0].Open)
+	require.True(t, accordions[0].Items[0].Open)
 
 	require.NotContains(t, auditTexts(view), "synthetic-secret")
 	for _, object := range test.LaidOutObjects(view) {
@@ -458,6 +539,129 @@ func TestEntryDetailGroupsCustomFieldsAndPreservesItem(t *testing.T) {
 	require.NotNil(t, hideSecret)
 	test.Tap(hideSecret)
 	require.NotContains(t, auditTexts(view), "synthetic-secret")
+}
+
+func TestEntryDetailLongCustomFieldsOpenFullValueView(t *testing.T) {
+	test.NewTempApp(t)
+	window := test.NewTempWindow(t, nil)
+	item, err := model.NewNote("Example", "note")
+	require.NoError(t, err)
+	longValue := "  first line\nsecond line  \n" + strings.Repeat("界", 170)
+	secretValue := strings.Repeat("sensitive", 19)
+	require.NoError(t, item.AppendCustomFields(cxf.CustomFields{
+		Type: cxf.CredentialTypeCustomFields,
+		Fields: []cxf.EditableField{
+			{FieldType: cxf.FieldTypeString, Label: "Long text", Value: longValue},
+			{FieldType: cxf.FieldTypeConcealedString, Label: "Hidden multiline", Value: secretValue},
+		},
+	}))
+	view, clear, err := newEntryDetailWithClear(context.Background(), item, window, func() {}, func() {}, func() {})
+	require.NoError(t, err)
+	window.SetContent(view)
+	window.Resize(fyne.NewSize(360, 480))
+	defer clear()
+
+	mainScroll := findDetailScroll(t, view)
+	mainScroll.ScrollToOffset(fyne.NewPos(0, 12))
+	originalOffset := mainScroll.Offset
+	detailButtons := detailIconButtons(t, view)
+	require.Contains(t, detailButtons, "Show Hidden multiline")
+	require.NotContains(t, detailButtons, "Show Long text")
+	require.Contains(t, detailButtons, "Copy Long text")
+	require.NotContains(t, detailButtons, "Copy Hidden multiline")
+	require.NotContains(t, strings.Join(auditTexts(view), "\n"), longValue)
+	require.NotContains(t, strings.Join(auditTexts(view), "\n"), secretValue)
+	require.NotContains(t, strings.Join(auditTexts(view), "\n"), "••••••••••••")
+	test.Tap(detailButtons["Copy Long text"])
+	require.Equal(t, longValue, fyne.CurrentApp().Clipboard().Content())
+
+	test.Tap(detailButton(view, "Show more"))
+	fullView := window.Content()
+	require.Contains(t, auditTexts(fullView), preserveLineEdgeSpaces(longValue))
+	fullButtons := detailIconButtons(t, fullView)
+	require.Contains(t, fullButtons, "Copy Long text")
+	require.NotContains(t, fullButtons, "Show Long text")
+	var displayedValue *widget.Label
+	for _, object := range test.LaidOutObjects(fullView) {
+		if label, ok := object.(*widget.Label); ok && label.Text == preserveLineEdgeSpaces(longValue) {
+			displayedValue = label
+		}
+	}
+	require.NotNil(t, displayedValue)
+	require.Equal(t, fyne.TextWrapBreak, displayedValue.Wrapping)
+	require.LessOrEqual(t, displayedValue.Position().X+displayedValue.Size().Width, window.Canvas().Size().Width)
+	test.Tap(fullButtons["Copy Long text"])
+	require.Equal(t, longValue, fyne.CurrentApp().Clipboard().Content())
+	test.Tap(fullButtons["Back"])
+	require.Same(t, view, window.Content())
+	require.Equal(t, originalOffset, mainScroll.Offset)
+
+	detailButtons = detailIconButtons(t, view)
+	test.Tap(detailButtons["Show Hidden multiline"])
+	fullView = window.Content()
+	require.Contains(t, auditTexts(fullView), secretValue)
+	fullButtons = detailIconButtons(t, fullView)
+	require.Contains(t, fullButtons, "Copy Hidden multiline")
+	require.NotContains(t, fullButtons, "Show Hidden multiline")
+	var secretLabel *widget.Label
+	for _, object := range test.LaidOutObjects(fullView) {
+		if label, ok := object.(*widget.Label); ok && label.Text == secretValue {
+			secretLabel = label
+		}
+	}
+	require.NotNil(t, secretLabel)
+	test.Tap(fullButtons["Copy Hidden multiline"])
+	require.Equal(t, secretValue, fyne.CurrentApp().Clipboard().Content())
+	clear()
+	require.Empty(t, secretLabel.Text, "locking the vault clears the full-value view")
+}
+
+func TestEntryDetailLongCustomFieldsAcrossItemCategories(t *testing.T) {
+	for _, kind := range []string{"login", "password", "note", "ssh"} {
+		t.Run(kind, func(t *testing.T) {
+			test.NewTempApp(t)
+			window := test.NewTempWindow(t, nil)
+			item := detailItemFixture(t, kind)
+			value := strings.Repeat("界", multilineThreshold+1)
+			require.NoError(t, item.AppendCustomFields(cxf.CustomFields{
+				Type:   cxf.CredentialTypeCustomFields,
+				Fields: []cxf.EditableField{{FieldType: cxf.FieldTypeString, Label: "Long field", Value: value}},
+			}))
+
+			view, err := NewEntryDetail(context.Background(), item, window, func() {}, func() {}, func() {})
+			require.NoError(t, err)
+			window.SetContent(view)
+			window.Resize(fyne.NewSize(360, 480))
+			buttons := detailIconButtons(t, view)
+			require.NotContains(t, buttons, "Show Long field")
+			require.NotContains(t, strings.Join(auditTexts(view), "\n"), value)
+
+			showMoreButtons := make([]*widget.Button, 0, 2)
+			for _, object := range test.LaidOutObjects(view) {
+				if button, ok := object.(*widget.Button); ok && button.Text == "Show more" {
+					showMoreButtons = append(showMoreButtons, button)
+				}
+			}
+			require.NotEmpty(t, showMoreButtons)
+			test.Tap(showMoreButtons[len(showMoreButtons)-1])
+			fullView := window.Content()
+			require.Contains(t, auditTexts(fullView), preserveLineEdgeSpaces(value))
+			fullButtons := detailIconButtons(t, fullView)
+			test.Tap(fullButtons["Back"])
+			require.Same(t, view, window.Content())
+		})
+	}
+}
+
+func findDetailScroll(t *testing.T, view fyne.CanvasObject) *container.Scroll {
+	t.Helper()
+	for _, object := range test.LaidOutObjects(view) {
+		if scroll, ok := object.(*container.Scroll); ok {
+			return scroll
+		}
+	}
+	t.Fatal("detail scroll not found")
+	return nil
 }
 
 func TestEntryDetailTOTPCopyUsesCXFParameters(t *testing.T) {
@@ -626,11 +830,15 @@ func TestEntryDetailSSHKeyPassphraseAndActions(t *testing.T) {
 	require.NotContains(t, auditTexts(view), "key passphrase")
 	require.Contains(t, buttons, "Show Passphrase")
 	require.Contains(t, buttons, "Copy Passphrase")
+	require.Contains(t, buttons, "Copy private key")
+	require.Contains(t, buttons, "Download private key")
 	test.Tap(buttons["Show Passphrase"])
 	require.Contains(t, auditTexts(view), "key passphrase")
 	test.Tap(buttons["Copy Passphrase"])
 	require.Equal(t, "key passphrase", fyne.CurrentApp().Clipboard().Content())
-	test.Tap(buttons["Download private key"])
+	test.Tap(buttons["Show private key"])
+	fullButtons := detailIconButtons(t, window.Content())
+	test.Tap(fullButtons["Download Private key"])
 	require.NotNil(t, window.Canvas().Overlays().Top())
 }
 
@@ -670,12 +878,13 @@ func TestEntryDetailSecretsClearWhenVaultLocks(t *testing.T) {
 					}
 				}
 				test.Tap(buttons[reveal])
-				visibleBeforeLock = strings.Join(auditTexts(view), "\n")
+				displayed := window.Content()
+				visibleBeforeLock = strings.Join(auditTexts(displayed), "\n")
 				main = container.NewVScroll(widget.NewLabel("Vault locked"))
 				application := &app{win: window, main: main, detailCancel: cancel, detailClear: clear}
 				application.lockVault()
 				current = window.Content()
-				visibleAfterLock = strings.Join(auditTexts(view), "\n")
+				visibleAfterLock = strings.Join(auditTexts(displayed), "\n")
 			})
 			require.NoError(t, createErr)
 			require.Contains(t, visibleBeforeLock, secret)
@@ -751,17 +960,106 @@ func TestEntryDetailDisplaysTags(t *testing.T) {
 	item := detailFixture(t)
 	item.Tags = []string{"Personal", "work"}
 	window := test.NewTempWindow(t, nil)
+	window.Resize(fyne.NewSize(380, 700))
 	view, err := newTestEntryDetail(context.Background(), item, window)
 	require.NoError(t, err)
 	window.SetContent(view)
-	labels := make(map[string]bool)
+	var datesLabel *widget.Label
+	var tagButtons []*widget.Button
+	var tagIcon *widget.Icon
+	separatorCount := 0
 	for _, object := range test.LaidOutObjects(view) {
 		if label, ok := object.(*widget.Label); ok {
-			labels[label.Text] = true
+			if strings.HasPrefix(label.Text, "Created · ") {
+				datesLabel = label
+			}
+		}
+		if button, ok := object.(*widget.Button); ok && (button.Text == "Personal" || button.Text == "work") {
+			tagButtons = append(tagButtons, button)
+		}
+		if icon, ok := object.(*widget.Icon); ok && icon.Resource == icons.Tag {
+			tagIcon = icon
+		}
+		if _, ok := object.(*widget.Separator); ok {
+			separatorCount++
 		}
 	}
-	require.True(t, labels["Tags"])
-	require.True(t, labels["Personal, work"])
+	tagNames := make([]string, 0, len(tagButtons))
+	for _, button := range tagButtons {
+		tagNames = append(tagNames, button.Text)
+		require.Equal(t, widget.LowImportance, button.Importance)
+	}
+	require.Equal(t, []string{"Personal", "work"}, tagNames)
+	require.NotNil(t, tagIcon)
+	require.NotNil(t, datesLabel)
+	require.Equal(t, tagButtons[0].Position().Y, tagButtons[1].Position().Y)
+
+	untaggedItem := detailFixture(t)
+	untaggedWindow := test.NewTempWindow(t, nil)
+	untaggedWindow.Resize(fyne.NewSize(380, 700))
+	untaggedView, err := newTestEntryDetail(context.Background(), untaggedItem, untaggedWindow)
+	require.NoError(t, err)
+	untaggedSeparatorCount := 0
+	for _, object := range test.LaidOutObjects(untaggedView) {
+		if _, ok := object.(*widget.Separator); ok {
+			untaggedSeparatorCount++
+		}
+	}
+	require.Equal(t, untaggedSeparatorCount+1, separatorCount)
+	require.NotContains(t, auditTexts(view), "Tags")
+}
+
+func TestEntryDetailTagButtonOpensTagFilter(t *testing.T) {
+	test.NewTempApp(t)
+	item := detailFixture(t)
+	item.Tags = []string{"work"}
+	options := entryListFixture()
+	options.Entries[0].Tags = []string{"work"}
+	options.Entries[1].Tags = []string{"personal"}
+	options.Tags = []string{"personal", "work"}
+	options.Search = "stale search"
+	options.Category = "password"
+	options.Tag = "personal"
+	filter := &vaultFilterOptions{Name: options.Search, ItemType: model.PasswordItemType, Tag: options.Tag}
+	options.OnFilterChanged = func(search, category, tag string) {
+		filter.Name, filter.Tag = search, tag
+		if category == "all" {
+			filter.ItemType = 0
+		}
+	}
+	var setTagFilter func(string)
+	options.SetTagFilter = &setTagFilter
+	list := NewEntryList(options)
+	window := test.NewTempWindow(t, nil)
+	main := container.NewVScroll(list)
+	a := &app{win: window, main: main, filter: map[string]*vaultFilterOptions{"current": filter}, vaultID: "current", filterListByTag: setTagFilter}
+	view, _, err := newEntryDetailWithHistory(context.Background(), item, window, func() {}, func() {}, func() {}, func() {}, a.filterDetailByTag)
+	require.NoError(t, err)
+	window.SetContent(view)
+	var button *widget.Button
+	for _, object := range test.LaidOutObjects(view) {
+		candidate, ok := object.(*widget.Button)
+		if ok && candidate.Text == "work" {
+			button = candidate
+		}
+	}
+	require.NotNil(t, button)
+	require.Equal(t, widget.LowImportance, button.Importance)
+	test.Tap(button)
+	require.Same(t, main, window.Content(), "tag navigation returns to the current vault list")
+	var itemList *widget.List
+	for _, object := range test.LaidOutObjects(list) {
+		if candidate, ok := object.(*widget.List); ok {
+			itemList = candidate
+		}
+	}
+	require.NotNil(t, itemList)
+	require.Equal(t, 1, itemList.Length())
+	require.Empty(t, filter.Name)
+	require.Zero(t, filter.ItemType)
+	require.Equal(t, "work", filter.Tag)
+	require.Contains(t, entryListTexts(list), "work")
+	require.Contains(t, entryListTexts(list), "1 item")
 }
 
 func TestEntryDetailLoginSeparatesVisibleFields(t *testing.T) {
@@ -848,25 +1146,25 @@ func TestEntryDetailSSHKeyNarrowAndRevealBehavior(t *testing.T) {
 			require.Contains(t, buttons, "Show private key")
 			require.Contains(t, buttons, "Copy private key")
 			require.Contains(t, buttons, "Download private key")
+			require.NotContains(t, strings.Join(auditTexts(view), "\n"), "BEGIN OPENSSH PRIVATE KEY")
 			test.Tap(buttons["Show private key"])
-			objects = test.LaidOutObjects(view)
-			var privateSurface *widget.Card
+			fullView := window.Content()
+			objects = test.LaidOutObjects(fullView)
 			var privateText *widget.Label
 			for _, object := range objects {
-				if card, ok := object.(*widget.Card); ok && card.Visible() {
-					privateSurface = card
-				}
 				if label, ok := object.(*widget.Label); ok && strings.HasPrefix(label.Text, "-----BEGIN OPENSSH PRIVATE KEY-----") {
 					privateText = label
 				}
 			}
-			require.NotNil(t, privateSurface)
 			require.NotNil(t, privateText)
 			require.True(t, privateText.Visible())
 			require.Greater(t, privateText.Size().Width, float32(0))
-			require.Contains(t, strings.Join(auditTexts(view), "\n"), "BEGIN OPENSSH PRIVATE KEY")
-			window.Canvas().Refresh(view)
-			test.Tap(buttons["Show private key"])
+			require.Contains(t, strings.Join(auditTexts(fullView), "\n"), "BEGIN OPENSSH PRIVATE KEY")
+			fullButtons := detailIconButtons(t, fullView)
+			require.Contains(t, fullButtons, "Copy Private key")
+			require.Contains(t, fullButtons, "Download Private key")
+			test.Tap(fullButtons["Back"])
+			require.Same(t, view, window.Content())
 			require.NotContains(t, strings.Join(auditTexts(view), "\n"), "BEGIN OPENSSH PRIVATE KEY")
 		})
 	}
@@ -962,7 +1260,7 @@ func TestEntryDetailOmitsMissingTimestamps(t *testing.T) {
 	require.NotContains(t, auditTexts(view), "Modified · ")
 }
 
-func TestEntryDetailLongNoteMetadataFollowsScrollableContent(t *testing.T) {
+func TestEntryDetailLongNotePreviewKeepsMetadataAtBottom(t *testing.T) {
 	test.NewTempApp(t)
 	window := test.NewTempWindow(t, nil)
 	content := strings.Repeat("A long secure note line with details that must remain readable.\n", 80)
@@ -973,19 +1271,25 @@ func TestEntryDetailLongNoteMetadataFollowsScrollableContent(t *testing.T) {
 	require.NoError(t, err)
 	window.SetContent(view)
 	window.Resize(fyne.NewSize(430, 640))
-	scroll, modified := detailScrollAndModifiedLabel(t, view)
-	require.Greater(t, scroll.Content.MinSize().Height, scroll.Size().Height)
-	viewportBottom := fyne.CurrentApp().Driver().AbsolutePositionForObject(scroll).Y + scroll.Size().Height
-	modifiedPosition := fyne.CurrentApp().Driver().AbsolutePositionForObject(modified)
-	require.Greater(t, modifiedPosition.Y, viewportBottom,
-		"metadata should follow the complete note outside the initial viewport")
+	scroll, _ := detailScrollAndModifiedLabel(t, view)
+	require.LessOrEqual(t, scroll.Content.MinSize().Height, scroll.Size().Height,
+		"the compact note preview should fit beside metadata in the initial viewport")
+	requireMetadataAtScrollBottom(t, scroll)
+	require.NotNil(t, detailButton(view, "Show more"))
 	for _, object := range test.LaidOutObjects(view) {
 		if nested, ok := object.(*container.Scroll); ok {
 			require.Same(t, scroll, nested, "detail content must have one scroll container")
 		}
 	}
-	scroll.ScrollToBottom()
-	requireMetadataAtScrollBottom(t, scroll)
+
+	test.Tap(detailButton(view, "Show more"))
+	fullView := window.Content()
+	fullScroll := findDetailScroll(t, fullView)
+	require.Greater(t, fullScroll.Content.MinSize().Height, fullScroll.Size().Height,
+		"the complete note should remain scrollable in its dedicated view")
+	require.Contains(t, auditTexts(fullView), preserveLineEdgeSpaces(content))
+	test.Tap(detailIconButton(fullView, "Back"))
+	require.Same(t, view, window.Content())
 }
 
 func detailScrollAndModifiedLabel(t *testing.T, view fyne.CanvasObject) (*container.Scroll, *widget.Label) {

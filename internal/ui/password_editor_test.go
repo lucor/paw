@@ -14,6 +14,7 @@ import (
 	"go.lucor.dev/cxf"
 	"go.lucor.dev/paw/internal/model"
 	"go.lucor.dev/paw/internal/paw"
+	"go.lucor.dev/paw/internal/ui/assets/icons"
 )
 
 func passwordEditorFixture(t *testing.T) *model.Item {
@@ -42,11 +43,11 @@ func TestPasswordEditorControlsAndInteractions(t *testing.T) {
 	for index, item := range editor.form.Items {
 		labels[index] = item.Text
 	}
-	require.Equal(t, []string{"Title", "Password", "Custom fields", "Tags"}, labels)
-	customFieldSelect := findSelect(editor.customFields.View)
-	require.NotNil(t, customFieldSelect)
-	require.Equal(t, []string{"Text", "Hidden"}, customFieldSelect.Options)
-	require.Equal(t, "+ Add field", customFieldSelect.PlaceHolder)
+	require.Equal(t, []string{"Title", "Password", ""}, labels)
+	require.NotContains(t, auditTexts(editor.View), "Tags")
+	addField := findButtonByText(t, editor.customFields.View, "Add field")
+	require.NotNil(t, addField)
+	require.Equal(t, icons.ListPlus.Name(), addField.Icon.Name())
 	for _, object := range test.LaidOutObjects(editor.View) {
 		_, isNavigation := object.(*Navigation)
 		require.False(t, isNavigation)
@@ -133,6 +134,7 @@ func TestPasswordEditorGolden(t *testing.T) {
 			require.NoError(t, err)
 			window.SetContent(editor.View)
 			window.Resize(fyne.NewSize(430, 926))
+			test.LaidOutObjects(editor.View)
 			test.AssertImageMatches(t, "password-editor-"+variantName(variant)+".png", window.Canvas().Capture())
 		})
 	}

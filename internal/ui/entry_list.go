@@ -58,12 +58,15 @@ type EntryListOptions struct {
 	Settings         fyne.CanvasObject
 	OnFilterChanged  func(search, category, tag string)
 	SectionState     *int
+	SetTagFilter     *func(string)
 }
 
 // NewEntryList builds the unlocked vault interface with bottom navigation and a native list.
 func NewEntryList(options EntryListOptions) fyne.CanvasObject {
 	entries := append([]EntryRow(nil), options.Entries...)
 	sort.SliceStable(entries, func(i, j int) bool { return strings.ToLower(entries[i].Title) < strings.ToLower(entries[j].Title) })
+	tags := slices.Clone(options.Tags)
+	sort.Strings(tags)
 	var visible []EntryRow
 	search, category, tag := options.Search, options.Category, options.Tag
 	if category == "" {
@@ -108,22 +111,6 @@ func NewEntryList(options EntryListOptions) fyne.CanvasObject {
 	}
 	selectedCategory := categoryFor(category)
 	var changed func()
-	tagSelect := widget.NewSelect(options.Tags, nil)
-	tagSelect.PlaceHolder = "Filter by tag"
-	clearTag := widget.NewButton("Clear tag", func() { tagSelect.ClearSelected() })
-	clearTag.Importance = widget.LowImportance
-	if tag == "" {
-		clearTag.Hide()
-	}
-	tagSelect.OnChanged = func(value string) {
-		tag = value
-		if value == "" {
-			clearTag.Hide()
-		} else {
-			clearTag.Show()
-		}
-		changed()
-	}
 	count := newText("0 items", bodyStyle)
 	count.Wrapping = fyne.TextWrapOff
 	categoryIcon := widget.NewIcon(selectedCategory.Icon)
@@ -131,20 +118,28 @@ func NewEntryList(options EntryListOptions) fyne.CanvasObject {
 	categoryLabel.Wrapping = fyne.TextWrapOff
 	categoryButton := widget.NewButton("", nil)
 	categoryButton.OnTapped = func() {
-		var menu *widget.PopUp
-		rows := make([]fyne.CanvasObject, 0, len(options.Categories))
-		for _, value := range options.Categories {
-			entryCategory := value
-			rows = append(rows, newSelectionMenuRow(entryCategory.Label, entryCategory.Icon, value.ID == category, func() {
-				category = entryCategory.ID
-				menu.Hide()
-				changed()
-			}))
-		}
-		menu = widget.NewPopUp(container.NewVBox(rows...), fyne.CurrentApp().Driver().CanvasForObject(categoryButton))
-		menu.ShowAtRelativePosition(fyne.NewPos(0, categoryButton.Size().Height), categoryButton)
+		showEntryFilterPopup(categoryButton, options.Categories, category, func(value string) {
+			category = value
+			changed()
+		})
 	}
 	categoryDisplay := container.NewStack(categoryButton, container.NewPadded(container.NewBorder(nil, nil, categoryIcon, widget.NewIcon(icons.Down), categoryLabel)))
+	tagLabel := newText("Tags", bodyStyle)
+	tagLabel.Wrapping = fyne.TextWrapOff
+	tagIcon := widget.NewIcon(icons.Tag)
+	tagButton := widget.NewButton("", nil)
+	tagButton.OnTapped = func() {
+		choices := make([]EntryCategory, 0, len(tags)+1)
+		choices = append(choices, EntryCategory{ID: "", Label: "All tags", Icon: icons.Tag})
+		for _, value := range tags {
+			choices = append(choices, EntryCategory{ID: value, Label: value, Icon: icons.Tag})
+		}
+		showEntryFilterPopup(tagButton, choices, tag, func(value string) {
+			tag = value
+			changed()
+		})
+	}
+	tagDisplay := container.NewStack(tagButton, container.NewPadded(container.NewBorder(nil, nil, tagIcon, widget.NewIcon(icons.Down), tagLabel)))
 	refresh := func() {
 		visible = nil
 		query := strings.ToLower(strings.TrimSpace(search))
@@ -168,6 +163,11 @@ func NewEntryList(options EntryListOptions) fyne.CanvasObject {
 		selected := categoryFor(category)
 		categoryIcon.SetResource(selected.Icon)
 		categoryLabel.SetText(selected.Label)
+		if tag == "" {
+			tagLabel.SetText("Tags")
+		} else {
+			tagLabel.SetText(tag)
+		}
 		if len(visible) == 0 {
 			switch {
 			case len(entries) == 0:
@@ -198,8 +198,8 @@ func NewEntryList(options EntryListOptions) fyne.CanvasObject {
 			options.OnFilterChanged(search, category, tag)
 		}
 	}
-	if tag != "" && slices.Contains(options.Tags, tag) {
-		tagSelect.SetSelected(tag)
+	if tag != "" && !slices.Contains(tags, tag) {
+		tag = ""
 	}
 	input.OnChanged = func(value string) {
 		search = value
@@ -269,10 +269,11 @@ func NewEntryList(options EntryListOptions) fyne.CanvasObject {
 		more.Hide()
 	}
 	vaultHeader := container.NewBorder(nil, nil, nil, controls, vaultControl)
-	listHeaderObjects := []fyne.CanvasObject{input, container.NewBorder(nil, nil, categoryDisplay, count)}
-	if len(options.Tags) > 0 {
-		listHeaderObjects = append(listHeaderObjects, container.NewBorder(nil, nil, nil, clearTag, tagSelect))
+	filterControls := []fyne.CanvasObject{categoryDisplay}
+	if len(tags) > 0 {
+		filterControls = append(filterControls, tagDisplay)
 	}
+	listHeaderObjects := []fyne.CanvasObject{input, container.NewBorder(nil, nil, container.NewHBox(filterControls...), count)}
 	listHeader := container.NewVBox(listHeaderObjects...)
 	page := container.NewBorder(listHeader, nil, nil, nil, container.NewStack(list, container.NewCenter(empty)))
 	navigation := NewNavigation(NavigationItem{icons.Vault, icons.VaultActive}, NavigationItem{icons.Codes, icons.CodesActive}, NavigationItem{icons.Settings, icons.SettingsActive})
@@ -295,6 +296,14 @@ func NewEntryList(options EntryListOptions) fyne.CanvasObject {
 		}
 		content.Refresh()
 	}
+	if options.SetTagFilter != nil {
+		*options.SetTagFilter = func(value string) {
+			category, tag = "all", value
+			input.SetText("")
+			changed()
+			navigation.Select(0)
+		}
+	}
 	selectedSection := 0
 	if options.SectionState != nil {
 		selectedSection = *options.SectionState
@@ -316,6 +325,21 @@ func itemCountLabel(count int) string {
 
 func newSelectionMenuRow(text string, icon fyne.Resource, selected bool, tapped func()) fyne.CanvasObject {
 	return newSelectionMenuRowWithObject(text, widget.NewIcon(icon), selected, tapped)
+}
+
+// showEntryFilterPopup displays category or tag options using the same selection rows.
+func showEntryFilterPopup(anchor fyne.CanvasObject, options []EntryCategory, selected string, onSelected func(string)) {
+	var menu *widget.PopUp
+	rows := make([]fyne.CanvasObject, 0, len(options))
+	for _, option := range options {
+		value := option.ID
+		rows = append(rows, newSelectionMenuRow(option.Label, option.Icon, value == selected, func() {
+			menu.Hide()
+			onSelected(value)
+		}))
+	}
+	menu = widget.NewPopUp(container.NewVBox(rows...), fyne.CurrentApp().Driver().CanvasForObject(anchor))
+	menu.ShowAtRelativePosition(fyne.NewPos(0, anchor.Size().Height), anchor)
 }
 
 func newSelectionMenuRowWithObject(text string, icon fyne.CanvasObject, selected bool, tapped func()) fyne.CanvasObject {

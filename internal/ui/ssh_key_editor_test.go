@@ -48,11 +48,11 @@ func TestSSHKeyEditorControlsAndPrivateKeyDisclosure(t *testing.T) {
 	for index, item := range editor.form.Items {
 		labels[index] = item.Text
 	}
-	require.Equal(t, []string{"Title", "Key passphrase", "Custom fields", "Tags"}, labels)
-	customFieldSelect := findSelect(editor.customFields.View)
-	require.NotNil(t, customFieldSelect)
-	require.Equal(t, []string{"Text", "Hidden"}, customFieldSelect.Options)
-	require.Equal(t, "+ Add field", customFieldSelect.PlaceHolder)
+	require.Equal(t, []string{"Title", "Key passphrase"}, labels)
+	require.NotContains(t, auditTexts(editor.View), "Tags")
+	addField := findButtonByText(t, editor.customFields.View, "Add field")
+	require.NotNil(t, addField)
+	require.Equal(t, icons.ListPlus.Name(), addField.Icon.Name())
 	for _, object := range test.LaidOutObjects(editor.View) {
 		_, isNavigation := object.(*Navigation)
 		require.False(t, isNavigation)
@@ -130,7 +130,7 @@ func TestSSHKeyEditorLayoutAcrossWindowWidths(t *testing.T) {
 				require.Equal(t, fyne.TextWrapOff, replacementHint.Wrapping)
 				require.Equal(t, "Generate or import replaces the key on save.", replacementHint.Text)
 				require.Equal(t, fyne.TextWrapBreak, editor.publicPreview.Wrapping)
-				require.Equal(t, 4, separators, "dividers should separate the key sections")
+				require.Equal(t, 5, separators, "dividers should separate the key sections and custom fields from tags")
 
 				driver := fyne.CurrentApp().Driver()
 				keyHeadingRowPosition := driver.AbsolutePositionForObject(keyHeadingRow)

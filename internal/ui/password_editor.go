@@ -27,19 +27,20 @@ type PasswordEditor struct {
 	Password       *PasswordField
 	PasswordSpec   *paw.PasswordSpec
 
-	item           *model.Item
-	initialTitle   string
-	initialSecret  string
-	initialMode    paw.PasswordMode
-	initialLength  int
-	initialFormat  paw.Format
-	basicAuth      *cxf.BasicAuth
-	basicAuthIndex int
-	titleError     *widget.Label
-	headerTitle    *widget.Label
-	form           *widget.Form
-	customFields   *customFieldsEditor
-	tags           *tagsEditor
+	item             *model.Item
+	initialTitle     string
+	initialSecret    string
+	initialMode      paw.PasswordMode
+	initialLength    int
+	initialFormat    paw.Format
+	basicAuth        *cxf.BasicAuth
+	basicAuthIndex   int
+	titleError       *widget.Label
+	headerTitle      *widget.Label
+	form             *widget.Form
+	customFields     *customFieldsEditor
+	customDisclosure *customFieldsDisclosure
+	tags             *tagsEditor
 }
 
 // NewPasswordEditor builds the create or edit screen for a Password item.
@@ -62,20 +63,22 @@ func NewPasswordEditor(item *model.Item, isNew bool) (*PasswordEditor, error) {
 		return nil, err
 	}
 	tags := newTagsEditor(item, nil)
+	customDisclosure := newCustomFieldsDisclosure(customFields)
 
 	secret := ""
 	if decoded.BasicAuth.Password != nil {
 		secret = decoded.BasicAuth.Password.Value
 	}
 	editor := &PasswordEditor{
-		item:           item,
-		basicAuth:      decoded.BasicAuth,
-		basicAuthIndex: decoded.BasicAuthIndex,
-		Title:          widget.NewEntry(),
-		Password:       NewPasswordField(),
-		titleError:     newErrorText(""),
-		customFields:   customFields,
-		tags:           tags,
+		item:             item,
+		basicAuth:        decoded.BasicAuth,
+		basicAuthIndex:   decoded.BasicAuthIndex,
+		Title:            widget.NewEntry(),
+		Password:         NewPasswordField(),
+		titleError:       newErrorText(""),
+		customFields:     customFields,
+		customDisclosure: customDisclosure,
+		tags:             tags,
 	}
 	if !isNew {
 		editor.Title.SetText(item.Title)
@@ -96,11 +99,11 @@ func NewPasswordEditor(item *model.Item, isNew bool) (*PasswordEditor, error) {
 	}
 	editor.GenerateButton = newIconButton("Generate password", icons.Generate, nil)
 	editor.Password.SetTrailingAction(editor.GenerateButton)
+	optionalFields := container.NewVBox(editor.customDisclosure.View, widget.NewSeparator(), editor.tags.View)
 	editor.form = widget.NewForm(
 		widget.NewFormItem("Title", container.NewVBox(editor.Title, editor.titleError)),
 		widget.NewFormItem("Password", editor.Password),
-		widget.NewFormItem("Custom fields", editor.customFields.View),
-		widget.NewFormItem("Tags", editor.tags.View),
+		widget.NewFormItem("", optionalFields),
 	)
 	editor.form.Orientation = widget.Vertical
 	editor.BackButton = newIconButton("Back", icons.Back, nil)

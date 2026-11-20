@@ -5,6 +5,7 @@ package ui
 
 import (
 	json "encoding/json/v2"
+	"strings"
 	"testing"
 
 	"fyne.io/fyne/v2"
@@ -15,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.lucor.dev/cxf"
 	"go.lucor.dev/paw/internal/model"
+	"go.lucor.dev/paw/internal/ui/assets/icons"
 )
 
 func noteEditorFixture(t *testing.T) *model.Item {
@@ -33,10 +35,16 @@ func TestNoteEditorControlsAndInteractions(t *testing.T) {
 	editor, err := NewNoteEditor(noteEditorFixture(t), false)
 	require.NoError(t, err)
 	window.SetContent(editor.View)
-	window.Resize(fyne.NewSize(430, 640))
+	window.Resize(fyne.NewSize(360, 640))
 	require.Equal(t, "Edit note", editor.headerTitle.Text)
 	require.Nil(t, editor.Title.Validator)
 	require.True(t, editor.Notes.MultiLine)
+	rowsHeight := editor.Notes.MinSize().Height
+	comparison := widget.NewMultiLineEntry()
+	comparison.SetMinRowsVisible(6)
+	require.Equal(t, comparison.MinSize().Height, rowsHeight, "note content should start with six visible rows")
+	editor.Notes.SetText(strings.Repeat("long note line\n", 40))
+	require.Equal(t, rowsHeight, editor.Notes.MinSize().Height, "long notes should scroll inside the entry without growing it")
 	objects := test.LaidOutObjects(editor.View)
 	var labels []string
 	for _, object := range objects {
@@ -47,7 +55,10 @@ func TestNoteEditorControlsAndInteractions(t *testing.T) {
 		require.False(t, isNavigation)
 	}
 	require.ElementsMatch(t, []string{"Title", "Notes"}, labels)
-	require.NotNil(t, findSelect(editor.customFields.View))
+	require.NotContains(t, auditTexts(editor.View), "Tags")
+	addField := findButtonByText(t, editor.customFields.View, "Add field")
+	require.NotNil(t, addField)
+	require.Equal(t, icons.ListPlus.Name(), addField.Icon.Name())
 	var body *container.Scroll
 	for _, object := range test.LaidOutObjects(editor.View) {
 		if scroll, ok := object.(*container.Scroll); ok {
@@ -57,6 +68,12 @@ func TestNoteEditorControlsAndInteractions(t *testing.T) {
 	}
 	require.NotNil(t, body)
 	shortHeight := body.Size().Height
+	test.Type(editor.Notes, " keyboard input")
+	require.Contains(t, editor.Notes.Text, "keyboard input")
+	require.Greater(t, editor.SaveButton.Size().Width, float32(0), "Save should remain accessible on a narrow screen")
+	position := editor.SaveButton.Position()
+	require.LessOrEqual(t, position.X+editor.SaveButton.Size().Width, window.Canvas().Size().Width,
+		"Save should remain within the narrow viewport")
 	window.Resize(fyne.NewSize(430, 926))
 	require.Greater(t, body.Size().Height, shortHeight,
 		"the notes page body should grow with the available window height")
@@ -130,6 +147,9 @@ func TestNoteEditorGolden(t *testing.T) {
 			require.NoError(t, err)
 			window.SetContent(editor.View)
 			window.Resize(fyne.NewSize(430, 926))
+			test.LaidOutObjects(editor.View)
+			require.True(t, editor.SaveButton.Visible())
+			require.Greater(t, editor.SaveButton.Size().Width, float32(0))
 			test.AssertImageMatches(t, "note-editor-"+variantName(variant)+".png", window.Canvas().Capture())
 		})
 	}

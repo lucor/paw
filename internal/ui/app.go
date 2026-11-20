@@ -45,6 +45,7 @@ type app struct {
 	vault           *model.Vault
 	vaultID         string
 	vaultSection    int
+	filterListByTag func(string)
 	settingsVaultID string
 	passwordChange  *masterPasswordView
 	deletingVault   bool
@@ -257,6 +258,14 @@ func (a *app) addSSHKeysToAgent() {
 func (a *app) setVaultView(vault *model.Vault, vaultID string) {
 	a.closeItemDetail()
 	a.closePasswordAudit()
+	if a.vaultID != "" && a.vaultID != vaultID {
+		if filter := a.filter[a.vaultID]; filter != nil {
+			filter.Tag = ""
+		}
+		if filter := a.filter[vaultID]; filter != nil {
+			filter.Tag = ""
+		}
+	}
 	a.vault = vault
 	a.vaultID = vaultID
 	a.unlockedVault[vaultID] = vault

@@ -22,12 +22,13 @@ func TestEntryDetailHistoryActionUsesExistingMetadataFooter(t *testing.T) {
 	test.NewTempApp(t)
 	window := test.NewTempWindow(t, nil)
 	item := detailFixture(t)
-	view, _, err := newEntryDetailWithHistory(context.Background(), item, window, func() {}, func() {}, func() {}, func() {})
+	item.Tags = []string{"Personal", "work"}
+	view, _, err := newEntryDetailWithHistory(context.Background(), item, window, func() {}, func() {}, func() {}, func() {}, nil)
 	require.NoError(t, err)
 	require.Nil(t, detailButton(view, "History"))
 
 	addHistorySnapshotForUI(t, item)
-	view, _, err = newEntryDetailWithHistory(context.Background(), item, window, func() {}, func() {}, func() {}, func() {})
+	view, _, err = newEntryDetailWithHistory(context.Background(), item, window, func() {}, func() {}, func() {}, func() {}, nil)
 	require.NoError(t, err)
 	window.SetContent(view)
 	historyButton := detailButton(view, "History")

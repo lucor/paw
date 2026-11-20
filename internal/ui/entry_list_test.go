@@ -43,36 +43,89 @@ func TestEntryListSearchAndTagFilterCompose(t *testing.T) {
 	options := entryListFixture()
 	options.Entries[0].Tags = []string{"work", "github-team"}
 	options.Entries[1].Tags = []string{"personal"}
-	options.Tags = []string{"github-team", "personal", "work"}
+	options.Tags = []string{"work", "personal", "github-team"}
+	options.OnFilterChanged = func(search, category, tag string) {
+		options.Search, options.Category, options.Tag = search, category, tag
+	}
 	tabs := NewEntryList(options)
 	window := test.NewTempWindow(t, tabs)
-	window.Resize(fyne.NewSize(360, 650))
+	window.Resize(fyne.NewSize(320, 650))
 	var search *widget.Entry
-	var tagSelect *widget.Select
 	var list *widget.List
+	var count *widget.Label
 	for _, object := range test.LaidOutObjects(tabs) {
 		switch value := object.(type) {
 		case *widget.Entry:
 			search = value
-		case *widget.Select:
-			tagSelect = value
 		case *widget.List:
 			list = value
+		case *widget.Label:
+			if value.Text == "5 items" {
+				count = value
+			}
 		}
 	}
-	require.NotNil(t, tagSelect)
+	require.NotNil(t, search)
 	require.NotNil(t, list)
-	require.Greater(t, tagSelect.Size().Width, float32(0))
-	tagSelect.SetSelected("work")
+	require.NotNil(t, count)
+	category := findEntryListLabel(t, tabs, "All items")
+	tag := findEntryListLabel(t, tabs, "Tags")
+	require.Greater(t, category.Size().Width, float32(0))
+	require.Greater(t, tag.Size().Width, float32(0))
+	require.Greater(t, count.Size().Width, float32(0))
+	require.Less(t, fyne.CurrentApp().Driver().AbsolutePositionForObject(category).X, fyne.CurrentApp().Driver().AbsolutePositionForObject(tag).X)
+	require.Less(t, fyne.CurrentApp().Driver().AbsolutePositionForObject(tag).X, fyne.CurrentApp().Driver().AbsolutePositionForObject(count).X)
+	countPosition := fyne.CurrentApp().Driver().AbsolutePositionForObject(count)
+	require.LessOrEqual(t, countPosition.X+count.Size().Width, window.Canvas().Size().Width, "the item count remains within a narrow window")
+	chooseEntryCategory(t, fyne.CurrentApp(), window, tag, "work")
 	require.Equal(t, 1, list.Length())
+	require.Equal(t, "1 item", count.Text)
+	require.Equal(t, "work", options.Tag)
+	category = findEntryListLabel(t, tabs, "All items")
+	chooseEntryCategory(t, fyne.CurrentApp(), window, category, "Logins")
+	require.Equal(t, 1, list.Length(), "the tag and category filters compose")
 	search.SetText("GITHUB")
 	require.Equal(t, 1, list.Length())
 	search.SetText("personal")
 	require.Zero(t, list.Length())
 	search.SetText("")
 	require.Equal(t, 1, list.Length(), "clearing text keeps the tag filter")
-	tagSelect.ClearSelected()
+	category = findEntryListLabel(t, tabs, "Logins")
+	chooseEntryCategory(t, fyne.CurrentApp(), window, category, "All items")
+	tag = findEntryListLabel(t, tabs, "work")
+	chooseEntryCategory(t, fyne.CurrentApp(), window, tag, "All tags")
 	require.Equal(t, 5, list.Length())
+	require.Equal(t, "5 items", count.Text)
+	require.Empty(t, options.Tag, "All tags clears the active tag filter")
+}
+
+func TestEntryListTagPopupSortsOptionsAndShowsSelection(t *testing.T) {
+	app := test.NewTempApp(t)
+	options := entryListFixture()
+	options.Tags = []string{"work", "personal"}
+	options.Tag = "work"
+	view := NewEntryList(options)
+	window := test.NewTempWindow(t, view)
+	window.Resize(fyne.NewSize(440, 650))
+
+	selected := findEntryListLabel(t, view, "work")
+	position := app.Driver().AbsolutePositionForObject(selected).Add(fyne.NewPos(selected.Size().Width/2, selected.Size().Height/2))
+	test.TapCanvas(window.Canvas(), position)
+	popup := window.Canvas().Overlays().Top()
+	require.NotNil(t, popup)
+	texts := entryListTexts(popup)
+	require.Contains(t, texts, "All tags")
+	require.Equal(t, []string{"personal", "work"}, []string{texts[1], texts[2]}, "tag options are alphabetical")
+	require.True(t, containsIconResource(test.LaidOutObjects(popup), theme.ConfirmIcon()), "the selected tag uses the category popup selection indicator")
+	require.True(t, containsIconResource(test.LaidOutObjects(view), icons.Tag), "the tag filter uses the tag icon")
+}
+
+func TestEntryListHidesTagFilterWithoutTags(t *testing.T) {
+	test.NewTempApp(t)
+	options := entryListFixture()
+	view := NewEntryList(options)
+	require.NotContains(t, entryListTexts(view), "Tags")
+	require.False(t, containsIconResource(test.LaidOutObjects(view), icons.Tag))
 }
 
 func TestEntryCategoryMenuGolden(t *testing.T) {

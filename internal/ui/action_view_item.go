@@ -29,7 +29,7 @@ func (a *app) makeShowItemViewWithBack(item *model.Item, back func()) fyne.Canva
 	}
 	view, clear, err := newEntryDetailWithHistory(ctx, item, a.win, back, func() { a.showEditItemView(item, false) }, func() { a.deleteItem(item) }, func() {
 		a.showItemHistory(item.ID, back)
-	})
+	}, a.filterDetailByTag)
 	if err == nil {
 		a.detailClear = clear
 		return view
@@ -41,6 +41,13 @@ func (a *app) makeShowItemViewWithBack(item *model.Item, back func()) fyne.Canva
 
 func (a *app) showItemViewWithBack(item *model.Item, back func()) {
 	a.win.SetContent(a.makeShowItemViewWithBack(item, back))
+}
+
+func (a *app) filterDetailByTag(tag string) {
+	if a.filterListByTag != nil {
+		a.filterListByTag(tag)
+		a.showCurrentVaultView()
+	}
 }
 
 // showCodesItem opens a login detail and returns to the existing Codes list.
