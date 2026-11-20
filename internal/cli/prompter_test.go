@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"errors"
 	"io"
+	"os"
 	"strings"
 	"testing"
 
@@ -75,6 +76,36 @@ func TestPrompterDefaultsAndEOF(t *testing.T) {
 	require.Equal(t, paw.PinPassword, mode)
 	_, err = p.askPasswordMode("Mode", nil, paw.RandomPassword)
 	require.Error(t, err)
+}
+
+func TestPrompterEditsMultilineTextInExternalEditor(t *testing.T) {
+	editor := &testTextEditor{value: "first line\nsecond line\n"}
+	var output bytes.Buffer
+	p := newPrompter(strings.NewReader(""), &output)
+	p.editor = editor
+	value, err := p.editMultiline("Note", "existing note\n")
+	require.NoError(t, err)
+	require.Equal(t, "existing note\n", editor.initial)
+	require.Equal(t, "first line\nsecond line", value)
+	require.Contains(t, output.String(), "Edit Note in your text editor")
+	_, err = os.Stat(editor.path)
+	require.ErrorIs(t, err, os.ErrNotExist, "temporary note file is removed after editing")
+}
+
+type testTextEditor struct {
+	initial string
+	path    string
+	value   string
+}
+
+func (e *testTextEditor) Edit(path string) error {
+	e.path = path
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	e.initial = string(content)
+	return os.WriteFile(path, []byte(e.value), 0o600)
 }
 
 func TestPasswordConfirmation(t *testing.T) {

@@ -293,10 +293,11 @@ func TestInteractiveEditRenamesNote(t *testing.T) {
 	summary, err := item.Summary()
 	require.NoError(t, err)
 	vault.Accounts[0].Items = append(vault.Accounts[0].Items, *summary)
-	input := strings.NewReader("1\nNew title\ny\nupdated note\n.\n4\n")
+	input := strings.NewReader("1\nNew title\ny\n4\n")
 	var output strings.Builder
 	p := newPrompter(input, &output)
 	p.interactive = true
+	p.editor = &testTextEditor{value: "updated note\n"}
 	cmd := &EditCmd{
 		command:  &command{prompter: p, errOut: &output},
 		itemPath: itemPath{itemType: model.NoteItemType},
@@ -330,16 +331,18 @@ func TestInteractiveEditReturnsStandardFieldErrors(t *testing.T) {
 func TestInteractiveNoteEditSupportsMultilineAndClear(t *testing.T) {
 	item, err := model.NewNote("Title", "original note")
 	require.NoError(t, err)
-	p := newPrompter(strings.NewReader("y\nfirst line\nsecond line\n.\n"), io.Discard)
+	p := newPrompter(strings.NewReader("y\n"), io.Discard)
 	p.interactive = true
+	p.editor = &testTextEditor{value: "first line\nsecond line\n"}
 	cmd := &EditCmd{command: &command{prompter: p}}
 	require.NoError(t, cmd.editNote(item))
 	note, _, err := item.Note()
 	require.NoError(t, err)
 	require.Equal(t, "first line\nsecond line", note.Content.Value)
 
-	p = newPrompter(strings.NewReader("y\n:clear\n.\n"), io.Discard)
+	p = newPrompter(strings.NewReader("y\n"), io.Discard)
 	p.interactive = true
+	p.editor = &testTextEditor{value: ""}
 	cmd.prompter = p
 	require.NoError(t, cmd.editNote(item))
 	note, _, err = item.Note()

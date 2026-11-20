@@ -5,8 +5,12 @@ package cli
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io"
+	"os"
+	"os/exec"
+	"runtime"
 	"strconv"
 	"strings"
 
@@ -20,6 +24,25 @@ type prompter struct {
 	output       io.Writer
 	interactive  bool
 	readPassword func() ([]byte, error)
+	editor       textEditor
+}
+
+type textEditor interface {
+	Edit(string) error
+}
+
+type commandTextEditor struct{ command string }
+
+func (e commandTextEditor) Edit(path string) error {
+	parts := strings.Fields(e.command)
+	if len(parts) == 0 {
+		return errors.New("text editor command is empty")
+	}
+	cmd := exec.Command(parts[0], append(parts[1:], path)...)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
 }
 
 // newPrompter creates a prompt reader and writer for an interactive command.
@@ -34,6 +57,7 @@ func newPrompter(input io.Reader, output io.Writer) *prompter {
 		input:       bufio.NewReader(reader),
 		output:      output,
 		interactive: hasFD && term.IsTerminal(int(fd.Fd())),
+		editor:      commandTextEditor{command: textEditorCommand()},
 		readPassword: func() ([]byte, error) {
 			if !hasFD || !term.IsTerminal(int(fd.Fd())) {
 				return nil, fmt.Errorf("password input is not a terminal")
@@ -41,6 +65,19 @@ func newPrompter(input io.Reader, output io.Writer) *prompter {
 			return term.ReadPassword(int(fd.Fd()))
 		},
 	}
+}
+
+func textEditorCommand() string {
+	if editor := os.Getenv("VISUAL"); editor != "" {
+		return editor
+	}
+	if editor := os.Getenv("EDITOR"); editor != "" {
+		return editor
+	}
+	if runtime.GOOS == "windows" {
+		return "notepad"
+	}
+	return "vi"
 }
 
 type singleByteReader struct{ io.Reader }
@@ -70,25 +107,35 @@ func (p *prompter) ask(prompt string) (string, error) {
 	return p.readLine()
 }
 
-// askMultiline reads text until the user enters a period on its own line.
-func (p *prompter) askMultiline(prompt string) (string, error) {
-	if _, err := fmt.Fprintf(p.output, "%s (enter . on a line to finish; :clear clears it):\n", safeTerminalText(prompt)); err != nil {
+// editMultiline opens the configured text editor with the current value.
+func (p *prompter) editMultiline(prompt, initial string) (string, error) {
+	if _, err := fmt.Fprintf(p.output, "Edit %s in your text editor.\n", safeTerminalText(prompt)); err != nil {
 		return "", err
 	}
-	var lines []string
-	for {
-		line, err := p.readLine()
-		if err != nil {
-			return "", err
-		}
-		if line == "." {
-			if len(lines) == 1 && lines[0] == ":clear" {
-				return ":clear", nil
-			}
-			return strings.Join(lines, "\n"), nil
-		}
-		lines = append(lines, line)
+	file, err := os.CreateTemp("", "paw-note-*.txt")
+	if err != nil {
+		return "", fmt.Errorf("could not create temporary note file: %w", err)
 	}
+	path := file.Name()
+	defer os.Remove(path)
+	if _, err := io.WriteString(file, initial); err != nil {
+		_ = file.Close()
+		return "", fmt.Errorf("could not write temporary note file: %w", err)
+	}
+	if err := file.Close(); err != nil {
+		return "", fmt.Errorf("could not close temporary note file: %w", err)
+	}
+	if p.editor == nil {
+		return "", errors.New("text editor is unavailable")
+	}
+	if err := p.editor.Edit(path); err != nil {
+		return "", fmt.Errorf("could not run text editor: %w", err)
+	}
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return "", fmt.Errorf("could not read edited note: %w", err)
+	}
+	return strings.TrimSuffix(strings.TrimSuffix(string(content), "\n"), "\r"), nil
 }
 
 // askWithDefault displays the previous value and keeps it when input is empty.

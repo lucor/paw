@@ -103,15 +103,12 @@ func (cmd *AddCmd) Run(ctx context.Context) error {
 	case model.NoteItemType:
 		var content string
 		if cmd.prompter.interactive {
-			content, err = cmd.prompter.askMultiline("Note")
+			content, err = cmd.prompter.editMultiline("Note", "")
 		} else {
 			content, err = cmd.prompter.ask("Note")
 		}
 		if err != nil {
 			return err
-		}
-		if content == ":clear" {
-			content = ""
 		}
 		created, createErr := model.NewNote(cmd.itemName, content)
 		if createErr != nil {
@@ -471,9 +468,9 @@ func (cmd *AddCmd) newLogin() (*model.Item, error) {
 			return nil, err
 		}
 		if addNote {
-			note, err = cmd.prompter.askMultiline("Note")
-			if err == nil && note == ":clear" {
-				note = ""
+			note, err = cmd.prompter.editMultiline("Note", "")
+			if err != nil {
+				return nil, err
 			}
 		}
 	} else {

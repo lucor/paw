@@ -820,12 +820,9 @@ func (cmd *EditCmd) editLogin(item *model.Item) error {
 			return err
 		}
 		if change {
-			value, err := cmd.prompter.askMultiline("Note")
+			value, err := cmd.prompter.editMultiline("Note", note.Content.Value)
 			if err != nil {
 				return err
-			}
-			if value == ":clear" {
-				value = ""
 			}
 			note.Type = cxf.CredentialTypeNote
 			if noteIndex < 0 {
@@ -993,12 +990,9 @@ func (cmd *EditCmd) editNote(item *model.Item) error {
 		if err != nil || !change {
 			return err
 		}
-		value, err = cmd.prompter.askMultiline("Note")
+		value, err = cmd.prompter.editMultiline("Note", note.Content.Value)
 		if err != nil {
 			return err
-		}
-		if value == ":clear" {
-			value = ""
 		}
 	} else {
 		value, err = cmd.prompter.askWithDefault("Note", note.Content.Value)
