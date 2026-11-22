@@ -5,20 +5,20 @@ package cli
 
 import (
 	"context"
-	"crypto"
 	"fmt"
+	"io"
 	"slices"
 	"sort"
 	"strings"
 	"unicode/utf8"
 
+	"charm.land/huh/v2"
 	urfave "github.com/urfave/cli/v3"
 	"go.lucor.dev/cxf"
-	"golang.org/x/crypto/ssh"
 
 	"go.lucor.dev/paw/internal/model"
 	"go.lucor.dev/paw/internal/paw"
-	"go.lucor.dev/paw/internal/sshkey"
+	"go.lucor.dev/paw/internal/storage"
 )
 
 // AddCmd implements the command that adds an item to a vault.
@@ -26,70 +26,106 @@ type AddCmd struct {
 	*command
 	sessionID string
 	itemPath
-	importPath string
-	tags       []string
+	vaultKey       *paw.Key
+	importPath     string
+	tags           []string
+	username       string
+	loginURL       string
+	usernameSet    bool
+	urlSet         bool
+	randomPassword bool
+	passwordStdin  bool
+	totpStdin      bool
+	addToAgent     bool
+	addToAgentSet  bool
+	wizard         bool
+	input          io.Reader
 }
 
 // newAddCommand constructs the item-add command.
 func newAddCommand(base *command) *urfave.Command {
-	cmd := &AddCmd{command: base}
-	c := &urfave.Command{
-		Name:        "add",
-		Aliases:     []string{"insert"},
-		Usage:       "Adds an item to the vault (alias: insert)",
-		ArgsUsage:   "VAULT/ITEM_TYPE/ITEM_NAME",
-		Description: vaultReferenceHelp,
+	cmd := &AddCmd{command: base, wizard: true}
+	return &urfave.Command{
+		Name:   "add",
+		Usage:  "Adds an item to a vault",
+		Before: cmd.Validate,
+		Action: cmd.Run,
+		Commands: []*urfave.Command{
+			newAddLoginCommand(base),
+			newAddPasswordCommand(base),
+			newAddNoteCommand(base),
+			newAddSSHKeyCommand(base),
+		},
 		Flags: []urfave.Flag{
 			sessionFlag(),
 			&urfave.StringSliceFlag{
 				Name:  "tag",
 				Usage: "Associate a tag with the new item; may be repeated",
 			},
-			&urfave.StringFlag{
-				Name:    "input",
-				Aliases: []string{"i"},
-				Usage:   "Import an SSH key from FILE",
-			},
 		},
+		OnUsageError: onUsageError,
 	}
-	c.Before = cmd.Validate
-	c.Action = cmd.Run
-	return c
 }
 
-// Validate checks the item path and add flags.
+// Validate checks the main add command arguments and flags.
 func (cmd *AddCmd) Validate(ctx context.Context, c *urfave.Command) (context.Context, error) {
-	if err := validateArgs(c, 1, 1); err != nil {
-		return ctx, err
-	}
-	path, err := parseItemPath(c.Args().First(), itemPathOptions{fullPath: true})
-	if err != nil {
-		return ctx, err
-	}
-	tags := c.StringSlice("tag")
-	for index, tag := range tags {
-		tags[index] = strings.TrimSpace(tag)
-		if tags[index] == "" {
-			return ctx, fmt.Errorf("--tag cannot be empty")
+	if c.Args().Present() {
+		if c.Command(c.Args().First()) != nil {
+			return ctx, nil
 		}
+		return ctx, commandGroupAction(ctx, c)
 	}
-	cmd.itemPath = path
+	return ctx, cmd.validateCommonFlags(c)
+}
+
+// validateItem reads the vault, item name and flags common to the subcommands.
+func (cmd *AddCmd) validateItem(c *urfave.Command) error {
+	if err := validateArgs(c, 2, 2); err != nil {
+		return err
+	}
+	cmd.vaultName = c.Args().Get(0)
+	cmd.itemName = c.Args().Get(1)
+	if strings.TrimSpace(cmd.vaultName) == "" || strings.TrimSpace(cmd.itemName) == "" {
+		return invalidArgumentsError("vault and item name cannot be empty")
+	}
+	if strings.Contains(cmd.itemName, "/") {
+		return invalidArgumentsError("item name cannot contain /")
+	}
+	return cmd.validateCommonFlags(c)
+}
+
+// validateCommonFlags reads the session and validates the supplied tags.
+func (cmd *AddCmd) validateCommonFlags(c *urfave.Command) error {
 	cmd.sessionID = c.String("session")
-	cmd.importPath = c.String("input")
-	cmd.tags = tags
-	return ctx, nil
+	cmd.tags = nil
+	for _, tag := range c.StringSlice("tag") {
+		tag = strings.TrimSpace(tag)
+		if tag == "" {
+			return invalidArgumentsError("--tag cannot be empty")
+		}
+		cmd.tags = append(cmd.tags, tag)
+	}
+	return nil
 }
 
 // Run creates and stores a CXF item in the selected vault.
 func (cmd *AddCmd) Run(ctx context.Context, _ *urfave.Command) error {
+	if cmd.wizard {
+		if err := cmd.selectItem(); err != nil {
+			return err
+		}
+	}
 	s := cmd.storage
 	appState, err := s.LoadAppState()
 	if err != nil {
 		return err
 	}
-	key, err := cmd.loadVaultKey(cmd.vaultName, cmd.sessionID)
-	if err != nil {
-		return err
+	key := cmd.vaultKey
+	if key == nil {
+		key, err = cmd.addVaultKey()
+		if err != nil {
+			return err
+		}
 	}
 	vault, err := cmd.loadVault(key)
 	if err != nil {
@@ -107,30 +143,9 @@ func (cmd *AddCmd) Run(ctx context.Context, _ *urfave.Command) error {
 	var item *model.Item
 	switch cmd.itemType {
 	case model.NoteItemType:
-		var content string
-		if cmd.prompter.interactive {
-			content, err = cmd.prompter.editMultiline("Note", "")
-		} else {
-			content, err = cmd.prompter.ask("Note")
-		}
-		if err != nil {
-			return err
-		}
-		created, createErr := model.NewNote(cmd.itemName, content)
-		if createErr != nil {
-			return createErr
-		}
-		item = created
+		item, err = cmd.newNote()
 	case model.PasswordItemType:
-		password, err := cmd.generatePassword(paw.CustomPassword)
-		if err != nil {
-			return err
-		}
-		created, createErr := model.NewPassword(cmd.itemName, password.Value, model.PasswordSettings{Mode: password.Mode, Length: password.Length, Format: password.Format})
-		if createErr != nil {
-			return createErr
-		}
-		item = created
+		item, err = cmd.newPassword()
 	case model.LoginItemType:
 		item, err = cmd.newLogin()
 	case model.SSHKeyItemType:
@@ -146,7 +161,7 @@ func (cmd *AddCmd) Run(ctx context.Context, _ *urfave.Command) error {
 			item.Tags = append(item.Tags, tag)
 		}
 	}
-	if cmd.prompter.interactive {
+	if cmd.wizard {
 		if err := cmd.addOptionalData(item, vault); err != nil {
 			return err
 		}
@@ -158,8 +173,73 @@ func (cmd *AddCmd) Run(ctx context.Context, _ *urfave.Command) error {
 	if err := s.StoreAppState(appState); err != nil {
 		return err
 	}
-	fmt.Fprintf(cmd.out, "[✓] item %q added\n", safeTerminalText(cmd.itemName))
+	return cmd.Printf("%s\n", item.ID)
+}
+
+// selectItem asks for the vault, type and name in the interactive add command.
+func (cmd *AddCmd) selectItem() error {
+	if err := cmd.prompter.checkTerminal(); err != nil {
+		return err
+	}
+	vaults, err := cmd.storage.Vaults()
+	if err != nil {
+		return err
+	}
+	if len(vaults) == 0 {
+		return fmt.Errorf("no vaults available")
+	}
+	options := make([]huh.Option[string], 0, len(vaults))
+	for _, vault := range vaults {
+		label := fmt.Sprintf("%s (%s)", safeTerminalText(vault.Name), shortVaultID(vault.ID))
+		options = append(options, huh.NewOption(label, storage.FormatVaultID(vault.ID)))
+	}
+	if err := cmd.prompter.runHuh(huh.NewSelect[string]().Title("Vault").Options(options...).Value(&cmd.vaultName)); err != nil {
+		return err
+	}
+	key, err := cmd.addVaultKey()
+	if err != nil {
+		return err
+	}
+	cmd.vaultKey = key
+	var types []huh.Option[model.ItemType]
+	for _, kind := range []model.ItemType{model.LoginItemType, model.PasswordItemType, model.NoteItemType, model.SSHKeyItemType} {
+		types = append(types, huh.NewOption(kind.Label(), kind))
+	}
+	if err := cmd.prompter.runHuh(huh.NewSelect[model.ItemType]().Title("Item type").Options(types...).Value(&cmd.itemType)); err != nil {
+		return err
+	}
+	name, err := cmd.prompter.ask("Item name")
+	if err != nil {
+		return err
+	}
+	if strings.TrimSpace(name) == "" || strings.Contains(name, "/") {
+		return fmt.Errorf("item name must be nonempty and cannot contain /")
+	}
+	cmd.itemName = name
 	return nil
+}
+
+// addVaultKey opens the selected vault without prompting when stdin is reserved.
+func (cmd *AddCmd) addVaultKey() (*paw.Key, error) {
+	if cmd.sessionID == "" {
+		if cmd.input != nil {
+			return nil, fmt.Errorf("an active vault session is required when reading from stdin")
+		}
+		if err := cmd.prompter.checkTerminal(); err != nil {
+			return nil, err
+		}
+		return cmd.loadVaultKey(cmd.vaultName, "")
+	}
+	info, err := cmd.resolveVaultInfo(cmd.vaultName)
+	if err != nil {
+		return nil, err
+	}
+	cmd.vaultID = info.ID
+	key, err := cmd.loadVaultKeyWithSession(info.ID, cmd.sessionID)
+	if err != nil {
+		return nil, fmt.Errorf("could not use vault session: %w", err)
+	}
+	return key, nil
 }
 
 // addOptionalData prompts for custom fields, tags, and authenticator data.
@@ -199,7 +279,9 @@ func (cmd *AddCmd) addOptionalData(item *model.Item, vault *model.Vault) error {
 				return err
 			}
 			if strings.TrimSpace(name) == "" {
-				fmt.Fprintln(cmd.errOut, "Section name cannot be empty")
+				if _, err := fmt.Fprintln(cmd.errOut, "Section name cannot be empty"); err != nil {
+					return err
+				}
 				continue
 			}
 			if err := item.AppendCustomFields(cxf.CustomFields{Type: cxf.CredentialTypeCustomFields, Label: name, Fields: []cxf.EditableField{}}); err != nil {
@@ -220,52 +302,26 @@ func (cmd *AddCmd) addOptionalData(item *model.Item, vault *model.Vault) error {
 			if cmd.itemType == model.LoginItemType {
 				return nil
 			}
-			fmt.Fprintln(cmd.errOut, "Choose a number from 1 to 4")
+			if _, err := fmt.Fprintln(cmd.errOut, "Choose a number from 1 to 4"); err != nil {
+				return err
+			}
 		case "":
 			return nil
 		default:
-			fmt.Fprintln(cmd.errOut, "Choose a number from 1 to 5")
+			if _, err := fmt.Fprintln(cmd.errOut, "Choose a number from 1 to 5"); err != nil {
+				return err
+			}
 		}
 	}
-}
-
-// addTOTP prompts for and attaches an authenticator credential.
-func (cmd *AddCmd) addTOTP(item *model.Item) error {
-	credentials, err := model.DecodeCredentials(item.Credentials)
-	if err != nil {
-		return err
-	}
-	if credentials.TOTP != nil {
-		return fmt.Errorf("item already has an authenticator")
-	}
-	secret, err := cmd.prompter.askPassword("Authenticator secret")
-	if err != nil {
-		return err
-	}
-	if secret == "" {
-		return nil
-	}
-	credential := cxf.TOTP{
-		Type:      cxf.CredentialTypeTOTP,
-		Secret:    normalizeTOTPSecret(secret),
-		Algorithm: strings.ToLower(string(paw.TOTPHashDefault)),
-		Period:    uint16(paw.TOTPIntervalDefault),
-		Digits:    uint16(paw.TOTPDigitsDefault),
-	}
-	if err := configureTOTP(cmd.prompter, &credential); err != nil {
-		return err
-	}
-	if err := credential.Validate(); err != nil {
-		return fmt.Errorf("invalid authenticator secret: %w", err)
-	}
-	return item.SetTOTP(-1, credential)
 }
 
 // manageNewItemTags prompts for tags to associate with a new item.
 func (cmd *AddCmd) manageNewItemTags(item *model.Item, vault *model.Vault) error {
 	tags := vaultTagNames(vault)
 	if len(tags) > 0 {
-		fmt.Fprintf(cmd.errOut, "Existing tags: %s\n", safeTerminalText(strings.Join(tags, ", ")))
+		if _, err := fmt.Fprintf(cmd.errOut, "Existing tags: %s\n", safeTerminalText(strings.Join(tags, ", "))); err != nil {
+			return err
+		}
 	}
 	for {
 		value, err := cmd.prompter.ask("Tag to associate (empty to finish)")
@@ -441,134 +497,4 @@ func customFieldType(field cxf.EditableField) string {
 		return "multiline"
 	}
 	return "text"
-}
-
-// newLogin prompts for login fields and builds a CXF item.
-func (cmd *AddCmd) newLogin() (*model.Item, error) {
-	url, err := cmd.prompter.ask("URL")
-	if err != nil {
-		return nil, err
-	}
-	url, err = normalizeLoginURL(url)
-	if err != nil {
-		return nil, err
-	}
-	username, err := cmd.prompter.ask("Username")
-	if err != nil {
-		return nil, err
-	}
-	password, err := cmd.generatePassword(paw.CustomPassword)
-	if err != nil {
-		return nil, err
-	}
-	item, err := model.NewLogin(cmd.itemName, username, password.Value, model.PasswordSettings{Mode: password.Mode, Length: password.Length, Format: password.Format})
-	if err != nil {
-		return nil, err
-	}
-	item.Scope = &cxf.CredentialScope{URLs: []string{url}, AndroidApps: []cxf.AndroidAppID{}}
-	var note string
-	if cmd.prompter.interactive {
-		addNote, err := cmd.prompter.askYesNo("Add a note?", false)
-		if err != nil {
-			return nil, err
-		}
-		if addNote {
-			note, err = cmd.prompter.editMultiline("Note", "")
-			if err != nil {
-				return nil, err
-			}
-		}
-	} else {
-		note, err = cmd.prompter.ask("Note")
-	}
-	if err != nil {
-		return nil, err
-	}
-	if note != "" {
-		credential := cxf.Note{Type: cxf.CredentialTypeNote, Content: cxf.EditableField{FieldType: cxf.FieldTypeString, Value: note}}
-		if err := item.SetNote(-1, credential); err != nil {
-			return nil, err
-		}
-	}
-	return item, nil
-}
-
-// normalizeLoginURL adds HTTPS to a host-only URL and validates its scheme.
-func normalizeLoginURL(value string) (string, error) {
-	loginURL := paw.NewLoginURL()
-	if err := loginURL.Set(value); err != nil {
-		return "", fmt.Errorf("enter a valid website address")
-	}
-	if loginURL.String() != "" && loginURL.URL().Scheme != "https" {
-		return "", fmt.Errorf("website must use HTTPS")
-	}
-	return loginURL.String(), nil
-}
-
-// newSSHKey imports or generates an SSH key and builds a CXF item.
-func (cmd *AddCmd) newSSHKey() (*model.Item, error) {
-	var privateKey crypto.PrivateKey
-	var publicKey ssh.PublicKey
-	var passphrase string
-	if cmd.importPath != "" {
-		data, err := cmd.readFile(cmd.importPath)
-		if err != nil {
-			return nil, err
-		}
-		parsed, err := sshkey.ParseKey(data)
-		if err != nil {
-			if _, ok := err.(*ssh.PassphraseMissingError); !ok {
-				return nil, err
-			}
-			passphrase, err = cmd.prompter.askPassword("Private Key is password protected")
-			if err != nil {
-				return nil, err
-			}
-			parsed, err = sshkey.ParseKeyWithPassphrase(data, []byte(passphrase))
-			if err != nil {
-				return nil, err
-			}
-		}
-		privateKey, publicKey = parsed.PrivateKey(), parsed.PublicKey()
-	} else {
-		generated, err := cmd.generateSSHKey()
-		if err != nil {
-			return nil, err
-		}
-		parsed, err := sshkey.ParseKey([]byte(generated.PrivateKey))
-		if err != nil {
-			return nil, err
-		}
-		privateKey, publicKey = parsed.PrivateKey(), parsed.PublicKey()
-	}
-	fmt.Fprintln(cmd.out, "The key fingerprint is:")
-	fmt.Fprintln(cmd.out, ssh.FingerprintSHA256(publicKey))
-	if cmd.importPath != "" {
-		ok, err := cmd.prompter.askYesNo("Continue?", true)
-		if err != nil {
-			return nil, err
-		}
-		if !ok {
-			return nil, errCanceled
-		}
-	}
-	addToAgent, err := cmd.prompter.askYesNo("Add to SSH Agent?", false)
-	if err != nil {
-		return nil, err
-	}
-	credential, err := model.EncodeSSHKey(privateKey, publicKey.Type(), cmd.itemName)
-	if err != nil {
-		return nil, fmt.Errorf("cannot encode SSH private key")
-	}
-	item, err := model.NewSSHKey(cmd.itemName, credential, passphrase, model.PasswordSettings{Mode: paw.CustomPassword})
-	if err != nil {
-		return nil, err
-	}
-	item.Metadata.AddToAgent = addToAgent
-	return item, nil
-}
-
-// generatePassword prompts for a password using the supported generators.
-func (cmd *AddCmd) generatePassword(defaultMode paw.PasswordMode) (*paw.PasswordSpec, error) {
-	return (&PwGenCmd{command: cmd.command}).Pwgen([]paw.PasswordMode{paw.CustomPassword, paw.RandomPassword, paw.PassphrasePassword, paw.PinPassword}, defaultMode)
 }

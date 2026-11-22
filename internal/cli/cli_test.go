@@ -19,7 +19,6 @@ import (
 	urfave "github.com/urfave/cli/v3"
 
 	"go.lucor.dev/paw/internal/paw"
-	"go.lucor.dev/paw/internal/sshkey"
 	"go.lucor.dev/paw/internal/storage"
 )
 
@@ -48,6 +47,7 @@ func executeSubcommand(t *testing.T, args []string, constructor func(*command) *
 		testCommand.prompter = newPrompter(in, &errOut)
 	}
 	cmd := constructor(&testCommand)
+	cmd.ExitErrHandler = leaveExitToCaller
 	cmd.Reader = in
 	cmd.Writer = &out
 	cmd.ErrWriter = &errOut
@@ -84,6 +84,11 @@ func TestHelp(t *testing.T) {
 		require.NoError(t, err)
 		require.Contains(t, out, "paw cli agent "+sub)
 	}
+}
+
+func TestUnlockRejectsNegativeLifetime(t *testing.T) {
+	_, _, err := executeSubcommand(t, []string{"unlock", "--lifetime", "-1s", "personal"}, newUnlockCommand, &command{}, "")
+	require.ErrorContains(t, err, "lifetime cannot be negative")
 }
 
 func TestCommandGroupHelpAndUnknownSubcommand(t *testing.T) {
@@ -129,18 +134,22 @@ func TestInvalidArguments(t *testing.T) {
 		{[]string{"edit", "--input=key.pem", "vault/login/item"}, "only supported for SSH key items"},
 		{[]string{"edit", "--generate-key", "vault/login/item"}, "only supported for SSH key items"},
 		{[]string{"edit", "--generate-key", "--input=key.pem", "vault/ssh_key/key"}, "cannot be combined"},
-		{[]string{"add", "--tag=", "vault/note/item"}, "--tag cannot be empty"},
+		{[]string{"edit", "--totp-stdin", "vault/password/item"}, "only supported for login items"},
+		{[]string{"edit", "--totp-stdin", "--field=Token", "vault/login/item"}, "cannot be combined"},
+		{[]string{"add", "note", "--tag=", "vault", "item"}, "--tag cannot be empty"},
+		{[]string{"add", "vault/note/item"}, "unknown add subcommand"},
+		{[]string{"add", "note", "vault"}, "invalid arguments"},
 		{[]string{"sync"}, "invalid arguments"},
 		{[]string{"sync", "vault", "extra"}, "invalid arguments"},
 		{[]string{"ls", "vault/login/item/extra"}, "invalid vault item path"},
 	}
-	for _, name := range []string{"add", "edit", "init", "lock", "rm", "show", "unlock"} {
+	for _, name := range []string{"edit", "init", "lock", "rm", "show", "unlock"} {
 		cases = append(cases,
 			testCase{[]string{name}, "invalid arguments"},
 			testCase{[]string{name, "a", "b"}, "invalid arguments"},
 		)
 	}
-	for _, name := range []string{"add", "edit", "rm", "show"} {
+	for _, name := range []string{"edit", "rm", "show"} {
 		for _, path := range []string{"vault", "vault/login", "vault/login/"} {
 			cases = append(cases, testCase{[]string{name, path}, "path"})
 		}
@@ -159,8 +168,6 @@ func TestOptionAliases(t *testing.T) {
 		flags []string
 		check func(*testing.T, *urfave.Command)
 	}{
-		{"add", []string{"-i", "key.pem"}, func(t *testing.T, c *urfave.Command) { require.Equal(t, "key.pem", c.String("input")) }},
-		{"add", []string{"--input=key.pem"}, func(t *testing.T, c *urfave.Command) { require.Equal(t, "key.pem", c.String("input")) }},
 		{"show", []string{"-c"}, func(t *testing.T, c *urfave.Command) { require.True(t, c.Bool("clip")) }},
 		{"show", []string{"--clip"}, func(t *testing.T, c *urfave.Command) { require.True(t, c.Bool("clip")) }},
 		{"unlock", []string{"-t", "15m"}, func(t *testing.T, c *urfave.Command) { require.Equal(t, 15*time.Minute, c.Duration("lifetime")) }},
@@ -301,8 +308,8 @@ func TestCommandConstructorRoutesPromptDiagnostics(t *testing.T) {
 	require.Empty(t, diagnostics)
 }
 
-func TestSSHKeyImportFailureAndCancellation(t *testing.T) {
-	base := &command{readFile: os.ReadFile}
+func TestSSHKeyImportMissingFile(t *testing.T) {
+	base := &command{readFile: os.ReadFile, errOut: io.Discard}
 	base.out = io.Discard
 	base.prompter = testInteractivePrompter(t, "n\n")
 	cmd := &AddCmd{command: base, importPath: filepath.Join(t.TempDir(), "missing-key")}
@@ -310,10 +317,4 @@ func TestSSHKeyImportFailureAndCancellation(t *testing.T) {
 	require.Error(t, err)
 	require.True(t, os.IsNotExist(err))
 
-	key, err := sshkey.GenerateKey()
-	require.NoError(t, err)
-	cmd.importPath = filepath.Join(t.TempDir(), "key")
-	require.NoError(t, os.WriteFile(cmd.importPath, key.MarshalPrivateKey(), 0600))
-	_, err = cmd.newSSHKey()
-	require.ErrorIs(t, err, errCanceled)
 }

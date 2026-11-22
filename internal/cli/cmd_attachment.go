@@ -43,6 +43,7 @@ func newAttachmentCommand(base *command) *urfave.Command {
 			newAttachmentSubcommand(base, attachmentSave, "VAULT/TYPE/ITEM FILE_ID --output PATH", true),
 			newAttachmentSubcommand(base, attachmentRemove, "VAULT/TYPE/ITEM FILE_ID", false),
 		},
+		OnUsageError: onUsageError,
 	}
 }
 
@@ -54,10 +55,11 @@ func newAttachmentSubcommand(base *command, operation, argsUsage string, outputR
 		flags = append(flags, &urfave.StringFlag{Name: "output", Required: true})
 	}
 	c := &urfave.Command{
-		Name:        operation,
-		ArgsUsage:   argsUsage,
-		Description: vaultReferenceHelp,
-		Flags:       flags,
+		OnUsageError: onUsageError,
+		Name:         operation,
+		ArgsUsage:    argsUsage,
+		Description:  vaultReferenceHelp,
+		Flags:        flags,
 	}
 	c.Before = cmd.Validate
 	c.Action = cmd.Run

@@ -28,10 +28,11 @@ type RestoreCmd struct {
 func newRestoreCommand(base *command) *urfave.Command {
 	cmd := &RestoreCmd{command: base}
 	c := &urfave.Command{
-		Name:      "restore",
-		Usage:     "Restore a Paw or CXF backup into a new vault",
-		ArgsUsage: "BACKUP",
-		Flags:     []urfave.Flag{&urfave.StringFlag{Name: "name", Usage: "Name for the restored vault"}},
+		Name:         "restore",
+		Usage:        "Restore a Paw or CXF backup into a new vault",
+		ArgsUsage:    "BACKUP",
+		Flags:        []urfave.Flag{&urfave.StringFlag{Name: "name", Usage: "Name for the restored vault"}},
+		OnUsageError: onUsageError,
 	}
 	c.Before = cmd.Validate
 	c.Action = cmd.Run
@@ -81,12 +82,18 @@ func (cmd *RestoreCmd) Run(ctx context.Context, _ *urfave.Command) error {
 		return err
 	}
 	defer backup.Close()
-	fmt.Fprintf(cmd.out, "Vault: %s\nCollections: %d\nCredentials: %d\n", backup.Name, backup.Collections, backup.Credentials)
+	if _, err := fmt.Fprintf(cmd.out, "Vault: %s\nCollections: %d\nCredentials: %d\n", backup.Name, backup.Collections, backup.Credentials); err != nil {
+		return err
+	}
 	if backup.CreationAt != nil {
-		fmt.Fprintf(cmd.out, "Created: %s\n", time.Unix(int64(*backup.CreationAt), 0).UTC().Format(time.RFC3339))
+		if _, err := fmt.Fprintf(cmd.out, "Created: %s\n", time.Unix(int64(*backup.CreationAt), 0).UTC().Format(time.RFC3339)); err != nil {
+			return err
+		}
 	}
 	if backup.ExportedAt != 0 {
-		fmt.Fprintf(cmd.out, "CXF document date: %s\n", time.Unix(int64(backup.ExportedAt), 0).UTC().Format(time.RFC3339))
+		if _, err := fmt.Fprintf(cmd.out, "CXF document date: %s\n", time.Unix(int64(backup.ExportedAt), 0).UTC().Format(time.RFC3339)); err != nil {
+			return err
+		}
 	}
 	name := cmd.name
 	if name == "" {
@@ -118,7 +125,9 @@ func (cmd *RestoreCmd) Run(ctx context.Context, _ *urfave.Command) error {
 		return err
 	}
 	if vault.Accounts[0].ID != backup.AccountID {
-		fmt.Fprintln(cmd.out, "The original vault ID is already in use. An independent copy was created.")
+		if _, err := fmt.Fprintln(cmd.out, "The original vault ID is already in use. An independent copy was created."); err != nil {
+			return err
+		}
 	}
 	_, err = fmt.Fprintf(cmd.out, "Vault restored successfully: %s (Vault ID %s)\n", name, shortVaultID(vault.Accounts[0].ID))
 	return err

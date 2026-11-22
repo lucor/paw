@@ -190,7 +190,7 @@ func TestPasswordConfirmation(t *testing.T) {
 	password, err := p.askPasswordWithConfirm()
 	require.NoError(t, err)
 	require.Equal(t, "confirmed-secret", password)
-	require.Contains(t, out.String(), "Passwords do not match")
+	require.Equal(t, "Passwords do not match\n", out.String())
 	require.NotContains(t, out.String(), "secret")
 }
 

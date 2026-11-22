@@ -24,10 +24,11 @@ type LockCmd struct {
 func newLockCommand(base *command) *urfave.Command {
 	cmd := &LockCmd{command: base}
 	c := &urfave.Command{
-		Name:        "lock",
-		Usage:       "Locks a vault",
-		ArgsUsage:   "VAULT",
-		Description: vaultReferenceHelp,
+		Name:         "lock",
+		Usage:        "Locks a vault",
+		ArgsUsage:    "VAULT",
+		Description:  vaultReferenceHelp,
+		OnUsageError: onUsageError,
 	}
 	c.Before = cmd.Validate
 	c.Action = cmd.Run
@@ -61,13 +62,17 @@ func (cmd *LockCmd) Run(ctx context.Context, _ *urfave.Command) error {
 		return err
 	}
 
-	fmt.Fprintln(cmd.out, "Removing SSH keys from the agent...")
+	if _, err := fmt.Fprintln(cmd.out, "Removing SSH keys from the agent..."); err != nil {
+		return err
+	}
 	err = cmd.removeSSHKeysFromAgent(c)
 	if err != nil {
-		fmt.Fprintln(cmd.out, "could not remove SSH keys from the agent:", err)
+		if _, writeErr := fmt.Fprintln(cmd.out, "could not remove SSH keys from the agent:", err); writeErr != nil {
+			return writeErr
+		}
 	}
-	fmt.Fprintln(cmd.out, "[✓] vault locked")
-	return nil
+	_, err = fmt.Fprintln(cmd.out, "[✓] vault locked")
+	return err
 }
 
 // removeSSHKeysFromAgent removes the locked vault's SSH keys from the agent.
@@ -102,10 +107,14 @@ func (cmd *LockCmd) removeSSHKeysFromAgent(c agent.PawAgent) error {
 			return err
 		}
 		if err := c.RemoveSSHKey(publicKey); err != nil {
-			fmt.Fprintf(cmd.out, "Could not remove SSH key from the agent. Error: %q - Public key: %s", err, ssh.MarshalAuthorizedKey(publicKey))
+			if _, writeErr := fmt.Fprintf(cmd.out, "Could not remove SSH key from the agent. Error: %q - Public key: %s", err, ssh.MarshalAuthorizedKey(publicKey)); writeErr != nil {
+				return writeErr
+			}
 			continue
 		}
-		fmt.Fprintf(cmd.out, "Removed key: %s", ssh.MarshalAuthorizedKey(publicKey))
+		if _, err := fmt.Fprintf(cmd.out, "Removed key: %s", ssh.MarshalAuthorizedKey(publicKey)); err != nil {
+			return err
+		}
 	}
 	return nil
 }

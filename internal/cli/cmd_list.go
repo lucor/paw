@@ -37,6 +37,7 @@ func newListCommand(base *command) *urfave.Command {
 				Usage: "Filter items by exact vault tag",
 			},
 		},
+		OnUsageError: onUsageError,
 	}
 	c.Before = cmd.Validate
 	c.Action = cmd.Run
@@ -57,7 +58,7 @@ func (cmd *ListCmd) Validate(ctx context.Context, c *urfave.Command) (context.Co
 		}
 		cmd.itemPath = path
 	} else if cmd.tag != "" {
-		return ctx, fmt.Errorf("--tag requires a vault or item path")
+		return ctx, invalidArgumentsError("--tag requires a vault or item path")
 	}
 	return ctx, nil
 }
@@ -70,7 +71,7 @@ func (cmd *ListCmd) Run(ctx context.Context, _ *urfave.Command) error {
 	}
 
 	if cmd.vaultName == "" {
-		return tree.Fprint(cmd.out, vaultNode)
+		return tree.Fprint(cmd.Stdout(), vaultNode)
 	}
 
 	itemsNode, err := cmd.items()
@@ -87,11 +88,10 @@ func (cmd *ListCmd) Run(ctx context.Context, _ *urfave.Command) error {
 	}
 
 	if len(n.Child) == 0 {
-		fmt.Fprintf(cmd.out, "vault %q is empty\n", cmd.vaultName)
 		return nil
 	}
 
-	return tree.Fprint(cmd.out, n)
+	return tree.Fprint(cmd.Stdout(), n)
 }
 
 // items builds the tree of items in the selected vault.

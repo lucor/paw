@@ -5,7 +5,6 @@ package cli
 
 import (
 	"bufio"
-	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -16,7 +15,6 @@ import (
 	"strings"
 
 	"charm.land/huh/v2"
-	urfave "github.com/urfave/cli/v3"
 	"golang.org/x/term"
 
 	"go.lucor.dev/paw/internal/paw"
@@ -36,7 +34,10 @@ type textEditor interface {
 	Edit(string) error
 }
 
-type commandTextEditor struct{ command string }
+type commandTextEditor struct {
+	command string
+	output  io.Writer
+}
 
 // Edit opens path in the configured external editor.
 func (e commandTextEditor) Edit(path string) error {
@@ -47,6 +48,9 @@ func (e commandTextEditor) Edit(path string) error {
 	cmd := exec.Command(parts[0], append(parts[1:], path)...)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
+	if e.output != nil {
+		cmd.Stdout = e.output
+	}
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
 }
@@ -203,7 +207,7 @@ func (p *prompter) askPasswordWithConfirm() (string, error) {
 		if password == confirm {
 			return password, nil
 		}
-		if _, err := fmt.Fprintln(p.output, "[✗] Passwords do not match"); err != nil {
+		if _, err := fmt.Fprintln(p.output, "Passwords do not match"); err != nil {
 			return "", err
 		}
 	}
@@ -282,17 +286,14 @@ func (p *prompter) checkTerminal() error {
 	return nil
 }
 
-// requireTerminal is the Before hook for commands that always prompt.
-func (base *command) requireTerminal(ctx context.Context, _ *urfave.Command) (context.Context, error) {
-	return ctx, base.prompter.checkTerminal()
-}
-
 // makeForm applies the shared prompt configuration.
 func (p *prompter) makeForm(groups ...*huh.Group) *huh.Form {
-	form := huh.NewForm(groups...).WithKeyMap(prompterKeyMap()).WithShowHelp(false).WithInput(p.terminalInput).WithOutput(p.output)
-	if os.Getenv("NO_COLOR") != "" {
-		form.WithTheme(huh.ThemeFunc(huh.ThemeBase))
-	}
+	form := huh.NewForm(groups...)
+	form.WithKeyMap(prompterKeyMap())
+	form.WithShowHelp(false)
+	form.WithInput(p.terminalInput)
+	form.WithOutput(p.output)
+	form.WithTheme(huh.ThemeFunc(huh.ThemeBase))
 	return form
 }
 

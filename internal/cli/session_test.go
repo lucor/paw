@@ -7,6 +7,7 @@ package cli
 
 import (
 	"context"
+	"crypto"
 	"errors"
 	"io"
 	"net"
@@ -26,6 +27,13 @@ import (
 	"go.lucor.dev/paw/internal/sshkey"
 	"go.lucor.dev/paw/internal/storage"
 )
+
+type sshFailureAgent struct {
+	agent.PawAgent
+	err error
+}
+
+func (a sshFailureAgent) AddSSHKey(crypto.PrivateKey, string) error { return a.err }
 
 func TestCommandsWithAgentSession(t *testing.T) {
 	// Keep the socket path short enough for Unix sockets on macOS.
@@ -69,9 +77,10 @@ func TestCommandsWithAgentSession(t *testing.T) {
 	p.readPassword = func() ([]byte, error) { return []byte("synthetic-password"), nil }
 	base := &command{storage: store, prompter: p, now: time.Now, getenv: os.Getenv, readFile: os.ReadFile,
 		agentClient: func(string) (agent.PawAgent, error) { return client, nil }}
-	created, _, err := executeSubcommand(t, []string{"init", "personal"}, newInitCommand, base, "")
+	created, diagnostics, err := executeSubcommand(t, []string{"init", "personal"}, newInitCommand, base, "")
 	require.NoError(t, err)
-	require.Contains(t, created, "created")
+	require.Empty(t, created)
+	require.Empty(t, diagnostics)
 	require.NotContains(t, created, "synthetic-password")
 	infos, err := store.Vaults()
 	require.NoError(t, err)
@@ -97,15 +106,42 @@ func TestCommandsWithAgentSession(t *testing.T) {
 	require.Equal(t, "invalid-session", os.Getenv(paw.ENV_SESSION))
 
 	require.NoError(t, Run([]string{"paw", "cli", "ls", vaultPath + "/*", "--session", session}, s))
-	createdPath := vaultPath + "/note/created"
-	added, _, err := executeWithInput(t, []string{"add", "--session", session, createdPath}, s, "created note\n")
+	addArgs := []string{"add", "note", "--session", session, vaultPath, "created"}
+	added, _, err := executeWithInput(t, addArgs, s, "created note\n")
 	require.Empty(t, added)
 	require.ErrorContains(t, err, "requires stdin to be a terminal")
+	addBase := *base
+	addPrompter := testInteractivePrompter(t, "n\n")
+	addPrompter.editor = &testTextEditor{value: "created note\n"}
+	addBase.prompter = addPrompter
+	added, diagnostics, err = executeSubcommand(t, addArgs, newAddCommand, &addBase, "")
+	require.NoError(t, err)
+	require.Empty(t, diagnostics)
+	updatedVault, err := store.LoadVault(vaultID, key)
+	require.NoError(t, err)
+	addedItem, err := updatedVault.FindItem("created", model.NoteItemType)
+	require.NoError(t, err)
+	require.Equal(t, addedItem.ID+"\n", added)
+	failureBase := addBase
+	failurePrompter := testInteractivePrompter(t, "n\n")
+	failurePrompter.editor = &testTextEditor{value: "another note\n"}
+	failureBase.prompter = failurePrompter
+	writeFailure := errors.New("stdout unavailable")
+	writer := &failingAddWriter{err: writeFailure}
+	failureBase.out = writer
+	failureCommand := newAddCommand(&failureBase)
+	failureCommand.ExitErrHandler = leaveExitToCaller
+	failureCommand.Reader = strings.NewReader("")
+	failureCommand.Writer = io.Discard
+	failureCommand.ErrWriter = io.Discard
+	err = failureCommand.Run(context.Background(), []string{"add", "note", "--session", session, vaultPath, "another"})
+	require.ErrorIs(t, err, writeFailure)
+	require.Equal(t, 1, writer.writes)
 	_, _, err = executeWithInput(t, []string{"edit", "--session", session, vaultPath + "/note/example"}, s, "updated note\n")
 	require.ErrorContains(t, err, "requires stdin to be a terminal")
 	loaded, err := store.LoadVault(vaultID, vault.Key())
 	require.NoError(t, err)
-	require.Len(t, loaded.Accounts[0].Items, 1)
+	require.Len(t, loaded.Accounts[0].Items, 3)
 	updated, err := store.LoadItem(loaded, item.ID)
 	require.NoError(t, err)
 	content, _, err := updated.Note()
@@ -115,41 +151,30 @@ func TestCommandsWithAgentSession(t *testing.T) {
 	require.ErrorContains(t, err, "requires stdin to be a terminal")
 	loaded, err = store.LoadVault(vaultID, vault.Key())
 	require.NoError(t, err)
-	require.Len(t, loaded.Accounts[0].Items, 1)
+	require.Len(t, loaded.Accounts[0].Items, 3)
 
 	t.Setenv(paw.ENV_SESSION, session)
 	missing := filepath.Join(root, "missing-key")
-	err = Run([]string{"paw", "cli", "add", "-i", missing, vaultPath + "/ssh_key/import"}, s)
+	err = Run([]string{"paw", "cli", "add", "ssh-key", "--input", missing, vaultPath, "import"}, s)
 	require.True(t, os.IsNotExist(err), "expected an SSH key read error, got %v", err)
 
-	t.Run("SSH key import confirmation requires a terminal", func(t *testing.T) {
-		imported, err := sshkey.GenerateKey()
-		require.NoError(t, err)
-		keyPath := filepath.Join(root, "import-key")
-		require.NoError(t, os.WriteFile(keyPath, imported.MarshalPrivateKey(), 0600))
-		_, _, err = executeWithInput(t, []string{"add", "-i", keyPath, vaultPath + "/ssh_key/import"}, s, "n\n")
-		require.ErrorContains(t, err, "requires stdin to be a terminal")
-		loaded, err := store.LoadVault(vaultID, vault.Key())
-		require.NoError(t, err)
-		require.Len(t, loaded.Accounts[0].Items, 1)
-	})
 	t.Run("removal confirmation requires a terminal", func(t *testing.T) {
 		_, _, err := executeWithInput(t, []string{"rm", vaultPath + "/note/example"}, s, "n\n")
 		require.ErrorContains(t, err, "requires stdin to be a terminal")
 		loaded, err := store.LoadVault(vaultID, vault.Key())
 		require.NoError(t, err)
-		require.Len(t, loaded.Accounts[0].Items, 1)
+		require.Len(t, loaded.Accounts[0].Items, 3)
 	})
 	for _, name := range []string{"add", "edit", "rm"} {
-		path := vaultPath + "/note/example"
+		args := []string{name, "--session", session, vaultPath + "/note/example"}
 		if name == "add" {
-			path = vaultPath + "/note/incomplete"
+			args = []string{"add", "note", "--session", session, vaultPath, "incomplete"}
 		}
-		_, _, err := executeWithInput(t, []string{name, "--session", session, path}, s, "")
+		_, _, err := executeWithInput(t, args, s, "")
 		require.ErrorContains(t, err, "requires stdin to be a terminal")
 		unchanged, err := store.LoadVault(vaultID, key)
 		require.NoError(t, err)
-		require.Len(t, unchanged.Accounts[0].Items, 1)
+		require.Len(t, unchanged.Accounts[0].Items, 3)
 		unchangedItem, err := store.LoadItem(unchanged, item.ID)
 		require.NoError(t, err)
 		note, _, err := unchangedItem.Note()
@@ -161,7 +186,7 @@ func TestCommandsWithAgentSession(t *testing.T) {
 	require.NoError(t, err)
 	note, err := model.NewNote("memo", "")
 	require.NoError(t, err)
-	_, _, err = executeWithInput(t, []string{"add", "--session", session, vaultPath + "/password/secret"}, s, "3\n\n")
+	_, _, err = executeWithInput(t, []string{"add", "password", "--session", session, vaultPath, "secret"}, s, "3\n\n")
 	require.ErrorContains(t, err, "requires stdin to be a terminal")
 	loaded, err = store.LoadVault(vaultID, key)
 	require.NoError(t, err)
@@ -249,13 +274,14 @@ func TestCommandsWithAgentSession(t *testing.T) {
 	require.NoError(t, err)
 	_, err = loaded.FindItem("renamed memo", model.NoteItemType)
 	require.NoError(t, err)
-	aliasPath := vaultPath + "/note/alias-test"
-	_, _, err = executeWithInput(t, []string{"insert", "--session", session, "--tag", "automation", "--tag", "release", aliasPath}, s, "alias note\n")
-	require.ErrorContains(t, err, "requires stdin to be a terminal")
+	out, diagnostics, err := executeWithInput(t, []string{"add", "note", "--session", session, "--tag", "automation", "--tag", "release", "--input", "-", vaultPath, "scripted note"}, s, "note from stdin\n")
+	require.NoError(t, err)
+	require.Empty(t, diagnostics)
 	loaded, err = store.LoadVault(vaultID, key)
 	require.NoError(t, err)
-	_, err = loaded.FindItem("alias-test", model.NoteItemType)
-	require.Error(t, err)
+	scripted, err := loaded.FindItem("scripted note", model.NoteItemType)
+	require.NoError(t, err)
+	require.Equal(t, scripted.ID+"\n", out)
 
 	t.Run("clipboard", func(t *testing.T) {
 		calls := 0
@@ -289,13 +315,34 @@ func TestCommandsWithAgentSession(t *testing.T) {
 	})
 
 	t.Run("agent sessions and SSH keys", func(t *testing.T) {
-		out, _, err := executeSubcommand(t, []string{"unlock", "-t", "45m", "personal"}, newUnlockCommand, base, "")
+		out, errOut, err := executeSubcommand(t, []string{"unlock", "-t", "45m", "personal"}, newUnlockCommand, base, "")
 		require.NoError(t, err)
-		require.Contains(t, out, "Session ID:")
-		require.Contains(t, out, "added:")
+		unlockSession := strings.TrimSpace(out)
+		require.NotEmpty(t, unlockSession)
+		require.Equal(t, unlockSession+"\n", out)
+		require.NotContains(t, out, "Session ID:")
+		require.NotContains(t, out, "vault unlocked")
+		require.NotContains(t, out, "added SSH keys")
+		require.NotContains(t, errOut, "added:")
+		require.NotContains(t, errOut, "ssh-")
+		t.Setenv(paw.ENV_SESSION, session)
+		base.agentClient = func(string) (agent.PawAgent, error) {
+			return sshFailureAgent{PawAgent: client, err: errors.New("agent refused key")}, nil
+		}
+		warningOut, warningErr, err := executeSubcommand(t, []string{"unlock", "personal"}, newUnlockCommand, base, "")
+		require.NoError(t, err)
+		warningSession := strings.TrimSpace(warningOut)
+		require.NotEmpty(t, warningSession)
+		require.Equal(t, warningSession+"\n", warningOut)
+		require.NotContains(t, warningOut, "agent refused key")
+		require.Contains(t, warningErr, "could not add SSH key \"deploy\" to the agent: agent refused key")
+		require.NotContains(t, warningErr, "ssh-")
+		base.agentClient = func(string) (agent.PawAgent, error) { return client, nil }
 		sessions, err := client.Sessions()
 		require.NoError(t, err)
-		require.Len(t, sessions, 2)
+		require.Len(t, sessions, 3)
+		require.Contains(t, []string{sessions[0].ID, sessions[1].ID, sessions[2].ID}, unlockSession)
+		require.Contains(t, []string{sessions[0].ID, sessions[1].ID, sessions[2].ID}, warningSession)
 		expiring := 0
 		for _, active := range sessions {
 			require.Equal(t, vaultID, active.Vault)
@@ -310,16 +357,29 @@ func TestCommandsWithAgentSession(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, keys, 1)
 		require.Equal(t, "deploy key", keys[0].Comment)
+		t.Setenv(paw.ENV_SESSION, "invalid-session")
+		pipedInput := strings.NewReader("piped-password\n")
+		originalPrompter := base.prompter
+		base.prompter = newPrompter(pipedInput, io.Discard)
+		_, _, err = executeSubcommand(t, []string{"unlock", "personal"}, newUnlockCommand, base, "")
+		require.ErrorContains(t, err, "requires stdin to be a terminal")
+		require.Equal(t, len("piped-password\n"), pipedInput.Len(), "unlock must not read a password from piped stdin")
+		base.prompter = originalPrompter
+		t.Setenv(paw.ENV_SESSION, session)
 		out, _, err = executeSubcommand(t, []string{"agent", "sessions"}, newAgentCommand, base, "")
 		require.NoError(t, err)
 		require.Contains(t, out, session)
-		_, _, err = executeSubcommand(t, []string{"agent", "start"}, newAgentCommand, base, "")
+		startOut, startErr, err := executeSubcommand(t, []string{"agent", "start"}, newAgentCommand, base, "")
 		require.ErrorContains(t, err, "already running")
+		require.Empty(t, startOut)
+		require.Empty(t, startErr)
 		base.agentClient = func(string) (agent.PawAgent, error) { return nil, errors.New("not running") }
 		started := false
 		base.startAgent = func(path string) error { started = true; require.Equal(t, s.SocketAgentPath(), path); return nil }
-		_, _, err = executeSubcommand(t, []string{"agent", "start"}, newAgentCommand, base, "")
+		startOut, startErr, err = executeSubcommand(t, []string{"agent", "start"}, newAgentCommand, base, "")
 		require.NoError(t, err)
+		require.Empty(t, startOut)
+		require.Empty(t, startErr)
 		require.True(t, started)
 		_, err = os.Lstat(s.SocketAgentPath())
 		require.ErrorIs(t, err, os.ErrNotExist)
@@ -366,4 +426,16 @@ func TestCommandsWithAgentSession(t *testing.T) {
 		require.NoError(t, err)
 		require.Contains(t, out, "personal")
 	})
+}
+
+// failingAddWriter records writes and returns a configured error.
+type failingAddWriter struct {
+	err    error
+	writes int
+}
+
+// Write records a write attempt and returns the configured error.
+func (writer *failingAddWriter) Write([]byte) (int, error) {
+	writer.writes++
+	return 0, writer.err
 }

@@ -126,7 +126,7 @@ Run `paw` to open the desktop app, or use `paw cli` for command-line operations:
 paw cli init Personal
 
 # Add an item (Paw prompts for the fields)
-paw cli add Personal/login/GitHub
+paw cli add login Personal GitHub
 
 # Show an item (use --clip to copy the password instead of printing it)
 paw cli show Personal/login/GitHub

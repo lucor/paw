@@ -21,12 +21,13 @@ type RemoveCmd struct {
 func newRemoveCommand(base *command) *urfave.Command {
 	cmd := &RemoveCmd{command: base}
 	c := &urfave.Command{
-		Name:        "rm",
-		Aliases:     []string{"remove"},
-		Usage:       "Removes an item from the vault (alias: remove)",
-		ArgsUsage:   "VAULT/ITEM_TYPE/ITEM_NAME",
-		Description: vaultReferenceHelp,
-		Flags:       []urfave.Flag{sessionFlag()},
+		Name:         "rm",
+		Aliases:      []string{"remove"},
+		Usage:        "Removes an item from the vault (alias: remove)",
+		ArgsUsage:    "VAULT/ITEM_TYPE/ITEM_NAME",
+		Description:  vaultReferenceHelp,
+		Flags:        []urfave.Flag{sessionFlag()},
+		OnUsageError: onUsageError,
 	}
 	c.Before = cmd.Validate
 	c.Action = cmd.Run
@@ -44,12 +45,15 @@ func (cmd *RemoveCmd) Validate(ctx context.Context, c *urfave.Command) (context.
 	}
 	cmd.itemPath = path
 	cmd.sessionID = c.String("session")
-	return cmd.command.requireTerminal(ctx, c)
+	return ctx, nil
 }
 
 // Run removes the selected item from its vault.
 func (cmd *RemoveCmd) Run(ctx context.Context, _ *urfave.Command) error {
 	base := cmd.command
+	if err := base.prompter.checkTerminal(); err != nil {
+		return err
+	}
 	s := base.storage
 	appState, err := s.LoadAppState()
 	if err != nil {
@@ -92,6 +96,6 @@ func (cmd *RemoveCmd) Run(ctx context.Context, _ *urfave.Command) error {
 		return err
 	}
 
-	fmt.Fprintf(cmd.out, "[✓] item %q removed\n", safeTerminalText(cmd.itemName))
-	return nil
+	_, err = fmt.Fprintf(cmd.out, "[✓] item %q removed\n", safeTerminalText(cmd.itemName))
+	return err
 }

@@ -22,9 +22,10 @@ type VersionCmd struct {
 func newVersionCommand() *urfave.Command {
 	cmd := &VersionCmd{version: paw.Version()}
 	c := &urfave.Command{
-		Name:      "version",
-		Usage:     "Prints version information",
-		ArgsUsage: " ",
+		Name:         "version",
+		Usage:        "Prints version information",
+		ArgsUsage:    " ",
+		OnUsageError: onUsageError,
 	}
 	c.Before = cmd.Validate
 	c.Action = cmd.Run

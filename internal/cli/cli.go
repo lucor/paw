@@ -27,7 +27,7 @@ import (
 // The caller handles error reporting and the process exit status.
 func Run(args []string, s *storage.FileStorage) error {
 	if len(args) < 2 || args[1] != "cli" {
-		return fmt.Errorf("expected paw cli arguments")
+		return invalidArgumentsError("expected paw cli arguments")
 	}
 	argv := append([]string{"paw cli"}, args[2:]...)
 	err := newCommand(s, os.Stdin, os.Stdout, os.Stderr).Run(context.Background(), argv)
@@ -38,6 +38,17 @@ func Run(args []string, s *storage.FileStorage) error {
 }
 
 var errCanceled = errors.New("command canceled")
+
+const (
+	// ExitCodeSuccess indicates successful command execution.
+	ExitCodeSuccess = 0
+	// ExitCodeApplicationError indicates a command failed while running.
+	ExitCodeApplicationError = 1
+	// ExitCodeInvalidArguments indicates invalid command arguments or flags.
+	ExitCodeInvalidArguments = 2
+	// ExitCodeInterrupted indicates the process received Ctrl+C.
+	ExitCodeInterrupted = 130
+)
 
 const vaultReferenceHelp = "VAULT can be a vault name, full ID, or unique ID prefix (at least 7 characters)."
 
@@ -73,14 +84,15 @@ func newCommand(storage *storage.FileStorage, in io.Reader, out, errOut io.Write
 		},
 	}
 	return &urfave.Command{
-		Name:      "paw cli",
-		Usage:     "The CLI application for Paw",
-		Action:    requireSubcommand,
-		Reader:    in,
-		Writer:    out,
-		ErrWriter: errOut,
+		OnUsageError: onUsageError,
+		Name:         "paw cli",
+		Usage:        "The CLI application for Paw",
+		Action:       requireSubcommand,
+		Reader:       in,
+		Writer:       out,
+		ErrWriter:    errOut,
 		// Keep exit handling in main, including errors returned by command.
-		ExitErrHandler: func(context.Context, *urfave.Command, error) {},
+		ExitErrHandler: leaveExitToCaller,
 		Commands: []*urfave.Command{
 			newAttachmentCommand(base),
 			newAgentCommand(base),
@@ -102,15 +114,28 @@ func newCommand(storage *storage.FileStorage, in io.Reader, out, errOut io.Write
 	}
 }
 
+// leaveExitToCaller lets main print errors and set the process exit status.
+func leaveExitToCaller(context.Context, *urfave.Command, error) {}
+
+// onUsageError classifies errors detected by urfave while parsing input.
+func onUsageError(_ context.Context, _ *urfave.Command, err error, _ bool) error {
+	return invalidArgumentsError("%w", err)
+}
+
+// invalidArgumentsError creates an input error with the invalid-arguments exit code.
+func invalidArgumentsError(format string, args ...any) error {
+	return urfave.Exit(fmt.Errorf(format, args...), ExitCodeInvalidArguments)
+}
+
 // requireSubcommand rejects the root command when no subcommand is supplied.
 func requireSubcommand(ctx context.Context, c *urfave.Command) error {
 	if c.Args().Present() {
-		return fmt.Errorf("unknown command %q for %s", c.Args().First(), c.FullName())
+		return invalidArgumentsError("unknown command %q for %s", c.Args().First(), c.FullName())
 	}
 	if err := urfave.ShowSubcommandHelp(c); err != nil {
 		return err
 	}
-	return fmt.Errorf("a command is required")
+	return invalidArgumentsError("a command is required")
 }
 
 // commandGroupAction displays help or reports an unknown command-group subcommand.
@@ -123,7 +148,7 @@ func commandGroupAction(_ context.Context, c *urfave.Command) error {
 			}
 			fmt.Fprintf(&commands, "\n  %-10s %s", command.Name, command.Usage)
 		}
-		return fmt.Errorf("unknown %s subcommand %q.\n\nUsage:\n  %s <command> [arguments]\n\nCommands:%s\n\nRun '%s --help' for details", c.Name, c.Args().First(), c.FullName(), commands.String(), c.FullName())
+		return invalidArgumentsError("unknown %s subcommand %q.\n\nUsage:\n  %s <command> [arguments]\n\nCommands:%s\n\nRun '%s --help' for details", c.Name, c.Args().First(), c.FullName(), commands.String(), c.FullName())
 	}
 	return urfave.ShowSubcommandHelp(c)
 }
@@ -150,12 +175,12 @@ func parseItemPath(path string, opts itemPathOptions) (itemPath, error) {
 	ip := itemPath{}
 
 	if len(parts) > 3 || (opts.fullPath && len(parts) != 3) {
-		return ip, fmt.Errorf("invalid vault item path. Got %q, expected VAULT/ITEM_TYPE/ITEM_NAME", path)
+		return ip, invalidArgumentsError("invalid vault item path. Got %q, expected VAULT/ITEM_TYPE/ITEM_NAME", path)
 	}
 
 	for i, v := range parts {
 		if opts.fullPath && v == "" {
-			return ip, fmt.Errorf("a path element is empty. Got %s, expected VAULT/ITEM_TYPE/ITEM_NAME", path)
+			return ip, invalidArgumentsError("a path element is empty. Got %s, expected VAULT/ITEM_TYPE/ITEM_NAME", path)
 		}
 		switch i {
 		case 0:
@@ -168,12 +193,12 @@ func parseItemPath(path string, opts itemPathOptions) (itemPath, error) {
 			}
 			itemType, err = model.ItemTypeFromString(v)
 			if err != nil {
-				return ip, err
+				return ip, invalidArgumentsError("%w", err)
 			}
 			ip.itemType = itemType
 		case 2:
 			if opts.fullPath && v == "" {
-				return ip, fmt.Errorf("item name cannot be empty")
+				return ip, invalidArgumentsError("item name cannot be empty")
 			}
 			ip.itemName = v
 		}
@@ -195,7 +220,9 @@ func (base *command) loadVaultKey(vaultName, sessionID string) (*paw.Key, error)
 		if err == nil {
 			return key, nil
 		}
-		fmt.Fprintln(base.errOut, "[✗] Session is invalid or expired")
+		if _, err := fmt.Fprintln(base.errOut, "[✗] Session is invalid or expired"); err != nil {
+			return nil, err
+		}
 	}
 
 	password, err := base.prompter.askPassword("Enter the vault password")

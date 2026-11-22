@@ -5,7 +5,6 @@ package cli
 
 import (
 	"context"
-	"fmt"
 
 	urfave "github.com/urfave/cli/v3"
 )
@@ -20,11 +19,12 @@ type InitCmd struct {
 func newInitCommand(base *command) *urfave.Command {
 	cmd := &InitCmd{command: base}
 	c := &urfave.Command{
-		Name:      "init",
-		Usage:     "Initializes a vault",
-		ArgsUsage: "VAULT_NAME",
-		Before:    cmd.Validate,
-		Action:    cmd.Run,
+		Name:         "init",
+		Usage:        "Initializes a vault",
+		ArgsUsage:    "VAULT_NAME",
+		Before:       cmd.Validate,
+		Action:       cmd.Run,
+		OnUsageError: onUsageError,
 	}
 	return c
 }
@@ -42,7 +42,6 @@ func (cmd *InitCmd) Validate(ctx context.Context, c *urfave.Command) (context.Co
 func (cmd *InitCmd) Run(ctx context.Context, _ *urfave.Command) error {
 	base := cmd.command
 	s := base.storage
-	fmt.Fprintf(cmd.out, "Initializing vault %q\n", cmd.vaultName)
 	password, err := cmd.prompter.askPasswordWithConfirm()
 	if err != nil {
 		return err
@@ -51,6 +50,5 @@ func (cmd *InitCmd) Run(ctx context.Context, _ *urfave.Command) error {
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(cmd.out, "[✓] vault %q created\n", cmd.vaultName)
 	return nil
 }

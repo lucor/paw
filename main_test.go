@@ -12,6 +12,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"go.lucor.dev/paw/internal/cli"
+	"go.lucor.dev/paw/internal/paw"
 	"go.lucor.dev/paw/internal/storage"
 	"go.lucor.dev/paw/internal/ui"
 )
@@ -19,6 +21,39 @@ import (
 func TestDefaultWindowDimensions(t *testing.T) {
 	require.Equal(t, 400, ui.DefaultWindowWidth)
 	require.Equal(t, 640, ui.DefaultWindowHeight)
+}
+
+func TestRunPrintsCLIErrorsToStderr(t *testing.T) {
+	previousArgs := os.Args
+	previousStdout, previousStderr := os.Stdout, os.Stderr
+	previousLogger, previousLogOutput := slog.Default(), log.Writer()
+	t.Cleanup(func() {
+		os.Args = previousArgs
+		os.Stdout, os.Stderr = previousStdout, previousStderr
+		slog.SetDefault(previousLogger)
+		log.SetOutput(previousLogOutput)
+	})
+
+	root := t.TempDir()
+	t.Setenv(paw.ENV_HOME, root)
+	os.Args = []string{"paw", "cli", "unknown-command"}
+	stdout, err := os.CreateTemp(root, "stdout-*")
+	require.NoError(t, err)
+	defer stdout.Close()
+	stderr, err := os.CreateTemp(root, "stderr-*")
+	require.NoError(t, err)
+	defer stderr.Close()
+	os.Stdout, os.Stderr = stdout, stderr
+
+	require.Equal(t, cli.ExitCodeInvalidArguments, run())
+	require.NoError(t, stdout.Sync())
+	require.NoError(t, stderr.Sync())
+	stdoutContent, err := os.ReadFile(stdout.Name())
+	require.NoError(t, err)
+	stderrContent, err := os.ReadFile(stderr.Name())
+	require.NoError(t, err)
+	require.Empty(t, stdoutContent)
+	require.Equal(t, "Error: unknown command \"unknown-command\" for paw cli\n", string(stderrContent))
 }
 
 func TestConfigureLoggerDoesNotWriteFileOnMobile(t *testing.T) {

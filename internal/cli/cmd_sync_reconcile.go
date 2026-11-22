@@ -163,7 +163,9 @@ func (cmd *SyncCmd) reviewReconciliation(
 		if local.manifest.ContentHash != remote.manifest.ContentHash {
 			kind = pawsync.ContentDifferent
 		}
-		fmt.Fprintf(cmd.out, "\n%s\nDifferent versions with the same Item ID.\n%s\n", syncItemName(&local.manifest), formatSyncVersionTimes(&local.manifest, &remote.manifest, peer.Name))
+		if _, err := fmt.Fprintf(cmd.out, "\n%s\nDifferent versions with the same Item ID.\n%s\n", syncItemName(&local.manifest), formatSyncVersionTimes(&local.manifest, &remote.manifest, peer.Name)); err != nil {
+			return false, err
+		}
 		decision, err := cmd.askReconcileSyncDecision(ctx, input, kind, peer.Name)
 		if err != nil {
 			return false, err
@@ -220,7 +222,9 @@ func (cmd *SyncCmd) reviewReconciliation(
 			operation.removeID = match.remote.ID
 			operation.removeState = remote.manifest.StateHash
 		} else {
-			fmt.Fprintf(cmd.out, "\nKeeping both IDs for %s because their History differs.\n", syncItemName(&local.manifest))
+			if _, err := fmt.Fprintf(cmd.out, "\nKeeping both IDs for %s because their History differs.\n", syncItemName(&local.manifest)); err != nil {
+				return false, err
+			}
 		}
 		operations = append(operations, operation)
 	}
@@ -232,7 +236,9 @@ func (cmd *SyncCmd) reviewReconciliation(
 	operations = append(operations, oneSidedReconcileOperations(peer.Name, remainingLocal, remainingRemote, pairedLocal, pairedRemote)...)
 
 	if len(operations) == 0 {
-		fmt.Fprintln(cmd.out, "No changes to apply.")
+		if _, err := fmt.Fprintln(cmd.out, "No changes to apply."); err != nil {
+			return true, err
+		}
 		return true, nil
 	}
 	sort.SliceStable(operations, func(i, j int) bool {
@@ -241,16 +247,24 @@ func (cmd *SyncCmd) reviewReconciliation(
 		}
 		return operations[i].label < operations[j].label
 	})
-	fmt.Fprintf(cmd.out, "\nComplete reconciliation plan (%d item decisions):\n", len(operations))
-	fmt.Fprintln(cmd.out, "Back up both vaults, including History and attachments, before continuing. Backup is your responsibility.")
+	if _, err := fmt.Fprintf(cmd.out, "\nComplete reconciliation plan (%d item decisions):\n", len(operations)); err != nil {
+		return false, err
+	}
+	if _, err := fmt.Fprintln(cmd.out, "Back up both vaults, including History and attachments, before continuing. Backup is your responsibility."); err != nil {
+		return false, err
+	}
 	for index, operation := range operations {
-		fmt.Fprintf(cmd.out, "  %d. %s\n", index+1, operation.label)
+		if _, err := fmt.Fprintf(cmd.out, "  %d. %s\n", index+1, operation.label); err != nil {
+			return false, err
+		}
 		if operation.removeID != "" {
 			device := peer.Name
 			if operation.removeLocal {
 				device = "this device"
 			}
-			fmt.Fprintf(cmd.out, "     Then remove old ID %s from %s.\n", operation.removeID, device)
+			if _, err := fmt.Fprintf(cmd.out, "     Then remove old ID %s from %s.\n", operation.removeID, device); err != nil {
+				return false, err
+			}
 		}
 	}
 	confirmed, err := cmd.askSyncYesNo(ctx, nil, input, nil, nil, "Proceed with the complete plan? [y/N]")
@@ -360,14 +374,22 @@ func (cmd *SyncCmd) reviewReconcileTitleCandidates(
 		sort.Strings(localIDs)
 		sort.Strings(remoteIDs)
 		if len(localIDs) != 1 || len(remoteIDs) != 1 {
-			fmt.Fprintf(cmd.out, "\nAmbiguous possible match group: %s / %s (%d items here, %d on %s).\n", key.typeID.Label(), key.title, len(localIDs), len(remoteIDs), peerName)
+			if _, err := fmt.Fprintf(cmd.out, "\nAmbiguous possible match group: %s / %s (%d items here, %d on %s).\n", key.typeID.Label(), key.title, len(localIDs), len(remoteIDs), peerName); err != nil {
+				return err
+			}
 			for _, id := range localIDs {
-				cmd.showReconcileSummary("This device", local[id])
+				if err := cmd.showReconcileSummary("This device", local[id]); err != nil {
+					return err
+				}
 			}
 			for _, id := range remoteIDs {
-				cmd.showReconcileSummary(peerName, remote[id])
+				if err := cmd.showReconcileSummary(peerName, remote[id]); err != nil {
+					return err
+				}
 			}
-			fmt.Fprintln(cmd.out, "No pair is selected automatically; these items will remain separate and sync by their existing IDs.")
+			if _, err := fmt.Fprintln(cmd.out, "No pair is selected automatically; these items will remain separate and sync by their existing IDs."); err != nil {
+				return err
+			}
 			if err := cmd.askAmbiguousReconcileChoice(ctx, input); err != nil {
 				return err
 			}
@@ -375,7 +397,9 @@ func (cmd *SyncCmd) reviewReconcileTitleCandidates(
 		}
 		localID, remoteID := localIDs[0], remoteIDs[0]
 		localItem, remoteItem := local[localID], remote[remoteID]
-		fmt.Fprintf(cmd.out, "\nPossible match: %s\n", key.typeID.Label()+" / "+key.title)
+		if _, err := fmt.Fprintf(cmd.out, "\nPossible match: %s\n", key.typeID.Label()+" / "+key.title); err != nil {
+			return err
+		}
 		if err := cmd.showReconcileComparison(localItem, remoteItem, peerName); err != nil {
 			return err
 		}
@@ -385,7 +409,9 @@ func (cmd *SyncCmd) reviewReconcileTitleCandidates(
 			suggested = "r"
 			suggestion = peerName
 		}
-		fmt.Fprintf(cmd.out, "Suggested version: %s (most recently modified).\n", suggestion)
+		if _, err := fmt.Fprintf(cmd.out, "Suggested version: %s (most recently modified).\n", suggestion); err != nil {
+			return err
+		}
 		decision, err := cmd.askReconcilePairDecision(ctx, input, suggested, peerName)
 		if err != nil {
 			return err
@@ -420,7 +446,9 @@ func (cmd *SyncCmd) reviewReconcileTitleCandidates(
 // askAmbiguousReconcileChoice waits for the user to skip or cancel matching.
 func (cmd *SyncCmd) askAmbiguousReconcileChoice(ctx context.Context, input <-chan syncInput) error {
 	for {
-		fmt.Fprint(cmd.out, "[s] Skip matching and keep the items separate, [q] cancel reconciliation: ")
+		if _, err := fmt.Fprint(cmd.out, "[s] Skip matching and keep the items separate, [q] cancel reconciliation: "); err != nil {
+			return err
+		}
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
@@ -434,7 +462,9 @@ func (cmd *SyncCmd) askAmbiguousReconcileChoice(ctx context.Context, input <-cha
 			case "q":
 				return errCanceled
 			default:
-				fmt.Fprintln(cmd.out, "Enter s or q.")
+				if _, err := fmt.Fprintln(cmd.out, "Enter s or q."); err != nil {
+					return err
+				}
 			}
 		}
 	}
@@ -456,10 +486,16 @@ func (cmd *SyncCmd) showReconcileComparison(local, remote reconcileItem, peerNam
 		return nil
 	}
 	table := tabwriter.NewWriter(cmd.out, 0, 4, 2, ' ', 0)
-	fmt.Fprintf(table, "\nField\tThis device\t%s\n", peerName)
-	fmt.Fprintln(table, "────────────────────────────────────────────────────────")
+	if _, err := fmt.Fprintf(table, "\nField\tThis device\t%s\n", peerName); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintln(table, "────────────────────────────────────────────────────────"); err != nil {
+		return err
+	}
 	for _, row := range rows {
-		fmt.Fprintf(table, "%s\t%s\t%s\n", row.field, row.local, row.remote)
+		if _, err := fmt.Fprintf(table, "%s\t%s\t%s\n", row.field, row.local, row.remote); err != nil {
+			return err
+		}
 	}
 	return table.Flush()
 }
@@ -742,8 +778,9 @@ func reconcileTime(timestamp *uint64) string {
 }
 
 // showReconcileSummary prints an item's side and modification time.
-func (cmd *SyncCmd) showReconcileSummary(side string, item reconcileItem) {
-	fmt.Fprintf(cmd.out, "  %s — Modified %s\n", side, reconcileTime(item.manifest.ModifiedAt))
+func (cmd *SyncCmd) showReconcileSummary(side string, item reconcileItem) error {
+	_, err := fmt.Fprintf(cmd.out, "  %s — Modified %s\n", side, reconcileTime(item.manifest.ModifiedAt))
+	return err
 }
 
 // reconcileModifiedAt returns zero when the modification time is absent.
@@ -758,9 +795,13 @@ func reconcileModifiedAt(timestamp *uint64) uint64 {
 func (cmd *SyncCmd) askReconcileSyncDecision(ctx context.Context, input <-chan syncInput, kind pawsync.DifferenceKind, peer string) (pawsync.Decision, error) {
 	for {
 		for _, option := range syncDecisionMenu(kind, peer) {
-			fmt.Fprintf(cmd.out, "  %s\n", option)
+			if _, err := fmt.Fprintf(cmd.out, "  %s\n", option); err != nil {
+				return "", err
+			}
 		}
-		fmt.Fprint(cmd.out, "Choice: ")
+		if _, err := fmt.Fprint(cmd.out, "Choice: "); err != nil {
+			return "", err
+		}
 		select {
 		case <-ctx.Done():
 			return "", ctx.Err()
@@ -770,7 +811,9 @@ func (cmd *SyncCmd) askReconcileSyncDecision(ctx context.Context, input <-chan s
 			}
 			decision, quit, err := parseSyncDecision(kind, answer.line)
 			if err != nil {
-				fmt.Fprintln(cmd.out, err)
+				if _, writeErr := fmt.Fprintln(cmd.out, err); writeErr != nil {
+					return "", writeErr
+				}
 				continue
 			}
 			if quit {
@@ -784,7 +827,9 @@ func (cmd *SyncCmd) askReconcileSyncDecision(ctx context.Context, input <-chan s
 // askReconcilePairDecision reads how to resolve a candidate item pair.
 func (cmd *SyncCmd) askReconcilePairDecision(ctx context.Context, input <-chan syncInput, suggested, peer string) (string, error) {
 	for {
-		fmt.Fprintf(cmd.out, "  [l] Keep this device's version and ID\n  [r] Keep %s's version and ID\n  [s] Reject this match and keep both IDs\n  [q] Cancel reconciliation\nChoice (suggested %s): ", peer, suggested)
+		if _, err := fmt.Fprintf(cmd.out, "  [l] Keep this device's version and ID\n  [r] Keep %s's version and ID\n  [s] Reject this match and keep both IDs\n  [q] Cancel reconciliation\nChoice (suggested %s): ", peer, suggested); err != nil {
+			return "", err
+		}
 		select {
 		case <-ctx.Done():
 			return "", ctx.Err()
@@ -799,7 +844,9 @@ func (cmd *SyncCmd) askReconcilePairDecision(ctx context.Context, input <-chan s
 			if choice == "q" {
 				return "", errCanceled
 			}
-			fmt.Fprintln(cmd.out, "Enter l, r, s, or q.")
+			if _, err := fmt.Fprintln(cmd.out, "Enter l, r, s, or q."); err != nil {
+				return "", err
+			}
 		}
 	}
 }
@@ -868,7 +915,9 @@ func (cmd *SyncCmd) executeReconciliation(
 		}
 	}
 	for _, operation := range operations {
-		fmt.Fprintf(cmd.out, "[%d/%d] %s... ", completed+1, total, operation.label)
+		if _, err := fmt.Fprintf(cmd.out, "[%d/%d] %s... ", completed+1, total, operation.label); err != nil {
+			return false, err
+		}
 		var err error
 		if operation.localSource {
 			local := localItems[operation.sourceID]
@@ -877,12 +926,18 @@ func (cmd *SyncCmd) executeReconciliation(
 			err = session.CopyRemoteItemToLocal(ctx, peer, operation.sourceID, operation.sourceState, operation.targetState)
 		}
 		if err != nil {
-			fmt.Fprintf(cmd.errOut, "Failed: %v\n", err)
-			fmt.Fprintf(cmd.errOut, "%d operations completed; %d operations are incomplete or were not attempted. The current transfer outcome is uncertain.\n", completed, total-completed)
+			if _, writeErr := fmt.Fprintf(cmd.errOut, "Failed: %v\n", err); writeErr != nil {
+				return false, writeErr
+			}
+			if _, writeErr := fmt.Fprintf(cmd.errOut, "%d operations completed; %d operations are incomplete or were not attempted. The current transfer outcome is uncertain.\n", completed, total-completed); writeErr != nil {
+				return false, writeErr
+			}
 			return false, err
 		}
 		completed++
-		fmt.Fprintln(cmd.out, "Copied and verified")
+		if _, err := fmt.Fprintln(cmd.out, "Copied and verified"); err != nil {
+			return false, err
+		}
 		if operation.removeID == "" {
 			continue
 		}
@@ -890,20 +945,28 @@ func (cmd *SyncCmd) executeReconciliation(
 		if operation.removeLocal {
 			device = "this device"
 		}
-		fmt.Fprintf(cmd.out, "[%d/%d] Remove old ID %s from %s... ", completed+1, total, operation.removeID, device)
+		if _, err := fmt.Fprintf(cmd.out, "[%d/%d] Remove old ID %s from %s... ", completed+1, total, operation.removeID, device); err != nil {
+			return false, err
+		}
 		if operation.removeLocal {
 			err = session.DeleteLocalItem(ctx, operation.removeID, operation.removeState)
 		} else {
 			err = session.DeleteRemoteItem(ctx, peer, operation.removeID, operation.removeState)
 		}
 		if err != nil {
-			fmt.Fprintf(cmd.errOut, "Failed: %v\n", err)
-			fmt.Fprintf(cmd.errOut, "The replacement is copied and verified; removal was not confirmed. %d operations completed; %d operations are incomplete or were not attempted.\n", completed, total-completed)
+			if _, writeErr := fmt.Fprintf(cmd.errOut, "Failed: %v\n", err); writeErr != nil {
+				return false, writeErr
+			}
+			if _, writeErr := fmt.Fprintf(cmd.errOut, "The replacement is copied and verified; removal was not confirmed. %d operations completed; %d operations are incomplete or were not attempted.\n", completed, total-completed); writeErr != nil {
+				return false, writeErr
+			}
 			return false, err
 		}
 		completed++
-		fmt.Fprintln(cmd.out, "Removed")
+		if _, err := fmt.Fprintln(cmd.out, "Removed"); err != nil {
+			return false, err
+		}
 	}
-	fmt.Fprintf(cmd.out, "\nReconciliation completed. %d operations completed.\n", completed)
-	return true, nil
+	_, err := fmt.Fprintf(cmd.out, "\nReconciliation completed. %d operations completed.\n", completed)
+	return true, err
 }

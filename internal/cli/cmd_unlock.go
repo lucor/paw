@@ -9,7 +9,6 @@ import (
 	"time"
 
 	urfave "github.com/urfave/cli/v3"
-	"golang.org/x/crypto/ssh"
 
 	"go.lucor.dev/paw/internal/agent"
 	"go.lucor.dev/paw/internal/model"
@@ -27,11 +26,12 @@ type UnlockCmd struct {
 func newUnlockCommand(base *command) *urfave.Command {
 	cmd := &UnlockCmd{command: base}
 	c := &urfave.Command{
-		Name:        "unlock",
-		Usage:       "Unlocks a vault and returns a session ID",
-		ArgsUsage:   "VAULT",
-		Description: vaultReferenceHelp,
-		Flags:       []urfave.Flag{&urfave.DurationFlag{Name: "lifetime", Aliases: []string{"t"}, Usage: "Maximum session lifetime (zero means no expiry)"}},
+		Name:         "unlock",
+		Usage:        "Unlocks a vault and returns a session ID",
+		ArgsUsage:    "VAULT",
+		Description:  vaultReferenceHelp,
+		Flags:        []urfave.Flag{&urfave.DurationFlag{Name: "lifetime", Aliases: []string{"t"}, Usage: "Maximum session lifetime (zero means no expiry)"}},
+		OnUsageError: onUsageError,
 	}
 	c.Before = cmd.Validate
 	c.Action = cmd.Run
@@ -45,6 +45,9 @@ func (cmd *UnlockCmd) Validate(ctx context.Context, c *urfave.Command) (context.
 	}
 	cmd.vaultName = c.Args().First()
 	cmd.life = c.Duration("lifetime")
+	if cmd.life < 0 {
+		return ctx, invalidArgumentsError("lifetime cannot be negative")
+	}
 	return ctx, nil
 }
 
@@ -62,7 +65,9 @@ func (cmd *UnlockCmd) Run(ctx context.Context, _ *urfave.Command) error {
 		return err
 	}
 	if key.Migrated() {
-		fmt.Fprintln(cmd.errOut, "Upgraded vault encryption to post-quantum age.")
+		if err := base.Infof("Upgraded vault encryption to post-quantum age.\n"); err != nil {
+			return err
+		}
 	}
 
 	vault, err := base.loadVault(key)
@@ -73,14 +78,13 @@ func (cmd *UnlockCmd) Run(ctx context.Context, _ *urfave.Command) error {
 	if err != nil {
 		return err
 	}
-	fmt.Fprintln(cmd.out, "adding SSH keys to the agent...")
 	err = cmd.addSSHKeysToAgent(c, vault)
 	if err != nil {
-		fmt.Fprintln(cmd.out, "could not add SSH keys to the agent:", err)
+		if writeErr := base.Warnf("could not load SSH keys for the agent: %v\n", err); writeErr != nil {
+			return writeErr
+		}
 	}
-	fmt.Fprintln(cmd.out, "Session ID: ", sessionID)
-	fmt.Fprintln(cmd.out, "[✓] vault unlocked")
-	return nil
+	return base.Printf("%s\n", sessionID)
 }
 
 // addSSHKeysToAgent loads configured SSH items and adds their keys to the agent.
@@ -92,24 +96,34 @@ func (cmd *UnlockCmd) addSSHKeysToAgent(c agent.PawAgent, vault *model.Vault) er
 	for _, summary := range summaries {
 		item, err := cmd.storage.LoadItem(vault, summary.ID)
 		if err != nil {
-			return err
+			if err := cmd.Warnf("could not load SSH key %q: %v\n", summary.Title, err); err != nil {
+				return err
+			}
+			continue
 		}
 		if !item.Metadata.AddToAgent {
 			continue
 		}
 		credential, err := item.SSHKey()
 		if err != nil {
-			return err
-		}
-		privateKey, publicKey, err := model.ParseSSHKey(credential)
-		if err != nil {
-			return err
-		}
-		if err := c.AddSSHKey(privateKey, credential.KeyComment); err != nil {
-			fmt.Fprintf(cmd.out, "could not add SSH key to agent. Error: %q - Public key: %s", err, ssh.MarshalAuthorizedKey(publicKey))
+			if err := cmd.Warnf("could not read SSH key %q: %v\n", summary.Title, err); err != nil {
+				return err
+			}
 			continue
 		}
-		fmt.Fprintf(cmd.out, "added: %s", ssh.MarshalAuthorizedKey(publicKey))
+		privateKey, _, err := model.ParseSSHKey(credential)
+		if err != nil {
+			if err := cmd.Warnf("could not parse SSH key %q: %v\n", summary.Title, err); err != nil {
+				return err
+			}
+			continue
+		}
+		if err := c.AddSSHKey(privateKey, credential.KeyComment); err != nil {
+			if err := cmd.Warnf("could not add SSH key %q to the agent: %v\n", summary.Title, err); err != nil {
+				return err
+			}
+			continue
+		}
 	}
 	return nil
 }

@@ -35,12 +35,18 @@ func newAgentCommand(base *command) *urfave.Command {
 			newAgentSubcommand("start", "Starts the agent", start),
 			newAgentSubcommand("sessions", "Lists active sessions", sessions),
 		},
+		OnUsageError: onUsageError,
 	}
 }
 
 // newAgentSubcommand registers one agent operation.
 func newAgentSubcommand(name, usage string, cmd *AgentCmd) *urfave.Command {
-	c := &urfave.Command{Name: name, Usage: usage, ArgsUsage: " "}
+	c := &urfave.Command{
+		Name:         name,
+		Usage:        usage,
+		ArgsUsage:    " ",
+		OnUsageError: onUsageError,
+	}
 	c.Before = cmd.Validate
 	c.Action = cmd.Run
 	return c
@@ -84,21 +90,24 @@ func (cmd *AgentCmd) Run(ctx context.Context, _ *urfave.Command) error {
 		}
 
 		if len(sessions) == 0 {
-			fmt.Fprintln(cmd.out, "No session found")
 			return nil
 		}
 
-		w := tabwriter.NewWriter(cmd.out, 0, 0, 1, ' ', tabwriter.Debug)
-		fmt.Fprintln(w, "Session ID\tVault ID\tLifetime")
 		vaultIDs := make([]string, len(sessions))
 		for i, session := range sessions {
 			vaultIDs[i] = session.Vault
 		}
 		prefixes := vaultIDPrefixes(vaultIDs)
-		for _, session := range sessions {
-			fmt.Fprintf(w, "%s\t%s\t%s\n", session.ID, prefixes[session.Vault], session.Lifetime.Round(1*time.Second))
+		w := tabwriter.NewWriter(base.Stdout(), 0, 0, 1, ' ', 0)
+		if _, err := fmt.Fprintln(w, "Session ID\tVault ID\tLifetime"); err != nil {
+			return err
 		}
-		w.Flush()
+		for _, session := range sessions {
+			if _, err := fmt.Fprintf(w, "%s\t%s\t%s\n", session.ID, prefixes[session.Vault], session.Lifetime.Round(time.Second)); err != nil {
+				return err
+			}
+		}
+		return w.Flush()
 	}
 	return nil
 }

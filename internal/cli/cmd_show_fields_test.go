@@ -31,6 +31,7 @@ func TestShowMasksSecretsAndAllowsExplicitFieldOutput(t *testing.T) {
 	var output, stderr bytes.Buffer
 	cmd := &ShowCmd{command: &command{out: &output, errOut: &stderr}, itemPath: itemPath{itemType: model.LoginItemType}}
 	require.NoError(t, cmd.showItem(context.Background(), item))
+	require.Contains(t, output.String(), "ID: "+item.ID+"\n")
 	require.Contains(t, output.String(), "Password: ********")
 	require.Contains(t, output.String(), "Token: ********")
 	require.NotContains(t, output.String(), "login-secret")
@@ -48,6 +49,41 @@ func TestShowMasksSecretsAndAllowsExplicitFieldOutput(t *testing.T) {
 	cmd.field = "API/Token"
 	require.NoError(t, cmd.showItem(context.Background(), item))
 	require.Equal(t, "api-secret", output.String())
+	require.NotContains(t, output.String(), "ID:")
+	require.Empty(t, stderr.String())
+}
+
+func TestShowFullItemIncludesIDForEachItemType(t *testing.T) {
+	password, err := model.NewPassword("Wi-Fi", "synthetic-secret", model.PasswordSettings{Mode: paw.CustomPassword})
+	require.NoError(t, err)
+	note, err := model.NewNote("Secure note", "note content")
+	require.NoError(t, err)
+	key, err := sshkey.GenerateKey()
+	require.NoError(t, err)
+	credential, err := model.EncodeSSHKey(key.PrivateKey(), key.PublicKey().Type(), "key")
+	require.NoError(t, err)
+	sshItem, err := model.NewSSHKey("Deployment", credential, "", model.PasswordSettings{Mode: paw.CustomPassword})
+	require.NoError(t, err)
+
+	for _, testCase := range []struct {
+		name     string
+		item     *model.Item
+		itemType model.ItemType
+	}{
+		{name: "password", item: password, itemType: model.PasswordItemType},
+		{name: "note", item: note, itemType: model.NoteItemType},
+		{name: "SSH key", item: sshItem, itemType: model.SSHKeyItemType},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			var output bytes.Buffer
+			cmd := &ShowCmd{
+				command:  &command{out: &output},
+				itemPath: itemPath{itemType: testCase.itemType},
+			}
+			require.NoError(t, cmd.showItem(context.Background(), testCase.item))
+			require.True(t, strings.HasPrefix(output.String(), "ID: "+testCase.item.ID+"\n"))
+		})
+	}
 }
 
 func TestShowClipboardWritesOnlyDiagnosticToStderr(t *testing.T) {
@@ -60,8 +96,34 @@ func TestShowClipboardWritesOnlyDiagnosticToStderr(t *testing.T) {
 	require.NoError(t, cmd.showItem(context.Background(), item))
 	require.Equal(t, "synthetic-secret", copied)
 	require.Empty(t, output.String())
-	require.Contains(t, stderr.String(), "copied")
+	require.Equal(t, "Password copied to clipboard\n", stderr.String())
 	require.NotContains(t, stderr.String(), "synthetic-secret")
+	require.NotContains(t, stderr.String(), "[✓]")
+}
+
+func TestShowPropagatesOutputWriteErrors(t *testing.T) {
+	item, err := model.NewPassword("Wi-Fi", "synthetic-secret", model.PasswordSettings{Mode: paw.CustomPassword})
+	require.NoError(t, err)
+	writeErr := errors.New("stdout unavailable")
+	writer := &failingShowWriter{err: writeErr}
+	cmd := &ShowCmd{
+		command: &command{
+			out: writer,
+		},
+		itemPath: itemPath{itemType: model.PasswordItemType},
+	}
+	require.ErrorIs(t, cmd.showItem(context.Background(), item), writeErr)
+	require.Equal(t, 1, writer.writes)
+}
+
+type failingShowWriter struct {
+	err    error
+	writes int
+}
+
+func (writer *failingShowWriter) Write([]byte) (int, error) {
+	writer.writes++
+	return 0, writer.err
 }
 
 func TestShowTOTPSecretIsMaskedAndExplicitlySelectable(t *testing.T) {
@@ -130,6 +192,7 @@ func TestShowJSONUsesCXFValuesAndOmitsUnknownExtensions(t *testing.T) {
 	require.NoError(t, cmd.showItem(context.Background(), item))
 	var decoded map[string]any
 	require.NoError(t, json.Unmarshal(output.Bytes(), &decoded))
+	require.Equal(t, item.ID, decoded["id"])
 	require.Equal(t, "secret", decoded["password"])
 	require.Equal(t, []any{"personal"}, decoded["tags"])
 	require.NotContains(t, output.String(), "unknown-secret")

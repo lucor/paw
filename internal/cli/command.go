@@ -68,11 +68,34 @@ var (
 // validateArgs checks that the number of positional arguments is within bounds.
 func validateArgs(c *urfave.Command, min, max int) error {
 	if n := c.Args().Len(); n < min {
-		return fmt.Errorf("invalid arguments: missing required arguments: %s\nUsage: %s %s", strings.TrimSpace(c.ArgsUsage), c.FullName(), strings.TrimSpace(c.ArgsUsage))
+		return invalidArgumentsError("invalid arguments: missing required arguments: %s\nUsage: %s %s", strings.TrimSpace(c.ArgsUsage), c.FullName(), strings.TrimSpace(c.ArgsUsage))
 	} else if n > max {
-		return fmt.Errorf("invalid arguments: unexpected arguments; usage: %s %s", c.FullName(), strings.TrimSpace(c.ArgsUsage))
+		return invalidArgumentsError("invalid arguments: unexpected arguments; usage: %s %s", c.FullName(), strings.TrimSpace(c.ArgsUsage))
 	}
 	return nil
+}
+
+// Printf writes result output to stdout.
+func (base *command) Printf(format string, args ...any) error {
+	_, err := fmt.Fprintf(base.out, format, args...)
+	return err
+}
+
+// Stdout returns the command's result writer.
+func (base *command) Stdout() io.Writer {
+	return base.out
+}
+
+// Infof writes operational information to stderr.
+func (base *command) Infof(format string, args ...any) error {
+	_, err := fmt.Fprintf(base.errOut, format, args...)
+	return err
+}
+
+// Warnf writes a warning to stderr.
+func (base *command) Warnf(format string, args ...any) error {
+	_, err := fmt.Fprintf(base.errOut, format, args...)
+	return err
 }
 
 // loadVault loads the selected vault.

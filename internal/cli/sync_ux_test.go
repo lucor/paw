@@ -257,35 +257,40 @@ func TestSyncLinkScreenAndActions(t *testing.T) {
 		copied = string(data)
 		return nil
 	}}}
-	cmd.showSyncLink(link)
+	require.NoError(t, cmd.showSyncLink(link))
 	require.Contains(t, out.String(), link)
 	require.NotContains(t, out.String(), "█")
 	require.True(t, strings.HasSuffix(out.String(), "> "))
 	for _, input := range []string{"c", "C"} {
 		out.Reset()
 		copied = ""
-		_, connect := cmd.handleSyncLinkInput(context.Background(), link, input)
+		_, connect, err := cmd.handleSyncLinkInput(context.Background(), link, input)
+		require.NoError(t, err)
 		require.False(t, connect)
 		require.Equal(t, link, copied)
 		require.Contains(t, out.String(), "Connection link copied.")
 	}
 	cmd.clipboard = func(context.Context, []byte) error { return errors.New("unavailable") }
 	out.Reset()
-	_, connect := cmd.handleSyncLinkInput(context.Background(), link, "c")
+	_, connect, err := cmd.handleSyncLinkInput(context.Background(), link, "c")
+	require.NoError(t, err)
 	require.False(t, connect)
 	require.Contains(t, errOut.String(), "Could not copy")
 	require.NotContains(t, out.String(), "Connection link copied.")
 	for _, input := range []string{"v", "V"} {
 		out.Reset()
-		_, connect = cmd.handleSyncLinkInput(context.Background(), link, input)
+		_, connect, err = cmd.handleSyncLinkInput(context.Background(), link, input)
+		require.NoError(t, err)
 		require.False(t, connect)
 		require.Contains(t, out.String(), "█")
 	}
-	manual, connect := cmd.handleSyncLinkInput(context.Background(), link, link)
+	manual, connect, err := cmd.handleSyncLinkInput(context.Background(), link, link)
+	require.NoError(t, err)
 	require.True(t, connect)
 	require.Equal(t, link, manual.String())
 	out.Reset()
-	_, connect = cmd.handleSyncLinkInput(context.Background(), link, "invalid")
+	_, connect, err = cmd.handleSyncLinkInput(context.Background(), link, "invalid")
+	require.NoError(t, err)
 	require.False(t, connect)
 	require.Contains(t, out.String(), "Invalid connection link.")
 }

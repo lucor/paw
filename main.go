@@ -4,6 +4,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -13,6 +14,7 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
 
+	urfave "github.com/urfave/cli/v3"
 	"go.lucor.dev/paw/internal/agent"
 	"go.lucor.dev/paw/internal/browser"
 	"go.lucor.dev/paw/internal/cli"
@@ -60,8 +62,8 @@ func run() int {
 	at := &appType{args: os.Args}
 	// handle application start: CLI, GUI
 	if at.IsCLI() && at.IsMobile() {
-		fmt.Fprintln(os.Stderr, "CLI app is unsupported on this OS")
-		return 1
+		fmt.Fprintln(os.Stderr, "Error: CLI app is unsupported on this OS")
+		return cli.ExitCodeApplicationError
 	}
 
 	if !at.IsCLI() && at.IsWindowsOS() {
@@ -76,7 +78,7 @@ func run() int {
 	if err != nil {
 		slog.Error("could not initialize storage", "component", "app", "error", err)
 		fmt.Fprintf(os.Stderr, "Paw could not start: %v\n", err)
-		return 1
+		return cli.ExitCodeApplicationError
 	}
 	defer s.Close()
 	if logFile := configureLogger(s, at.IsMobile(), os.Stderr); logFile != nil {
@@ -92,22 +94,22 @@ func run() int {
 	// Handle message from browser extension
 	if at.IsMessageFromBrowserExtension() {
 		browser.HandleNativeMessage(s)
-		return 0
+		return cli.ExitCodeSuccess
 	}
 
 	if at.IsCLI() {
 		// Run the CLI app
 		if err := cli.Run(os.Args, s); err != nil {
-			fmt.Fprintf(os.Stderr, "[✗] %s\n", err)
-			return 1
+			fmt.Fprintf(os.Stderr, "Error: %s\n", err)
+			return cliErrorExitCode(err)
 		}
-		return 0
+		return cli.ExitCodeSuccess
 	}
 
 	// check for running instance looking at the health service
 	if ui.HealthServiceCheck(s) {
 		fmt.Fprintln(os.Stderr, "Paw GUI is already running")
-		return 1
+		return cli.ExitCodeApplicationError
 	}
 	// start the health service
 	go ui.HealthService(s)
@@ -136,7 +138,16 @@ func run() int {
 	w.Resize(fyne.NewSize(ui.DefaultWindowWidth, ui.DefaultWindowHeight))
 	w.SetContent(ui.MakeApp(s, w))
 	w.ShowAndRun()
-	return 0
+	return cli.ExitCodeSuccess
+}
+
+// cliErrorExitCode returns the exit code carried by a CLI error.
+func cliErrorExitCode(err error) int {
+	var exitCoder urfave.ExitCoder
+	if errors.As(err, &exitCoder) {
+		return exitCoder.ExitCode()
+	}
+	return cli.ExitCodeApplicationError
 }
 
 func configureLogger(store *storage.FileStorage, mobile bool, stderr io.Writer) io.Closer {

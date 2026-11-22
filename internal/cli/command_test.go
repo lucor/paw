@@ -4,6 +4,7 @@
 package cli
 
 import (
+	"bytes"
 	"errors"
 	"io"
 	"strings"
@@ -14,7 +15,18 @@ import (
 	"go.lucor.dev/paw/internal/model"
 	"go.lucor.dev/paw/internal/paw"
 	"go.lucor.dev/paw/internal/sshkey"
+	"go.lucor.dev/paw/internal/storage"
 )
+
+func TestCommandOutputMethodsSeparateStreams(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	base := &command{out: &stdout, errOut: &stderr}
+	require.NoError(t, base.Printf("result %d\n", 7))
+	require.NoError(t, base.Infof("info\n"))
+	require.NoError(t, base.Warnf("warning\n"))
+	require.Equal(t, "result 7\n", stdout.String())
+	require.Equal(t, "info\nwarning\n", stderr.String())
+}
 
 func TestAddLoginSharesPromptInputWithPasswordGenerator(t *testing.T) {
 	var prompts strings.Builder
@@ -197,6 +209,54 @@ func TestEditTOTPChangesSettingsWithoutReplacingSecret(t *testing.T) {
 	require.Equal(t, "sha512", credentials.TOTP.Algorithm)
 	require.Equal(t, uint16(9), credentials.TOTP.Digits)
 	require.Equal(t, uint16(47), credentials.TOTP.Period)
+}
+
+func TestEditTOTPFromStdinAddsAndReplacesWithoutPrintingSecret(t *testing.T) {
+	base, vault := addTestCommand(t)
+	item, err := model.NewLogin("account", "alice", "password", model.PasswordSettings{Mode: paw.CustomPassword})
+	require.NoError(t, err)
+	require.NoError(t, base.storage.StoreItem(vault, item))
+	path := storage.FormatVaultID(vault.Accounts[0].ID) + "/login/account"
+
+	for _, existing := range []bool{false, true} {
+		if existing {
+			old := cxf.TOTP{Type: cxf.CredentialTypeTOTP, Secret: "GEZDGNBVGY3TQOJQ", Algorithm: "sha256", Digits: 8, Period: 45}
+			require.NoError(t, item.SetTOTP(-1, old))
+			require.NoError(t, base.storage.StoreItem(vault, item))
+		}
+		out, stderr, err := executeSubcommand(t, []string{"edit", "--session", "active", "--totp-stdin", path}, newEditCommand, base, "JBSWY3DPEHPK3PXP\n")
+		require.NoError(t, err)
+		require.NotContains(t, out, "JBSWY3DPEHPK3PXP")
+		require.NotContains(t, stderr, "JBSWY3DPEHPK3PXP")
+		loaded, err := base.storage.LoadVault(vault.Accounts[0].ID, vault.Key())
+		require.NoError(t, err)
+		updated, err := base.storage.LoadItem(loaded, item.ID)
+		require.NoError(t, err)
+		credentials, err := model.DecodeCredentials(updated.Credentials)
+		require.NoError(t, err)
+		require.Equal(t, "JBSWY3DPEHPK3PXP", credentials.TOTP.Secret)
+		require.Equal(t, "sha1", credentials.TOTP.Algorithm)
+		require.Equal(t, uint16(paw.TOTPDigitsDefault), credentials.TOTP.Digits)
+		require.Equal(t, uint16(paw.TOTPIntervalDefault), credentials.TOTP.Period)
+	}
+}
+
+func TestEditTOTPFromStdinRejectsInvalidSecretsWithoutEcho(t *testing.T) {
+	for _, secret := range []string{"", "not base32!", "otpauth://totp/example?secret=JBSWY3DPEHPK3PXP"} {
+		t.Run(secret, func(t *testing.T) {
+			base, vault := addTestCommand(t)
+			item, err := model.NewLogin("account", "alice", "password", model.PasswordSettings{Mode: paw.CustomPassword})
+			require.NoError(t, err)
+			require.NoError(t, base.storage.StoreItem(vault, item))
+			path := storage.FormatVaultID(vault.Accounts[0].ID) + "/login/account"
+			out, stderr, err := executeSubcommand(t, []string{"edit", "--session", "active", "--totp-stdin", path}, newEditCommand, base, secret+"\n")
+			require.Error(t, err)
+			require.Empty(t, out)
+			if secret != "" {
+				require.NotContains(t, stderr, secret)
+			}
+		})
+	}
 }
 
 func TestEditCanImportReplacementSSHKey(t *testing.T) {
@@ -383,7 +443,8 @@ func TestPasswordGeneratorModes(t *testing.T) {
 func TestSSHKeyOperationsAreInjected(t *testing.T) {
 	generated, err := sshkey.GenerateKey()
 	require.NoError(t, err)
-	base := &command{prompter: testInteractivePrompter(t, "n\n"), out: io.Discard}
+	var stdout, stderr bytes.Buffer
+	base := &command{prompter: testInteractivePrompter(t, "n\n"), out: &stdout, errOut: &stderr}
 	base.generateSSHKey = func() (*generatedSSHKey, error) {
 		return &generatedSSHKey{PrivateKey: string(generated.MarshalPrivateKey()), PublicKey: string(generated.MarshalPublicKey()), Fingerprint: generated.Fingerprint()}, nil
 	}
@@ -395,6 +456,8 @@ func TestSSHKeyOperationsAreInjected(t *testing.T) {
 	_, _, fingerprint, err := model.FormatSSHKey(credential)
 	require.NoError(t, err)
 	require.Equal(t, generated.Fingerprint(), fingerprint)
+	require.Empty(t, stdout.String())
+	require.Equal(t, "The key fingerprint is:\n"+fingerprint+"\n", stderr.String())
 	failure := errors.New("file read failed")
 	base.readFile = func(name string) ([]byte, error) {
 		require.Equal(t, "virtual-key", name)

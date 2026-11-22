@@ -30,6 +30,7 @@ func newHistoryCommand(base *command) *urfave.Command {
 			newHistorySubcommand(base, "show", "Shows a historical item version", historyShow),
 			newHistorySubcommand(base, "restore", "Restores a historical item version", historyRestore),
 		},
+		OnUsageError: onUsageError,
 	}
 	c.Before = cmd.Validate
 	c.Action = cmd.Run
@@ -60,10 +61,11 @@ func newHistorySubcommand(base *command, name, usage, operation string) *urfave.
 		argsUsage += " INDEX"
 	}
 	c := &urfave.Command{
-		Name:        name,
-		Usage:       usage,
-		ArgsUsage:   argsUsage,
-		Description: vaultReferenceHelp,
+		OnUsageError: onUsageError,
+		Name:         name,
+		Usage:        usage,
+		ArgsUsage:    argsUsage,
+		Description:  vaultReferenceHelp,
 	}
 	c.Before = cmd.Validate
 	c.Action = cmd.Run
@@ -81,10 +83,10 @@ func (cmd *HistoryCommand) Validate(ctx context.Context, c *urfave.Command) (con
 			return ctx, nil
 		}
 		if err := validateArgs(c, 1, 1); err != nil {
-			return ctx, fmt.Errorf("unexpected arguments; usage: %s <VAULT/ITEM_TYPE/ITEM_NAME>", c.FullName())
+			return ctx, invalidArgumentsError("unexpected arguments; usage: %s <VAULT/ITEM_TYPE/ITEM_NAME>", c.FullName())
 		}
 		if !strings.Contains(c.Args().First(), "/") {
-			return ctx, fmt.Errorf("unknown history subcommand %q; use 'list', 'show', or 'restore'", c.Args().First())
+			return ctx, invalidArgumentsError("unknown history subcommand %q; use 'list', 'show', or 'restore'", c.Args().First())
 		}
 	} else if cmd.operation == historyList {
 		if err := validateArgs(c, 1, 1); err != nil {
@@ -101,7 +103,7 @@ func (cmd *HistoryCommand) Validate(ctx context.Context, c *urfave.Command) (con
 	if cmd.operation == historyShow || cmd.operation == historyRestore {
 		cmd.index, err = historyIndex(c.Args().Get(1))
 		if err != nil {
-			return ctx, err
+			return ctx, invalidArgumentsError("%w", err)
 		}
 	}
 	return ctx, nil
@@ -238,8 +240,8 @@ func (cmd *historyCmd) restore(index int) error {
 		return err
 	}
 	if !confirmed {
-		fmt.Fprintln(cmd.out, "[✓] restore canceled")
-		return nil
+		_, err := fmt.Fprintln(cmd.out, "[✓] restore canceled")
+		return err
 	}
 	appState, err := cmd.storage.LoadAppState()
 	if err != nil {
@@ -251,13 +253,13 @@ func (cmd *historyCmd) restore(index int) error {
 		return err
 	}
 	if !changed {
-		fmt.Fprintf(cmd.out, "[✓] item %q is already at that version\n", safeTerminalText(cmd.itemName))
-		return nil
+		_, err := fmt.Fprintf(cmd.out, "[✓] item %q is already at that version\n", safeTerminalText(cmd.itemName))
+		return err
 	}
 	appState.Modified = now
 	if err := cmd.storage.StoreAppState(appState); err != nil {
 		return err
 	}
-	fmt.Fprintf(cmd.out, "[✓] item %q restored from %s\n", safeTerminalText(cmd.itemName), capturedAt)
-	return nil
+	_, err = fmt.Fprintf(cmd.out, "[✓] item %q restored from %s\n", safeTerminalText(cmd.itemName), capturedAt)
+	return err
 }

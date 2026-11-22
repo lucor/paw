@@ -35,6 +35,7 @@ func newExportCommand(base *command) *urfave.Command {
 			&urfave.BoolFlag{Name: "encrypted", Usage: "Export password-encrypted CXF (default)"},
 			&urfave.BoolFlag{Name: "paw", Usage: "Export an encrypted Paw archive including attachments"},
 		},
+		OnUsageError: onUsageError,
 	}
 	c.Before = cmd.Validate
 	c.Action = cmd.Run
@@ -48,7 +49,7 @@ func (cmd *ExportCmd) Validate(ctx context.Context, c *urfave.Command) (context.
 	}
 	plaintext, pawArchive := c.Bool("plaintext"), c.Bool("paw")
 	if (plaintext && c.Bool("encrypted")) || (pawArchive && (plaintext || c.Bool("encrypted"))) {
-		return ctx, fmt.Errorf("choose exactly one export format")
+		return ctx, invalidArgumentsError("choose exactly one export format")
 	}
 	cmd.vaultName = c.Args().Get(0)
 	cmd.destination = c.Args().Get(1)

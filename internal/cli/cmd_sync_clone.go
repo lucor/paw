@@ -37,7 +37,9 @@ func (cmd *SyncCmd) runClone(ctx context.Context) (result error) {
 			return err
 		}
 	} else {
-		fmt.Fprintln(cmd.out, "Looking for devices. Ready to be found.")
+		if _, err := fmt.Fprintln(cmd.out, "Looking for devices. Ready to be found."); err != nil {
+			return err
+		}
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
@@ -47,19 +49,25 @@ func (cmd *SyncCmd) runClone(ctx context.Context) (result error) {
 			}
 			peer = found
 		}
-		fmt.Fprintf(cmd.out, "Found: %s\n", peer.Name)
+		if _, err := fmt.Fprintf(cmd.out, "Found: %s\n", peer.Name); err != nil {
+			return err
+		}
 		confirmed, err := cmd.prompter.askYesNo("Connect to "+peer.Name+"?", false)
 		if err != nil || !confirmed {
 			return err
 		}
 	}
-	fmt.Fprintf(cmd.out, "Pairing with %s\n", peer.Name)
+	if _, err := fmt.Fprintf(cmd.out, "Pairing with %s\n", peer.Name); err != nil {
+		return err
+	}
 	pairing, err := session.RequestPairing(ctx, peer)
 	if err != nil {
 		return err
 	}
 	localVault, remoteVault := session.VaultReferences()
-	fmt.Fprintf(cmd.out, "%s\n\nVerification code: %s\nConfirm this code on %s.\nWaiting for confirmation...\n", formatPairingVaultReferences(peer.Name, localVault, remoteVault), formatSyncCode(pairing.Code()), peer.Name)
+	if _, err := fmt.Fprintf(cmd.out, "%s\n\nVerification code: %s\nConfirm this code on %s.\nWaiting for confirmation...\n", formatPairingVaultReferences(peer.Name, localVault, remoteVault), formatSyncCode(pairing.Code()), peer.Name); err != nil {
+		return err
+	}
 	if err := pairing.Confirm(ctx, pairing.Code()); err != nil {
 		return fmt.Errorf("pairing failed: %w", err)
 	}
@@ -68,7 +76,9 @@ func (cmd *SyncCmd) runClone(ctx context.Context) (result error) {
 		notifyCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		if err := session.NotifySyncComplete(notifyCtx, peer, successful); err != nil {
-			fmt.Fprintf(cmd.errOut, "Could not notify %s: %v\n", peer.Name, err)
+			if _, writeErr := fmt.Fprintf(cmd.errOut, "Could not notify %s: %v\n", peer.Name, err); writeErr != nil {
+				result = errors.Join(result, writeErr)
+			}
 		}
 	}()
 	info, err := session.RemoteVaultInfo(ctx)
@@ -78,7 +88,9 @@ func (cmd *SyncCmd) runClone(ctx context.Context) (result error) {
 	if info.Name == "" || info.ID == "" {
 		return fmt.Errorf("source vault information is incomplete")
 	}
-	fmt.Fprintf(cmd.out, "\nConnected to %s.\n\nVault: %s (%s)\n", peer.Name, info.Name, shortVaultID(info.ID))
+	if _, err := fmt.Fprintf(cmd.out, "\nConnected to %s.\n\nVault: %s (%s)\n", peer.Name, info.Name, shortVaultID(info.ID)); err != nil {
+		return err
+	}
 	cloneName, err := promptCloneVaultName(cmd.prompter, info.Name)
 	if err != nil {
 		return err
@@ -98,7 +110,9 @@ func (cmd *SyncCmd) runClone(ctx context.Context) (result error) {
 	if password != confirm {
 		return fmt.Errorf("passwords do not match")
 	}
-	fmt.Fprintf(cmd.out, "Creating %s...\n", cloneName)
+	if _, err := fmt.Fprintf(cmd.out, "Creating %s...\n", cloneName); err != nil {
+		return err
+	}
 	vault, err := cmd.storage.CreateCloneVault(cloneName, password)
 	if err != nil {
 		return err
@@ -125,18 +139,32 @@ func (cmd *SyncCmd) runClone(ctx context.Context) (result error) {
 	if err != nil {
 		return err
 	}
-	fmt.Fprintln(cmd.out, "Receiving items...")
+	if _, err := fmt.Fprintln(cmd.out, "Receiving items..."); err != nil {
+		return err
+	}
 	index := 0
-	execution, err := session.ExecuteWithProgress(ctx, peer, plan, func(entry pawsync.PlanEntry, started bool, operationErr error) {
+	progressCtx, cancelProgress := context.WithCancel(ctx)
+	defer cancelProgress()
+	var writeErr error
+	execution, err := session.ExecuteWithProgress(progressCtx, peer, plan, func(entry pawsync.PlanEntry, started bool, operationErr error) {
+		if writeErr != nil {
+			return
+		}
 		if started {
 			index++
-			fmt.Fprintf(cmd.out, "[%d/%d] %s... ", index, len(plan.Entries), syncItemName(manifestItem(local, remote, entry.ItemID)))
+			_, writeErr = fmt.Fprintf(cmd.out, "[%d/%d] %s... ", index, len(plan.Entries), syncItemName(manifestItem(local, remote, entry.ItemID)))
 		} else if operationErr != nil {
-			fmt.Fprintf(cmd.out, "Failed: %v\n", operationErr)
+			_, writeErr = fmt.Fprintf(cmd.out, "Failed: %v\n", operationErr)
 		} else {
-			fmt.Fprintln(cmd.out, "Done")
+			_, writeErr = fmt.Fprintln(cmd.out, "Done")
+		}
+		if writeErr != nil {
+			cancelProgress()
 		}
 	})
+	if writeErr != nil {
+		return writeErr
+	}
 	if err != nil {
 		return fmt.Errorf("clone interrupted after %d of %d items: %w", len(execution.Completed), len(plan.Entries), err)
 	}
@@ -144,8 +172,8 @@ func (cmd *SyncCmd) runClone(ctx context.Context) (result error) {
 		return fmt.Errorf("complete cloned vault: %w", err)
 	}
 	successful = true
-	fmt.Fprintf(cmd.out, "Vault %s is ready.\n%d items transferred.\n", cloneName, len(execution.Completed))
-	return nil
+	_, err = fmt.Fprintf(cmd.out, "Vault %s is ready.\n%d items transferred.\n", cloneName, len(execution.Completed))
+	return err
 }
 
 // promptCloneVaultName asks for a valid local name for the cloned vault.

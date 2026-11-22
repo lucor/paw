@@ -19,9 +19,10 @@ type PwGenCmd struct{ *command }
 func newPwGenCommand(base *command) *urfave.Command {
 	cmd := &PwGenCmd{command: base}
 	c := &urfave.Command{
-		Name:      "pwgen",
-		Usage:     "Generates a password",
-		ArgsUsage: " ",
+		Name:         "pwgen",
+		Usage:        "Generates a password",
+		ArgsUsage:    " ",
+		OnUsageError: onUsageError,
 	}
 	c.Before = cmd.Validate
 	c.Action = cmd.Run
@@ -48,8 +49,8 @@ func (cmd *PwGenCmd) Run(ctx context.Context, _ *urfave.Command) error {
 		return err
 	}
 
-	fmt.Fprintln(cmd.out, password.Value)
-	return nil
+	_, err = fmt.Fprintln(cmd.out, password.Value)
+	return err
 }
 
 // Pwgen prompts for a password mode and generates a password using that mode.

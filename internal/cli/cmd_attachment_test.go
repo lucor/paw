@@ -112,7 +112,11 @@ func runAttachmentCLI(t *testing.T, base *command, args []string) (string, error
 	var output bytes.Buffer
 	base.out = &output
 	base.errOut = &output
-	cmd := &urfave.Command{Name: "paw cli", Commands: []*urfave.Command{newAttachmentCommand(base)}}
+	cmd := &urfave.Command{
+		Name:           "paw cli",
+		Commands:       []*urfave.Command{newAttachmentCommand(base)},
+		ExitErrHandler: leaveExitToCaller,
+	}
 	cmd.Writer = &output
 	cmd.ErrWriter = &output
 	err := cmd.Run(t.Context(), append([]string{"paw cli"}, args...))
