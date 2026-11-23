@@ -18,10 +18,6 @@ import (
 	"go.lucor.dev/paw/internal/paw"
 )
 
-const (
-	clipboardWriteTimeout = 1 * time.Second
-)
-
 // ShowCmd shows an item details
 type ShowCmd struct {
 	*command
@@ -158,7 +154,7 @@ func (cmd *ShowCmd) showItem(ctx context.Context, item *model.Item) error {
 			return err
 		}
 		if cmd.clipboard {
-			if err := cmd.copyValue(ctx, value); err != nil {
+			if err := cmd.command.copyValue(ctx, value); err != nil {
 				return err
 			}
 			if err := cmd.Infof("%s copied to clipboard\n", cmd.field); err != nil {
@@ -182,7 +178,7 @@ func (cmd *ShowCmd) showItem(ctx context.Context, item *model.Item) error {
 		if err != nil {
 			return err
 		}
-		if err := cmd.copyValue(ctx, value); err != nil {
+		if err := cmd.command.copyValue(ctx, value); err != nil {
 			return err
 		}
 		if err := cmd.Infof("%s copied to clipboard\n", strings.ToUpper(label[:1])+label[1:]); err != nil {
@@ -496,13 +492,6 @@ func safeTerminalText(value string) string {
 		safe.WriteRune(r)
 	}
 	return safe.String()
-}
-
-// copyValue writes a value to the clipboard and schedules its removal.
-func (cmd *ShowCmd) copyValue(ctx context.Context, value string) error {
-	ctx, cancel := context.WithTimeout(ctx, clipboardWriteTimeout)
-	defer cancel()
-	return cmd.command.clipboard(ctx, []byte(value))
 }
 
 // itemDefaultSecret returns the default secret and its display label.

@@ -120,7 +120,7 @@ func TestCLIProcessExitCodes(t *testing.T) {
 		},
 		{
 			name:      "terminal unavailable",
-			args:      []string{"rm", "vault/note/item"},
+			args:      []string{"init", "vault"},
 			wantCode:  cli.ExitCodeApplicationError,
 			wantError: "Error: interactive prompt requires stdin to be a terminal",
 		},

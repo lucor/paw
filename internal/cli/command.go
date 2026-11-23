@@ -18,6 +18,8 @@ import (
 	"go.lucor.dev/paw/internal/storage"
 )
 
+const clipboardWriteTimeout = time.Second
+
 // command provides the shared runtime used by CLI command implementations.
 // Constructors capture it in closures; urfave owns argument parsing and streams.
 type command struct {
@@ -96,6 +98,13 @@ func (base *command) Infof(format string, args ...any) error {
 func (base *command) Warnf(format string, args ...any) error {
 	_, err := fmt.Fprintf(base.errOut, format, args...)
 	return err
+}
+
+// copyValue writes a value to the clipboard and schedules its removal.
+func (base *command) copyValue(ctx context.Context, value string) error {
+	ctx, cancel := context.WithTimeout(ctx, clipboardWriteTimeout)
+	defer cancel()
+	return base.clipboard(ctx, []byte(value))
 }
 
 // loadVault loads the selected vault.

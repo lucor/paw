@@ -6,8 +6,11 @@ package cli
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
+	"strings"
+	"text/tabwriter"
 
 	urfave "github.com/urfave/cli/v3"
 	"go.lucor.dev/paw/internal/model"
@@ -29,6 +32,8 @@ type AttachmentCmd struct {
 	filePath  string
 	fileID    string
 	output    string
+	name      string
+	input     io.Reader
 }
 
 // newAttachmentCommand constructs the attachment command group.
@@ -51,6 +56,9 @@ func newAttachmentCommand(base *command) *urfave.Command {
 func newAttachmentSubcommand(base *command, operation, argsUsage string, outputRequired bool) *urfave.Command {
 	cmd := &AttachmentCmd{command: base, operation: operation}
 	flags := []urfave.Flag{sessionFlag()}
+	if operation == attachmentAdd {
+		flags = append(flags, &urfave.StringFlag{Name: "name", Usage: "Attachment name when reading from stdin"})
+	}
 	if outputRequired {
 		flags = append(flags, &urfave.StringFlag{Name: "output", Required: true})
 	}
@@ -84,6 +92,17 @@ func (cmd *AttachmentCmd) Validate(ctx context.Context, c *urfave.Command) (cont
 	cmd.filePath = c.Args().Get(1)
 	cmd.fileID = c.Args().Get(1)
 	cmd.output = c.String("output")
+	cmd.name = c.String("name")
+	if cmd.operation == attachmentAdd {
+		if cmd.filePath == "-" {
+			if strings.TrimSpace(cmd.name) == "" {
+				return ctx, invalidArgumentsError("--name is required when FILE is -")
+			}
+			cmd.input = c.Reader
+		} else if c.IsSet("name") {
+			return ctx, invalidArgumentsError("--name is only supported when FILE is -")
+		}
+	}
 	return ctx, nil
 }
 
@@ -95,28 +114,40 @@ func (cmd *AttachmentCmd) Run(ctx context.Context, _ *urfave.Command) error {
 	}
 	switch cmd.operation {
 	case attachmentAdd:
-		file, err := os.Open(cmd.filePath)
-		if err != nil {
-			return fmt.Errorf("open attachment source: %w", err)
+		name := cmd.name
+		source := cmd.input
+		if cmd.filePath != "-" {
+			file, err := os.Open(cmd.filePath)
+			if err != nil {
+				return fmt.Errorf("open attachment source: %w", err)
+			}
+			defer file.Close()
+			source = file
+			name = filepath.Base(cmd.filePath)
 		}
-		defer file.Close()
-		metadata, err := cmd.storage.AddAttachment(vault, item.ID, filepath.Base(cmd.filePath), file)
+		metadata, err := cmd.storage.AddAttachment(vault, item.ID, name, source)
 		if err != nil {
 			return err
 		}
-		_, err = fmt.Fprintf(cmd.out, "%s\t%s\t%d bytes\n", metadata.ID, metadata.Name, metadata.DecryptedSize)
-		return err
+		return cmd.Printf("%s\n", metadata.ID)
 	case attachmentList:
 		files, err := cmd.storage.ListAttachments(vault, item.ID)
 		if err != nil {
 			return err
 		}
+		if len(files) == 0 {
+			return nil
+		}
+		writer := tabwriter.NewWriter(cmd.Stdout(), 0, 0, 1, ' ', 0)
+		if _, err := fmt.Fprintln(writer, "ID\tName\tSize"); err != nil {
+			return err
+		}
 		for _, file := range files {
-			if _, err := fmt.Fprintf(cmd.out, "%s\t%s\t%d bytes\n", file.ID, file.Name, file.DecryptedSize); err != nil {
+			if _, err := fmt.Fprintf(writer, "%s\t%s\t%d bytes\n", file.ID, safeTerminalText(file.Name), file.DecryptedSize); err != nil {
 				return err
 			}
 		}
-		return nil
+		return writer.Flush()
 	case attachmentSave:
 		return cmd.storage.SaveAttachment(vault, item.ID, cmd.fileID, cmd.output)
 	case attachmentRemove:

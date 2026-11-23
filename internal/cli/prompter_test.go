@@ -14,6 +14,7 @@ import (
 	"charm.land/huh/v2"
 	"github.com/stretchr/testify/require"
 
+	"go.lucor.dev/paw/internal/model"
 	"go.lucor.dev/paw/internal/paw"
 )
 
@@ -31,7 +32,12 @@ func TestPrompterRequiresTerminalForPrompt(t *testing.T) {
 
 func TestRemoveChecksTerminalBeforeAction(t *testing.T) {
 	t.Setenv("TERM", "xterm-256color")
-	_, _, err := executeSubcommand(t, []string{"rm", "vault/note/example"}, newRemoveCommand, &command{}, "y\n")
+	base, vault := addTestCommand(t)
+	item, err := model.NewNote("example", "content")
+	require.NoError(t, err)
+	require.NoError(t, base.storage.StoreItem(vault, item))
+	base.prompter = newPrompter(strings.NewReader("y\n"), io.Discard)
+	_, _, err = executeSubcommand(t, []string{"rm", "--session", "active", "Personal/note/example"}, newRemoveCommand, base, "")
 	require.ErrorContains(t, err, "requires stdin to be a terminal")
 }
 
@@ -78,6 +84,19 @@ func TestPrompterHuhConfirmAndSelection(t *testing.T) {
 	mode, err := p.askPasswordMode("Mode", []paw.PasswordMode{paw.RandomPassword, paw.PinPassword}, paw.RandomPassword)
 	require.NoError(t, err)
 	require.Equal(t, paw.PinPassword, mode)
+}
+
+func TestPrompterSelectOption(t *testing.T) {
+	p := testInteractivePrompter(t, "2\n")
+	value, err := p.selectOption("Edit item", "Standard fields", "Custom fields", "Tags")
+	require.NoError(t, err)
+	require.Equal(t, "Custom fields", value)
+
+	input := strings.NewReader("1\n")
+	p = newPrompter(input, io.Discard)
+	_, err = p.selectOption("Edit item", "Standard fields", "Custom fields")
+	require.ErrorContains(t, err, "requires stdin to be a terminal")
+	require.Equal(t, len("1\n"), input.Len())
 }
 
 func TestPrompterHuhIntegerValidation(t *testing.T) {

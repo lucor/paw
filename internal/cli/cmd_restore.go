@@ -22,16 +22,20 @@ type RestoreCmd struct {
 	*command
 	backupPath string
 	name       string
+	yes        bool
 }
 
 // newRestoreCommand constructs the vault-restore command.
 func newRestoreCommand(base *command) *urfave.Command {
 	cmd := &RestoreCmd{command: base}
 	c := &urfave.Command{
-		Name:         "restore",
-		Usage:        "Restore a Paw or CXF backup into a new vault",
-		ArgsUsage:    "BACKUP",
-		Flags:        []urfave.Flag{&urfave.StringFlag{Name: "name", Usage: "Name for the restored vault"}},
+		Name:      "restore",
+		Usage:     "Restore a Paw or CXF backup into a new vault",
+		ArgsUsage: "BACKUP",
+		Flags: []urfave.Flag{
+			&urfave.StringFlag{Name: "name", Usage: "Name for the restored vault"},
+			&urfave.BoolFlag{Name: "yes", Usage: "Skip restore confirmation"},
+		},
 		OnUsageError: onUsageError,
 	}
 	c.Before = cmd.Validate
@@ -46,6 +50,7 @@ func (cmd *RestoreCmd) Validate(ctx context.Context, c *urfave.Command) (context
 	}
 	cmd.backupPath = c.Args().First()
 	cmd.name = c.String("name")
+	cmd.yes = c.Bool("yes")
 	return ctx, nil
 }
 
@@ -82,18 +87,15 @@ func (cmd *RestoreCmd) Run(ctx context.Context, _ *urfave.Command) error {
 		return err
 	}
 	defer backup.Close()
-	if _, err := fmt.Fprintf(cmd.out, "Vault: %s\nCollections: %d\nCredentials: %d\n", backup.Name, backup.Collections, backup.Credentials); err != nil {
-		return err
-	}
+	summary := fmt.Sprintf("Vault: %s\nCollections: %d\nCredentials: %d\n", backup.Name, backup.Collections, backup.Credentials)
 	if backup.CreationAt != nil {
-		if _, err := fmt.Fprintf(cmd.out, "Created: %s\n", time.Unix(int64(*backup.CreationAt), 0).UTC().Format(time.RFC3339)); err != nil {
-			return err
-		}
+		summary += fmt.Sprintf("Created: %s\n", time.Unix(int64(*backup.CreationAt), 0).UTC().Format(time.RFC3339))
 	}
 	if backup.ExportedAt != 0 {
-		if _, err := fmt.Fprintf(cmd.out, "CXF document date: %s\n", time.Unix(int64(backup.ExportedAt), 0).UTC().Format(time.RFC3339)); err != nil {
-			return err
-		}
+		summary += fmt.Sprintf("CXF document date: %s\n", time.Unix(int64(backup.ExportedAt), 0).UTC().Format(time.RFC3339))
+	}
+	if err := cmd.Infof("%s", summary); err != nil {
+		return err
 	}
 	name := cmd.name
 	if name == "" {
@@ -102,12 +104,14 @@ func (cmd *RestoreCmd) Run(ctx context.Context, _ *urfave.Command) error {
 			return err
 		}
 	}
-	confirmed, err := cmd.prompter.askYesNo("Create restored vault?", false)
-	if err != nil {
-		return err
-	}
-	if !confirmed {
-		return errCanceled
+	if !cmd.yes {
+		confirmed, err := cmd.prompter.askYesNo("Create restored vault?", false)
+		if err != nil {
+			return err
+		}
+		if !confirmed {
+			return errCanceled
+		}
 	}
 	password, err := cmd.prompter.askPassword("New master password")
 	if err != nil {
@@ -125,10 +129,9 @@ func (cmd *RestoreCmd) Run(ctx context.Context, _ *urfave.Command) error {
 		return err
 	}
 	if vault.Accounts[0].ID != backup.AccountID {
-		if _, err := fmt.Fprintln(cmd.out, "The original vault ID is already in use. An independent copy was created."); err != nil {
+		if err := cmd.Warnf("The original vault ID is already in use. An independent copy was created.\n"); err != nil {
 			return err
 		}
 	}
-	_, err = fmt.Fprintf(cmd.out, "Vault restored successfully: %s (Vault ID %s)\n", name, shortVaultID(vault.Accounts[0].ID))
-	return err
+	return cmd.Printf("%s\n", storage.FormatVaultID(vault.Accounts[0].ID))
 }

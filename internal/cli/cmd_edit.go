@@ -27,15 +27,18 @@ type EditCmd struct {
 	*command
 	sessionID string
 	itemPath
-	field       string
-	typeName    string
-	remove      bool
-	tag         string
-	name        string
-	importPath  string
-	generateKey bool
-	totpStdin   bool
-	input       io.Reader
+	field         string
+	typeName      string
+	remove        bool
+	tag           string
+	name          string
+	importPath    string
+	generateKey   bool
+	totpStdin     bool
+	passwordStdin bool
+	username      string
+	usernameSet   bool
+	input         io.Reader
 }
 
 // newEditCommand constructs the item-edit command.
@@ -81,6 +84,8 @@ func newEditCommand(base *command) *urfave.Command {
 				Name:  "totp-stdin",
 				Usage: "Read a Base32 authenticator secret from stdin",
 			},
+			&urfave.StringFlag{Name: "username", Usage: "Set the login username"},
+			&urfave.BoolFlag{Name: "password-stdin", Usage: "Read the replacement password from stdin"},
 		},
 		OnUsageError: onUsageError,
 	}
@@ -138,6 +143,20 @@ func (cmd *EditCmd) Validate(ctx context.Context, c *urfave.Command) (context.Co
 	}
 	generateKey := c.Bool("generate-key")
 	totpStdin := c.Bool("totp-stdin")
+	passwordStdin := c.Bool("password-stdin")
+	usernameSet := c.IsSet("username")
+	if usernameSet && path.itemType != model.LoginItemType {
+		return ctx, invalidArgumentsError("--username is only supported for login items")
+	}
+	if passwordStdin && path.itemType != model.LoginItemType && path.itemType != model.PasswordItemType {
+		return ctx, invalidArgumentsError("--password-stdin is only supported for login and password items")
+	}
+	if passwordStdin && totpStdin {
+		return ctx, invalidArgumentsError("--password-stdin and --totp-stdin cannot be combined")
+	}
+	if passwordStdin && field != "" && !remove {
+		return ctx, invalidArgumentsError("--password-stdin cannot be combined with --field")
+	}
 	if totpStdin && path.itemType != model.LoginItemType {
 		return ctx, invalidArgumentsError("--totp-stdin is only supported for login items")
 	}
@@ -162,8 +181,11 @@ func (cmd *EditCmd) Validate(ctx context.Context, c *urfave.Command) (context.Co
 	cmd.importPath = importPath
 	cmd.generateKey = generateKey
 	cmd.totpStdin = totpStdin
+	cmd.passwordStdin = passwordStdin
+	cmd.username = c.String("username")
+	cmd.usernameSet = usernameSet
 	cmd.remove = remove
-	if field != "" && !remove || totpStdin {
+	if field != "" && !remove || totpStdin || passwordStdin {
 		cmd.input = c.Reader
 	}
 	return ctx, nil
@@ -195,6 +217,12 @@ func (cmd *EditCmd) Run(ctx context.Context, _ *urfave.Command) error {
 	if cmd.name != "" {
 		err = cmd.renameItem(item, vault, cmd.name)
 	}
+	if err == nil && cmd.usernameSet {
+		err = cmd.editUsername(item, cmd.username)
+	}
+	if err == nil && cmd.passwordStdin {
+		err = cmd.editPasswordFromStdin(item)
+	}
 	if err == nil && (cmd.importPath != "" || cmd.generateKey) {
 		err = cmd.replaceSSHKey(item)
 	}
@@ -203,9 +231,9 @@ func (cmd *EditCmd) Run(ctx context.Context, _ *urfave.Command) error {
 	}
 	if err == nil && (cmd.field != "" || cmd.tag != "") {
 		err = cmd.editCustomAndTags(item)
-	} else if err == nil && cmd.name == "" && cmd.importPath == "" && !cmd.generateKey && !cmd.totpStdin && cmd.prompter.interactive {
+	} else if err == nil && !cmd.hasScriptedEdits() && cmd.prompter.interactive {
 		err = cmd.editInteractive(item, vault)
-	} else if err == nil && cmd.name == "" && cmd.importPath == "" && !cmd.generateKey && !cmd.totpStdin {
+	} else if err == nil && !cmd.hasScriptedEdits() {
 		switch cmd.itemType {
 		case model.LoginItemType:
 			err = cmd.editLogin(item)
@@ -232,8 +260,7 @@ func (cmd *EditCmd) Run(ctx context.Context, _ *urfave.Command) error {
 		return err
 	}
 	if !changed {
-		_, err := fmt.Fprintf(cmd.out, "[✓] item %q unchanged\n", safeTerminalText(item.Title))
-		return err
+		return nil
 	}
 	if err := s.StoreItem(vault, updated); err != nil {
 		return err
@@ -242,8 +269,12 @@ func (cmd *EditCmd) Run(ctx context.Context, _ *urfave.Command) error {
 	if err := s.StoreAppState(appState); err != nil {
 		return err
 	}
-	_, err = fmt.Fprintf(cmd.out, "[✓] item %q modified\n", safeTerminalText(updated.Title))
-	return err
+	return nil
+}
+
+// hasScriptedEdits reports whether flags requested an edit without prompts.
+func (cmd *EditCmd) hasScriptedEdits() bool {
+	return cmd.name != "" || cmd.usernameSet || cmd.passwordStdin || cmd.importPath != "" || cmd.generateKey || cmd.totpStdin || cmd.field != "" || cmd.tag != ""
 }
 
 // renameItem updates the item title and records the change in its vault.
@@ -265,6 +296,34 @@ func (cmd *EditCmd) renameItem(item *model.Item, vault *model.Vault, name string
 	}
 	item.Title = name
 	return nil
+}
+
+// editUsername replaces the username while preserving the other login fields.
+func (cmd *EditCmd) editUsername(item *model.Item, username string) error {
+	credential, index, err := item.BasicAuth()
+	if err != nil {
+		return err
+	}
+	credential.Username.Value = username
+	return item.SetBasicAuth(index, credential)
+}
+
+// editPasswordFromStdin replaces the password with one secret read from stdin.
+func (cmd *EditCmd) editPasswordFromStdin(item *model.Item) error {
+	secret, err := readAddSecret(cmd.input)
+	if err != nil {
+		return fmt.Errorf("read password from stdin: %w", err)
+	}
+	credential, index, err := item.BasicAuth()
+	if err != nil {
+		return err
+	}
+	field, err := model.PasswordField(secret, model.PasswordSettingsFromField(credential.Password), credential.Password)
+	if err != nil {
+		return err
+	}
+	credential.Password = field
+	return item.SetBasicAuth(index, credential)
 }
 
 // replaceSSHKey imports or generates a replacement SSH key.
@@ -339,16 +398,13 @@ func (cmd *EditCmd) replaceSSHKey(item *model.Item) error {
 // editInteractive prompts for changes to the item's standard fields.
 func (cmd *EditCmd) editInteractive(item *model.Item, vault *model.Vault) error {
 	for {
-		if _, err := fmt.Fprintf(cmd.errOut, "Editing: %s\n", safeTerminalText(item.Title)); err != nil {
-			return err
-		}
-		choice, err := cmd.prompter.ask("1. Standard fields  2. Custom fields  3. Tags  4. Save and exit")
+		choice, err := cmd.prompter.selectOption("Edit "+item.Title, "Standard fields", "Custom fields", "Tags", "Save and exit")
 		if err != nil {
 			return err
 		}
 		var editErr error
 		switch choice {
-		case "1":
+		case "Standard fields":
 			name, err := cmd.prompter.askWithDefault("Name", item.Title)
 			if err != nil {
 				return err
@@ -368,16 +424,12 @@ func (cmd *EditCmd) editInteractive(item *model.Item, vault *model.Vault) error 
 			default:
 				editErr = fmt.Errorf("unsupported item type: %q", cmd.itemType)
 			}
-		case "2":
+		case "Custom fields":
 			editErr = cmd.editCustomInteractive(item)
-		case "3":
+		case "Tags":
 			editErr = cmd.editTagsInteractive(item, vault)
-		case "4", "":
+		case "Save and exit":
 			return nil
-		default:
-			if _, err := fmt.Fprintln(cmd.errOut, "Choose 1, 2, 3, or 4"); err != nil {
-				return err
-			}
 		}
 		if editErr != nil {
 			return editErr
@@ -428,12 +480,12 @@ func (cmd *EditCmd) editCustomInteractive(item *model.Item) error {
 				}
 			}
 		}
-		choice, err := cmd.prompter.ask("1. Add field  2. Edit value  3. Rename field  4. Change UI type  5. Move field  6. Remove field  7. Manage sections  8. Done")
+		choice, err := cmd.prompter.selectOption("Custom fields", "Add field", "Edit value", "Rename field", "Change UI type", "Move field", "Remove field", "Manage sections", "Done")
 		if err != nil {
 			return err
 		}
 		switch choice {
-		case "1":
+		case "Add field":
 			field, err := (&AddCmd{command: cmd.command}).readCustomField(false, cxf.EditableField{})
 			if err != nil {
 				return err
@@ -448,7 +500,7 @@ func (cmd *EditCmd) editCustomInteractive(item *model.Item) error {
 			if err := appendField(item, section, field); err != nil {
 				return err
 			}
-		case "2", "3", "4", "5", "6":
+		case "Edit value", "Rename field", "Change UI type", "Move field", "Remove field":
 			groupIndex, fieldIndex, ok, err := cmd.chooseCustomField(groups)
 			if err != nil {
 				return err
@@ -459,13 +511,13 @@ func (cmd *EditCmd) editCustomInteractive(item *model.Item) error {
 			group := groups[groupIndex]
 			field := group.Credential.Fields[fieldIndex]
 			switch choice {
-			case "2":
+			case "Edit value":
 				updated, err := (&AddCmd{command: cmd.command}).readCustomField(true, field)
 				if err != nil {
 					return err
 				}
 				group.Credential.Fields[fieldIndex] = updated
-			case "3":
+			case "Rename field":
 				label, err := cmd.prompter.ask("New field name")
 				if err != nil {
 					return err
@@ -474,8 +526,8 @@ func (cmd *EditCmd) editCustomInteractive(item *model.Item) error {
 					return fmt.Errorf("field name cannot be empty")
 				}
 				group.Credential.Fields[fieldIndex].Label = label
-			case "4":
-				kind, err := cmd.prompter.ask("Type (text, hidden, multiline, hidden-multiline)")
+			case "Change UI type":
+				kind, err := cmd.prompter.selectOption("Type", "text", "hidden", "multiline", "hidden-multiline")
 				if err != nil {
 					return err
 				}
@@ -486,7 +538,7 @@ func (cmd *EditCmd) editCustomInteractive(item *model.Item) error {
 				if kind == "hidden" || kind == "hidden-multiline" {
 					group.Credential.Fields[fieldIndex].FieldType = cxf.FieldTypeConcealedString
 				}
-			case "5":
+			case "Move field":
 				section, err := cmd.prompter.ask("Destination section (empty for no section)")
 				if err != nil {
 					return err
@@ -498,7 +550,7 @@ func (cmd *EditCmd) editCustomInteractive(item *model.Item) error {
 					return err
 				}
 				continue
-			case "6":
+			case "Remove field":
 				ok, err := cmd.prompter.askYesNo("Remove this field and its value?", false)
 				if err != nil {
 					return err
@@ -516,16 +568,12 @@ func (cmd *EditCmd) editCustomInteractive(item *model.Item) error {
 					return err
 				}
 			}
-		case "7":
+		case "Manage sections":
 			if err := cmd.manageSections(item); err != nil {
 				return err
 			}
-		case "8", "":
+		case "Done":
 			return nil
-		default:
-			if _, err := fmt.Fprintln(cmd.errOut, "Choose a number from 1 to 8"); err != nil {
-				return err
-			}
 		}
 	}
 }
@@ -551,19 +599,30 @@ func (cmd *EditCmd) chooseCustomField(groups []model.CustomFieldsGroup) (int, in
 		}
 		return 0, 0, false, nil
 	}
-	value, err := cmd.prompter.ask("Field number")
+	options := make([]string, 0, count)
+	for _, group := range groups {
+		for _, field := range group.Credential.Fields {
+			label := safeTerminalText(field.Label) + " (" + customFieldType(field) + ")"
+			if group.Credential.Label != "" {
+				label = safeTerminalText(group.Credential.Label) + "/" + label
+			}
+			options = append(options, label)
+		}
+	}
+	value, err := cmd.prompter.selectOption("Field", options...)
 	if err != nil {
 		return 0, 0, false, err
 	}
-	number, err := strconv.Atoi(value)
-	if err != nil || number < 1 || number > count {
-		return 0, 0, false, fmt.Errorf("invalid custom field number")
-	}
 	for gi, group := range groups {
-		if number <= len(group.Credential.Fields) {
-			return gi, number - 1, true, nil
+		for fi, field := range group.Credential.Fields {
+			label := safeTerminalText(field.Label) + " (" + customFieldType(field) + ")"
+			if group.Credential.Label != "" {
+				label = safeTerminalText(group.Credential.Label) + "/" + label
+			}
+			if label == value {
+				return gi, fi, true, nil
+			}
 		}
-		number -= len(group.Credential.Fields)
 	}
 	return 0, 0, false, nil
 }
@@ -602,12 +661,12 @@ func (cmd *EditCmd) manageSections(item *model.Item) error {
 			sections = append(sections, group)
 		}
 	}
-	choice, err := cmd.prompter.ask("1. Add section  2. Rename section  3. Remove section  4. Done")
+	choice, err := cmd.prompter.selectOption("Sections", "Add section", "Rename section", "Remove section", "Done")
 	if err != nil {
 		return err
 	}
 	switch choice {
-	case "1":
+	case "Add section":
 		name, err := cmd.prompter.ask("Section name")
 		if err != nil {
 			return err
@@ -616,26 +675,31 @@ func (cmd *EditCmd) manageSections(item *model.Item) error {
 			return fmt.Errorf("section name cannot be empty")
 		}
 		return item.AppendCustomFields(cxf.CustomFields{Type: cxf.CredentialTypeCustomFields, Label: name, Fields: []cxf.EditableField{}})
-	case "2", "3":
+	case "Rename section", "Remove section":
 		if len(sections) == 0 {
 			_, err := fmt.Fprintln(cmd.errOut, "No sections to select")
 			return err
 		}
-		for index, section := range sections {
-			if _, err := fmt.Fprintf(cmd.errOut, "%d. %s (%d fields)\n", index+1, safeTerminalText(section.Credential.Label), len(section.Credential.Fields)); err != nil {
-				return err
-			}
+		options := make([]string, 0, len(sections))
+		for _, section := range sections {
+			options = append(options, fmt.Sprintf("%s (%d fields)", safeTerminalText(section.Credential.Label), len(section.Credential.Fields)))
 		}
-		value, err := cmd.prompter.ask("Section number")
+		value, err := cmd.prompter.selectOption("Section", options...)
 		if err != nil {
 			return err
 		}
-		number, err := strconv.Atoi(value)
-		if err != nil || number < 1 || number > len(sections) {
-			return fmt.Errorf("invalid section number")
+		index := -1
+		for i, section := range sections {
+			if value == fmt.Sprintf("%s (%d fields)", safeTerminalText(section.Credential.Label), len(section.Credential.Fields)) {
+				index = i
+				break
+			}
 		}
-		section := sections[number-1]
-		if choice == "2" {
+		if index < 0 {
+			return fmt.Errorf("invalid section selection")
+		}
+		section := sections[index]
+		if choice == "Rename section" {
 			name, err := cmd.prompter.ask("New section name")
 			if err != nil {
 				return err
@@ -656,11 +720,10 @@ func (cmd *EditCmd) manageSections(item *model.Item) error {
 			}
 		}
 		return item.RemoveCustomFields(section.Index)
-	case "4", "":
+	case "Done":
 		return nil
-	default:
-		return fmt.Errorf("invalid section action")
 	}
+	return nil
 }
 
 // editCustomAndTags applies the requested field or tag change from flags and stdin.

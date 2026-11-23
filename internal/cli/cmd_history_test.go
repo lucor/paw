@@ -4,15 +4,23 @@
 package cli
 
 import (
+	"errors"
+	"io"
 	"strings"
 	"testing"
 	"time"
 
+	"charm.land/huh/v2"
 	"github.com/stretchr/testify/require"
+	"go.lucor.dev/paw/internal/agent"
 	"go.lucor.dev/paw/internal/model"
 	"go.lucor.dev/paw/internal/storage"
 	"go.lucor.dev/paw/internal/test"
 )
+
+type historyFailingWriter struct{ err error }
+
+func (writer historyFailingWriter) Write([]byte) (int, error) { return 0, writer.err }
 
 func TestItemHistoryListAndShow(t *testing.T) {
 	store, vault, item, base := historyCLIFixture(t)
@@ -33,6 +41,8 @@ func TestItemHistoryListAndShow(t *testing.T) {
 	listed, err := executeWithHistoryBase(t, base, []string{"history", path})
 	require.NoError(t, err)
 	require.Contains(t, listed, "INDEX")
+	require.Contains(t, listed, "CAPTURED AT")
+	require.NotContains(t, listed, "|")
 	require.Less(t, strings.Index(listed, time.Unix(200, 0).Local().Format(time.RFC1123)), strings.Index(listed, time.Unix(100, 0).Local().Format(time.RFC1123)))
 	require.NotContains(t, listed, "oldest-secret")
 	require.NotContains(t, listed, "newest-secret")
@@ -66,16 +76,23 @@ func TestItemHistoryRestoreUsesNewestFirstIndexAndConfirms(t *testing.T) {
 	base.prompter = historyPrompter(t, "n\n")
 	canceled, err := executeWithHistoryBase(t, base, []string{"history", "restore", path, "0"})
 	require.NoError(t, err)
-	require.Contains(t, canceled, "restore canceled")
+	require.Empty(t, canceled)
 	current, err := store.LoadItem(vault, item.ID)
+	require.NoError(t, err)
+	require.Equal(t, "Current", current.Title)
+	base.prompter.runForm = func(*huh.Form) error { return errCanceled }
+	_, err = executeWithHistoryBase(t, base, []string{"history", "restore", path, "0"})
+	require.ErrorIs(t, err, errCanceled)
+	current, err = store.LoadItem(vault, item.ID)
 	require.NoError(t, err)
 	require.Equal(t, "Current", current.Title)
 
 	base.prompter = historyPrompter(t, "y\n")
 	base.now = func() time.Time { return time.Unix(300, 0).UTC() }
-	restored, err := executeWithHistoryBase(t, base, []string{"history", "restore", path, "0"})
+	restored, diagnostics, err := executeSubcommand(t, []string{"history", "restore", path, "0"}, newHistoryCommand, base, "")
 	require.NoError(t, err)
-	require.Contains(t, restored, "restored from")
+	require.Empty(t, restored)
+	require.Empty(t, diagnostics)
 	vault, err = store.LoadVault(vault.Accounts[0].ID, vault.Key())
 	require.NoError(t, err)
 	current, err = store.LoadItem(vault, item.ID)
@@ -92,9 +109,59 @@ func TestItemHistoryWithoutEntriesListsEmptyAndRejectsRestore(t *testing.T) {
 	path := storage.FormatVaultID(vault.Accounts[0].ID) + "/note/Current"
 	listed, err := executeWithHistoryBase(t, base, []string{"history", path})
 	require.NoError(t, err)
-	require.Contains(t, listed, "No history found")
+	require.Empty(t, listed)
+	listed, err = executeWithHistoryBase(t, base, []string{"history", "list", path})
+	require.NoError(t, err)
+	require.Empty(t, listed)
 	_, err = executeWithHistoryBase(t, base, []string{"history", "restore", path, "0"})
 	require.ErrorContains(t, err, "no history")
+}
+
+func TestItemHistoryListPropagatesWriterError(t *testing.T) {
+	store, vault, item, base := historyCLIFixture(t)
+	history, err := item.History()
+	require.NoError(t, err)
+	old := *item
+	old.Title = "Old"
+	require.NoError(t, history.AddSnapshot(&old, 100))
+	require.NoError(t, item.SetHistory(history))
+	require.NoError(t, store.StoreItem(vault, item))
+	wantErr := errors.New("stdout unavailable")
+	base.out = historyFailingWriter{err: wantErr}
+	cmd := &historyCmd{command: base, itemPath: itemPath{
+		vaultName: storage.FormatVaultID(vault.Accounts[0].ID),
+		itemType:  model.NoteItemType,
+		itemName:  "Current",
+	}}
+	require.ErrorIs(t, cmd.list(), wantErr)
+}
+
+func TestHistoryRestoreYesSkipsTTYAndRestoreNeedsTTY(t *testing.T) {
+	store, vault, item, base := historyCLIFixture(t)
+	history, err := item.History()
+	require.NoError(t, err)
+	old := *item
+	old.Title = "Old"
+	require.NoError(t, history.AddSnapshot(&old, 100))
+	require.NoError(t, item.SetHistory(history))
+	require.NoError(t, store.StoreItem(vault, item))
+	base.agentClient = func(string) (agent.PawAgent, error) {
+		return addTestAgent{key: vault.Key()}, nil
+	}
+	base.prompter = newPrompter(strings.NewReader("yes\n"), io.Discard)
+	path := storage.FormatVaultID(vault.Accounts[0].ID) + "/note/Current"
+	_, _, err = executeSubcommand(t, []string{"history", "restore", "--session", "active", path, "0"}, newHistoryCommand, base, "")
+	require.ErrorContains(t, err, "requires stdin to be a terminal")
+	current, err := store.LoadItem(vault, item.ID)
+	require.NoError(t, err)
+	require.Equal(t, "Current", current.Title)
+	_, _, err = executeSubcommand(t, []string{"history", "restore", "--session", "active", "--yes", path, "0"}, newHistoryCommand, base, "")
+	require.NoError(t, err)
+	vault, err = store.LoadVault(vault.Accounts[0].ID, vault.Key())
+	require.NoError(t, err)
+	current, err = store.LoadItem(vault, item.ID)
+	require.NoError(t, err)
+	require.Equal(t, "Old", current.Title)
 }
 
 func historyCLIFixture(t *testing.T) (*storage.FileStorage, *model.Vault, *model.Item, *command) {

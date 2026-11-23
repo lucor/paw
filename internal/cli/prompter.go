@@ -107,6 +107,23 @@ func (p *prompter) ask(prompt string) (string, error) {
 	return value, nil
 }
 
+// selectOption displays a keyboard-navigable selection from fixed options.
+func (p *prompter) selectOption(prompt string, options ...string) (string, error) {
+	if len(options) == 0 {
+		return "", errors.New("no options available")
+	}
+	choices := make([]huh.Option[string], 0, len(options))
+	for _, option := range options {
+		choices = append(choices, huh.NewOption(safeTerminalText(option), option))
+	}
+	value := options[0]
+	field := huh.NewSelect[string]().Title(safeTerminalText(prompt)).Options(choices...).Value(&value)
+	if err := p.runHuh(field); err != nil {
+		return "", err
+	}
+	return value, nil
+}
+
 // editMultiline opens the configured text editor with the current value.
 func (p *prompter) editMultiline(prompt, initial string) (string, error) {
 	if _, err := fmt.Fprintf(p.output, "Edit %s in your text editor.\n", safeTerminalText(prompt)); err != nil {

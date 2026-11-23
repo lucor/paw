@@ -136,6 +136,10 @@ func TestInvalidArguments(t *testing.T) {
 		{[]string{"edit", "--generate-key", "--input=key.pem", "vault/ssh_key/key"}, "cannot be combined"},
 		{[]string{"edit", "--totp-stdin", "vault/password/item"}, "only supported for login items"},
 		{[]string{"edit", "--totp-stdin", "--field=Token", "vault/login/item"}, "cannot be combined"},
+		{[]string{"edit", "--password-stdin", "--totp-stdin", "vault/login/item"}, "cannot be combined"},
+		{[]string{"edit", "--password-stdin", "--field=Token", "vault/login/item"}, "cannot be combined"},
+		{[]string{"edit", "--username=mario", "vault/password/item"}, "only supported for login items"},
+		{[]string{"edit", "--password-stdin", "vault/note/item"}, "only supported for login and password items"},
 		{[]string{"add", "note", "--tag=", "vault", "item"}, "--tag cannot be empty"},
 		{[]string{"add", "vault/note/item"}, "unknown add subcommand"},
 		{[]string{"add", "note", "vault"}, "invalid arguments"},
@@ -218,7 +222,7 @@ func TestMigratedCommandStaticValidation(t *testing.T) {
 		args []string
 		want string
 	}{
-		{[]string{"export", "--plaintext", "--encrypted", "vault", "backup"}, "choose exactly one export format"},
+		{[]string{"export", "--plaintext", "--paw", "vault", "backup"}, "cannot be combined"},
 		{[]string{"sync", "--clone", "--reconcile"}, "reconcile cannot be combined with clone"},
 		{[]string{"history", "show", "vault/note/item", "invalid"}, "invalid history index"},
 		{[]string{"agent", "sessions", "extra"}, "invalid arguments"},
@@ -241,7 +245,7 @@ func TestShowRejectsRevealWithClipboard(t *testing.T) {
 
 func TestHelpDoesNotExposeSession(t *testing.T) {
 	t.Setenv(paw.ENV_SESSION, "private-session-value")
-	for _, name := range []string{"add", "edit", "ls", "rm", "show"} {
+	for _, name := range []string{"add", "edit", "export", "ls", "rm", "show"} {
 		out, err := execute(t, []string{name, "--session=explicit-session-value", "--help"}, nil)
 		require.NoError(t, err)
 		require.Contains(t, out, "--session")
@@ -251,7 +255,7 @@ func TestHelpDoesNotExposeSession(t *testing.T) {
 }
 
 func TestSessionFlag(t *testing.T) {
-	for _, name := range []string{"add", "edit", "ls", "rm", "show"} {
+	for _, name := range []string{"add", "edit", "export", "ls", "rm", "show"} {
 		for _, tc := range []struct {
 			name  string
 			flags []string

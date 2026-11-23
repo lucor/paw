@@ -51,6 +51,7 @@ type HistoryCommand struct {
 	history    *historyCmd
 	index      int
 	cliCommand *urfave.Command
+	yes        bool
 }
 
 // newHistorySubcommand builds one history operation command.
@@ -66,6 +67,9 @@ func newHistorySubcommand(base *command, name, usage, operation string) *urfave.
 		Usage:        usage,
 		ArgsUsage:    argsUsage,
 		Description:  vaultReferenceHelp,
+	}
+	if operation == historyRestore {
+		c.Flags = []urfave.Flag{&urfave.BoolFlag{Name: "yes", Usage: "Restore without interactive confirmation"}}
 	}
 	c.Before = cmd.Validate
 	c.Action = cmd.Run
@@ -106,6 +110,7 @@ func (cmd *HistoryCommand) Validate(ctx context.Context, c *urfave.Command) (con
 			return ctx, invalidArgumentsError("%w", err)
 		}
 	}
+	cmd.yes = c.Bool("yes")
 	return ctx, nil
 }
 
@@ -120,7 +125,7 @@ func (cmd *HistoryCommand) Run(ctx context.Context, _ *urfave.Command) error {
 	case historyShow:
 		return cmd.history.show(ctx, cmd.index)
 	case historyRestore:
-		return cmd.history.restore(cmd.index)
+		return cmd.history.restore(cmd.index, cmd.yes)
 	default:
 		return fmt.Errorf("unknown history operation %q", cmd.operation)
 	}
@@ -173,10 +178,9 @@ func (cmd *historyCmd) list() error {
 		return err
 	}
 	if len(history.Entries) == 0 {
-		_, err := fmt.Fprintln(cmd.out, "No history found")
-		return err
+		return nil
 	}
-	w := tabwriter.NewWriter(cmd.out, 0, 0, 1, ' ', tabwriter.Debug)
+	w := tabwriter.NewWriter(cmd.Stdout(), 0, 0, 1, ' ', 0)
 	if _, err := fmt.Fprintln(w, "INDEX\tCAPTURED AT"); err != nil {
 		return err
 	}
@@ -189,7 +193,7 @@ func (cmd *historyCmd) list() error {
 	return w.Flush()
 }
 
-// selected loads a history entry by its one-based display index.
+// selected loads a history entry by its zero-based display index.
 func (cmd *historyCmd) selected(index int) (*model.Vault, *model.Item, model.HistoryEntry, int, error) {
 	vault, item, history, err := cmd.load()
 	if err != nil {
@@ -212,7 +216,7 @@ func (cmd *historyCmd) show(ctx context.Context, index int) error {
 		return err
 	}
 	capturedAt := time.Unix(int64(entry.CapturedAt), 0).Local().Format(time.RFC1123)
-	if _, err := fmt.Fprintf(cmd.out, "History: %s\n", capturedAt); err != nil {
+	if err := cmd.Printf("History: %s\n", capturedAt); err != nil {
 		return err
 	}
 	show := &ShowCmd{command: cmd.command, itemPath: cmd.itemPath}
@@ -229,19 +233,20 @@ func (cmd *historyCmd) show(ctx context.Context, index int) error {
 }
 
 // restore replaces the current item with a selected historical version.
-func (cmd *historyCmd) restore(index int) error {
+func (cmd *historyCmd) restore(index int, yes bool) error {
 	vault, item, entry, storedIndex, err := cmd.selected(index)
 	if err != nil {
 		return err
 	}
 	capturedAt := time.Unix(int64(entry.CapturedAt), 0).Local().Format(time.RFC1123)
-	confirmed, err := cmd.prompter.askYesNo(fmt.Sprintf("Restore version from %s? The current version will be saved in History.", capturedAt), false)
-	if err != nil {
-		return err
-	}
-	if !confirmed {
-		_, err := fmt.Fprintln(cmd.out, "[✓] restore canceled")
-		return err
+	if !yes {
+		confirmed, err := cmd.prompter.askYesNo(fmt.Sprintf("Restore version from %s? The current version will be saved in History.", capturedAt), false)
+		if err != nil {
+			return err
+		}
+		if !confirmed {
+			return nil
+		}
 	}
 	appState, err := cmd.storage.LoadAppState()
 	if err != nil {
@@ -253,13 +258,11 @@ func (cmd *historyCmd) restore(index int) error {
 		return err
 	}
 	if !changed {
-		_, err := fmt.Fprintf(cmd.out, "[✓] item %q is already at that version\n", safeTerminalText(cmd.itemName))
-		return err
+		return nil
 	}
 	appState.Modified = now
 	if err := cmd.storage.StoreAppState(appState); err != nil {
 		return err
 	}
-	_, err = fmt.Fprintf(cmd.out, "[✓] item %q restored from %s\n", safeTerminalText(cmd.itemName), capturedAt)
-	return err
+	return nil
 }
