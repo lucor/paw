@@ -19,14 +19,15 @@ import (
 func newAddPasswordCommand(base *command) *urfave.Command {
 	cmd := &AddCmd{command: base, itemPath: itemPath{itemType: model.PasswordItemType}}
 	return &urfave.Command{
-		Name:         "password",
-		Usage:        "Adds a " + model.PasswordItemType.Label() + " item",
-		ArgsUsage:    "VAULT NAME",
-		Description:  vaultReferenceHelp,
-		Before:       cmd.validatePassword,
-		Action:       cmd.Run,
-		Flags:        addPasswordFlags(),
-		OnUsageError: onUsageError,
+		Name:          "password",
+		Usage:         "Add a " + model.PasswordItemType.Label() + " item",
+		ArgsUsage:     "VAULT NAME",
+		Description:   vaultReferenceHelp,
+		Action:        cmd.Run,
+		Flags:         addPasswordFlags(),
+		OnUsageError:  onUsageError,
+		ArgValidator:  completionArgValidator(cmd.validatePassword),
+		ShellComplete: base.completeVaults(false),
 	}
 }
 

@@ -136,6 +136,21 @@ Commands that select an existing vault accept its name, full Vault ID, or a uniq
 
 Details: [Command reference](https://paw.pm/docs/cli/commands/) and [Desktop app](https://paw.pm/docs/desktop/).
 
+### Shell completion
+
+Install the generated script for your shell:
+
+- **Bash** with `bash-completion` initialized: run `paw cli completion bash > ~/.paw-completion.bash` and add `source ~/.paw-completion.bash` to `~/.bashrc`.
+- **Zsh**: add `source <(paw cli completion zsh)` to `~/.zshrc` after `compinit`.
+- **Fish**: run `paw cli completion fish > ~/.config/fish/completions/paw.fish`.
+
+Completion suggests commands, subcommands, flags, and vault names. For
+`show` and `edit`, it also suggests vault and item type paths. Enter the item
+title yourself. Vault names with shell punctuation are omitted, and Bash's
+generated script does not reliably complete names containing spaces.
+Some commands do not suggest flags when their arguments are incomplete.
+PowerShell completion for `paw cli` is not supported.
+
 ## How vaults and passwords work
 
 ### Vault initialization

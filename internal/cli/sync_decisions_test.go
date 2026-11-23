@@ -4,6 +4,7 @@
 package cli
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"strings"
@@ -57,17 +58,27 @@ func TestParseSyncDecisionRequiresExplicitAllowedChoice(t *testing.T) {
 func TestSyncDecisionMenusMatchParser(t *testing.T) {
 	for kind, options := range syncDecisionOptions {
 		menu := syncDecisionMenu(kind, "Peer")
-		require.Len(t, menu, len(options)-1)
+		require.Len(t, menu, len(options))
 		for _, option := range options {
 			decision, quit, err := parseSyncDecision(kind, option.key)
 			require.NoError(t, err)
 			require.Equal(t, option.decision, decision)
 			require.Equal(t, option.quit, quit)
-			if !option.quit {
-				require.Contains(t, strings.Join(menu, "\n"), fmt.Sprintf("[%s]", option.key))
-			}
+			require.Contains(t, strings.Join(menu, "\n"), fmt.Sprintf("[%s]", option.key))
 		}
+		require.Contains(t, menu, "[q] Cancel")
 	}
+}
+
+func TestReconcileSyncDecisionQCancels(t *testing.T) {
+	var output bytes.Buffer
+	cmd := &SyncCmd{command: &command{errOut: &output}}
+	input := make(chan syncInput, 1)
+	input <- syncInput{line: "q"}
+
+	_, err := cmd.askReconcileSyncDecision(context.Background(), input, pawsync.LocalOnly, "Peer")
+	require.ErrorIs(t, err, errCanceled)
+	require.Contains(t, output.String(), "[q] Cancel")
 }
 
 func TestSyncCommandRequiresExistingVault(t *testing.T) {

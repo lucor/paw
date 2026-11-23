@@ -24,8 +24,8 @@ func newRemoveCommand(base *command) *urfave.Command {
 	c := &urfave.Command{
 		Name:        "rm",
 		Aliases:     []string{"remove"},
-		Usage:       "Removes an item from the vault (alias: remove)",
-		ArgsUsage:   "VAULT/ITEM_TYPE/ITEM_NAME",
+		Usage:       "Remove an item from a vault",
+		ArgsUsage:   "VAULT/TYPE/ITEM",
 		Description: vaultReferenceHelp,
 		Flags: []urfave.Flag{
 			sessionFlag(),

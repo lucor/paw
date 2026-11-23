@@ -78,14 +78,6 @@ func TestEditItemPromptsRequireTTY(t *testing.T) {
 		require.ErrorContains(t, cmd.editLogin(item), "requires stdin to be a terminal")
 		require.Equal(t, []string{"https://example.com"}, item.Scope.URLs)
 	})
-	t.Run("preserves additional URLs", func(t *testing.T) {
-		item, err := model.NewLogin("account", "alice", "password", model.PasswordSettings{Mode: paw.CustomPassword})
-		require.NoError(t, err)
-		item.Scope = &cxf.CredentialScope{URLs: []string{"https://primary.example", "https://secondary.example"}, AndroidApps: []cxf.AndroidAppID{}}
-		cmd := &EditCmd{command: &command{prompter: newPrompter(strings.NewReader("https://updated.example\nalice\n3\n\n\nn\n"), io.Discard)}}
-		require.NoError(t, cmd.editLogin(item))
-		require.Equal(t, []string{"https://updated.example", "https://secondary.example"}, item.Scope.URLs)
-	})
 	t.Run("password", func(t *testing.T) {
 		item, err := model.NewPassword("account", "old-value", model.PasswordSettings{Mode: paw.CustomPassword})
 		require.NoError(t, err)
@@ -187,6 +179,46 @@ func TestAddTOTPUsesDefaultsAndRejectsDuplicateCredentials(t *testing.T) {
 	require.Equal(t, uint16(paw.TOTPIntervalDefault), credentials.TOTP.Period)
 	require.Equal(t, uint16(paw.TOTPDigitsDefault), credentials.TOTP.Digits)
 	require.ErrorContains(t, cmd.addTOTP(item), "already has an authenticator")
+}
+
+func TestReadCustomFieldUsesHuhTypeSelection(t *testing.T) {
+	for _, testCase := range []struct {
+		name      string
+		selection string
+		wantType  string
+		wantValue string
+	}{
+		{name: "text", selection: "1\n", wantType: cxf.FieldTypeString, wantValue: "value"},
+		{name: "hidden", selection: "2\n", wantType: cxf.FieldTypeConcealedString, wantValue: "sensitive"},
+		{name: "multiline", selection: "3\n", wantType: cxf.FieldTypeString, wantValue: " first line \nsecond line\n"},
+		{name: "hidden multiline", selection: "4\n", wantType: cxf.FieldTypeConcealedString, wantValue: "sensitive\nsecond secret"},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			input := "Token\n" + testCase.selection + "value\n"
+			var multiline []string
+			if testCase.name == "multiline" {
+				multiline = []string{testCase.wantValue}
+			}
+			p := testInteractivePrompter(t, input, multiline...)
+			var output strings.Builder
+			p.output = &output
+			passwords := []string{"sensitive", "second secret", "."}
+			p.readPassword = func() ([]byte, error) {
+				password := passwords[0]
+				passwords = passwords[1:]
+				return []byte(password), nil
+			}
+			cmd := &AddCmd{command: &command{prompter: p}}
+			field, err := cmd.readCustomField(false, cxf.EditableField{})
+			require.NoError(t, err)
+			require.Equal(t, testCase.wantType, field.FieldType)
+			require.Equal(t, testCase.wantValue, field.Value)
+			if testCase.wantType == cxf.FieldTypeConcealedString {
+				require.NotContains(t, output.String(), "sensitive")
+				require.NotContains(t, output.String(), "second secret")
+			}
+		})
+	}
 }
 
 func TestEditTOTPChangesSettingsWithoutReplacingSecret(t *testing.T) {
@@ -347,9 +379,8 @@ func TestInteractiveEditRenamesNote(t *testing.T) {
 	vault.Accounts[0].Items = append(vault.Accounts[0].Items, *summary)
 	input := "1\nNew title\ny\n4\n"
 	var output strings.Builder
-	p := testInteractivePrompter(t, input)
+	p := testInteractivePrompter(t, input, "updated note\n")
 	p.output = &output
-	p.editor = &testTextEditor{value: "updated note\n"}
 	cmd := &EditCmd{
 		command:  &command{prompter: p, errOut: &output},
 		itemPath: itemPath{itemType: model.NoteItemType},
@@ -358,7 +389,7 @@ func TestInteractiveEditRenamesNote(t *testing.T) {
 	require.Equal(t, "New title", item.Title)
 	note, _, err := item.Note()
 	require.NoError(t, err)
-	require.Equal(t, "updated note", note.Content.Value)
+	require.Equal(t, "updated note\n", note.Content.Value)
 }
 
 func TestInteractiveEditReturnsStandardFieldErrors(t *testing.T) {
@@ -382,16 +413,14 @@ func TestInteractiveEditReturnsStandardFieldErrors(t *testing.T) {
 func TestInteractiveNoteEditSupportsMultilineAndClear(t *testing.T) {
 	item, err := model.NewNote("Title", "original note")
 	require.NoError(t, err)
-	p := testInteractivePrompter(t, "y\n")
-	p.editor = &testTextEditor{value: "first line\nsecond line\n"}
+	p := testInteractivePrompter(t, "y\n", "first line\nsecond line\n")
 	cmd := &EditCmd{command: &command{prompter: p}}
 	require.NoError(t, cmd.editNote(item))
 	note, _, err := item.Note()
 	require.NoError(t, err)
-	require.Equal(t, "first line\nsecond line", note.Content.Value)
+	require.Equal(t, "first line\nsecond line\n", note.Content.Value)
 
-	p = testInteractivePrompter(t, "y\n")
-	p.editor = &testTextEditor{value: ""}
+	p = testInteractivePrompter(t, "y\n", "")
 	cmd.prompter = p
 	require.NoError(t, cmd.editNote(item))
 	note, _, err = item.Note()

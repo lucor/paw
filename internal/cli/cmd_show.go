@@ -34,9 +34,9 @@ func newShowCommand(base *command) *urfave.Command {
 	cmd := &ShowCmd{command: base}
 	c := &urfave.Command{
 		Name:        "show",
-		Usage:       "Shows item details with secrets masked by default",
-		ArgsUsage:   "VAULT/ITEM_TYPE/ITEM_NAME",
-		Description: vaultReferenceHelp,
+		Usage:       "Show item details",
+		ArgsUsage:   "VAULT/TYPE/ITEM",
+		Description: vaultReferenceHelp + " Secrets are masked by default. --reveal displays them in cleartext and cannot be combined with a field selector. JSON output includes secrets. Select at most one of --username, --password, --totp, or --field.",
 		Flags: []urfave.Flag{
 			sessionFlag(),
 			&urfave.BoolFlag{
@@ -71,8 +71,9 @@ func newShowCommand(base *command) *urfave.Command {
 		},
 		OnUsageError: onUsageError,
 	}
-	c.Before = cmd.Validate
 	c.Action = cmd.Run
+	c.ArgValidator = completionArgValidator(cmd.Validate)
+	c.ShellComplete = base.completeVaults(true)
 	return c
 }
 
@@ -154,7 +155,7 @@ func (cmd *ShowCmd) showItem(ctx context.Context, item *model.Item) error {
 			return err
 		}
 		if cmd.clipboard {
-			if err := cmd.command.copyValue(ctx, value); err != nil {
+			if err := cmd.copyValue(ctx, value); err != nil {
 				return err
 			}
 			if err := cmd.Infof("%s copied to clipboard\n", cmd.field); err != nil {
@@ -178,7 +179,7 @@ func (cmd *ShowCmd) showItem(ctx context.Context, item *model.Item) error {
 		if err != nil {
 			return err
 		}
-		if err := cmd.command.copyValue(ctx, value); err != nil {
+		if err := cmd.copyValue(ctx, value); err != nil {
 			return err
 		}
 		if err := cmd.Infof("%s copied to clipboard\n", strings.ToUpper(label[:1])+label[1:]); err != nil {
@@ -193,7 +194,11 @@ func (cmd *ShowCmd) showItem(ctx context.Context, item *model.Item) error {
 		}
 		return cmd.Printf("%s\n", string(encoded))
 	}
-	if err := cmd.Printf("ID: %s\n", item.ID); err != nil {
+	itemIDPrefix := item.ID
+	if len(itemIDPrefix) > 7 {
+		itemIDPrefix = itemIDPrefix[:7]
+	}
+	if err := cmd.Printf("ID: %s (%s)\nName: %s\nType: %s\n", safeTerminalText(item.ID), safeTerminalText(itemIDPrefix), safeTerminalText(item.Title), cmd.itemType.String()); err != nil {
 		return err
 	}
 	switch cmd.itemType {
@@ -201,9 +206,7 @@ func (cmd *ShowCmd) showItem(ctx context.Context, item *model.Item) error {
 		if item.Scope != nil {
 			for _, url := range item.Scope.URLs {
 				if err := cmd.Printf("URL: %s\n", safeTerminalText(url)); err != nil {
-
 					return err
-
 				}
 			}
 		}
@@ -212,20 +215,14 @@ func (cmd *ShowCmd) showItem(ctx context.Context, item *model.Item) error {
 			return err
 		}
 		if err := cmd.Printf("Username: %s\n", safeTerminalText(usernameValue(credential))); err != nil {
-
 			return err
-
 		}
 		if err := cmd.Printf("Password: %s\n", safeTerminalText(secretValue(passwordValue(credential), cmd.reveal))); err != nil {
-
 			return err
-
 		}
 		if note, _, err := item.Note(); err == nil && note.Content.Value != "" {
-			if err := cmd.Printf("Note: %s\n", safeTerminalText(note.Content.Value)); err != nil {
-
+			if err := cmd.Printf("Note:\n%s\n", safeTerminalText(note.Content.Value)); err != nil {
 				return err
-
 			}
 		}
 		for _, raw := range item.Credentials {
@@ -238,46 +235,12 @@ func (cmd *ShowCmd) showItem(ctx context.Context, item *model.Item) error {
 				if err := json.Unmarshal(raw, &totp); err != nil {
 					return err
 				}
-				if err := cmd.Printf("TOTP: configured\n"); err != nil {
-
-					return err
-
-				}
 				if cmd.reveal {
-					if err := cmd.Printf("TOTP secret: %s\n", safeTerminalText(totp.Secret)); err != nil {
-
+					if err := cmd.Printf("\nTOTP:\n  Secret: %s\n  Algorithm: %s\n  Digits: %d\n  Period: %d seconds\n", safeTerminalText(totp.Secret), safeTerminalText(strings.ToUpper(totp.Algorithm)), totp.Digits, totp.Period); err != nil {
 						return err
-
 					}
-				}
-				if err := cmd.Printf("TOTP algorithm: %s\n", safeTerminalText(totp.Algorithm)); err != nil {
-
+				} else if err := cmd.Printf("\nTOTP: configured\n"); err != nil {
 					return err
-
-				}
-				if err := cmd.Printf("TOTP digits: %d\n", totp.Digits); err != nil {
-
-					return err
-
-				}
-				if err := cmd.Printf("TOTP period: %d seconds\n", totp.Period); err != nil {
-
-					return err
-
-				}
-				if totp.Username != "" {
-					if err := cmd.Printf("TOTP username: %s\n", safeTerminalText(totp.Username)); err != nil {
-
-						return err
-
-					}
-				}
-				if totp.Issuer != "" {
-					if err := cmd.Printf("TOTP issuer: %s\n", safeTerminalText(totp.Issuer)); err != nil {
-
-						return err
-
-					}
 				}
 			}
 		}
@@ -287,9 +250,7 @@ func (cmd *ShowCmd) showItem(ctx context.Context, item *model.Item) error {
 			return err
 		}
 		if err := cmd.Printf("Password: %s\n", safeTerminalText(secretValue(passwordValue(credential), cmd.reveal))); err != nil {
-
 			return err
-
 		}
 	case model.SSHKeyItemType:
 		var credential cxf.SSHKey
@@ -310,46 +271,32 @@ func (cmd *ShowCmd) showItem(ctx context.Context, item *model.Item) error {
 			return err
 		}
 		if err := cmd.Printf("Private key: %s\n", safeTerminalText(secretValue(privateKey, cmd.reveal))); err != nil {
-
 			return err
-
 		}
-		if err := cmd.Printf("Public key: %s", safeTerminalText(publicKey)); err != nil {
-
+		if err := cmd.Printf("Public key: %s\n", safeTerminalText(publicKey)); err != nil {
 			return err
-
 		}
 		if err := cmd.Printf("Fingerprint: %s\n", safeTerminalText(fingerprint)); err != nil {
-
 			return err
-
 		}
 		if credential.CreationDate != nil {
 			if err := cmd.Printf("Key creation date: %s\n", safeTerminalText(editableDisplayValue(credential.CreationDate, cmd.reveal))); err != nil {
-
 				return err
-
 			}
 		}
 		if credential.ExpiryDate != nil {
 			if err := cmd.Printf("Key expiry date: %s\n", safeTerminalText(editableDisplayValue(credential.ExpiryDate, cmd.reveal))); err != nil {
-
 				return err
-
 			}
 		}
 		if credential.KeyGenerationSource != nil {
 			if err := cmd.Printf("Key generation source: %s\n", safeTerminalText(editableDisplayValue(credential.KeyGenerationSource, cmd.reveal))); err != nil {
-
 				return err
-
 			}
 		}
 		if credential, _, err := item.BasicAuth(); err == nil && credential.Password != nil && credential.Password.Value != "" {
 			if err := cmd.Printf("Passphrase: %s\n", safeTerminalText(secretValue(credential.Password.Value, cmd.reveal))); err != nil {
-
 				return err
-
 			}
 		}
 		addToAgent := "No"
@@ -357,37 +304,39 @@ func (cmd *ShowCmd) showItem(ctx context.Context, item *model.Item) error {
 			addToAgent = "Yes"
 		}
 		if err := cmd.Printf("Add to agent: %s\n", addToAgent); err != nil {
-
 			return err
-
 		}
 	case model.NoteItemType:
 		note, _, err := item.Note()
 		if err != nil {
 			return err
 		}
-		if err := cmd.Printf("Note: %s\n", safeTerminalText(note.Content.Value)); err != nil {
-
+		if err := cmd.Printf("Note:\n%s\n", safeTerminalText(note.Content.Value)); err != nil {
 			return err
-
 		}
 	}
 	groups, err := item.CustomFields()
 	if err != nil {
 		return err
 	}
-	if len(groups) > 0 {
+	hasCustomFields := false
+	for _, group := range groups {
+		if len(group.Credential.Fields) > 0 {
+			hasCustomFields = true
+			break
+		}
+	}
+	if hasCustomFields {
 		if err := cmd.Printf("\nCustom fields:\n"); err != nil {
-
 			return err
-
 		}
 		for _, group := range groups {
+			if len(group.Credential.Fields) == 0 {
+				continue
+			}
 			if group.Credential.Label != "" {
 				if err := cmd.Printf("  [%s]\n", safeTerminalText(group.Credential.Label)); err != nil {
-
 					return err
-
 				}
 			}
 			for _, field := range group.Credential.Fields {
@@ -400,33 +349,14 @@ func (cmd *ShowCmd) showItem(ctx context.Context, item *model.Item) error {
 					value = "********"
 				}
 				if err := cmd.Printf("  %s: %s\n", safeTerminalText(label), safeTerminalText(value)); err != nil {
-
 					return err
-
 				}
 			}
 		}
 	}
 	if len(item.Tags) > 0 {
-		if err := cmd.Printf("Tags: %s\n", safeTerminalText(strings.Join(item.Tags, ", "))); err != nil {
-
+		if err := cmd.Printf("\nTags: %s\n", safeTerminalText(strings.Join(item.Tags, ", "))); err != nil {
 			return err
-
-		}
-	}
-
-	if item.ModifiedAt != nil {
-		if err := cmd.Printf("Modified: %s\n", time.Unix(int64(*item.ModifiedAt), 0).Local().Format(time.RFC1123)); err != nil {
-
-			return err
-
-		}
-	}
-	if item.CreationAt != nil {
-		if err := cmd.Printf("Created: %s\n", time.Unix(int64(*item.CreationAt), 0).Local().Format(time.RFC1123)); err != nil {
-
-			return err
-
 		}
 	}
 	files, err := item.Files()
@@ -435,27 +365,39 @@ func (cmd *ShowCmd) showItem(ctx context.Context, item *model.Item) error {
 	}
 	if len(files) > 0 {
 		if err := cmd.Printf("\nAttachments: %d\n", len(files)); err != nil {
-
 			return err
-
 		}
+	}
+	metadataWritten := false
+	if item.CreationAt != nil {
+		if err := cmd.Printf("\nCreated: %s\n", time.Unix(int64(*item.CreationAt), 0).Local().Format(humanTimeLayout)); err != nil {
+			return err
+		}
+		metadataWritten = true
+	}
+	if item.ModifiedAt != nil {
+		if !metadataWritten {
+			if err := cmd.Printf("\n"); err != nil {
+				return err
+			}
+		}
+		if err := cmd.Printf("Modified: %s\n", time.Unix(int64(*item.ModifiedAt), 0).Local().Format(humanTimeLayout)); err != nil {
+			return err
+		}
+		metadataWritten = true
 	}
 	history, err := item.History()
 	if err != nil {
 		return fmt.Errorf("cannot read item history: %w", err)
 	}
 	if len(history.Entries) > 0 {
-		if len(files) == 0 {
+		if !metadataWritten {
 			if err := cmd.Printf("\n"); err != nil {
-
 				return err
-
 			}
 		}
 		if err := cmd.Printf("History: %d versions\n", len(history.Entries)); err != nil {
-
 			return err
-
 		}
 	}
 

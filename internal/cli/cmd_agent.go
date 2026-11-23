@@ -10,6 +10,7 @@ import (
 	"time"
 
 	urfave "github.com/urfave/cli/v3"
+	"go.lucor.dev/paw/internal/storage"
 )
 
 const (
@@ -29,11 +30,11 @@ func newAgentCommand(base *command) *urfave.Command {
 	sessions := &AgentCmd{command: base, agentCommand: agentSessionsSubCmd}
 	return &urfave.Command{
 		Name:   "agent",
-		Usage:  "Manages the Paw agent",
+		Usage:  "Manage the Paw agent",
 		Action: commandGroupAction,
 		Commands: []*urfave.Command{
-			newAgentSubcommand("start", "Starts the agent", start),
-			newAgentSubcommand("sessions", "Lists active sessions", sessions),
+			newAgentSubcommand("start", "Start the agent in the foreground", start),
+			newAgentSubcommand("sessions", "List active sessions", sessions),
 		},
 		OnUsageError: onUsageError,
 	}
@@ -93,17 +94,17 @@ func (cmd *AgentCmd) Run(ctx context.Context, _ *urfave.Command) error {
 			return nil
 		}
 
-		vaultIDs := make([]string, len(sessions))
-		for i, session := range sessions {
-			vaultIDs[i] = session.Vault
-		}
-		prefixes := vaultIDPrefixes(vaultIDs)
 		w := tabwriter.NewWriter(base.Stdout(), 0, 0, 1, ' ', 0)
 		if _, err := fmt.Fprintln(w, "Session ID\tVault ID\tLifetime"); err != nil {
 			return err
 		}
 		for _, session := range sessions {
-			if _, err := fmt.Fprintf(w, "%s\t%s\t%s\n", session.ID, prefixes[session.Vault], session.Lifetime.Round(time.Second)); err != nil {
+			vaultID := storage.FormatVaultID(session.Vault)
+			prefix := vaultID
+			if len(prefix) > 7 {
+				prefix = prefix[:7]
+			}
+			if _, err := fmt.Fprintf(w, "%s\t%s (%s)\t%s\n", session.ID, vaultID, prefix, session.Lifetime.Round(time.Second)); err != nil {
 				return err
 			}
 		}

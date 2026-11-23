@@ -27,14 +27,15 @@ func newUnlockCommand(base *command) *urfave.Command {
 	cmd := &UnlockCmd{command: base}
 	c := &urfave.Command{
 		Name:         "unlock",
-		Usage:        "Unlocks a vault and returns a session ID",
+		Usage:        "Unlock a vault",
 		ArgsUsage:    "VAULT",
 		Description:  vaultReferenceHelp,
 		Flags:        []urfave.Flag{&urfave.DurationFlag{Name: "lifetime", Aliases: []string{"t"}, Usage: "Maximum session lifetime (zero means no expiry)"}},
 		OnUsageError: onUsageError,
 	}
-	c.Before = cmd.Validate
 	c.Action = cmd.Run
+	c.ArgValidator = completionArgValidator(cmd.Validate)
+	c.ShellComplete = base.completeVaults(false)
 	return c
 }
 

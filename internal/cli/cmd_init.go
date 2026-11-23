@@ -20,8 +20,8 @@ func newInitCommand(base *command) *urfave.Command {
 	cmd := &InitCmd{command: base}
 	c := &urfave.Command{
 		Name:         "init",
-		Usage:        "Initializes a vault",
-		ArgsUsage:    "VAULT_NAME",
+		Usage:        "Initialize a vault",
+		ArgsUsage:    "NAME",
 		Before:       cmd.Validate,
 		Action:       cmd.Run,
 		OnUsageError: onUsageError,

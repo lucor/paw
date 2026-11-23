@@ -21,9 +21,9 @@ func newLockCommand(base *command) *urfave.Command {
 	cmd := &LockCmd{command: base}
 	c := &urfave.Command{
 		Name:         "lock",
-		Usage:        "Locks a vault",
+		Usage:        "Lock a vault",
 		ArgsUsage:    "VAULT",
-		Description:  vaultReferenceHelp,
+		Description:  vaultReferenceHelp + " Revokes all sessions for this vault without requiring authentication.",
 		OnUsageError: onUsageError,
 	}
 	c.Before = cmd.Validate

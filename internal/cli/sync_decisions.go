@@ -23,25 +23,25 @@ var syncDecisionOptions = map[pawsync.DifferenceKind][]syncDecisionOption{
 		{key: "c", decision: pawsync.CopyLocalToRemote, label: "Copy to %s", peerLabel: true},
 		{key: "d", decision: pawsync.DeleteLocal, label: "Delete from this device"},
 		{key: "s", decision: pawsync.Skip, label: "Skip"},
-		{key: "q", quit: true},
+		{key: "q", label: "Cancel", quit: true},
 	},
 	pawsync.RemoteOnly: {
 		{key: "c", decision: pawsync.CopyRemoteToLocal, label: "Copy to this device"},
 		{key: "d", decision: pawsync.DeleteRemote, label: "Delete from %s", peerLabel: true},
 		{key: "s", decision: pawsync.Skip, label: "Skip"},
-		{key: "q", quit: true},
+		{key: "q", label: "Cancel", quit: true},
 	},
 	pawsync.ContentDifferent: {
 		{key: "l", decision: pawsync.CopyLocalToRemote, label: "Keep this device's version"},
 		{key: "r", decision: pawsync.CopyRemoteToLocal, label: "Keep %s's version", peerLabel: true},
 		{key: "s", decision: pawsync.Skip, label: "Skip"},
-		{key: "q", quit: true},
+		{key: "q", label: "Cancel", quit: true},
 	},
 	pawsync.StateDifferent: {
 		{key: "l", decision: pawsync.CopyLocalToRemote, label: "Keep this device's version"},
 		{key: "r", decision: pawsync.CopyRemoteToLocal, label: "Keep %s's version", peerLabel: true},
 		{key: "s", decision: pawsync.Skip, label: "Skip"},
-		{key: "q", quit: true},
+		{key: "q", label: "Cancel", quit: true},
 	},
 }
 
@@ -50,9 +50,6 @@ func syncDecisionMenu(kind pawsync.DifferenceKind, peer string) []string {
 	options := syncDecisionOptions[kind]
 	menu := make([]string, 0, len(options))
 	for _, option := range options {
-		if option.quit {
-			continue
-		}
 		label := option.label
 		if option.peerLabel {
 			label = fmt.Sprintf(label, peer)

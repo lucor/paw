@@ -25,8 +25,8 @@ func TestFormatSyncVersionTimesUsesEachManifestTimestamp(t *testing.T) {
 	remoteTime := uint64(1794443700)
 	local := &pawsync.ManifestItem{ModifiedAt: &localTime}
 	remote := &pawsync.ManifestItem{ModifiedAt: &remoteTime}
-	want := "This device: " + time.Unix(int64(localTime), 0).Local().Format("Jan 2, 15:04") +
-		"\nMacBook:     " + time.Unix(int64(remoteTime), 0).Local().Format("Jan 2, 15:04")
+	want := "This device: " + time.Unix(int64(localTime), 0).Local().Format(humanTimeLayout) +
+		"\nMacBook:     " + time.Unix(int64(remoteTime), 0).Local().Format(humanTimeLayout)
 	require.Equal(t, want, formatSyncVersionTimes(local, remote, "MacBook"))
 	require.Equal(t, "Unknown", formatSyncTimestamp(&pawsync.ManifestItem{}))
 }

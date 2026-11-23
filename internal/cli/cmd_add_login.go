@@ -20,17 +20,18 @@ func newAddLoginCommand(base *command) *urfave.Command {
 	cmd := &AddCmd{command: base, itemPath: itemPath{itemType: model.LoginItemType}}
 	return &urfave.Command{
 		Name:        "login",
-		Usage:       "Adds a " + model.LoginItemType.Label() + " item",
+		Usage:       "Add a " + model.LoginItemType.Label() + " item",
 		ArgsUsage:   "VAULT NAME",
-		Description: vaultReferenceHelp,
-		Before:      cmd.validateLogin,
+		Description: vaultReferenceHelp + " --password-stdin and --totp-stdin cannot be combined. --totp-stdin requires --generate-password.",
 		Action:      cmd.Run,
 		Flags: append(addPasswordFlags(),
 			&urfave.StringFlag{Name: "username", Usage: "Login username"},
 			&urfave.StringFlag{Name: "url", Usage: "Login website"},
 			&urfave.BoolFlag{Name: "totp-stdin", Usage: "Read a Base32 authenticator secret from stdin"},
 		),
-		OnUsageError: onUsageError,
+		OnUsageError:  onUsageError,
+		ArgValidator:  completionArgValidator(cmd.validateLogin),
+		ShellComplete: base.completeVaults(false),
 	}
 }
 

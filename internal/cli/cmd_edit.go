@@ -46,9 +46,9 @@ func newEditCommand(base *command) *urfave.Command {
 	cmd := &EditCmd{command: base}
 	c := &urfave.Command{
 		Name:        "edit",
-		Usage:       "Edits an item; --field reads a custom field value from stdin",
-		ArgsUsage:   "VAULT/ITEM_TYPE/ITEM_NAME",
-		Description: vaultReferenceHelp + " Use --name to rename an item, --tag to associate one tag, --input to import or --generate-key to replace an SSH key; --remove removes a field or tag association.",
+		Usage:       "Edit an item",
+		ArgsUsage:   "VAULT/TYPE/ITEM",
+		Description: vaultReferenceHelp + " Use --name to rename, --tag to associate a tag, or --remove with --field or --tag. SSH keys support --input and --generate-key. --password-stdin and --totp-stdin read secrets from stdin.",
 		Flags: []urfave.Flag{
 			sessionFlag(),
 			&urfave.StringFlag{
@@ -89,8 +89,9 @@ func newEditCommand(base *command) *urfave.Command {
 		},
 		OnUsageError: onUsageError,
 	}
-	c.Before = cmd.Validate
 	c.Action = cmd.Run
+	c.ArgValidator = completionArgValidator(cmd.Validate)
+	c.ShellComplete = base.completeVaults(true)
 	return c
 }
 
@@ -469,24 +470,13 @@ func (cmd *EditCmd) editCustomInteractive(item *model.Item) error {
 		if err != nil {
 			return err
 		}
-		for gi, group := range groups {
-			for fi, field := range group.Credential.Fields {
-				label := safeTerminalText(field.Label)
-				if group.Credential.Label != "" {
-					label = safeTerminalText(group.Credential.Label) + "/" + label
-				}
-				if _, err := fmt.Fprintf(cmd.errOut, "%d. %s (%s)\n", customFieldNumber(groups, gi, fi), label, customFieldType(field)); err != nil {
-					return err
-				}
-			}
-		}
 		choice, err := cmd.prompter.selectOption("Custom fields", "Add field", "Edit value", "Rename field", "Change UI type", "Move field", "Remove field", "Manage sections", "Done")
 		if err != nil {
 			return err
 		}
 		switch choice {
 		case "Add field":
-			field, err := (&AddCmd{command: cmd.command}).readCustomField(false, cxf.EditableField{})
+			field, err := cmd.readCustomField(false, cxf.EditableField{})
 			if err != nil {
 				return err
 			}
@@ -512,7 +502,7 @@ func (cmd *EditCmd) editCustomInteractive(item *model.Item) error {
 			field := group.Credential.Fields[fieldIndex]
 			switch choice {
 			case "Edit value":
-				updated, err := (&AddCmd{command: cmd.command}).readCustomField(true, field)
+				updated, err := cmd.readCustomField(true, field)
 				if err != nil {
 					return err
 				}
@@ -563,10 +553,8 @@ func (cmd *EditCmd) editCustomInteractive(item *model.Item) error {
 				}
 				continue
 			}
-			if choice != "5" && choice != "6" {
-				if err := replaceCustomGroup(item, group); err != nil {
-					return err
-				}
+			if err := replaceCustomGroup(item, group); err != nil {
+				return err
 			}
 		case "Manage sections":
 			if err := cmd.manageSections(item); err != nil {
@@ -576,15 +564,6 @@ func (cmd *EditCmd) editCustomInteractive(item *model.Item) error {
 			return nil
 		}
 	}
-}
-
-// customFieldNumber returns a field's one-based position across all groups.
-func customFieldNumber(groups []model.CustomFieldsGroup, groupIndex, fieldIndex int) int {
-	number := fieldIndex + 1
-	for index := 0; index < groupIndex; index++ {
-		number += len(groups[index].Credential.Fields)
-	}
-	return number
 }
 
 // chooseCustomField prompts for a field and returns its group and field indexes.
@@ -599,32 +578,27 @@ func (cmd *EditCmd) chooseCustomField(groups []model.CustomFieldsGroup) (int, in
 		}
 		return 0, 0, false, nil
 	}
-	options := make([]string, 0, count)
-	for _, group := range groups {
-		for _, field := range group.Credential.Fields {
-			label := safeTerminalText(field.Label) + " (" + customFieldType(field) + ")"
-			if group.Credential.Label != "" {
-				label = safeTerminalText(group.Credential.Label) + "/" + label
-			}
-			options = append(options, label)
-		}
-	}
-	value, err := cmd.prompter.selectOption("Field", options...)
-	if err != nil {
-		return 0, 0, false, err
-	}
+	labels := make([]string, 0, count)
+	values := make([]string, 0, count)
 	for gi, group := range groups {
 		for fi, field := range group.Credential.Fields {
 			label := safeTerminalText(field.Label) + " (" + customFieldType(field) + ")"
 			if group.Credential.Label != "" {
 				label = safeTerminalText(group.Credential.Label) + "/" + label
 			}
-			if label == value {
-				return gi, fi, true, nil
-			}
+			labels = append(labels, label)
+			values = append(values, fmt.Sprintf("%d:%d", gi, fi))
 		}
 	}
-	return 0, 0, false, nil
+	value, err := cmd.prompter.selectOptionValue("Field", labels, values)
+	if err != nil {
+		return 0, 0, false, err
+	}
+	var groupIndex, fieldIndex int
+	if _, err := fmt.Sscanf(value, "%d:%d", &groupIndex, &fieldIndex); err != nil {
+		return 0, 0, false, fmt.Errorf("invalid custom field selection: %w", err)
+	}
+	return groupIndex, fieldIndex, true, nil
 }
 
 // replaceCustomGroup stores the updated fields for one custom field group.
@@ -680,22 +654,18 @@ func (cmd *EditCmd) manageSections(item *model.Item) error {
 			_, err := fmt.Fprintln(cmd.errOut, "No sections to select")
 			return err
 		}
-		options := make([]string, 0, len(sections))
-		for _, section := range sections {
-			options = append(options, fmt.Sprintf("%s (%d fields)", safeTerminalText(section.Credential.Label), len(section.Credential.Fields)))
+		labels := make([]string, 0, len(sections))
+		values := make([]string, 0, len(sections))
+		for index, section := range sections {
+			labels = append(labels, fmt.Sprintf("%s (%d fields)", safeTerminalText(section.Credential.Label), len(section.Credential.Fields)))
+			values = append(values, fmt.Sprint(index))
 		}
-		value, err := cmd.prompter.selectOption("Section", options...)
+		value, err := cmd.prompter.selectOptionValue("Section", labels, values)
 		if err != nil {
 			return err
 		}
-		index := -1
-		for i, section := range sections {
-			if value == fmt.Sprintf("%s (%d fields)", safeTerminalText(section.Credential.Label), len(section.Credential.Fields)) {
-				index = i
-				break
-			}
-		}
-		if index < 0 {
+		var index int
+		if _, err := fmt.Sscan(value, &index); err != nil || index < 0 || index >= len(sections) {
 			return fmt.Errorf("invalid section selection")
 		}
 		section := sections[index]
@@ -766,15 +736,7 @@ func (cmd *EditCmd) editCustomAndTags(item *model.Item) error {
 			return fmt.Errorf("field %q was not found", cmd.field)
 		}
 		group := groups[groupIndex]
-		group.Credential.Fields = append(group.Credential.Fields[:fieldIndex], group.Credential.Fields[fieldIndex+1:]...)
-		original := make([]int, len(group.Credential.Fields))
-		for i := range original {
-			original[i] = i
-			if i >= fieldIndex {
-				original[i]++
-			}
-		}
-		err := item.ReplaceCustomFields(group.Index, group.Credential, original)
+		err := removeCustomField(item, group, fieldIndex)
 		if err == nil {
 			applyTag()
 		}
@@ -822,32 +784,7 @@ func (cmd *EditCmd) editCustomAndTags(item *model.Item) error {
 		return fmt.Errorf("invalid custom field selector %q", cmd.field)
 	}
 	field := cxf.EditableField{FieldType: fieldType, Value: string(value), Label: label}
-	var destination *model.CustomFieldsGroup
-	for _, group := range groups {
-		if group.Credential.Label != section {
-			continue
-		}
-		if destination != nil && section != "" {
-			return fmt.Errorf("section %q is ambiguous", section)
-		}
-		if destination == nil {
-			destination = &group
-		}
-	}
-	if destination != nil {
-		original := make([]int, len(destination.Credential.Fields)+1)
-		for index := range destination.Credential.Fields {
-			original[index] = index
-		}
-		original[len(original)-1] = -1
-		destination.Credential.Fields = append(destination.Credential.Fields, field)
-		err := item.ReplaceCustomFields(destination.Index, destination.Credential, original)
-		if err == nil {
-			applyTag()
-		}
-		return err
-	}
-	err = item.AppendCustomFields(cxf.CustomFields{Type: cxf.CredentialTypeCustomFields, Label: section, Fields: []cxf.EditableField{field}})
+	err = appendField(item, section, field)
 	if err == nil {
 		applyTag()
 	}

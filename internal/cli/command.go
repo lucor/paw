@@ -18,6 +18,8 @@ import (
 	"go.lucor.dev/paw/internal/storage"
 )
 
+const humanTimeLayout = "2006-01-02 15:04:05 MST"
+
 const clipboardWriteTimeout = time.Second
 
 // command provides the shared runtime used by CLI command implementations.

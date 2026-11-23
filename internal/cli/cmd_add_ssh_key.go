@@ -22,16 +22,17 @@ func newAddSSHKeyCommand(base *command) *urfave.Command {
 	cmd := &AddCmd{command: base, itemPath: itemPath{itemType: model.SSHKeyItemType}}
 	return &urfave.Command{
 		Name:        "ssh-key",
-		Usage:       "Adds a " + model.SSHKeyItemType.Label() + " item",
+		Usage:       "Add a " + model.SSHKeyItemType.Label() + " item",
 		ArgsUsage:   "VAULT NAME",
 		Description: vaultReferenceHelp,
-		Before:      cmd.validateSSHKey,
 		Action:      cmd.Run,
 		Flags: []urfave.Flag{
 			&urfave.StringFlag{Name: "input", Usage: "Import an SSH private key from FILE"},
 			&urfave.BoolFlag{Name: "add-to-agent", Usage: "Load the key into the SSH agent when the vault is unlocked"},
 		},
-		OnUsageError: onUsageError,
+		OnUsageError:  onUsageError,
+		ArgValidator:  completionArgValidator(cmd.validateSSHKey),
+		ShellComplete: base.completeVaults(false),
 	}
 }
 

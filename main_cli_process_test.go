@@ -67,6 +67,32 @@ func TestCLIProcessHelper(t *testing.T) {
 	os.Exit(run())
 }
 
+// TestCLIProcessShellCompletion checks native completion through the CLI entry point.
+func TestCLIProcessShellCompletion(t *testing.T) {
+	code, stdout, stderr := runCLIProcess(t, []string{"--generate-shell-completion"}, false)
+	require.Equal(t, cli.ExitCodeSuccess, code)
+	require.Contains(t, stdout, "\nunlock:Unlock a vault")
+	require.Empty(t, stderr)
+
+	code, stdout, stderr = runCLIProcess(t, []string{"agent", "--generate-shell-completion"}, false)
+	require.Equal(t, cli.ExitCodeSuccess, code)
+	require.Contains(t, stdout, "sessions:List active sessions")
+	require.Empty(t, stderr)
+
+	for shell, registration := range map[string]string{
+		"bash": "-F __paw_bash_autocomplete paw",
+		"zsh":  "compdef _paw paw",
+		"fish": "complete -c paw -f",
+	} {
+		t.Run(shell, func(t *testing.T) {
+			code, stdout, stderr := runCLIProcess(t, []string{"completion", shell}, false)
+			require.Equal(t, cli.ExitCodeSuccess, code)
+			require.Contains(t, stdout, registration)
+			require.Empty(t, stderr)
+		})
+	}
+}
+
 func TestCLIProcessExitCodes(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -92,7 +118,7 @@ func TestCLIProcessExitCodes(t *testing.T) {
 			name:      "missing argument",
 			args:      []string{"init"},
 			wantCode:  cli.ExitCodeInvalidArguments,
-			wantError: "Error: invalid arguments: missing required arguments: VAULT_NAME",
+			wantError: "Error: invalid arguments: missing required arguments: NAME",
 		},
 		{
 			name:      "extra argument",
@@ -121,6 +147,12 @@ func TestCLIProcessExitCodes(t *testing.T) {
 		{
 			name:      "terminal unavailable",
 			args:      []string{"init", "vault"},
+			wantCode:  cli.ExitCodeApplicationError,
+			wantError: "Error: interactive prompt requires stdin to be a terminal",
+		},
+		{
+			name:      "sync terminal unavailable",
+			args:      []string{"sync", "vault"},
 			wantCode:  cli.ExitCodeApplicationError,
 			wantError: "Error: interactive prompt requires stdin to be a terminal",
 		},

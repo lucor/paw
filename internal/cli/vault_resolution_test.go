@@ -96,12 +96,15 @@ func TestListVaultSelectionAndUniqueIDPrefixes(t *testing.T) {
 }
 
 func TestSyncRejectsAmbiguousVaultBeforeUnlock(t *testing.T) {
+	t.Setenv("TERM", "xterm")
 	store, err := storage.NewFileStorage(t.TempDir())
 	require.NoError(t, err)
 	defer store.Close()
 	test.CreateVault(t, store, "Personal")
 	test.CreateVault(t, store, "Personal")
-	cmd := &SyncCmd{command: &command{storage: store, getenv: os.Getenv, prompter: newPrompter(strings.NewReader(""), nil)}, vaultName: "Personal"}
+	prompter := newPrompter(strings.NewReader(""), nil)
+	prompter.interactive = true
+	cmd := &SyncCmd{command: &command{storage: store, getenv: os.Getenv, prompter: prompter}, vaultName: "Personal"}
 	err = cmd.Run(context.Background(), nil)
 	require.ErrorContains(t, err, "ambiguous vault")
 }

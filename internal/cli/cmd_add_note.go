@@ -17,15 +17,16 @@ func newAddNoteCommand(base *command) *urfave.Command {
 	cmd := &AddCmd{command: base, itemPath: itemPath{itemType: model.NoteItemType}}
 	return &urfave.Command{
 		Name:        "note",
-		Usage:       "Adds a " + model.NoteItemType.Label() + " item",
+		Usage:       "Add a " + model.NoteItemType.Label() + " item",
 		ArgsUsage:   "VAULT NAME",
 		Description: vaultReferenceHelp,
-		Before:      cmd.validateNote,
 		Action:      cmd.Run,
 		Flags: []urfave.Flag{
-			&urfave.StringFlag{Name: "input", Usage: "Use - to read note content from stdin"},
+			&urfave.StringFlag{Name: "input", Usage: "Read note content from FILE, or use - for stdin"},
 		},
-		OnUsageError: onUsageError,
+		OnUsageError:  onUsageError,
+		ArgValidator:  completionArgValidator(cmd.validateNote),
+		ShellComplete: base.completeVaults(false),
 	}
 }
 
@@ -43,7 +44,7 @@ func (cmd *AddCmd) validateNote(ctx context.Context, c *urfave.Command) (context
 	return ctx, nil
 }
 
-// newNote reads the note from stdin or the configured editor.
+// newNote reads the note from stdin or the terminal prompt.
 func (cmd *AddCmd) newNote() (*model.Item, error) {
 	if cmd.input != nil {
 		data, err := io.ReadAll(cmd.input)
@@ -59,15 +60,7 @@ func (cmd *AddCmd) newNote() (*model.Item, error) {
 	return model.NewNote(cmd.itemName, content)
 }
 
-// editNote keeps the external editor on stderr so stdout remains usable by scripts.
+// editNote prompts for the body of a new note.
 func (cmd *AddCmd) editNote() (string, error) {
-	if err := cmd.prompter.checkTerminal(); err != nil {
-		return "", err
-	}
-	p := *cmd.prompter
-	if editor, ok := p.editor.(commandTextEditor); ok {
-		editor.output = cmd.errOut
-		p.editor = editor
-	}
-	return p.editMultiline("Note", "")
+	return cmd.prompter.editMultiline("Note", "")
 }

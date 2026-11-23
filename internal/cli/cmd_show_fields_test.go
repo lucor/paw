@@ -31,7 +31,7 @@ func TestShowMasksSecretsAndAllowsExplicitFieldOutput(t *testing.T) {
 	var output, stderr bytes.Buffer
 	cmd := &ShowCmd{command: &command{out: &output, errOut: &stderr}, itemPath: itemPath{itemType: model.LoginItemType}}
 	require.NoError(t, cmd.showItem(context.Background(), item))
-	require.Contains(t, output.String(), "ID: "+item.ID+"\n")
+	require.Contains(t, output.String(), "ID: "+item.ID+" ("+item.ID[:7]+")\nName: GitHub\nType: login\n")
 	require.Contains(t, output.String(), "Password: ********")
 	require.Contains(t, output.String(), "Token: ********")
 	require.NotContains(t, output.String(), "login-secret")
@@ -81,9 +81,68 @@ func TestShowFullItemIncludesIDForEachItemType(t *testing.T) {
 				itemPath: itemPath{itemType: testCase.itemType},
 			}
 			require.NoError(t, cmd.showItem(context.Background(), testCase.item))
-			require.True(t, strings.HasPrefix(output.String(), "ID: "+testCase.item.ID+"\n"))
+			shortID := testCase.item.ID[:7]
+			wantHeader := "ID: " + testCase.item.ID + " (" + shortID + ")\nName: " + testCase.item.Title + "\nType: " + testCase.itemType.String() + "\n"
+			require.True(t, strings.HasPrefix(output.String(), wantHeader))
+			require.NotContains(t, output.String(), "Custom fields:")
+			require.NotContains(t, output.String(), "Tags:")
+			require.NotContains(t, output.String(), "Attachments:")
+			require.NotContains(t, output.String(), "History:")
+			switch testCase.itemType {
+			case model.PasswordItemType:
+				require.Contains(t, output.String(), "Password: ********\n")
+			case model.NoteItemType:
+				require.Contains(t, output.String(), "Note:\nnote content\n")
+			case model.SSHKeyItemType:
+				require.Contains(t, output.String(), "Private key: ********\n")
+				require.Contains(t, output.String(), "Public key: ")
+				require.Contains(t, output.String(), "\nFingerprint: ")
+			}
 		})
 	}
+}
+
+func TestShowPrintsMultilineNoteAfterLabelOnNewLine(t *testing.T) {
+	item, err := model.NewNote("Note", "kdsakl\ndsakldslakdsal\ndksaldksa;dksaldksa\ndsakldslakdsal")
+	require.NoError(t, err)
+	var output bytes.Buffer
+	cmd := &ShowCmd{command: &command{out: &output}, itemPath: itemPath{itemType: model.NoteItemType}}
+
+	require.NoError(t, cmd.showItem(context.Background(), item))
+	require.Contains(t, output.String(), "Note:\nkdsakl\ndsakldslakdsal\ndksaldksa;dksaldksa\ndsakldslakdsal\n")
+}
+
+func TestShowUsesFixedSevenCharacterIDPrefixOnCollision(t *testing.T) {
+	first, err := model.NewNote("First", "content")
+	require.NoError(t, err)
+	second, err := model.NewNote("Second", "content")
+	require.NoError(t, err)
+	first.ID = "abcdefgfirst"
+	second.ID = "abcdefgsecond"
+
+	for _, item := range []*model.Item{first, second} {
+		var output bytes.Buffer
+		cmd := &ShowCmd{command: &command{out: &output}, itemPath: itemPath{itemType: model.NoteItemType}}
+		require.NoError(t, cmd.showItem(context.Background(), item))
+		require.Contains(t, output.String(), "ID: "+item.ID+" (abcdefg)\n")
+	}
+}
+
+func TestShowPrintsCreatedBeforeModified(t *testing.T) {
+	item, err := model.NewNote("Note", "content")
+	require.NoError(t, err)
+	created := uint64(1795455520)
+	modified := uint64(1795480900)
+	item.CreationAt = &created
+	item.ModifiedAt = &modified
+	var output bytes.Buffer
+	cmd := &ShowCmd{command: &command{out: &output}, itemPath: itemPath{itemType: model.NoteItemType}}
+
+	require.NoError(t, cmd.showItem(context.Background(), item))
+	result := output.String()
+	require.Less(t, strings.Index(result, "Created:"), strings.Index(result, "Modified:"))
+	require.Contains(t, result, "Created: "+time.Unix(int64(created), 0).Local().Format(humanTimeLayout)+"\n")
+	require.Contains(t, result, "Modified: "+time.Unix(int64(modified), 0).Local().Format(humanTimeLayout)+"\n")
 }
 
 func TestShowClipboardWritesOnlyDiagnosticToStderr(t *testing.T) {
@@ -133,6 +192,7 @@ func TestShowTOTPSecretIsMaskedAndExplicitlySelectable(t *testing.T) {
 	var output bytes.Buffer
 	cmd := &ShowCmd{command: &command{out: &output}, itemPath: itemPath{itemType: model.LoginItemType}}
 	require.NoError(t, cmd.showItem(context.Background(), item))
+	require.Contains(t, output.String(), "\nTOTP: configured\n")
 	require.NotContains(t, output.String(), "TOTP secret:")
 	require.NotContains(t, output.String(), "JBSWY3DPEHPK3PXP")
 	value, err := itemField(item, model.LoginItemType, "TOTP secret")
@@ -141,7 +201,7 @@ func TestShowTOTPSecretIsMaskedAndExplicitlySelectable(t *testing.T) {
 	cmd.reveal = true
 	output.Reset()
 	require.NoError(t, cmd.showItem(context.Background(), item))
-	require.Contains(t, output.String(), "TOTP secret: JBSWY3DPEHPK3PXP")
+	require.Contains(t, output.String(), "\nTOTP:\n  Secret: JBSWY3DPEHPK3PXP\n  Algorithm: SHA1\n  Digits: 6\n  Period: 30 seconds\n")
 }
 
 func TestShowJSONIncludesSecretsAndSelectedTOTP(t *testing.T) {
@@ -193,6 +253,7 @@ func TestShowJSONUsesCXFValuesAndOmitsUnknownExtensions(t *testing.T) {
 	var decoded map[string]any
 	require.NoError(t, json.Unmarshal(output.Bytes(), &decoded))
 	require.Equal(t, item.ID, decoded["id"])
+	require.NotContains(t, decoded, "shortId")
 	require.Equal(t, "secret", decoded["password"])
 	require.Equal(t, []any{"personal"}, decoded["tags"])
 	require.NotContains(t, output.String(), "unknown-secret")
@@ -284,6 +345,40 @@ func TestEditCustomFieldPreservesWhitespaceTypeAndSectionOnRemoval(t *testing.T)
 	require.Equal(t, []cxf.EditableField{{FieldType: cxf.FieldTypeString, Label: "Note", Value: "keep"}}, groups[0].Credential.Fields)
 }
 
+func TestChooseCustomFieldSelectsDuplicateLabelByPosition(t *testing.T) {
+	item, err := model.NewNote("Note", "content")
+	require.NoError(t, err)
+	require.NoError(t, item.AppendCustomFields(cxf.CustomFields{Type: cxf.CredentialTypeCustomFields, Fields: []cxf.EditableField{
+		{FieldType: cxf.FieldTypeString, Label: "Duplicate", Value: "first"},
+		{FieldType: cxf.FieldTypeString, Label: "Duplicate", Value: "second"},
+	}}))
+	groups, err := item.CustomFields()
+	require.NoError(t, err)
+	cmd := &EditCmd{command: &command{prompter: testInteractivePrompter(t, "2\n")}}
+
+	groupIndex, fieldIndex, ok, err := cmd.chooseCustomField(groups)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, 0, groupIndex)
+	require.Equal(t, 1, fieldIndex)
+}
+
+func TestManageSectionsSelectsDuplicateLabelByPosition(t *testing.T) {
+	item, err := model.NewNote("Note", "content")
+	require.NoError(t, err)
+	for range 2 {
+		require.NoError(t, item.AppendCustomFields(cxf.CustomFields{Type: cxf.CredentialTypeCustomFields, Label: "Duplicate", Fields: []cxf.EditableField{}}))
+	}
+	prompts := testInteractivePrompter(t, "2\n2\nRenamed\n")
+	cmd := &EditCmd{command: &command{prompter: prompts}}
+
+	require.NoError(t, cmd.manageSections(item))
+	groups, err := item.CustomFields()
+	require.NoError(t, err)
+	require.Equal(t, "Duplicate", groups[0].Credential.Label)
+	require.Equal(t, "Renamed", groups[1].Credential.Label)
+}
+
 func TestEditCustomFieldTypeAndTagAssociation(t *testing.T) {
 	item, err := model.NewLogin("GitHub", "developer", "secret", model.PasswordSettings{Mode: paw.CustomPassword})
 	require.NoError(t, err)
@@ -307,6 +402,29 @@ func TestEditCustomFieldTypeAndTagAssociation(t *testing.T) {
 	cmd.remove = true
 	require.NoError(t, cmd.editCustomAndTags(item))
 	require.Empty(t, item.Tags)
+}
+
+func TestEditCustomFieldKeepsDuplicateSectionsAmbiguous(t *testing.T) {
+	item, err := model.NewNote("Note", "content")
+	require.NoError(t, err)
+	for range 2 {
+		require.NoError(t, item.AppendCustomFields(cxf.CustomFields{Type: cxf.CredentialTypeCustomFields, Label: "API", Fields: []cxf.EditableField{}}))
+	}
+	cmd := &EditCmd{
+		command: &command{},
+		field:   "API/Token",
+		tag:     "development",
+		input:   strings.NewReader("secret"),
+	}
+
+	require.ErrorContains(t, cmd.editCustomAndTags(item), "section \"API\" is ambiguous")
+	require.Empty(t, item.Tags)
+	groups, err := item.CustomFields()
+	require.NoError(t, err)
+	require.Len(t, groups, 2)
+	for _, group := range groups {
+		require.Empty(t, group.Credential.Fields)
+	}
 }
 
 type failedFieldReader struct{}

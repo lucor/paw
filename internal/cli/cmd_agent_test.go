@@ -121,10 +121,11 @@ func TestAgentSessionsOutput(t *testing.T) {
 	lines := strings.Split(strings.TrimSuffix(out, "\n"), "\n")
 	require.Len(t, lines, 2)
 	require.Equal(t, []string{"Session", "ID", "Vault", "ID", "Lifetime"}, strings.Fields(lines[0]))
-	prefix := storage.FormatVaultID(vaultID)[:7]
-	require.Equal(t, []string{"session-id", prefix, "2m0s"}, strings.Fields(lines[1]))
+	fullVaultID := storage.FormatVaultID(vaultID)
+	prefix := fullVaultID[:7]
+	require.Equal(t, []string{"session-id", fullVaultID, "(" + prefix + ")", "2m0s"}, strings.Fields(lines[1]))
 	require.Equal(t, strings.Index(lines[0], "Session ID"), strings.Index(lines[1], "session-id"))
-	require.Equal(t, strings.Index(lines[0], "Vault ID"), strings.Index(lines[1], prefix))
+	require.Equal(t, strings.Index(lines[0], "Vault ID"), strings.Index(lines[1], fullVaultID))
 	require.Equal(t, strings.Index(lines[0], "Lifetime"), strings.Index(lines[1], "2m0s"))
 	require.NotContains(t, out, "---")
 	require.NotContains(t, out, "|")

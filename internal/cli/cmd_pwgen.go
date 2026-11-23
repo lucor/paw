@@ -22,9 +22,10 @@ type PwGenCmd struct {
 func newPwGenCommand(base *command) *urfave.Command {
 	cmd := &PwGenCmd{command: base}
 	c := &urfave.Command{
-		Name:      "pwgen",
-		Usage:     "Generates a password",
-		ArgsUsage: " ",
+		Name:        "pwgen",
+		Usage:       "Generate a password",
+		Description: "Run without a subcommand for the interactive generator. Use --clip to copy the result instead of printing it.",
+		ArgsUsage:   " ",
 		Flags: []urfave.Flag{
 			&urfave.BoolFlag{
 				Name:    "clip",
@@ -210,9 +211,10 @@ type pwGenPinCmd struct {
 func newPwGenRandomCommand(base *PwGenCmd) *urfave.Command {
 	cmd := &pwGenRandomCmd{PwGenCmd: base}
 	c := &urfave.Command{
-		Name:      "random",
-		Usage:     "Generates a random password",
-		ArgsUsage: " ",
+		Name:        "random",
+		Usage:       "Generate a random password",
+		ArgsUsage:   " ",
+		Description: "Length must be between 6 and 64.",
 		Flags: []urfave.Flag{
 			&urfave.IntFlag{Name: "length", Value: paw.NewRandomPassword().Length, Usage: "Password length"},
 			&urfave.BoolFlag{Name: "no-symbols", Usage: "Exclude symbols"},
@@ -251,8 +253,9 @@ func newPwGenPassphraseCommand(base *PwGenCmd) *urfave.Command {
 	cmd := &pwGenPassphraseCmd{PwGenCmd: base}
 	c := &urfave.Command{
 		Name:         "passphrase",
-		Usage:        "Generates a passphrase",
+		Usage:        "Generate a passphrase",
 		ArgsUsage:    " ",
+		Description:  "The word count must be between 2 and 12.",
 		Flags:        []urfave.Flag{&urfave.IntFlag{Name: "words", Value: paw.NewPassphrasePassword().Length, Usage: "Number of words"}},
 		OnUsageError: onUsageError,
 	}
@@ -287,8 +290,9 @@ func newPwGenPinCommand(base *PwGenCmd) *urfave.Command {
 	cmd := &pwGenPinCmd{PwGenCmd: base}
 	c := &urfave.Command{
 		Name:         "pin",
-		Usage:        "Generates a numeric PIN",
+		Usage:        "Generate a numeric PIN",
 		ArgsUsage:    " ",
+		Description:  "Length must be between 4 and 10.",
 		Flags:        []urfave.Flag{&urfave.IntFlag{Name: "length", Value: paw.NewPinPassword().Length, Usage: "PIN length"}},
 		OnUsageError: onUsageError,
 	}

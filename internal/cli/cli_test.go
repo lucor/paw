@@ -112,6 +112,26 @@ func TestCommandGroupHelpAndUnknownSubcommand(t *testing.T) {
 	require.Contains(t, out, "paw cli history list")
 }
 
+// TestAllCommandHelp checks that every registered command and subcommand renders help.
+func TestAllCommandHelp(t *testing.T) {
+	paths := [][]string{
+		{"attachment"}, {"attachment", "add"}, {"attachment", "list"}, {"attachment", "save"}, {"attachment", "remove"},
+		{"agent"}, {"agent", "start"}, {"agent", "sessions"},
+		{"add"}, {"add", "login"}, {"add", "password"}, {"add", "note"}, {"add", "ssh-key"},
+		{"edit"}, {"export"}, {"history"}, {"history", "list"}, {"history", "show"}, {"history", "restore"},
+		{"init"}, {"ls"}, {"lock"}, {"pwgen"}, {"pwgen", "random"}, {"pwgen", "passphrase"}, {"pwgen", "pin"},
+		{"rm"}, {"restore"}, {"show"}, {"sync"}, {"unlock"}, {"version"},
+	}
+	for _, path := range paths {
+		t.Run(strings.Join(path, "/"), func(t *testing.T) {
+			args := append(append([]string(nil), path...), "--help")
+			out, err := execute(t, args, nil)
+			require.NoError(t, err)
+			require.Contains(t, out, "USAGE:")
+		})
+	}
+}
+
 func TestInvalidArguments(t *testing.T) {
 	type testCase struct {
 		args []string
@@ -276,6 +296,9 @@ func TestSessionFlag(t *testing.T) {
 					return ctx, stop
 				}
 				args := append([]string{"paw cli", name}, tc.flags...)
+				if name == "edit" || name == "show" {
+					args = append(args, "vault/login/item")
+				}
 				require.ErrorIs(t, cmd.Run(context.Background(), args), stop)
 				require.True(t, checked)
 				require.Equal(t, "environment-session", os.Getenv(paw.ENV_SESSION))

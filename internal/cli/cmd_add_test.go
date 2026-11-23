@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"charm.land/huh/v2"
 	"github.com/stretchr/testify/require"
 
 	"go.lucor.dev/paw/internal/agent"
@@ -148,8 +149,7 @@ func TestAddScriptedItems(t *testing.T) {
 func TestAddInteractiveSelection(t *testing.T) {
 	base, vault := addTestCommand(t)
 	// Select the first vault and the Note type, then give the item a name.
-	base.prompter = testInteractivePrompter(t, "1\ntest vault password\n3\nMemo\nn\n")
-	base.prompter.editor = &testTextEditor{value: "note body\n"}
+	base.prompter = testInteractivePrompter(t, "1\ntest vault password\n3\nMemo\nn\n", "  note body  \nsecond line\n")
 	out, _, err := executeSubcommand(t, []string{"add", "--session", "active"}, newAddCommand, base, "")
 	require.NoError(t, err)
 	loaded, err := base.storage.LoadVault(vault.Accounts[0].ID, vault.Key())
@@ -161,7 +161,18 @@ func TestAddInteractiveSelection(t *testing.T) {
 	require.NoError(t, err)
 	note, _, err := item.Note()
 	require.NoError(t, err)
-	require.Equal(t, "note body", note.Content.Value)
+	require.Equal(t, "  note body  \nsecond line\n", note.Content.Value)
+}
+
+func TestAddWizardCancellationDoesNotStoreItem(t *testing.T) {
+	base, vault := addTestCommand(t)
+	base.prompter = testInteractivePrompter(t, "")
+	base.prompter.runForm = func(*huh.Form) error { return errCanceled }
+	_, _, err := executeSubcommand(t, []string{"add", "--session", "active"}, newAddCommand, base, "")
+	require.ErrorIs(t, err, errCanceled)
+	loaded, err := base.storage.LoadVault(vault.Accounts[0].ID, vault.Key())
+	require.NoError(t, err)
+	require.Empty(t, loaded.Accounts[0].Items)
 }
 
 func TestAddStdinNeverFallsBackToPrompts(t *testing.T) {

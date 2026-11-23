@@ -6,7 +6,6 @@ package cli
 import (
 	"bytes"
 	"io"
-	"os"
 	"strings"
 	"testing"
 
@@ -123,7 +122,8 @@ func TestPrompterHuhCancellation(t *testing.T) {
 	}
 }
 
-func testInteractivePrompter(t *testing.T, input string) *prompter {
+// testInteractivePrompter supplies scripted answers and an optional replacement for multiline text.
+func testInteractivePrompter(t *testing.T, input string, multiline ...string) *prompter {
 	t.Helper()
 	t.Setenv("TERM", "xterm-256color")
 	p := newPrompter(strings.NewReader(input), io.Discard)
@@ -131,69 +131,58 @@ func testInteractivePrompter(t *testing.T, input string) *prompter {
 	p.interactive = true
 	// Command tests use scripted answers to exercise the command flow.
 	p.runForm = func(form *huh.Form) error {
+		if field, ok := form.GetFocusedField().(*huh.Text); ok {
+			require.Len(t, multiline, 1)
+			form.Init()
+			form.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnd, Mod: tea.ModCtrl}))
+			for range field.GetValue().(string) {
+				form.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyBackspace}))
+			}
+			form.Update(tea.PasteMsg{Content: multiline[0]})
+			form.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
+			return nil
+		}
 		return form.WithAccessible(true).Run()
 	}
 	return p
 }
 
-func TestPrompterEditsMultilineTextInExternalEditor(t *testing.T) {
-	editor := &testTextEditor{value: "first line\nsecond line\n"}
-	var output bytes.Buffer
-	p := newPrompter(strings.NewReader(""), &output)
-	p.editor = editor
-	value, err := p.editMultiline("Note", "existing note\n")
-	require.NoError(t, err)
-	require.Equal(t, "existing note\n", editor.initial)
-	require.Equal(t, "first line\nsecond line", value)
-	require.Contains(t, output.String(), "Edit Note in your text editor")
-	_, err = os.Stat(editor.path)
-	require.ErrorIs(t, err, os.ErrNotExist, "temporary note file is removed after editing")
-}
-
-type testTextEditor struct {
-	initial string
-	path    string
-	value   string
-}
-
-func (e *testTextEditor) Edit(path string) error {
-	e.path = path
-	content, err := os.ReadFile(path)
-	if err != nil {
-		return err
+func TestPrompterEditsMultilineTextWithoutTrimming(t *testing.T) {
+	initial := "  first line  \nsecond line\n\n" + strings.Repeat("x", 5000)
+	p := testInteractivePrompter(t, "")
+	p.runForm = func(form *huh.Form) error {
+		form.Init()
+		require.Contains(t, form.View(), "new line")
+		require.Contains(t, form.View(), "submit")
+		require.Contains(t, form.View(), "Esc or Ctrl+C to cancel")
+		require.NotContains(t, form.View(), "open editor")
+		form.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnd, Mod: tea.ModCtrl}))
+		form.Update(tea.KeyPressMsg(tea.Key{Code: 'j', Mod: tea.ModCtrl}))
+		form.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
+		return nil
 	}
-	e.initial = string(content)
-	return os.WriteFile(path, []byte(e.value), 0o600)
-}
-
-func TestPrompterEditsMultilineTextInExternalEditor(t *testing.T) {
-	editor := &testTextEditor{value: "first line\nsecond line\n"}
-	var output bytes.Buffer
-	p := newPrompter(strings.NewReader(""), &output)
-	p.editor = editor
-	value, err := p.editMultiline("Note", "existing note\n")
+	value, err := p.editMultiline("Note", initial)
 	require.NoError(t, err)
-	require.Equal(t, "existing note\n", editor.initial)
-	require.Equal(t, "first line\nsecond line", value)
-	require.Contains(t, output.String(), "Edit Note in your text editor")
-	_, err = os.Stat(editor.path)
-	require.ErrorIs(t, err, os.ErrNotExist, "temporary note file is removed after editing")
-}
+	require.Equal(t, initial+"\n", value)
 
-type testTextEditor struct {
-	initial string
-	path    string
-	value   string
-}
-
-func (e *testTextEditor) Edit(path string) error {
-	e.path = path
-	content, err := os.ReadFile(path)
-	if err != nil {
-		return err
+	initial = "\tindented\r\n"
+	p.runForm = func(form *huh.Form) error {
+		form.Init()
+		form.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
+		return nil
 	}
-	e.initial = string(content)
-	return os.WriteFile(path, []byte(e.value), 0o600)
+	value, err = p.editMultiline("Note", initial)
+	require.NoError(t, err)
+	require.Equal(t, initial, value)
+
+	p.runForm = func(form *huh.Form) error {
+		form.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEscape}))
+		require.Equal(t, huh.StateAborted, form.State)
+		return huh.ErrUserAborted
+	}
+	value, err = p.editMultiline("Note", initial)
+	require.ErrorIs(t, err, errCanceled)
+	require.Empty(t, value)
 }
 
 func TestPasswordConfirmation(t *testing.T) {

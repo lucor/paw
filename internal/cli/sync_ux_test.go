@@ -22,6 +22,44 @@ import (
 	"rsc.io/qr"
 )
 
+func TestSyncRequiresTerminalBeforeAccessingVaultOrNetwork(t *testing.T) {
+	for _, args := range [][]string{
+		{"sync", "Personal"},
+		{"sync", "Personal", "--link", "invalid"},
+		{"sync", "--clone"},
+		{"sync", "--clone", "--link", "invalid"},
+		{"sync", "Personal", "--reconcile"},
+	} {
+		t.Run(strings.Join(args, " "), func(t *testing.T) {
+			out, stderr, err := executeSubcommand(t, args, newSyncCommand, &command{}, "")
+			require.EqualError(t, err, "interactive prompt requires stdin to be a terminal")
+			require.Empty(t, out)
+			require.Empty(t, stderr)
+
+			t.Setenv("TERM", "dumb")
+			p := &prompter{interactive: true}
+			_, _, err = executeSubcommand(t, args, newSyncCommand, &command{prompter: p}, "")
+			require.EqualError(t, err, "interactive prompt is not supported when TERM=dumb")
+		})
+	}
+}
+
+func TestSyncLinkScreenPropagatesWriteError(t *testing.T) {
+	var out bytes.Buffer
+	writeErr := errors.New("terminal unavailable")
+	cmd := &SyncCmd{command: &command{
+		out:    &out,
+		errOut: syncFailingWriter{err: writeErr},
+	}}
+	require.ErrorIs(t, cmd.showSyncLink("paw://example"), writeErr)
+	require.Empty(t, out.String())
+}
+
+type syncFailingWriter struct{ err error }
+
+// Write returns the configured terminal error.
+func (w syncFailingWriter) Write([]byte) (int, error) { return 0, w.err }
+
 func TestSyncLinkActionsKeepIncomingPairingAvailable(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
@@ -79,11 +117,12 @@ func TestSyncLinkActionsKeepIncomingPairingAvailable(t *testing.T) {
 	require.Error(t, pairing.Confirm(ctx, pairing.Code()))
 	cancel()
 	require.NoError(t, <-done)
-	require.Contains(t, output.String(), "Pairing request from Sender")
-	require.Contains(t, output.String(), "Receiver (")
-	require.Contains(t, output.String(), "Sender:      Sender (")
-	require.NotContains(t, output.String(), localReference.ID)
-	require.NotContains(t, output.String(), remoteReference.ID)
+	require.Empty(t, output.String())
+	require.Contains(t, errorsOut.String(), "Pairing request from Sender")
+	require.Contains(t, errorsOut.String(), "Receiver (")
+	require.Contains(t, errorsOut.String(), "Sender:      Sender (")
+	require.NotContains(t, errorsOut.String(), localReference.ID)
+	require.NotContains(t, errorsOut.String(), remoteReference.ID)
 }
 
 func TestAcceptedIncomingPairingReturnsSyncOutcomeError(t *testing.T) {
@@ -172,9 +211,10 @@ func TestSyncPlannerShowsBothVaultsBeforeConfirmation(t *testing.T) {
 	require.Error(t, <-result)
 	localID := storage.FormatVaultID(localVault.Accounts[0].ID)
 	remoteID := storage.FormatVaultID(remoteVault.Accounts[0].ID)
-	require.Contains(t, output.String(), "Pairing with fedora")
-	require.Contains(t, output.String(), fmt.Sprintf("This device: a (%s)", localID[:7]))
-	require.Contains(t, output.String(), fmt.Sprintf("fedora:      Personal (%s)", remoteID[:7]))
+	require.Empty(t, output.String())
+	require.Contains(t, errOutput.String(), "Pairing with fedora")
+	require.Contains(t, errOutput.String(), fmt.Sprintf("This device: a (%s)", localID[:7]))
+	require.Contains(t, errOutput.String(), fmt.Sprintf("fedora:      Personal (%s)", remoteID[:7]))
 }
 
 func TestSyncVaultSummaryShowsDistinctReferences(t *testing.T) {
@@ -187,6 +227,23 @@ func TestSyncVaultSummaryShowsDistinctReferences(t *testing.T) {
 	require.Contains(t, summary, fmt.Sprintf("fedora: Personal (%s)", remoteID[:7]))
 	require.NotContains(t, summary, local.ID)
 	require.NotContains(t, summary, remote.ID)
+}
+
+func TestSyncDisplaySanitizesNames(t *testing.T) {
+	peer := pawsync.Peer{Name: "device\x1b[31m"}
+	local := pawsync.VaultReference{Name: "local\x1b[31m"}
+	remote := pawsync.VaultReference{Name: "remote\x1b[31m"}
+	require.NotContains(t, formatSyncPeerFound(peer, nil), "\x1b")
+	require.NotContains(t, formatSyncVaultSummary(peer.Name, local, remote), "\x1b")
+	require.NotContains(t, formatPairingVaultReferences(peer.Name, local, remote), "\x1b")
+	require.NotContains(t, syncItemName(&pawsync.ManifestItem{Title: "item\x1b[31m"}), "\x1b")
+}
+
+func TestSyncTerminalErrorPreservesCause(t *testing.T) {
+	cause := errors.New("peer reply\x1b[31m")
+	err := syncTerminalError{cause}
+	require.EqualError(t, err, `peer reply\u001b[31m`)
+	require.ErrorIs(t, err, cause)
 }
 
 func TestFormatPairingVaultReferencesShowsBothVaults(t *testing.T) {
@@ -246,7 +303,7 @@ func TestPastedSyncLinkStartsPairing(t *testing.T) {
 		t.Fatal("pasted link did not start pairing")
 	}
 	require.Error(t, <-done)
-	require.Contains(t, output.String(), "Connecting...")
+	require.Contains(t, errorsOut.String(), "Connecting...")
 }
 
 func TestSyncLinkScreenAndActions(t *testing.T) {
@@ -258,41 +315,43 @@ func TestSyncLinkScreenAndActions(t *testing.T) {
 		return nil
 	}}}
 	require.NoError(t, cmd.showSyncLink(link))
-	require.Contains(t, out.String(), link)
-	require.NotContains(t, out.String(), "█")
-	require.True(t, strings.HasSuffix(out.String(), "> "))
+	require.Empty(t, out.String())
+	require.Contains(t, errOut.String(), link)
+	require.NotContains(t, errOut.String(), "█")
+	require.True(t, strings.HasSuffix(errOut.String(), "> "))
 	for _, input := range []string{"c", "C"} {
-		out.Reset()
+		errOut.Reset()
 		copied = ""
 		_, connect, err := cmd.handleSyncLinkInput(context.Background(), link, input)
 		require.NoError(t, err)
 		require.False(t, connect)
 		require.Equal(t, link, copied)
-		require.Contains(t, out.String(), "Connection link copied.")
+		require.Contains(t, errOut.String(), "Connection link copied.")
 	}
 	cmd.clipboard = func(context.Context, []byte) error { return errors.New("unavailable") }
-	out.Reset()
+	errOut.Reset()
 	_, connect, err := cmd.handleSyncLinkInput(context.Background(), link, "c")
 	require.NoError(t, err)
 	require.False(t, connect)
 	require.Contains(t, errOut.String(), "Could not copy")
-	require.NotContains(t, out.String(), "Connection link copied.")
+	require.NotContains(t, errOut.String(), "Connection link copied.")
 	for _, input := range []string{"v", "V"} {
-		out.Reset()
+		errOut.Reset()
 		_, connect, err = cmd.handleSyncLinkInput(context.Background(), link, input)
 		require.NoError(t, err)
 		require.False(t, connect)
-		require.Contains(t, out.String(), "█")
+		require.Contains(t, errOut.String(), "█")
+		require.Empty(t, out.String())
 	}
 	manual, connect, err := cmd.handleSyncLinkInput(context.Background(), link, link)
 	require.NoError(t, err)
 	require.True(t, connect)
 	require.Equal(t, link, manual.String())
-	out.Reset()
+	errOut.Reset()
 	_, connect, err = cmd.handleSyncLinkInput(context.Background(), link, "invalid")
 	require.NoError(t, err)
 	require.False(t, connect)
-	require.Contains(t, out.String(), "Invalid connection link.")
+	require.Contains(t, errOut.String(), "Invalid connection link.")
 }
 
 func TestRenderSyncQRUsesEncodedLinkAndQuietZone(t *testing.T) {
@@ -317,7 +376,7 @@ func TestAskSyncYesNoRequiresExplicitYes(t *testing.T) {
 	for _, answer := range []string{"", "n"} {
 		t.Run("answer="+answer, func(t *testing.T) {
 			var output bytes.Buffer
-			cmd := &SyncCmd{command: &command{out: &output, errOut: &bytes.Buffer{}}}
+			cmd := &SyncCmd{command: &command{errOut: &output}}
 			input := make(chan syncInput, 1)
 			input <- syncInput{line: answer}
 
@@ -377,14 +436,15 @@ func TestReviewSyncPlanFinishesWithoutExecutorWhenThereAreNoChanges(t *testing.T
 	local, remote := &pawsync.Manifest{}, &pawsync.Manifest{}
 	plan, err := pawsync.BuildPlan(nil, local, remote)
 	require.NoError(t, err)
-	var output bytes.Buffer
-	cmd := &SyncCmd{command: &command{out: &output, errOut: &bytes.Buffer{}}}
+	var output, errOutput bytes.Buffer
+	cmd := &SyncCmd{command: &command{out: &output, errOut: &errOutput}}
 
 	completed, err := cmd.reviewSyncPlan(context.Background(), nil, pawsync.Peer{Name: "fedora"}, local, remote, nil, plan, nil)
 
 	require.NoError(t, err)
 	require.True(t, completed)
-	require.Equal(t, "No changes to apply.\n", output.String())
+	require.Empty(t, output.String())
+	require.Equal(t, "No changes to apply.\n", errOutput.String())
 }
 
 func TestSyncPlannerReportsNoopAndCancellationToResponder(t *testing.T) {

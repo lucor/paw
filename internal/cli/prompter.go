@@ -9,10 +9,7 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
-	"runtime"
 	"strconv"
-	"strings"
 
 	"charm.land/huh/v2"
 	"golang.org/x/term"
@@ -27,32 +24,6 @@ type prompter struct {
 	interactive   bool
 	readPassword  func() ([]byte, error)
 	runForm       func(*huh.Form) error
-	editor        textEditor
-}
-
-type textEditor interface {
-	Edit(string) error
-}
-
-type commandTextEditor struct {
-	command string
-	output  io.Writer
-}
-
-// Edit opens path in the configured external editor.
-func (e commandTextEditor) Edit(path string) error {
-	parts := strings.Fields(e.command)
-	if len(parts) == 0 {
-		return errors.New("text editor command is empty")
-	}
-	cmd := exec.Command(parts[0], append(parts[1:], path)...)
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	if e.output != nil {
-		cmd.Stdout = e.output
-	}
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
 }
 
 // newPrompter creates a prompt reader and writer for an interactive command.
@@ -69,22 +40,7 @@ func newPrompter(input io.Reader, output io.Writer) *prompter {
 		terminalInput: input,
 		output:        output,
 		interactive:   inputIsTerminal,
-		editor:        commandTextEditor{command: textEditorCommand()},
 	}
-}
-
-// textEditorCommand selects the editor from the environment or platform default.
-func textEditorCommand() string {
-	if editor := os.Getenv("VISUAL"); editor != "" {
-		return editor
-	}
-	if editor := os.Getenv("EDITOR"); editor != "" {
-		return editor
-	}
-	if runtime.GOOS == "windows" {
-		return "notepad"
-	}
-	return "vi"
 }
 
 type singleByteReader struct{ io.Reader }
@@ -124,66 +80,43 @@ func (p *prompter) selectOption(prompt string, options ...string) (string, error
 	return value, nil
 }
 
-// editMultiline opens the configured text editor with the current value.
-func (p *prompter) editMultiline(prompt, initial string) (string, error) {
-	if _, err := fmt.Fprintf(p.output, "Edit %s in your text editor.\n", safeTerminalText(prompt)); err != nil {
+// selectOptionValue displays labels while returning their associated values.
+func (p *prompter) selectOptionValue(prompt string, labels, values []string) (string, error) {
+	if len(labels) == 0 || len(labels) != len(values) {
+		return "", errors.New("selection labels and values do not match")
+	}
+	choices := make([]huh.Option[string], 0, len(labels))
+	for index, label := range labels {
+		choices = append(choices, huh.NewOption(safeTerminalText(label), values[index]))
+	}
+	value := values[0]
+	field := huh.NewSelect[string]().Title(safeTerminalText(prompt)).Options(choices...).Value(&value)
+	if err := p.runHuh(field); err != nil {
 		return "", err
 	}
-	file, err := os.CreateTemp("", "paw-note-*.txt")
-	if err != nil {
-		return "", fmt.Errorf("could not create temporary note file: %w", err)
-	}
-	path := file.Name()
-	defer os.Remove(path)
-	if _, err := io.WriteString(file, initial); err != nil {
-		_ = file.Close()
-		return "", fmt.Errorf("could not write temporary note file: %w", err)
-	}
-	if err := file.Close(); err != nil {
-		return "", fmt.Errorf("could not close temporary note file: %w", err)
-	}
-	if p.editor == nil {
-		return "", errors.New("text editor is unavailable")
-	}
-	if err := p.editor.Edit(path); err != nil {
-		return "", fmt.Errorf("could not run text editor: %w", err)
-	}
-	content, err := os.ReadFile(path)
-	if err != nil {
-		return "", fmt.Errorf("could not read edited note: %w", err)
-	}
-	return strings.TrimSuffix(strings.TrimSuffix(string(content), "\n"), "\r"), nil
+	return value, nil
 }
 
-// editMultiline opens the configured text editor with the current value.
+// editMultiline edits multiline text in the terminal.
 func (p *prompter) editMultiline(prompt, initial string) (string, error) {
-	if _, err := fmt.Fprintf(p.output, "Edit %s in your text editor.\n", safeTerminalText(prompt)); err != nil {
+	value := initial
+	field := huh.NewText().
+		Title(safeTerminalText(prompt)).
+		Description("Esc or Ctrl+C to cancel").
+		CharLimit(0).
+		Value(&value).
+		ExternalEditor(false)
+	// Huh normalizes some characters when it loads the text. Keep the
+	// original value if the user submits the displayed text unchanged.
+	field.Blur()
+	displayed := value
+	if err := p.runHuh(field); err != nil {
 		return "", err
 	}
-	file, err := os.CreateTemp("", "paw-note-*.txt")
-	if err != nil {
-		return "", fmt.Errorf("could not create temporary note file: %w", err)
+	if value == displayed {
+		return initial, nil
 	}
-	path := file.Name()
-	defer os.Remove(path)
-	if _, err := io.WriteString(file, initial); err != nil {
-		_ = file.Close()
-		return "", fmt.Errorf("could not write temporary note file: %w", err)
-	}
-	if err := file.Close(); err != nil {
-		return "", fmt.Errorf("could not close temporary note file: %w", err)
-	}
-	if p.editor == nil {
-		return "", errors.New("text editor is unavailable")
-	}
-	if err := p.editor.Edit(path); err != nil {
-		return "", fmt.Errorf("could not run text editor: %w", err)
-	}
-	content, err := os.ReadFile(path)
-	if err != nil {
-		return "", fmt.Errorf("could not read edited note: %w", err)
-	}
-	return strings.TrimSuffix(strings.TrimSuffix(string(content), "\n"), "\r"), nil
+	return value, nil
 }
 
 // askWithDefault displays the previous value and keeps it when input is empty.
@@ -282,14 +215,19 @@ func (p *prompter) runHuh(field huh.Field) error {
 		return err
 	}
 	form := p.makeForm(huh.NewGroup(field))
+	if _, ok := field.(*huh.Text); ok {
+		form.WithShowHelp(true)
+	}
+	var err error
 	if p.runForm != nil {
-		return p.runForm(form)
-	}
-	if err := form.Run(); errors.Is(err, huh.ErrUserAborted) {
-		return errCanceled
+		err = p.runForm(form)
 	} else {
-		return err
+		err = form.Run()
 	}
+	if errors.Is(err, huh.ErrUserAborted) {
+		return errCanceled
+	}
+	return err
 }
 
 // checkTerminal reports whether the invocation can display a prompt.
@@ -314,9 +252,10 @@ func (p *prompter) makeForm(groups ...*huh.Group) *huh.Form {
 	return form
 }
 
-// prompterKeyMap binds Esc and Ctrl+C to prompt cancellation.
+// prompterKeyMap configures cancellation and disables the external editor shortcut.
 func prompterKeyMap() *huh.KeyMap {
 	keymap := huh.NewDefaultKeyMap()
 	keymap.Quit.SetKeys("esc", "ctrl+c")
+	keymap.Text.Editor.SetEnabled(false)
 	return keymap
 }

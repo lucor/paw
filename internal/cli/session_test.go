@@ -111,8 +111,7 @@ func TestCommandsWithAgentSession(t *testing.T) {
 	require.Empty(t, added)
 	require.ErrorContains(t, err, "requires stdin to be a terminal")
 	addBase := *base
-	addPrompter := testInteractivePrompter(t, "n\n")
-	addPrompter.editor = &testTextEditor{value: "created note\n"}
+	addPrompter := testInteractivePrompter(t, "n\n", "created note\n")
 	addBase.prompter = addPrompter
 	added, diagnostics, err = executeSubcommand(t, addArgs, newAddCommand, &addBase, "")
 	require.NoError(t, err)
@@ -123,8 +122,7 @@ func TestCommandsWithAgentSession(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, addedItem.ID+"\n", added)
 	failureBase := addBase
-	failurePrompter := testInteractivePrompter(t, "n\n")
-	failurePrompter.editor = &testTextEditor{value: "another note\n"}
+	failurePrompter := testInteractivePrompter(t, "n\n", "another note\n")
 	failureBase.prompter = failurePrompter
 	writeFailure := errors.New("stdout unavailable")
 	writer := &failingAddWriter{err: writeFailure}
@@ -401,7 +399,8 @@ func TestCommandsWithAgentSession(t *testing.T) {
 		out, diagnostics, err := executeSubcommand(t, []string{"show", "--session", session, "personal/note/example"}, newShowCommand, base, "")
 		require.NoError(t, err)
 		require.Contains(t, out, "example note")
-		require.Contains(t, diagnostics, "Session is invalid or expired")
+		require.Contains(t, diagnostics, "Warning: Session is invalid or expired")
+		require.NotContains(t, diagnostics, "[✗]")
 		require.NotContains(t, out+diagnostics, "synthetic-password")
 	})
 	session, err = client.Unlock(vaultID, key, 0)

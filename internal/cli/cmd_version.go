@@ -23,7 +23,7 @@ func newVersionCommand() *urfave.Command {
 	cmd := &VersionCmd{version: paw.Version()}
 	c := &urfave.Command{
 		Name:         "version",
-		Usage:        "Prints version information",
+		Usage:        "Print version information",
 		ArgsUsage:    " ",
 		OnUsageError: onUsageError,
 	}

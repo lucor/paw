@@ -33,9 +33,9 @@ func newExportCommand(base *command) *urfave.Command {
 	cmd := &ExportCmd{command: base}
 	c := &urfave.Command{
 		Name:        "export",
-		Usage:       "Export a vault as CXF or an encrypted Paw archive",
-		ArgsUsage:   "VAULT DESTINATION",
-		Description: vaultReferenceHelp,
+		Usage:       "Export a vault",
+		ArgsUsage:   "VAULT FILE",
+		Description: vaultReferenceHelp + " Exports encrypted CXF by default. The vault password unlocks the vault; a separate export password encrypts the CXF or Paw archive.",
 		Flags: []urfave.Flag{
 			sessionFlag(),
 			&urfave.BoolFlag{Name: "plaintext", Usage: "Export unencrypted CXF after confirmation"},

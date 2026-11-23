@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	"go.lucor.dev/cxf"
@@ -16,6 +17,12 @@ import (
 	"go.lucor.dev/paw/internal/storage"
 	pawsync "go.lucor.dev/paw/internal/sync"
 )
+
+func TestReconcileTimeUsesHumanTimeLayout(t *testing.T) {
+	timestamp := uint64(1794357000)
+	require.Equal(t, time.Unix(int64(timestamp), 0).Local().Format(humanTimeLayout), reconcileTime(&timestamp))
+	require.Equal(t, "Unknown", reconcileTime(nil))
+}
 
 func TestSyncCommandExposesReconcileFlag(t *testing.T) {
 	command := newSyncCommand(&command{})
@@ -36,7 +43,7 @@ func TestReconcileComparisonShowsOnlyDifferencesAndHidesOnlyPasswords(t *testing
 	localItem := reconcileItem{item: local, manifest: pawsync.ManifestItem{ModifiedAt: &modified}}
 	remoteItem := reconcileItem{item: remote, manifest: pawsync.ManifestItem{ModifiedAt: &modified}}
 	var output bytes.Buffer
-	cmd := &SyncCmd{command: &command{out: &output}}
+	cmd := &SyncCmd{command: &command{errOut: &output}}
 
 	require.NoError(t, cmd.showReconcileComparison(localItem, remoteItem, "fedora"))
 	require.Contains(t, output.String(), "Password")
@@ -48,6 +55,22 @@ func TestReconcileComparisonShowsOnlyDifferencesAndHidesOnlyPasswords(t *testing
 	require.NotContains(t, output.String(), "Username")
 	require.NotContains(t, output.String(), "Modified")
 	require.NotContains(t, output.String(), "History")
+}
+
+func TestReconcileComparisonEscapesPeerTableDelimiters(t *testing.T) {
+	local, err := model.NewNote("title", "local")
+	require.NoError(t, err)
+	remote, err := model.NewNote("title", "remote")
+	require.NoError(t, err)
+	modified := uint64(1)
+	localItem := reconcileItem{item: local, manifest: pawsync.ManifestItem{ModifiedAt: &modified}}
+	remoteItem := reconcileItem{item: remote, manifest: pawsync.ManifestItem{ModifiedAt: &modified}}
+	var output bytes.Buffer
+	cmd := &SyncCmd{command: &command{errOut: &output}}
+
+	require.NoError(t, cmd.showReconcileComparison(localItem, remoteItem, "remote\tdevice\nname"))
+	require.Contains(t, output.String(), "remote\\tdevice\\nname")
+	require.NotContains(t, output.String(), "remote\tdevice\nname")
 }
 
 func TestReconcileContentHashIgnoresIDAndPreservesItems(t *testing.T) {
@@ -122,7 +145,7 @@ func TestUniqueReconcileMatchesRejectsAmbiguousHashes(t *testing.T) {
 
 func TestReconcileDifferentContentRequiresAnExplicitChoice(t *testing.T) {
 	var output bytes.Buffer
-	cmd := &SyncCmd{command: &command{out: &output}}
+	cmd := &SyncCmd{command: &command{errOut: &output}}
 	input := make(chan syncInput, 1)
 	input <- syncInput{line: "s"}
 
@@ -159,7 +182,7 @@ func TestReconcileFlagAcceptsPositionAfterVaultArgument(t *testing.T) {
 		},
 		"",
 	)
-	require.ErrorContains(t, err, `vault "Personal" does not exist`)
+	require.EqualError(t, err, "interactive prompt requires stdin to be a terminal")
 }
 
 func TestReconcileOneSidedItemsAreCopiedWithoutRemoval(t *testing.T) {
@@ -285,7 +308,8 @@ func TestReconcileDeletesOldIDOnlyAfterCopyVerification(t *testing.T) {
 	require.True(t, completed)
 	require.Equal(t, []string{"copy", "delete-peer"}, stub.events)
 	require.Equal(t, 1, stub.deletePeerCalls)
-	require.Contains(t, output.String(), "Copied and verified")
+	require.Empty(t, output.String())
+	require.Contains(t, errOutput.String(), "Copied and verified")
 }
 
 func TestNormalSyncStillMatchesOnlyByItemID(t *testing.T) {

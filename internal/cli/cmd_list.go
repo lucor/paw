@@ -26,9 +26,9 @@ func newListCommand(base *command) *urfave.Command {
 	cmd := &ListCmd{command: base}
 	c := &urfave.Command{
 		Name:        "ls",
-		Usage:       "Lists vaults and items (alias: list)",
-		ArgsUsage:   "[VAULT/ITEM_TYPE/ITEM_NAME]",
-		Description: vaultReferenceHelp,
+		Usage:       "List vaults and items",
+		ArgsUsage:   "[VAULT[/TYPE[/ITEM]]]",
+		Description: vaultReferenceHelp + " Paths may stop at the vault or type and support * wildcards. Use --tag to filter by an exact vault tag.",
 		Aliases:     []string{"list"},
 		Flags: []urfave.Flag{
 			sessionFlag(),

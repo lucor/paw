@@ -46,10 +46,11 @@ type AddCmd struct {
 func newAddCommand(base *command) *urfave.Command {
 	cmd := &AddCmd{command: base, wizard: true}
 	return &urfave.Command{
-		Name:   "add",
-		Usage:  "Adds an item to a vault",
-		Before: cmd.Validate,
-		Action: cmd.Run,
+		Name:        "add",
+		Usage:       "Add an item to a vault",
+		Description: "Choose an item type to enter the guided wizard, or use a subcommand to add an item directly.",
+		Before:      cmd.Validate,
+		Action:      cmd.Run,
 		Commands: []*urfave.Command{
 			newAddLoginCommand(base),
 			newAddPasswordCommand(base),
@@ -244,21 +245,26 @@ func (cmd *AddCmd) addVaultKey() (*paw.Key, error) {
 
 // addOptionalData prompts for custom fields, tags, and authenticator data.
 func (cmd *AddCmd) addOptionalData(item *model.Item, vault *model.Vault) error {
-	add, err := cmd.prompter.askYesNo("Add custom fields or tags?", false)
+	prompt := "Add custom fields or tags?"
+	if cmd.itemType == model.LoginItemType {
+		prompt = "Add custom fields, tags or authenticator?"
+	}
+	add, err := cmd.prompter.askYesNo(prompt, false)
 	if err != nil || !add {
 		return err
 	}
 	for {
-		menu := "1. Add custom field  2. Add section  3. Manage tags  4. Done"
+		options := []string{"Add custom field", "Add section", "Manage tags"}
 		if cmd.itemType == model.LoginItemType {
-			menu = "1. Add custom field  2. Add section  3. Manage tags  4. Add authenticator  5. Done"
+			options = append(options, "Add authenticator")
 		}
-		choice, err := cmd.prompter.ask(menu)
+		options = append(options, "Done")
+		choice, err := cmd.prompter.selectOption("Optional data", options...)
 		if err != nil {
 			return err
 		}
 		switch choice {
-		case "1":
+		case "Add custom field":
 			field, err := cmd.readCustomField(false, cxf.EditableField{})
 			if err != nil {
 				return err
@@ -273,7 +279,7 @@ func (cmd *AddCmd) addOptionalData(item *model.Item, vault *model.Vault) error {
 			if err := appendField(item, section, field); err != nil {
 				return err
 			}
-		case "2":
+		case "Add section":
 			name, err := cmd.prompter.ask("Section name")
 			if err != nil {
 				return err
@@ -287,30 +293,16 @@ func (cmd *AddCmd) addOptionalData(item *model.Item, vault *model.Vault) error {
 			if err := item.AppendCustomFields(cxf.CustomFields{Type: cxf.CredentialTypeCustomFields, Label: name, Fields: []cxf.EditableField{}}); err != nil {
 				return err
 			}
-		case "3":
+		case "Manage tags":
 			if err := cmd.manageNewItemTags(item, vault); err != nil {
 				return err
 			}
-		case "4":
-			if cmd.itemType != model.LoginItemType {
-				return nil
-			}
+		case "Add authenticator":
 			if err := cmd.addTOTP(item); err != nil {
 				return err
 			}
-		case "5":
-			if cmd.itemType == model.LoginItemType {
-				return nil
-			}
-			if _, err := fmt.Fprintln(cmd.errOut, "Choose a number from 1 to 4"); err != nil {
-				return err
-			}
-		case "":
+		case "Done", "":
 			return nil
-		default:
-			if _, err := fmt.Fprintln(cmd.errOut, "Choose a number from 1 to 5"); err != nil {
-				return err
-			}
 		}
 	}
 }
@@ -358,23 +350,27 @@ func vaultTagNames(vault *model.Vault) []string {
 }
 
 // readCustomField prompts for a custom field and its value.
-func (cmd *AddCmd) readCustomField(editing bool, old cxf.EditableField) (cxf.EditableField, error) {
+func (base *command) readCustomField(editing bool, old cxf.EditableField) (cxf.EditableField, error) {
 	field := old
 	if editing {
-		update, err := cmd.prompter.askYesNo("Replace field value?", false)
+		update, err := base.prompter.askYesNo("Replace field value?", false)
 		if err != nil || !update {
 			return field, err
 		}
 		kind := customFieldType(field)
-		if strings.Contains(kind, "multiline") {
-			field.Value, err = cmd.readMultiline(kind == "hidden-multiline")
+		switch kind {
+		case "multiline":
+			field.Value, err = base.prompter.editMultiline("Value", field.Value)
+			return field, err
+		case "hidden-multiline":
+			field.Value, err = base.readHiddenMultiline()
 			return field, err
 		}
 		var value string
 		if kind == "hidden" {
-			value, err = cmd.prompter.askPassword("Value (empty keeps the current value; :clear clears it)")
+			value, err = base.prompter.askPassword("Value (empty keeps the current value; :clear clears it)")
 		} else {
-			value, err = cmd.prompter.ask("Value (empty keeps the current value; :clear clears it)")
+			value, err = base.prompter.ask("Value (empty keeps the current value; :clear clears it)")
 		}
 		if value == ":clear" {
 			field.Value = ""
@@ -383,23 +379,16 @@ func (cmd *AddCmd) readCustomField(editing bool, old cxf.EditableField) (cxf.Edi
 		}
 		return field, err
 	}
-	labelPrompt := "Field name"
-	if editing {
-		labelPrompt = "Field name [" + safeTerminalText(old.Label) + "]"
-	}
-	label, err := cmd.prompter.ask(labelPrompt)
+	label, err := base.prompter.ask("Field name")
 	if err != nil {
 		return field, err
 	}
 	if label != "" {
 		field.Label = label
 	}
-	kind, err := cmd.prompter.ask("Type (text, hidden, multiline, hidden-multiline)")
+	kind, err := base.prompter.selectOption("Type", "text", "hidden", "multiline", "hidden-multiline")
 	if err != nil {
 		return field, err
-	}
-	if kind == "" && editing {
-		kind = customFieldType(field)
 	}
 	if kind == "" {
 		kind = "text"
@@ -411,10 +400,12 @@ func (cmd *AddCmd) readCustomField(editing bool, old cxf.EditableField) (cxf.Edi
 	if kind == "hidden" || kind == "hidden-multiline" {
 		field.FieldType = cxf.FieldTypeConcealedString
 	}
-	if strings.Contains(kind, "multiline") {
-		field.Value, err = cmd.readMultiline(kind == "hidden-multiline")
+	if kind == "multiline" {
+		field.Value, err = base.prompter.editMultiline("Value", "")
+	} else if kind == "hidden-multiline" {
+		field.Value, err = base.readHiddenMultiline()
 	} else if kind == "hidden" {
-		value, e := cmd.prompter.askPassword("Value (empty keeps the current value)")
+		value, e := base.prompter.askPassword("Value (empty keeps the current value)")
 		err = e
 		if value == ":clear" {
 			field.Value = ""
@@ -422,7 +413,7 @@ func (cmd *AddCmd) readCustomField(editing bool, old cxf.EditableField) (cxf.Edi
 			field.Value = value
 		}
 	} else {
-		value, e := cmd.prompter.ask("Value (empty keeps the current value)")
+		value, e := base.prompter.ask("Value (empty keeps the current value)")
 		err = e
 		if value == ":clear" {
 			field.Value = ""
@@ -433,17 +424,11 @@ func (cmd *AddCmd) readCustomField(editing bool, old cxf.EditableField) (cxf.Edi
 	return field, err
 }
 
-// readMultiline reads lines until a period-only line is entered.
-func (cmd *AddCmd) readMultiline(hidden bool) (string, error) {
+// readHiddenMultiline reads without echo until a period-only line is entered.
+func (base *command) readHiddenMultiline() (string, error) {
 	var lines []string
 	for {
-		var line string
-		var err error
-		if hidden {
-			line, err = cmd.prompter.askPassword("Value line (enter . on a line to finish)")
-		} else {
-			line, err = cmd.prompter.ask("Value line (enter . on a line to finish)")
-		}
+		line, err := base.prompter.askPassword("Value line (enter . on a line to finish)")
 		if err != nil {
 			return "", err
 		}

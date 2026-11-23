@@ -21,14 +21,14 @@ func newHistoryCommand(base *command) *urfave.Command {
 	cmd := &HistoryCommand{command: base, operation: historyDefault}
 	c := &urfave.Command{
 		Name:        "history",
-		Usage:       "Lists and restores item history",
-		ArgsUsage:   "VAULT/ITEM_TYPE/ITEM_NAME",
-		Description: vaultReferenceHelp,
+		Usage:       "List and restore item history",
+		ArgsUsage:   "VAULT/TYPE/ITEM",
+		Description: vaultReferenceHelp + " History indexes are zero-based.",
 		Flags:       []urfave.Flag{sessionFlag()},
 		Commands: []*urfave.Command{
-			newHistorySubcommand(base, "list", "Lists item history", historyList),
-			newHistorySubcommand(base, "show", "Shows a historical item version", historyShow),
-			newHistorySubcommand(base, "restore", "Restores a historical item version", historyRestore),
+			newHistorySubcommand(base, "list", "List item history", historyList),
+			newHistorySubcommand(base, "show", "Show a historical item version", historyShow),
+			newHistorySubcommand(base, "restore", "Restore a historical item version", historyRestore),
 		},
 		OnUsageError: onUsageError,
 	}
@@ -57,7 +57,7 @@ type HistoryCommand struct {
 // newHistorySubcommand builds one history operation command.
 func newHistorySubcommand(base *command, name, usage, operation string) *urfave.Command {
 	cmd := &HistoryCommand{command: base, operation: operation}
-	argsUsage := "VAULT/ITEM_TYPE/ITEM_NAME"
+	argsUsage := "VAULT/TYPE/ITEM"
 	if operation != historyList {
 		argsUsage += " INDEX"
 	}
@@ -185,7 +185,7 @@ func (cmd *historyCmd) list() error {
 		return err
 	}
 	for displayIndex, storedIndex := 0, len(history.Entries)-1; storedIndex >= 0; displayIndex, storedIndex = displayIndex+1, storedIndex-1 {
-		capturedAt := time.Unix(int64(history.Entries[storedIndex].CapturedAt), 0).Local().Format(time.RFC1123)
+		capturedAt := time.Unix(int64(history.Entries[storedIndex].CapturedAt), 0).Local().Format(humanTimeLayout)
 		if _, err := fmt.Fprintf(w, "%d\t%s\n", displayIndex, capturedAt); err != nil {
 			return err
 		}
@@ -215,7 +215,7 @@ func (cmd *historyCmd) show(ctx context.Context, index int) error {
 	if err != nil {
 		return err
 	}
-	capturedAt := time.Unix(int64(entry.CapturedAt), 0).Local().Format(time.RFC1123)
+	capturedAt := time.Unix(int64(entry.CapturedAt), 0).Local().Format(humanTimeLayout)
 	if err := cmd.Printf("History: %s\n", capturedAt); err != nil {
 		return err
 	}
@@ -238,7 +238,7 @@ func (cmd *historyCmd) restore(index int, yes bool) error {
 	if err != nil {
 		return err
 	}
-	capturedAt := time.Unix(int64(entry.CapturedAt), 0).Local().Format(time.RFC1123)
+	capturedAt := time.Unix(int64(entry.CapturedAt), 0).Local().Format(humanTimeLayout)
 	if !yes {
 		confirmed, err := cmd.prompter.askYesNo(fmt.Sprintf("Restore version from %s? The current version will be saved in History.", capturedAt), false)
 		if err != nil {

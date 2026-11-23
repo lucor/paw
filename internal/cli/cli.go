@@ -30,7 +30,12 @@ func Run(args []string, s *storage.FileStorage) error {
 		return invalidArgumentsError("expected paw cli arguments")
 	}
 	argv := append([]string{"paw cli"}, args[2:]...)
-	err := newCommand(s, os.Stdin, os.Stdout, os.Stderr).Run(context.Background(), argv)
+	cmd := newCommand(s, os.Stdin, os.Stdout, os.Stderr)
+	if len(args) == 4 && args[2] == "completion" {
+		// The native templates use Name as the shell command and function name.
+		cmd.Name = "paw"
+	}
+	err := cmd.Run(context.Background(), argv)
 	if errors.Is(err, errCanceled) {
 		return nil
 	}
@@ -84,13 +89,14 @@ func newCommand(storage *storage.FileStorage, in io.Reader, out, errOut io.Write
 		},
 	}
 	return &urfave.Command{
-		OnUsageError: onUsageError,
-		Name:         "paw cli",
-		Usage:        "The CLI application for Paw",
-		Action:       requireSubcommand,
-		Reader:       in,
-		Writer:       out,
-		ErrWriter:    errOut,
+		OnUsageError:          onUsageError,
+		Name:                  "paw cli",
+		Usage:                 "The CLI application for Paw",
+		Action:                requireSubcommand,
+		EnableShellCompletion: true,
+		Reader:                in,
+		Writer:                out,
+		ErrWriter:             errOut,
 		// Keep exit handling in main, including errors returned by command.
 		ExitErrHandler: leaveExitToCaller,
 		Commands: []*urfave.Command{
@@ -220,7 +226,7 @@ func (base *command) loadVaultKey(vaultName, sessionID string) (*paw.Key, error)
 		if err == nil {
 			return key, nil
 		}
-		if _, err := fmt.Fprintln(base.errOut, "[✗] Session is invalid or expired"); err != nil {
+		if err := base.Warnf("Warning: Session is invalid or expired\n"); err != nil {
 			return nil, err
 		}
 	}

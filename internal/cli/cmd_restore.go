@@ -30,14 +30,15 @@ func newRestoreCommand(base *command) *urfave.Command {
 	cmd := &RestoreCmd{command: base}
 	c := &urfave.Command{
 		Name:      "restore",
-		Usage:     "Restore a Paw or CXF backup into a new vault",
-		ArgsUsage: "BACKUP",
+		Usage:     "Restore a backup into a new vault",
+		ArgsUsage: "FILE",
 		Flags: []urfave.Flag{
 			&urfave.StringFlag{Name: "name", Usage: "Name for the restored vault"},
 			&urfave.BoolFlag{Name: "yes", Usage: "Skip restore confirmation"},
 		},
 		OnUsageError: onUsageError,
 	}
+	c.Description = "Always creates a new vault. Password prompts for encrypted backups remain when --yes is set."
 	c.Before = cmd.Validate
 	c.Action = cmd.Run
 	return c
@@ -89,10 +90,10 @@ func (cmd *RestoreCmd) Run(ctx context.Context, _ *urfave.Command) error {
 	defer backup.Close()
 	summary := fmt.Sprintf("Vault: %s\nCollections: %d\nCredentials: %d\n", backup.Name, backup.Collections, backup.Credentials)
 	if backup.CreationAt != nil {
-		summary += fmt.Sprintf("Created: %s\n", time.Unix(int64(*backup.CreationAt), 0).UTC().Format(time.RFC3339))
+		summary += fmt.Sprintf("Created: %s\n", time.Unix(int64(*backup.CreationAt), 0).Local().Format(humanTimeLayout))
 	}
 	if backup.ExportedAt != 0 {
-		summary += fmt.Sprintf("CXF document date: %s\n", time.Unix(int64(backup.ExportedAt), 0).UTC().Format(time.RFC3339))
+		summary += fmt.Sprintf("CXF document date: %s\n", time.Unix(int64(backup.ExportedAt), 0).Local().Format(humanTimeLayout))
 	}
 	if err := cmd.Infof("%s", summary); err != nil {
 		return err

@@ -40,33 +40,34 @@ type AttachmentCmd struct {
 func newAttachmentCommand(base *command) *urfave.Command {
 	return &urfave.Command{
 		Name:   "attachment",
-		Usage:  "Manage Item attachments",
+		Usage:  "Manage item attachments",
 		Action: commandGroupAction,
 		Commands: []*urfave.Command{
-			newAttachmentSubcommand(base, attachmentAdd, "VAULT/TYPE/ITEM PATH", false),
-			newAttachmentSubcommand(base, attachmentList, "VAULT/TYPE/ITEM", false),
-			newAttachmentSubcommand(base, attachmentSave, "VAULT/TYPE/ITEM FILE_ID --output PATH", true),
-			newAttachmentSubcommand(base, attachmentRemove, "VAULT/TYPE/ITEM FILE_ID", false),
+			newAttachmentSubcommand(base, attachmentAdd, "Add an attachment", "VAULT/TYPE/ITEM FILE", false),
+			newAttachmentSubcommand(base, attachmentList, "List item attachments", "VAULT/TYPE/ITEM", false),
+			newAttachmentSubcommand(base, attachmentSave, "Save an attachment", "VAULT/TYPE/ITEM ID --output FILE", true),
+			newAttachmentSubcommand(base, attachmentRemove, "Remove an attachment", "VAULT/TYPE/ITEM ID", false),
 		},
 		OnUsageError: onUsageError,
 	}
 }
 
 // newAttachmentSubcommand builds one attachment operation command.
-func newAttachmentSubcommand(base *command, operation, argsUsage string, outputRequired bool) *urfave.Command {
+func newAttachmentSubcommand(base *command, operation, usage, argsUsage string, outputRequired bool) *urfave.Command {
 	cmd := &AttachmentCmd{command: base, operation: operation}
 	flags := []urfave.Flag{sessionFlag()}
 	if operation == attachmentAdd {
 		flags = append(flags, &urfave.StringFlag{Name: "name", Usage: "Attachment name when reading from stdin"})
 	}
 	if outputRequired {
-		flags = append(flags, &urfave.StringFlag{Name: "output", Required: true})
+		flags = append(flags, &urfave.StringFlag{Name: "output", Required: true, Usage: "Write the attachment to FILE"})
 	}
 	c := &urfave.Command{
 		OnUsageError: onUsageError,
 		Name:         operation,
+		Usage:        usage,
 		ArgsUsage:    argsUsage,
-		Description:  vaultReferenceHelp,
+		Description:  vaultReferenceHelp + " Use - as FILE to read from stdin when adding. Set --name when reading from stdin. Saving requires --output FILE.",
 		Flags:        flags,
 	}
 	c.Before = cmd.Validate

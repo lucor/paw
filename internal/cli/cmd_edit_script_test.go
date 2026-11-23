@@ -7,7 +7,9 @@ import (
 	"strings"
 	"testing"
 
+	"charm.land/huh/v2"
 	"github.com/stretchr/testify/require"
+	"go.lucor.dev/cxf"
 	"go.lucor.dev/paw/internal/model"
 	"go.lucor.dev/paw/internal/paw"
 )
@@ -52,4 +54,40 @@ func TestEditPasswordFromStdinDoesNotSavePartialChanges(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "old-user", login.Username.Value)
 	require.Equal(t, "old-password", login.Password.Value)
+}
+
+func TestEditCustomFieldCancellationDoesNotSavePartialChanges(t *testing.T) {
+	base, vault := addTestCommand(t)
+	item, err := model.NewNote("Memo", "content")
+	require.NoError(t, err)
+	require.NoError(t, item.AppendCustomFields(cxf.CustomFields{Type: cxf.CredentialTypeCustomFields, Fields: []cxf.EditableField{
+		{FieldType: cxf.FieldTypeString, Label: "Existing", Value: "keep"},
+	}}))
+	require.NoError(t, base.storage.StoreItem(vault, item))
+
+	prompts := testInteractivePrompter(t, "2\n1\nNew field\n")
+	formCount := 0
+	prompts.runForm = func(form *huh.Form) error {
+		formCount++
+		if formCount == 4 {
+			return errCanceled
+		}
+		return form.WithAccessible(true).Run()
+	}
+	base.prompter = prompts
+	_, _, err = executeSubcommand(t, []string{"edit", "--session", "active", "Personal/note/Memo"}, newEditCommand, base, "")
+	require.ErrorIs(t, err, errCanceled)
+
+	loaded, err := base.storage.LoadVault(vault.Accounts[0].ID, vault.Key())
+	require.NoError(t, err)
+	summary, err := loaded.FindItem("Memo", model.NoteItemType)
+	require.NoError(t, err)
+	updated, err := base.storage.LoadItem(loaded, summary.ID)
+	require.NoError(t, err)
+	groups, err := updated.CustomFields()
+	require.NoError(t, err)
+	require.Len(t, groups, 1)
+	require.Equal(t, "Existing", groups[0].Credential.Fields[0].Label)
+	require.Equal(t, "keep", groups[0].Credential.Fields[0].Value)
+	require.Len(t, groups[0].Credential.Fields, 1)
 }

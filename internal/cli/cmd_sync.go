@@ -28,6 +28,15 @@ type syncInput struct {
 
 var errSyncResponderSelected = errors.New("incoming Sync session selected")
 
+// syncTerminalError escapes terminal control characters in errors from sync.
+type syncTerminalError struct{ error }
+
+// Error returns the message safe for terminal output.
+func (err syncTerminalError) Error() string { return safeTerminalText(err.error.Error()) }
+
+// Unwrap preserves the underlying error for callers.
+func (err syncTerminalError) Unwrap() error { return err.error }
+
 // renderSyncQR renders a QR code as terminal block characters.
 func renderSyncQR(code *qr.Code) string {
 	const quiet = 4
@@ -54,9 +63,9 @@ func newSyncCommand(base *command) *urfave.Command {
 	cmd := &SyncCmd{command: base}
 	c := &urfave.Command{
 		Name:        "sync",
-		Usage:       "Synchronize an unlocked vault with another Paw device",
-		ArgsUsage:   "VAULT",
-		Description: vaultReferenceHelp,
+		Usage:       "Synchronize a vault with another Paw device",
+		ArgsUsage:   "[VAULT]",
+		Description: "Interactive command. Use 'sync VAULT' to synchronize an unlocked vault, 'sync --clone' to receive a new vault, or 'sync VAULT --reconcile' to match items with different IDs.",
 		Flags: []urfave.Flag{
 			&urfave.StringFlag{Name: "link", Usage: "Connect directly using a Paw Sync link"},
 			&urfave.BoolFlag{Name: "clone", Usage: "Clone a vault from another device"},
@@ -102,6 +111,14 @@ func (cmd *SyncCmd) Validate(ctx context.Context, c *urfave.Command) (context.Co
 
 // Run starts vault synchronization and handles incoming or outgoing connections.
 func (cmd *SyncCmd) Run(ctx context.Context, _ *urfave.Command) (runErr error) {
+	if err := cmd.prompter.checkTerminal(); err != nil {
+		return err
+	}
+	defer func() {
+		if runErr != nil && runErr.Error() != safeTerminalText(runErr.Error()) {
+			runErr = syncTerminalError{runErr}
+		}
+	}()
 	ctx, stop := signal.NotifyContext(ctx, os.Interrupt)
 	defer stop()
 	if cmd.clone {
@@ -165,7 +182,7 @@ func (cmd *SyncCmd) Run(ctx context.Context, _ *urfave.Command) (runErr error) {
 	if err != nil {
 		return err
 	}
-	if _, err := fmt.Fprintf(cmd.out, "Sync — %s\n\nLooking for devices. Ready to be found.\n", name); err != nil {
+	if err := cmd.Infof("Sync — %s\n\nLooking for devices. Ready to be found.\n", safeTerminalText(name)); err != nil {
 		return err
 	}
 	if cmd.link != "" {
@@ -207,11 +224,11 @@ func (cmd *SyncCmd) waitForSyncConnection(ctx context.Context, session *pawsync.
 				return err
 			}
 			if err != nil {
-				if _, writeErr := fmt.Fprintf(cmd.errOut, "Pairing request failed: %v\n", err); writeErr != nil {
+				if writeErr := cmd.Warnf("Pairing request failed: %s\n", safeTerminalText(err.Error())); writeErr != nil {
 					return writeErr
 				}
 			}
-			if _, err := fmt.Fprint(cmd.out, "> "); err != nil {
+			if err := cmd.Infof("> "); err != nil {
 				return err
 			}
 		case device, ok := <-incomingSyncs:
@@ -219,7 +236,7 @@ func (cmd *SyncCmd) waitForSyncConnection(ctx context.Context, session *pawsync.
 				incomingSyncs = nil
 				continue
 			}
-			if _, err := fmt.Fprintf(cmd.out, "\nSyncing with %s...\n", device); err != nil {
+			if err := cmd.Infof("\nSyncing with %s...\n", safeTerminalText(device)); err != nil {
 				return err
 			}
 			return cmd.waitForSyncOutcome(ctx, session)
@@ -227,14 +244,14 @@ func (cmd *SyncCmd) waitForSyncConnection(ctx context.Context, session *pawsync.
 			if !ok {
 				return fmt.Errorf("sync discovery stopped")
 			}
-			slog.Debug("CLI received discovered peer", "component", "sync.cli", "device", peer.Name, "instance", peer.ID, "port", peer.Port)
+			slog.Debug("CLI received discovered peer", "component", "sync.cli", "device", safeTerminalText(peer.Name), "instance", peer.ID, "port", peer.Port)
 			if peer.Name == "" {
 				peer.Name = "Unknown Paw device"
 			}
-			if _, err := fmt.Fprintf(cmd.out, "\n%s\n", formatSyncPeerFound(peer, trusted)); err != nil {
+			if err := cmd.Infof("\n%s\n", formatSyncPeerFound(peer, trusted)); err != nil {
 				return err
 			}
-			confirmed, err := cmd.askSyncYesNo(ctx, session, items, pairingRequests, incomingSyncs, "Connect to "+peer.Name+"? [y/N]")
+			confirmed, err := cmd.askSyncYesNo(ctx, session, items, pairingRequests, incomingSyncs, "Connect to "+safeTerminalText(peer.Name)+"? [y/N]")
 			if errors.Is(err, errSyncResponderSelected) {
 				return nil
 			}
@@ -254,19 +271,19 @@ func (cmd *SyncCmd) waitForSyncConnection(ctx context.Context, session *pawsync.
 				return err
 			}
 			if connect {
-				if _, err := fmt.Fprintln(cmd.out, "Connecting..."); err != nil {
+				if err := cmd.Infof("Connecting...\n"); err != nil {
 					return err
 				}
 				_, peer, err := session.ConnectLink(ctx, manual)
 				if err != nil {
-					if _, writeErr := fmt.Fprintf(cmd.errOut, "Connection failed: %v\n", err); writeErr != nil {
+					if writeErr := cmd.Warnf("Connection failed: %s\n", safeTerminalText(err.Error())); writeErr != nil {
 						return writeErr
 					}
 				} else {
 					return cmd.syncWithPeer(ctx, session, vault, peer, trusted, items)
 				}
 			}
-			if _, err := fmt.Fprint(cmd.out, "> "); err != nil {
+			if err := cmd.Infof("> "); err != nil {
 				return err
 			}
 		}
@@ -275,8 +292,7 @@ func (cmd *SyncCmd) waitForSyncConnection(ctx context.Context, session *pawsync.
 
 // showSyncLink displays a synchronization link and its terminal QR code.
 func (cmd *SyncCmd) showSyncLink(link string) error {
-	_, err := fmt.Fprintf(cmd.out, "\nConnection link:\n%s\n\n  [c] Copy link\n  [v] View QR code\n\nPaste a connection link, or wait:\n> ", link)
-	return err
+	return cmd.Infof("\nConnection link:\n%s\n\n  [c] Copy link\n  [v] View QR code\n\nPaste a connection link, or wait:\n> ", link)
 }
 
 // handleSyncLinkInput parses a pasted link and reports whether it started pairing.
@@ -287,22 +303,22 @@ func (cmd *SyncCmd) handleSyncLinkInput(ctx context.Context, link, input string)
 		copyCtx, cancel := context.WithTimeout(ctx, clipboardWriteTimeout)
 		defer cancel()
 		if err := cmd.clipboard(copyCtx, []byte(link)); err != nil {
-			if _, writeErr := fmt.Fprintf(cmd.errOut, "Could not copy connection link: %v\n", err); writeErr != nil {
+			if writeErr := cmd.Warnf("Could not copy connection link: %v\n", err); writeErr != nil {
 				return pawsync.ConnectionLink{}, false, writeErr
 			}
 		} else {
-			if _, err := fmt.Fprintln(cmd.out, "Connection link copied."); err != nil {
+			if err := cmd.Infof("Connection link copied.\n"); err != nil {
 				return pawsync.ConnectionLink{}, false, err
 			}
 		}
 	case "v":
 		code, err := qr.Encode(link, qr.L)
 		if err != nil {
-			if _, writeErr := fmt.Fprintf(cmd.errOut, "Could not display QR code: %v\n", err); writeErr != nil {
+			if writeErr := cmd.Warnf("Could not display QR code: %v\n", err); writeErr != nil {
 				return pawsync.ConnectionLink{}, false, writeErr
 			}
 		} else {
-			if _, err := fmt.Fprintln(cmd.out, renderSyncQR(code)); err != nil {
+			if err := cmd.Infof("%s\n", renderSyncQR(code)); err != nil {
 				return pawsync.ConnectionLink{}, false, err
 			}
 		}
@@ -311,7 +327,7 @@ func (cmd *SyncCmd) handleSyncLinkInput(ctx context.Context, link, input string)
 		if err == nil {
 			return manual, true, nil
 		}
-		if _, err := fmt.Fprintln(cmd.out, "Invalid connection link."); err != nil {
+		if err := cmd.Infof("Invalid connection link.\n"); err != nil {
 			return pawsync.ConnectionLink{}, false, err
 		}
 	}
@@ -324,7 +340,7 @@ func formatSyncPeerFound(peer pawsync.Peer, trusted map[string]bool) string {
 	if trusted[peer.Fingerprint] {
 		status = "Trusted"
 	}
-	return fmt.Sprintf("Found: %s (%s)", peer.Name, status)
+	return fmt.Sprintf("Found: %s (%s)", safeTerminalText(peer.Name), status)
 }
 
 // handleIncomingPairing asks whether to accept a peer's pairing request.
@@ -335,13 +351,14 @@ func (cmd *SyncCmd) handleIncomingPairing(ctx context.Context, session *pawsync.
 		return false, err
 	}
 	localVault, _ := session.VaultReferences()
-	if _, err := fmt.Fprintf(cmd.out, "\nPairing request from %s\n\n%s\n\nVerification code: %s\n", request.Name, formatPairingVaultReferences(request.Name, localVault, request.Vault), formatSyncCode(code)); err != nil {
-		return false, err
+	if err := cmd.Infof("\nPairing request from %s\n\n%s\n\nVerification code: %s\n", safeTerminalText(request.Name), formatPairingVaultReferences(request.Name, localVault, request.Vault), formatSyncCode(code)); err != nil {
+		_ = request.Decline()
+		return true, err
 	}
-	accepted, err := cmd.askSyncYesNo(ctx, session, input, nil, nil, "Does this code match the one on "+request.Name+"? Confirm pairing? [y/N]")
+	accepted, err := cmd.askSyncYesNo(ctx, session, input, nil, nil, "Does this code match the one on "+safeTerminalText(request.Name)+"? Confirm pairing? [y/N]")
 	if err != nil {
 		_ = request.Decline()
-		return false, err
+		return true, err
 	}
 	if !accepted {
 		return false, request.Decline()
@@ -349,19 +366,16 @@ func (cmd *SyncCmd) handleIncomingPairing(ctx context.Context, session *pawsync.
 	if err := request.Accept(); err != nil {
 		return false, err
 	}
-	if _, err := fmt.Fprintf(cmd.out, "Waiting for %s to continue...\n", request.Name); err != nil {
-		return false, err
+	if err := cmd.Infof("Waiting for %s to continue...\n", safeTerminalText(request.Name)); err != nil {
+		return true, err
 	}
 	if err := request.Wait(ctx); err != nil {
 		if !errors.Is(err, context.Canceled) {
-			if _, writeErr := fmt.Fprintf(cmd.errOut, "Pairing with %s failed: %v\n", request.Name, err); writeErr != nil {
+			if writeErr := cmd.Warnf("Pairing with %s failed: %s\n", safeTerminalText(request.Name), safeTerminalText(err.Error())); writeErr != nil {
 				return true, writeErr
 			}
 		}
 		return true, nil
-	}
-	if _, err := fmt.Fprintf(cmd.out, "Paired with %s.\n", request.Name); err != nil {
-		return false, err
 	}
 	return true, cmd.waitForSyncOutcome(ctx, session)
 }
@@ -375,22 +389,19 @@ func (cmd *SyncCmd) waitForSyncOutcome(ctx context.Context, session *pawsync.Ses
 		return fmt.Errorf("connection lost; sync outcome is unknown")
 	case successful := <-session.SyncOutcomes():
 		if successful {
-			_, err := fmt.Fprintln(cmd.out, "Sync completed.")
-			return err
+			return cmd.Infof("Sync completed.\n")
 		}
 		if session.SyncOutcomeCancelled() {
-			_, err := fmt.Fprintln(cmd.out, "Sync cancelled by the other device.")
-			return err
+			return cmd.Infof("Sync cancelled by the other device.\n")
 		}
-		_, err := fmt.Fprintln(cmd.out, "Sync did not complete.")
-		return err
+		return cmd.Infof("Sync did not complete.\n")
 	}
 }
 
 // askSyncYesNo prompts for confirmation while continuing to handle incoming sync requests.
 func (cmd *SyncCmd) askSyncYesNo(ctx context.Context, session *pawsync.Session, input <-chan syncInput, incoming <-chan pawsync.PairingRequest, incomingSync <-chan string, prompt string) (bool, error) {
 	for {
-		if _, err := fmt.Fprintf(cmd.out, "%s ", prompt); err != nil {
+		if err := cmd.Infof("%s ", prompt); err != nil {
 			return false, err
 		}
 		select {
@@ -403,10 +414,13 @@ func (cmd *SyncCmd) askSyncYesNo(ctx context.Context, session *pawsync.Session, 
 			}
 			selected, err := cmd.handleIncomingPairing(ctx, session, request, input)
 			if selected {
+				if err != nil {
+					return false, err
+				}
 				return false, errSyncResponderSelected
 			}
 			if err != nil {
-				if _, writeErr := fmt.Fprintf(cmd.errOut, "Pairing request failed: %v\n", err); writeErr != nil {
+				if writeErr := cmd.Warnf("Pairing request failed: %s\n", safeTerminalText(err.Error())); writeErr != nil {
 					return false, writeErr
 				}
 			}
@@ -415,7 +429,7 @@ func (cmd *SyncCmd) askSyncYesNo(ctx context.Context, session *pawsync.Session, 
 				incomingSync = nil
 				continue
 			}
-			if _, err := fmt.Fprintf(cmd.out, "\nSyncing with %s...\n", device); err != nil {
+			if err := cmd.Infof("\nSyncing with %s...\n", safeTerminalText(device)); err != nil {
 				return false, err
 			}
 			if err := cmd.waitForSyncOutcome(ctx, session); err != nil {
@@ -432,7 +446,7 @@ func (cmd *SyncCmd) askSyncYesNo(ctx context.Context, session *pawsync.Session, 
 			case "", "n":
 				return false, nil
 			default:
-				if _, err := fmt.Fprintln(cmd.out, "Please answer y or n."); err != nil {
+				if err := cmd.Infof("Please answer y or n.\n"); err != nil {
 					return false, err
 				}
 			}
@@ -467,19 +481,21 @@ func formatVaultReferences(local, remote pawsync.VaultReference) (string, string
 // formatVaultReference formats a vault name and abbreviated ID.
 func formatVaultReference(reference pawsync.VaultReference, prefix string) string {
 	if prefix == "" {
-		return reference.Name
+		return safeTerminalText(reference.Name)
 	}
-	return fmt.Sprintf("%s (%s)", reference.Name, prefix)
+	return fmt.Sprintf("%s (%s)", safeTerminalText(reference.Name), prefix)
 }
 
 // formatSyncVaultSummary describes the local and remote vaults in a sync session.
 func formatSyncVaultSummary(peerName string, local, remote pawsync.VaultReference) string {
+	peerName = safeTerminalText(peerName)
 	localReference, remoteReference := formatVaultReferences(local, remote)
 	return fmt.Sprintf("\nSync with %s\n\nThis device: %s\n%s: %s\n", peerName, localReference, peerName, remoteReference)
 }
 
 // formatPairingVaultReferences describes the vaults involved in a pairing request.
 func formatPairingVaultReferences(peerName string, local, remote pawsync.VaultReference) string {
+	peerName = safeTerminalText(peerName)
 	localReference, remoteReference := formatVaultReferences(local, remote)
 	if local.Name == "" {
 		localReference = "New vault (created after pairing)"
@@ -507,13 +523,13 @@ func (cmd *SyncCmd) syncWithPeer(ctx context.Context, session *pawsync.Session, 
 			err = session.NotifySyncComplete(notifyCtx, peer, successful)
 		}
 		if err != nil {
-			if _, writeErr := fmt.Fprintf(cmd.errOut, "Could not notify %s that Sync ended: %v\n", peer.Name, err); writeErr != nil {
+			if writeErr := cmd.Warnf("Could not notify %s that Sync ended: %s\n", safeTerminalText(peer.Name), safeTerminalText(err.Error())); writeErr != nil {
 				resultErr = errors.Join(resultErr, writeErr)
 			}
 		}
 	}()
 	if !trusted[peer.Fingerprint] {
-		if _, err := fmt.Fprintf(cmd.out, "Pairing with %s\n", peer.Name); err != nil {
+		if err := cmd.Infof("Pairing with %s\n", safeTerminalText(peer.Name)); err != nil {
 			return err
 		}
 		pairing, err := session.RequestPairing(ctx, peer)
@@ -521,7 +537,7 @@ func (cmd *SyncCmd) syncWithPeer(ctx context.Context, session *pawsync.Session, 
 			return fmt.Errorf("request pairing: %w", err)
 		}
 		localVault, remoteVault := session.VaultReferences()
-		if _, err := fmt.Fprintf(cmd.out, "\n%s\n\nVerification code: %s\nConfirm this code on %s.\nWaiting for confirmation...\n", formatPairingVaultReferences(peer.Name, localVault, remoteVault), formatSyncCode(pairing.Code()), peer.Name); err != nil {
+		if err := cmd.Infof("\n%s\n\nVerification code: %s\nConfirm this code on %s.\nWaiting for confirmation...\n", formatPairingVaultReferences(peer.Name, localVault, remoteVault), formatSyncCode(pairing.Code()), safeTerminalText(peer.Name)); err != nil {
 			return err
 		}
 		if err := pairing.Confirm(ctx, pairing.Code()); err != nil {
@@ -529,9 +545,6 @@ func (cmd *SyncCmd) syncWithPeer(ctx context.Context, session *pawsync.Session, 
 			return fmt.Errorf("confirm pairing: %w", err)
 		}
 		shouldNotify = true
-		if _, err := fmt.Fprintf(cmd.out, "Paired with %s.\n", peer.Name); err != nil {
-			return err
-		}
 	}
 	local, err := pawsync.BuildManifest(ctx, cmd.storage, vault)
 	if err != nil {
@@ -549,7 +562,7 @@ func (cmd *SyncCmd) syncWithPeer(ctx context.Context, session *pawsync.Session, 
 	}
 	if cmd.reconcile {
 		localVault, remoteVault := session.VaultReferences()
-		if _, err := fmt.Fprint(cmd.out, formatSyncVaultSummary(peer.Name, localVault, remoteVault)); err != nil {
+		if err := cmd.Infof("%s", formatSyncVaultSummary(peer.Name, localVault, remoteVault)); err != nil {
 			return err
 		}
 		successful, err = cmd.reviewReconciliation(ctx, session, peer, vault, local, remote, input)
@@ -567,7 +580,7 @@ func (cmd *SyncCmd) syncWithPeer(ctx context.Context, session *pawsync.Session, 
 		return err
 	}
 	localVault, remoteVault := session.VaultReferences()
-	if _, err := fmt.Fprint(cmd.out, formatSyncVaultSummary(peer.Name, localVault, remoteVault)); err != nil {
+	if err := cmd.Infof("%s", formatSyncVaultSummary(peer.Name, localVault, remoteVault)); err != nil {
 		return err
 	}
 	successful, err = cmd.reviewSyncPlan(ctx, session, peer, local, remote, diff, plan, input)
@@ -577,13 +590,13 @@ func (cmd *SyncCmd) syncWithPeer(ctx context.Context, session *pawsync.Session, 
 // reviewSyncPlan presents planned changes and asks the user whether to continue.
 func (cmd *SyncCmd) reviewSyncPlan(ctx context.Context, session *pawsync.Session, peer pawsync.Peer, local, remote *pawsync.Manifest, diff []pawsync.Difference, plan *pawsync.Plan, input <-chan syncInput) (bool, error) {
 	if len(plan.Entries) == 0 {
-		if _, err := fmt.Fprintln(cmd.out, "No changes to apply."); err != nil {
+		if err := cmd.Infof("No changes to apply.\n"); err != nil {
 			return false, err
 		}
 		return true, nil
 	}
 	identical, localOnly, remoteOnly, different := syncDiffCounts(diff)
-	if _, err := fmt.Fprintf(cmd.out, "\n  %d identical items\n  %d only on this device\n  %d only on %s\n  %d with different versions\n\n%d items require a decision.\n", identical, localOnly, remoteOnly, peer.Name, different, len(plan.Entries)); err != nil {
+	if err := cmd.Infof("\n  %d identical items\n  %d only on this device\n  %d only on %s\n  %d with different versions\n\n%d items require a decision.\n", identical, localOnly, remoteOnly, safeTerminalText(peer.Name), different, len(plan.Entries)); err != nil {
 		return false, err
 	}
 	for index := range plan.Entries {
@@ -594,34 +607,34 @@ func (cmd *SyncCmd) reviewSyncPlan(ctx context.Context, session *pawsync.Session
 		if item == nil {
 			item = remoteItem
 		}
-		if _, err := fmt.Fprintf(cmd.out, "\n[%d/%d] %s\n", index+1, len(plan.Entries), syncItemName(item)); err != nil {
+		if err := cmd.Infof("\n[%d/%d] %s\n", index+1, len(plan.Entries), syncItemName(item)); err != nil {
 			return false, err
 		}
 		choice := ""
 		switch entry.Kind {
 		case pawsync.LocalOnly:
-			if _, err := fmt.Fprintln(cmd.out, "Only on this device"); err != nil {
+			if err := cmd.Infof("Only on this device\n"); err != nil {
 				return false, err
 			}
 		case pawsync.RemoteOnly:
-			if _, err := fmt.Fprintf(cmd.out, "Only on %s\n", peer.Name); err != nil {
+			if err := cmd.Infof("Only on %s\n", safeTerminalText(peer.Name)); err != nil {
 				return false, err
 			}
 		case pawsync.ContentDifferent, pawsync.StateDifferent:
-			if _, err := fmt.Fprintf(cmd.out, "Different versions\n\n%s\n", formatSyncVersionTimes(localItem, remoteItem, peer.Name)); err != nil {
+			if err := cmd.Infof("Different versions\n\n%s\n", formatSyncVersionTimes(localItem, remoteItem, peer.Name)); err != nil {
 				return false, err
 			}
 		}
-		for _, option := range syncDecisionMenu(entry.Kind, peer.Name) {
-			if _, err := fmt.Fprintf(cmd.out, "\n  %s", option); err != nil {
+		for _, option := range syncDecisionMenu(entry.Kind, safeTerminalText(peer.Name)) {
+			if err := cmd.Infof("\n  %s", option); err != nil {
 				return false, err
 			}
 		}
-		if _, err := fmt.Fprintln(cmd.out); err != nil {
+		if err := cmd.Infof("\n"); err != nil {
 			return false, err
 		}
 		for choice == "" {
-			if _, err := fmt.Fprint(cmd.out, "Choice: "); err != nil {
+			if err := cmd.Infof("Choice: "); err != nil {
 				return false, err
 			}
 			select {
@@ -633,7 +646,7 @@ func (cmd *SyncCmd) reviewSyncPlan(ctx context.Context, session *pawsync.Session
 				}
 				decision, quit, err := parseSyncDecision(entry.Kind, answer.line)
 				if err != nil {
-					if _, writeErr := fmt.Fprintln(cmd.out, err); writeErr != nil {
+					if writeErr := cmd.Warnf("%v\n", err); writeErr != nil {
 						return false, writeErr
 					}
 					continue
@@ -684,12 +697,13 @@ func (cmd *SyncCmd) executeReviewedSyncPlan(
 ) (bool, error) {
 	operationCount := summary.CopyLocalToRemote + summary.CopyRemoteToLocal + summary.DeleteLocal + summary.DeleteRemote
 	if operationCount == 0 {
-		if _, err := fmt.Fprintln(cmd.out, "No changes to apply."); err != nil {
+		if err := cmd.Infof("No changes to apply.\n"); err != nil {
 			return true, err
 		}
 		return true, nil
 	}
-	if _, err := fmt.Fprintf(cmd.out, "\nReady to sync with %s\n\n%s", peer.Name, formatSyncPlanSummary(peer.Name, summary)); err != nil {
+	peerName := safeTerminalText(peer.Name)
+	if err := cmd.Infof("\nReady to sync with %s\n\n%s", peerName, formatSyncPlanSummary(peerName, summary)); err != nil {
 		return false, err
 	}
 	confirmed, err := cmd.askSyncYesNo(ctx, nil, input, nil, nil, "Proceed? [y/N]")
@@ -699,7 +713,7 @@ func (cmd *SyncCmd) executeReviewedSyncPlan(
 	if !confirmed {
 		return false, nil
 	}
-	if _, err := fmt.Fprintf(cmd.out, "\nSyncing with %s...\n", peer.Name); err != nil {
+	if err := cmd.Infof("\nSyncing with %s...\n", peerName); err != nil {
 		return false, err
 	}
 	operation := 0
@@ -715,20 +729,20 @@ func (cmd *SyncCmd) executeReviewedSyncPlan(
 		}
 		if started {
 			operation++
-			_, writeErr = fmt.Fprintf(cmd.out, "[%d/%d] %s... ", operation, operationCount, syncProgressLabel(entry, syncItemName(manifestItem(local, remote, entry.ItemID)), peer.Name))
+			writeErr = cmd.Infof("[%d/%d] %s... ", operation, operationCount, syncProgressLabel(entry, syncItemName(manifestItem(local, remote, entry.ItemID)), peerName))
 			if writeErr != nil {
 				cancelProgress()
 			}
 			return
 		}
 		if operationErr == nil {
-			_, writeErr = fmt.Fprintln(cmd.out, "Done")
+			writeErr = cmd.Infof("Done\n")
 			if writeErr != nil {
 				cancelProgress()
 			}
 			return
 		}
-		_, writeErr = fmt.Fprintf(cmd.out, "Failed: %v\n", operationErr)
+		writeErr = cmd.Warnf("Failed\n")
 		if writeErr != nil {
 			cancelProgress()
 		}
@@ -737,21 +751,20 @@ func (cmd *SyncCmd) executeReviewedSyncPlan(
 		return false, writeErr
 	}
 	if err != nil {
-		if _, writeErr := fmt.Fprintf(cmd.errOut, "Sync stopped: %v\n\n%d operations completed.\n", err, completedSyncOperations(result.Completed)); writeErr != nil {
+		if writeErr := cmd.Warnf("Sync stopped.\n\n%d operations completed.\n", completedSyncOperations(result.Completed)); writeErr != nil {
 			return false, writeErr
 		}
 		if result.Failed != nil && (result.Failed.Decision == pawsync.CopyLocalToRemote || result.Failed.Decision == pawsync.DeleteRemote) {
-			if _, writeErr := fmt.Fprintln(cmd.errOut, "The current operation may have completed on the other device."); writeErr != nil {
+			if writeErr := cmd.Warnf("The current operation may have completed on the other device.\n"); writeErr != nil {
 				return false, writeErr
 			}
 		}
-		if _, writeErr := fmt.Fprintln(cmd.errOut, "Run Sync again to compare the current vault states."); writeErr != nil {
+		if writeErr := cmd.Warnf("Run Sync again to compare the current vault states.\n"); writeErr != nil {
 			return false, writeErr
 		}
 		return false, err
 	}
-	_, err = fmt.Fprintf(cmd.out, "\nSync completed.\n%d items synchronized.\n", operationCount)
-	return true, err
+	return true, nil
 }
 
 // syncProgressLabel describes the item and direction of a plan operation.
@@ -826,7 +839,7 @@ func syncItemName(item *pawsync.ManifestItem) string {
 	if item.Type.IsZero() {
 		typeName = "Item"
 	}
-	return typeName + " / " + title
+	return typeName + " / " + safeTerminalText(title)
 }
 
 // formatSyncTimestamp formats an item's modification time for display.
@@ -834,10 +847,10 @@ func formatSyncTimestamp(item *pawsync.ManifestItem) string {
 	if item == nil || item.ModifiedAt == nil || *item.ModifiedAt == 0 {
 		return "Unknown"
 	}
-	return time.Unix(int64(*item.ModifiedAt), 0).Local().Format("Jan 2, 15:04")
+	return time.Unix(int64(*item.ModifiedAt), 0).Local().Format(humanTimeLayout)
 }
 
 // formatSyncVersionTimes displays the local and remote modification times.
 func formatSyncVersionTimes(local, remote *pawsync.ManifestItem, remoteName string) string {
-	return fmt.Sprintf("This device: %s\n%-12s %s", formatSyncTimestamp(local), remoteName+":", formatSyncTimestamp(remote))
+	return fmt.Sprintf("This device: %s\n%-12s %s", formatSyncTimestamp(local), safeTerminalText(remoteName)+":", formatSyncTimestamp(remote))
 }
