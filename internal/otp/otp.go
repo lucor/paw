@@ -7,6 +7,7 @@ package otp
 
 import (
 	"crypto/hmac"
+	"crypto/sha1"
 	"encoding/base32"
 	"encoding/binary"
 	"errors"
@@ -20,6 +21,8 @@ import (
 const (
 	DefaultInterval = 30
 	DefaultDigits   = 6
+	MinDigits       = 5
+	MaxDigits       = 10
 	t0              = 0 // t0 is the Unix time to start counting time steps (default value is 0)
 )
 
@@ -59,8 +62,8 @@ func numTimeSteps(t time.Time, interval int, t0 int64) uint64 {
 // Note: if the hash function is nil, defaults to SHA1
 // Reference: https://datatracker.ietf.org/doc/html/rfc4226
 func HOTP(h func() hash.Hash, key []byte, count uint64, digits int) (string, error) {
-	if digits < 1 {
-		return "", errors.New("digits value must be greater than 0. RFC suggests it must be at least a 6-digit value")
+	if digits < MinDigits || digits > MaxDigits {
+		return "", errors.New("digits must be between 5 and 10")
 	}
 
 	// Generate the hash
@@ -80,11 +83,14 @@ func HOTP(h func() hash.Hash, key []byte, count uint64, digits int) (string, err
 	// dynamic binary code as a 31-bit, unsigned, big-endian integer
 	code := binary.BigEndian.Uint32(dbc)
 
-	// hotp is code % (10^digits)
-	otp := code % uint32(math.Pow10(digits))
+	modulus := uint64(1)
+	for range digits {
+		modulus *= 10
+	}
+	otp := uint64(code) % modulus
 
 	// value is the string representation of otp
-	value := strconv.Itoa(int(otp))
+	value := strconv.FormatUint(otp, 10)
 	for digits-len(value) != 0 {
 		// otp len must be equal to digits, if shorter prepend 0
 		value = "0" + value
@@ -95,6 +101,9 @@ func HOTP(h func() hash.Hash, key []byte, count uint64, digits int) (string, err
 // hmacGenerator generates the HMAC for the key and count using the specified algorithm.
 // Note: the key and count are hashed high-order byte first, see rfc4226#section-5.2
 func hmacGenerator(h func() hash.Hash, key []byte, count uint64) []byte {
+	if h == nil {
+		h = sha1.New
+	}
 	mac := hmac.New(h, key)
 	buf := make([]byte, 8)
 	binary.BigEndian.PutUint64(buf, count)

@@ -24,8 +24,8 @@ const (
 	TOTPHashDefault     = SHA1
 	TOTPDigitsDefault   = otp.DefaultDigits
 	TOTPIntervalDefault = otp.DefaultInterval
-	TOTPDigitsMinimum   = 5
-	TOTPDigitsMaximum   = 10
+	TOTPDigitsMinimum   = otp.MinDigits
+	TOTPDigitsMaximum   = otp.MaxDigits
 )
 
 // Hasher returns the hash function for an authenticator algorithm.

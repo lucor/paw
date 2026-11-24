@@ -405,3 +405,54 @@ func TestTOTPDigitsOutput(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "003475", v)
 }
+
+func TestHOTPSupportedDigitLengths(t *testing.T) {
+	const secret = "12345678901234567890"
+	for _, tc := range []struct {
+		digits int
+		want   string
+	}{
+		{5, "55224"},
+		{6, "755224"},
+		{7, "4755224"},
+		{8, "84755224"},
+		{9, "284755224"},
+		{10, "1284755224"},
+	} {
+		t.Run(strconv.Itoa(tc.digits), func(t *testing.T) {
+			got, err := HOTP(sha1.New, []byte(secret), 0, tc.digits)
+			require.NoError(t, err)
+			require.Equal(t, tc.want, got)
+		})
+	}
+}
+
+func TestHOTPWithTenDigitsKeepsFull31BitCode(t *testing.T) {
+	got, err := HOTP(sha1.New, []byte("12345678901234567890"), 3, 10)
+	require.NoError(t, err)
+	require.Equal(t, "1726969429", got)
+}
+
+func TestHOTPRejectsUnsupportedDigits(t *testing.T) {
+	for _, digits := range []int{-1, 0, 4, 11} {
+		t.Run(strconv.Itoa(digits), func(t *testing.T) {
+			_, err := HOTP(sha1.New, []byte("secret"), 0, digits)
+			require.Error(t, err)
+		})
+	}
+}
+
+func TestHOTPDefaultsToSHA1WhenHashIsNil(t *testing.T) {
+	got, err := HOTP(nil, []byte("12345678901234567890"), 0, DefaultDigits)
+	require.NoError(t, err)
+	require.Equal(t, "755224", got)
+}
+
+func TestTOTPRejectsNonPositiveInterval(t *testing.T) {
+	for _, interval := range []int{0, -1} {
+		t.Run(strconv.Itoa(interval), func(t *testing.T) {
+			_, err := TOTP(sha1.New, []byte("secret"), time.Unix(0, 0), interval, DefaultDigits)
+			require.Error(t, err)
+		})
+	}
+}
