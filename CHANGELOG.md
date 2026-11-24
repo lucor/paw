@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.34.0 - 24 Nov 2026
+
+### Added
+
+- ui: add CXF custom fields to credential details and editors.
+- ui: add tag editing, search, and filtering.
+- cli: add interactive credential management, custom fields, JSON output, external-editor support for multiline fields, and shell completion.
+
+### Changed
+
+- cli: unify terminal interactions and standardize command behavior and output.
+- ui: improve the presentation and editing of long, hidden custom fields.
+- deps(cli): add charm.land/huh/v2 for interactive terminal prompts.
+- deps(test): add charm.land/bubbletea/v2 for CLI prompt tests.
+
+### Fixed
+
+- otp: generate correct ten-digit codes.
+
 ## 0.33.0 - 18 Nov 2026
 
 ### Added

@@ -5,7 +5,7 @@ Description = "A simple, privacy-focused password manager"
 Icon = "logo/paw.png"
 Name = "Paw"
 ID = "dev.lucor.paw"
-Version = "0.33.0"
+Version = "0.34.0"
 Build = 1
 
 [AdaptiveIcon]
