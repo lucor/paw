@@ -45,7 +45,7 @@ func TestCustomFieldsEditorSupportsFourPresentations(t *testing.T) {
 		{name: "Text", fieldType: cxf.FieldTypeString, presentation: "Text"},
 		{name: "Hidden", password: true, fieldType: cxf.FieldTypeConcealedString, presentation: "Hidden"},
 		{name: "Multiline", multiline: true, fieldType: cxf.FieldTypeString, presentation: "Multiline"},
-		{name: "Hidden multiline", multiline: true, password: true, fieldType: cxf.FieldTypeConcealedString, presentation: "Hidden multiline"},
+		{name: "Hidden multiline", multiline: true, fieldType: cxf.FieldTypeConcealedString, presentation: "Hidden multiline"},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			fynetest.NewTempApp(t)
@@ -335,6 +335,9 @@ func confirmCustomField(t *testing.T, window fyne.Window, fieldType, action stri
 		}
 	}
 	for _, control := range fynetest.LaidOutObjects(overlay) {
+		if entry, ok := control.(*hiddenMultilineEntry); ok {
+			fynetest.Type(entry, "first\nsecond")
+		}
 		if entry, ok := control.(*widget.Entry); ok {
 			if entry.MultiLine {
 				entry.SetText("first\nsecond")

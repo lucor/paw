@@ -566,14 +566,16 @@ func TestEntryDetailLongCustomFieldsOpenFullValueView(t *testing.T) {
 	originalOffset := mainScroll.Offset
 	detailButtons := detailIconButtons(t, view)
 	require.Contains(t, detailButtons, "Show Hidden multiline")
+	require.Contains(t, detailButtons, "Copy Hidden multiline")
 	require.NotContains(t, detailButtons, "Show Long text")
 	require.Contains(t, detailButtons, "Copy Long text")
-	require.NotContains(t, detailButtons, "Copy Hidden multiline")
 	require.NotContains(t, strings.Join(auditTexts(view), "\n"), longValue)
 	require.NotContains(t, strings.Join(auditTexts(view), "\n"), secretValue)
 	require.NotContains(t, strings.Join(auditTexts(view), "\n"), "••••••••••••")
 	test.Tap(detailButtons["Copy Long text"])
 	require.Equal(t, longValue, fyne.CurrentApp().Clipboard().Content())
+	test.Tap(detailButtons["Copy Hidden multiline"])
+	require.Equal(t, secretValue, fyne.CurrentApp().Clipboard().Content())
 
 	test.Tap(detailButton(view, "Show more"))
 	fullView := window.Content()

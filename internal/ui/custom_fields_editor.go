@@ -363,12 +363,8 @@ func customFieldValueEntry(presentation string) *widget.Entry {
 	switch presentation {
 	case "Hidden":
 		return widget.NewPasswordEntry()
-	case "Multiline":
+	case "Multiline", "Hidden multiline":
 		return widget.NewMultiLineEntry()
-	case "Hidden multiline":
-		entry := widget.NewMultiLineEntry()
-		entry.Password = true
-		return entry
 	default:
 		return widget.NewEntry()
 	}
@@ -385,18 +381,31 @@ func (e *customFieldsEditor) showFieldDialog(field cxf.EditableField, presentati
 	if presentation == "" {
 		presentation = customFieldPresentation(field)
 	}
-	value := customFieldValueEntry(presentation)
-	value.SetText(field.Value)
-	valueBox := container.NewStack(value)
+	valueBox := container.NewStack()
+	setValueEntry := func(kind, text string) {
+		var input fyne.CanvasObject
+		if kind == "Hidden multiline" {
+			input = newHiddenMultilineEntry(text)
+		} else {
+			entry := customFieldValueEntry(kind)
+			entry.SetText(text)
+			input = entry
+		}
+		valueBox.Objects = []fyne.CanvasObject{input}
+		valueBox.Refresh()
+	}
+	readValue := func() string {
+		if entry, ok := valueBox.Objects[0].(*hiddenMultilineEntry); ok {
+			return entry.editor.Text
+		}
+		return valueBox.Objects[0].(*widget.Entry).Text
+	}
+	setValueEntry(presentation, field.Value)
 	kind := widget.NewSelect([]string{"Text", "Hidden", "Multiline", "Hidden multiline"}, func(selected string) {
 		if selected == "" {
 			return
 		}
-		previous := value.Text
-		value = customFieldValueEntry(selected)
-		value.SetText(previous)
-		valueBox.Objects = []fyne.CanvasObject{value}
-		valueBox.Refresh()
+		setValueEntry(selected, readValue())
 	})
 	kind.SetSelected(presentation)
 	title, action := "Add field", "Add"
@@ -410,10 +419,15 @@ func (e *customFieldsEditor) showFieldDialog(field cxf.EditableField, presentati
 	)
 	form.Orientation = widget.Vertical
 	d := dialog.NewCustomConfirm(title, action, "Cancel", form, func(ok bool) {
-		if !ok || (!editing && name.Text == "" && value.Text == "") {
+		if !ok {
 			return
 		}
-		field.Label, field.Value = name.Text, value.Text
+		value := readValue()
+		if !editing && name.Text == "" && value == "" {
+			return
+		}
+		field.Label = name.Text
+		field.Value = value
 		field.FieldType = cxf.FieldTypeString
 		if kind.Selected == "Hidden" || kind.Selected == "Hidden multiline" {
 			field.FieldType = cxf.FieldTypeConcealedString

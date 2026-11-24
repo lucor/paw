@@ -369,7 +369,8 @@ func detailCustomField(field cxf.EditableField, openFullValue func(string, strin
 		}
 		value := &detailSecret{value: field.Value, label: title}
 		eye := newIconButton("Show "+title, icons.Show, func() { openFullValue(title, value.value, false, nil) })
-		return newDetailFieldHeader(field.Label, eye), value
+		copy := newIconButton("Copy "+title, icons.Copy, func() { detailCopy(title, value.value) })
+		return newDetailFieldHeader(field.Label, eye, copy), value
 	}
 	if field.FieldType == cxf.FieldTypeConcealedString {
 		if field.Value == "" {
